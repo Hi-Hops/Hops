@@ -1,0 +1,33 @@
+# Personal AI notes, generated drafts, conversations, logs and handoffs.
+# Shared rules/skills and reviewed docs/specs remain eligible for PRs.
+/.local/
+/docs/local/
+/specs/local/
+*.local.md
+*.local.mdc
+
+# Per-developer AI settings and session caches (not shared rules/skills).
+/.claude/settings.local.json
+/.claude/projects/
+/.codex/sessions/
+/.codex/log/
+/.cursor/workspaceStorage/
+
+# Local secrets. Commit sanitized examples only.
+.env
+.env.*
+!.env.example
+
+# Retired drafts must not be reintroduced into team documentation.
+/docs/PRD_초안.md
+/docs/erd/ERD-draft.md
+/docs/erd/mvp-erd.mmd
+/docs/erd/mvp-erd.svg
+/docs/architecture/it-agent-architecture-proposal.png
+
+# Personal reading copies, comparisons and experiment results.
+/docs/PRD_READABLE.md
+/docs/PRD_COMMON.md
+/docs/PRD_TEAM.md
+/docs/comparison/
+/colab-result/
