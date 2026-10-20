@@ -26,7 +26,7 @@ Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에�
 
 ### 패키지 구성과 DB 설정
 
-`com.hihops.hops` 아래 기능 패키지는 `auth`, `user`, `department`, `inquiry`, `ticket`, `agent`이며 공통 기반은 `global`에 둡니다. 각 패키지의 `package-info.java`에 책임을 기록했습니다. 기능 패키지는 `controller`, `dto`, `service`, `domain`, `repository`로 구분하며 실제 클래스는 기능 구현 시 추가합니다. `agent`는 DB 저장 대신 `client`, `dto`, `service`로 구성합니다. 조사 Gateway와 서비스 소유 팀 조회의 별도 패키지 분리는 상세 계약 확정 후 진행합니다.
+`com.hihops.hops` 아래 기능 패키지는 `auth`, `user`, `department`, `inquiry`, `ticket`, `agent`, `investigation`이며 공통 기반은 `global`에 둡니다. 각 패키지의 `package-info.java`에 책임을 기록했습니다. 기능 패키지는 `controller`, `dto`, `service`, `domain`, `repository`로 구분하며 실제 클래스는 기능 구현 시 추가합니다. `agent`는 DB 저장 대신 `client`, `dto`, `service`로 구성합니다. `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 추가하지 않고 부서 R&R은 `department`, 실제 배정은 `ticket`에서 담당합니다. [Spring 패키지 경계](docs/SPRING_PACKAGE_BOUNDARIES.md)를 참고합니다.
 
 영속성은 Spring Data JPA와 PostgreSQL을 사용할 예정입니다. 현재 기본 `local` 프로필에서는 DataSource 자동 설정을 제외해 DB 없이 서버를 실행합니다. DB가 준비되면 `SPRING_PROFILES_ACTIVE=db`를 설정하고 IntelliJ의 실행 구성 또는 셸에서 아래 표준 Spring 환경변수를 설정합니다. 실제 접속 정보는 저장소에 기록하지 않습니다. Spring Boot는 `.env` 파일을 자동으로 읽지 않습니다.
 
