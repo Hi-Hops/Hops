@@ -32,3 +32,102 @@
 /docs/comparison/
 /colab-result/
 .DS_Store
+
+# 운영체제와 편집기의 개인 설정·임시 파일
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+*.swp
+*.swo
+*~
+
+# 비밀 설정·개인 인증서: 실제 값 대신 비식별 예제만 공유한다.
+!.env.sample
+!.env.template
+.envrc
+.npmrc.local
+secrets/
+credentials/
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+application-secret.properties
+application-secret.yml
+application-secret.yaml
+application-*.local.properties
+application-*.local.yml
+application-*.local.yaml
+
+# React / Node.js 의존성과 빌드·테스트 결과
+node_modules/
+dist/
+.vite/
+.next/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Java / Gradle / Maven 빌드 결과와 로컬 캐시
+.gradle/
+**/build/
+**/target/
+*.class
+# 소스 코드의 build 디렉터리와 Gradle Wrapper는 공유 대상이다.
+!**/src/**/build/
+!**/gradle/wrapper/gradle-wrapper.jar
+
+# Python 가상환경·바이트코드·패키지 및 테스트 캐시
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.ipynb_checkpoints/
+
+# 실행 로그·일시 파일·로컬 DB와 데이터 볼륨
+*.log
+logs/
+tmp/
+temp/
+*.pid
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+pgdata/
+volumes/
+
+# 모델·검색 캐시와 개인 실험 산출물은 Git에 올리지 않는다.
+.cache/
+.huggingface/
+.chroma/
+mlruns/
+wandb/
+*.safetensors
+*.gguf
+# 데이터셋·덤프·평가 결과·백업·AI 작업 메모는 .local/ 아래에 저장한다.
+# 검수한 fixture, 마이그레이션 SQL, OpenAPI/JSON Schema, 모델 설정은 공유 가능하다.
+# package-lock.json, pnpm-lock.yaml, yarn.lock, uv.lock 및 빌드 설정은 제외하지 않는다.
+# 이미 추적 중인 파일은 ignore 추가만으로 제외되지 않는다.
