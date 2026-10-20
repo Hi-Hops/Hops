@@ -6,6 +6,8 @@ labels: bug
 ---
 
 ## 🐛 버그 개요 (Bug Description)
+-
+
 ## 🕹️ 재현 단계 (Steps to Reproduce)
 1. '...' 페이지로 이동합니다.
 2. '...' 버튼을 클릭합니다.
@@ -16,6 +18,8 @@ labels: bug
 - **실제 결과:** 
 
 ## 📸 스크린샷 / 로그 (Screenshots/logs)
+- 
+
 ## 💻 실행 환경 (Environment)
 - **Browser:** (e.g. Chrome, Safari)
 - **OS:** (e.g. Windows 11, MacOS)
