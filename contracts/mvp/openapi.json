@@ -14,7 +14,7 @@
     "/internal/agent-runs": {
       "post": {
         "operationId": "submitRun",
-        "description": "팀 리뷰용 접수 계약. 실행과 티켓 저장 완료를 뜻하지 않는다.",
+        "description": "팀 리뷰용 경로·접수 계약 후보. 최신 API 설계는 최종 경로를 아직 확정하지 않았다. 접수는 실행과 티켓 저장 완료를 뜻하지 않는다.",
         "requestBody": {
           "required": true,
           "content": {

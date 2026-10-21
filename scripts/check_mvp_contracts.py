@@ -76,6 +76,34 @@ class MvpContractTests(unittest.TestCase):
         result["ticketProposals"].append(proposal)
         self.validators["analysis-result"].validate(result)
 
+    def test_server_states_and_configurable_budget(self):
+        request = copy.deepcopy(self.request)
+        request["budget"].update(
+            executionSeconds=120, modelCallSeconds=20,
+            modelErrorRetries=0, formatRepairRetries=0,
+        )
+        problem_id = "00000000-0000-4000-8000-000000000021"
+        request["problems"] = [{
+            "id": problem_id, "summary": "테스트용 기존 문제",
+            "category": None, "status": "FIXTURE_SERVER_PROBLEM_STATE",
+            "questionCount": 3,
+        }]
+        request["workItems"] = [{
+            "id": "00000000-0000-4000-8000-000000000022",
+            "problemId": problem_id, "workScope": "테스트용 기존 작업",
+            "status": "FIXTURE_SERVER_WORK_STATE", "ticketId": None,
+        }]
+        self.validators["run-request"].validate(request)
+        for key, value in (
+            ("executionSeconds", 0), ("modelCallSeconds", -1),
+            ("modelErrorRetries", -1), ("formatRepairRetries", True),
+            ("questionsPerProblem", 4),
+        ):
+            invalid = copy.deepcopy(request)
+            invalid["budget"][key] = value
+            with self.subTest(key=key):
+                self.assertFalse(self.validators["run-request"].is_valid(invalid))
+
     def test_invalid_results(self):
         cases = []
         result = copy.deepcopy(self.result)
