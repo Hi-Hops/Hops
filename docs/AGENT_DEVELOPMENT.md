@@ -184,7 +184,7 @@ Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕�
 
 Java 21 + Spring Boot 4.1.1을 사용한다. Spring Framework·Security·Data JPA 등의 의존성은 Spring Boot가 관리하는 버전을 따른다. Spring 내 Swagger UI를 사용하는 경우 springdoc-openapi-starter-webmvc-ui 3.1.1을 연동 후보로 유지한다. 직접 작성한 OpenAPI YAML이 계약 원본이며 코드에서 생성한 문서가 이를 자동 대체하지 않는다.
 
-Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. Java 21 기반 실제 빌드·기동, DB 저장, FastAPI SSE 수신과 브라우저 WebSocket 전달은 아직 검증하지 않았다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞춰야 한다. Gradle/Maven의 구체 버전은 별도로 선정한다.
+Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. 빌드는 Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용한다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞추고, 저장소의 Wrapper로 실행한다. 현재 Spring 초기 실행 기반과 실제 업무·DB·AI 연동은 구분하며, 구성과 테스트·빌드·실행 방법은 [Spring 개발 안내](../backend/spring/hops/README.md)를 따른다. DB 저장, FastAPI SSE 수신과 브라우저 WebSocket 전달은 별도 통합 검증 대상이다.
 
 출처: [Spring Boot 요구사항](https://docs.spring.io/spring-boot/system-requirements.html), [springdoc](https://springdoc.org/).
 
