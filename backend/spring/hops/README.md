@@ -41,4 +41,3 @@ Java 21을 사용하고 이 README가 있는 `backend/spring/hops`에서 실행�
 ```
 
 기본 테스트는 `local` 프로필의 컨텍스트 기동과 DataSource가 생성되지 않음을 검사합니다. PostgreSQL 연결·JPA 저장 검증을 대신하지 않습니다. `db` 프로필은 local 설정을 로드하지 않아 정상적인 DataSource/JPA 자동 설정을 사용하며 유효한 DB 접속 설정이 필요합니다. `local`과 `db` 프로필을 동시에 활성화하지 않습니다. DB 의존 기능 구현 후에는 해당 기능을 local에서도 사용할 수 있다고 가정하지 않습니다. 아직 Controller가 없어 `/` 요청은 404입니다.
-
