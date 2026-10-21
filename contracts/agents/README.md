@@ -6,7 +6,7 @@
 
 ## 1. 적용 경계
 
-Python 3.13 + LangGraph + FastAPI 애플리케이션 하나 안에서 Supervisor가 에이전트 모듈을 호출한다. LangGraph는 내부 실행 흐름을, FastAPI는 서비스 간 HTTP 어댑터를 담당한다. MVP에서는 네 역할을 Fake로 연결하고 후속 단계에서 동일 계약의 실제 구현으로 교체한다. 에이전트마다 HTTP 서버·모델 연결·업무 DB 저장 코드를 따로 만들지 않는다.
+Python 3.13 + LangGraph + FastAPI 애플리케이션 하나 안에서 Supervisor가 에이전트 모듈을 호출한다. LangGraph는 내부 실행 흐름을, FastAPI는 서비스 간 HTTP 어댑터를 담당한다. 이 내부 역할 계약은 후속 멀티 에이전트 구조에 적용한다. MVP는 실제 단일 에이전트를 서비스 어댑터에 연결하고 기준선 평가 결과를 보존한다. Fake는 개발 중 역할별 연결 테스트 용도이며 MVP 평가를 대신하지 않는다. 에이전트마다 HTTP 서버·모델 연결·업무 DB 저장 코드를 따로 만들지 않는다.
 
 ```text
 Spring 실행 요청 → Python API 어댑터 → Supervisor
