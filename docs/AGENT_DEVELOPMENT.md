@@ -8,27 +8,30 @@
 
 1주 MVP는 실제 단일 에이전트를 연결한 E2E와 기준선 평가다. 로그인·문의 저장·티켓 생성·부서 배정·조회는 실제 서비스에서 처리한다. 실제 모델로 추가 질문·정정·복합 문의를 분석하고 결과·설정·실행 이력을 보존한다. 후속 단계는 Supervisor와 4개 전문 에이전트로 개선하여 동일 조건의 수치를 비교한다. 아래 역할별 registry·계약·통합 준비는 최종 멀티 에이전트 구조를 대상으로 하며 MVP부터 4개 역할을 실행하도록 요구하지 않는다.
 
-개발 언어 버전은 Python 3.13, Java 21이다. AI 서버는 LangGraph로 실행 흐름·상태를 관리하고 FastAPI로 Spring 연동용 HTTP API와 스트리밍 응답을 제공한다. 네 에이전트는 하나의 서버 내부 모듈로 구현하며 HTTP 처리는 공통 어댑터에서 맡는다. 선정한 프레임워크·Node.js 버전은 9~11장을 따른다. 패키지 관리 도구·DB·Java 패치 버전은 별도로 맞춘다. 프론트–Spring 실시간 전달은 WebSocket, Spring–Python 진행 전달은 SSE를 사용한다. Spring이 구독하고 Python FastAPI가 실행 이벤트를 제공한다. 최종 결과 경로는 외부 API 계약에서 별도로 합의한다.
+개발 언어 버전은 Python 3.13, Java 21이다. AI 서버는 LangGraph로 실행 흐름·상태를 관리하고 FastAPI로 Spring 연동용 HTTP API와 스트리밍 응답을 제공한다. 네 에이전트는 하나의 서버 내부 모듈로 구현하며 HTTP 처리는 공통 어댑터에서 맡는다. 선정한 프레임워크·프론트 빌드용 Node.js 버전은 9~11장을 따른다. 패키지 관리 도구·DB·Java 패치 버전은 별도로 맞춘다. 채팅·실시간 전달에는 별도 Node.js Socket.IO 서버를 두고 React와 Spring이 각각 클라이언트로 연결한다. Spring은 JWT 발급·사용자 권한·업무 저장을 담당하고 Node.js는 연결·구독·이벤트를 중계한다. Spring–Python 진행 전달은 SSE를 사용한다. Spring이 구독하고 Python FastAPI가 실행 이벤트를 제공한다. 최종 AI 결과 경로는 외부 API 계약에서 별도로 합의한다.
 
 ## 2. 먼저 함께 준비할 서비스 기반
 
 ### 서비스가 연결되는 최소 흐름
 
 ```text
-React 문의 입력 → Spring 로그인·문의 저장
-               → Python 실행 접수 → 실제 단일 에이전트 분석 결과
-               → Spring 검증·복수 티켓 저장·부서 배정
-               → 사용자 카드·관리자 목록 조회
+로그인: React → Spring REST → JWT 발급
+채팅: React → Node.js Socket.IO 서버 → Spring 검증·문의 저장
+분석: Spring → Python 실행 접수 → 실제 단일 에이전트 분석 결과
+진행: Python SSE → Spring → Node.js Socket.IO 서버 → React
+확정: Spring 검증·복수 티켓 저장·부서 배정 → Node.js → React 갱신
+조회·복구: React → Spring REST → 저장된 대화·문의·티켓·실행 상태
 ```
 
-개발 중에는 Fake로 연결을 먼저 검사할 수 있으나, MVP 완료에는 실제 단일 에이전트 E2E와 평가 결과가 필요하다. React·Spring·Python의 책임과 API는 [MVP API](MVP_API.md), 저장 관계는 [MVP 데이터](MVP_DATA.md)를 따른다.
+개발 중에는 Fake로 연결을 먼저 검사할 수 있으나, MVP 완료에는 실제 단일 에이전트 E2E와 평가 결과가 필요하다. React·Node.js·Spring·Python의 책임과 JWT·Socket.IO 계약안은 [API](API.md), 저장 관계 설계안은 [DATA](DATA.md)를 참조한다. 기능별 상세 계약은 구현 전에 합의한다.
 
-- 로그인 계정·부서 seed와 사용자 권한을 준비한다.
+- 사번·소속 부서·역할을 가진 로그인 seed와 JWT 발급·검증을 준비한다. 클레임·토큰 수명·갱신/폐기·보관/전달은 API 문서에서 합의하며 Python에는 Spring이 검증한 최소 사용자·부서·권한 문맥만 전달한다.
+- Node.js 채팅 서버와 React·Spring Socket.IO 클라이언트를 연결한다. 사용자 연결과 서비스 연결을 구분하고 문의별 구독 권한을 확인한다. Node.js가 사용자나 부서를 임의 확정하지 않도록 Spring에서 검증한다.
 - 문의·메시지·정정·문의 버전을 저장한다.
 - runId를 발급하고 실행 요청·결과 수신·중복 수신을 처리한다.
 - 생성 작업 단위로 티켓과 부서를 저장한다. 일부 실패 시 성공한 티켓을 보존한다.
-- REST로 진행·저장 결과를 조회하고 WebSocket 재접속 후 REST로 복구한다.
-- 202 접수, AI 분석 성공, 실제 업무 저장 성공을 구분해 화면에 표시한다.
+- Node.js 수신, Spring 저장 ACK, AI 분석 성공, 실제 티켓 저장 성공을 구분해 표시한다. DB 커밋 뒤 확정 이벤트를 전달하고 ACK 유실 시 같은 요청 식별자로 재시도한다.
+- Socket.IO로 진행·답변 조각·업무 변경을 전달하고 REST로 저장 결과를 조회한다. 양쪽 클라이언트 재접속 후 인증·구독 권한을 다시 확인하고 REST로 복구한다.
 
 ### 모두가 공유할 가상 기업 정보
 
@@ -109,7 +112,7 @@ ai/
 ## 5. 통합 순서와 통과 기준
 
 1. **공통 계약 리뷰:** 타입·필수값·enum·ID·오류를 합의하고 정상/실패 예시를 JSON Schema로 검증한다. 담당자별 해석이 갈리는 항목을 구현 기본값으로 숨기지 않는다.
-2. **개발용 연결 검사:** 필요하면 Fake로 화면→Spring→Python→Spring→화면 연결과 저장을 먼저 검사한다. 이 단계는 MVP 완료나 모델 품질 검증이 아니다.
+2. **개발용 연결 검사:** JWT 로그인 뒤 화면→Node.js→Spring→Python과 Python→Spring→Node.js→화면 연결·저장을 필요하면 Fake로 검사한다. Node.js 수신·Spring 저장·실행 접수를 구분한다. 이 단계는 MVP 완료나 모델 품질 검증이 아니다.
 3. **실제 단일 에이전트 MVP:** 실제 모델로 추가 질문·복합 문제 분석·티켓 제안을 수행하고 Spring의 저장·부서 배정·관리자 조회를 확인한다. 평가 결과와 재현 설정을 보존해 기준선을 만든다.
 4. **후속 Supervisor와 역할 분리:** 문의 분석·Ticket을 실제 역할로 분리하고 조건부 실행을 검증한다. 미완성 역할의 Fake는 연결 테스트에만 사용하며 최종 평가에서는 실제 구현을 사용한다.
 5. **Knowledge 연결:** 내부 역할 테스트 후, 문서 근거·무티켓 안내를 표현할 외부 계약 확장을 먼저 리뷰한다. 이후 Spring과 연결한다.
@@ -129,7 +132,8 @@ ai/
 - 실행 중 정정: 새 버전 결과만 반영하고 기존 티켓은 유지한다.
 - 시간 초과·권한 거부: 무한 재시도·권한 우회·가짜 정상 결과를 만들지 않는다.
 - 근거 없는 출력: 존재하지 않는 문서·메시지·부서·작업 ID를 검증에서 차단한다.
-- 연결 종료: 화면 재접속은 저장된 답변과 상태를 REST로 복구한다.
+- JWT·구독 권한: 사번·부서 클레임 검증, 타인 문의 구독 거부, 토큰 만료·로그아웃·부서 변경 시 전송과 구독 권한을 확인한다. 세부 정책은 API 계약과 일치해야 한다.
+- 연결 종료: React 또는 Spring 재접속과 Node.js 재시작 후 저장된 답변·업무 상태를 REST로 복구한다. 저장 뒤 ACK 유실·중복 명령·이벤트 누락이 업무 중복이나 거짓 성공을 만들지 않는지 검사한다.
 
 ## 7. 각 담당자의 통합 PR 제출물
 
@@ -149,6 +153,7 @@ ai/
 
 - 공통 타입/스키마 검증 도구와 간접 의존성을 고정할 잠금 파일.
 - 서비스 간 인증과 검증 가능한 accessScopeRef 전달 방식.
+- JWT·Socket.IO 계약과 연결 담당: 사용자/서비스 인증, 토큰 갱신·부서 변경 시 구독 해제, 이벤트·저장 ACK·재접속, 서버/JS/Java 클라이언트 호환 버전과 Node.js 채팅 서버 런타임. 상세 정책은 API 문서를 단일 기준으로 정리한다.
 - OpenAI 모델·SDK 버전·동시 호출·토큰 예산·비용 상한 설정.
 - Spring 실행 요청에서 부서 R&R·서비스 카탈로그를 제공할 방법.
 - 후속 무티켓 결과·문서/도구 근거의 외부 API 버전과 저장 구조.
@@ -174,7 +179,9 @@ Python 3.13.15 환경에서 위 패키지의 설치·로딩, Fake 그래프 실�
 - Vite `8.3.4`
 - @vitejs/plugin-react `6.1.2`
 
-Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕션 빌드를 검증했다. npm ls에서 직접 의존성 오류가 없음을 확인했다. 실제 프로젝트의 브라우저 화면·로그인·WebSocket 연결까지 검증한 것은 아니다. UI·라우팅 라이브러리는 선정 시 추가 호환성 검사를 수행한다.
+Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕션 빌드를 검증했다. npm ls에서 직접 의존성 오류가 없음을 확인했다. 실제 프로젝트의 브라우저 화면·JWT 로그인·Socket.IO 연결까지 검증한 것은 아니다. UI·라우팅 라이브러리는 선정 시 추가 호환성 검사를 수행한다.
+
+별도 Node.js 채팅 서버와 React용 `socket.io-client`를 추가한다. 서버 런타임과 Socket.IO 서버·JavaScript/Java 클라이언트 호환 버전은 아직 선정하지 않았으며, 위 프론트 빌드 결과가 채팅 서버 검증을 대신하지 않는다. 실행·환경 설정·잠금 파일·배포 방법은 구현 시 기록한다. Spring도 클라이언트로 연결하므로 재연결·명령 라우팅·구독 권한과 전달 실패를 함께 검증한다.
 
 팀 개발 PC와 CI는 위 버전을 맞춘다. 패키지 관리 도구 버전과 잠금 파일도 초기 구현 시 함께 고정한다. 버전 선택은 기존 PC의 전역 설치를 자동 변경하지 않는다.
 
@@ -184,7 +191,7 @@ Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕�
 
 Java 21 + Spring Boot 4.1.1을 사용한다. Spring Framework·Security·Data JPA 등의 의존성은 Spring Boot가 관리하는 버전을 따른다. Spring 내 Swagger UI를 사용하는 경우 springdoc-openapi-starter-webmvc-ui 3.1.1을 연동 후보로 유지한다. 직접 작성한 OpenAPI YAML이 계약 원본이며 코드에서 생성한 문서가 이를 자동 대체하지 않는다.
 
-Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. 빌드는 Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용한다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞추고, 저장소의 Wrapper로 실행한다. 현재 Spring 초기 실행 기반과 실제 업무·DB·AI 연동은 구분하며, 구성과 테스트·빌드·실행 방법은 [Spring 개발 안내](../backend/spring/hops/README.md)를 따른다. DB 저장, FastAPI SSE 수신과 브라우저 WebSocket 전달은 별도 통합 검증 대상이다.
+Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. 빌드는 Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용한다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞추고, 저장소의 Wrapper로 실행한다. 현재 Spring 초기 실행 기반과 실제 업무·DB·AI 연동은 구분하며, 구성과 테스트·빌드·실행 방법은 [Spring 개발 안내](../backend/spring/hops/README.md)를 따른다. JWT 인증, DB 저장, FastAPI SSE 수신과 Node.js Socket.IO 서버를 통한 React 전달은 별도 통합 검증 대상이다. Java Socket.IO 클라이언트의 호환 버전은 별도로 선정한다.
 
 출처: [Spring Boot 요구사항](https://docs.spring.io/spring-boot/system-requirements.html), [springdoc](https://springdoc.org/).
 
