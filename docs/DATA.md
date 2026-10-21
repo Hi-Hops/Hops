@@ -1,6 +1,6 @@
 # 데이터 설계 — PRD 전체 흐름
 
-기준: [PRD](PRD.md) v1.40 · 2026-10-20, [API 설계](API.md), [ERD 설명](ERD_설명.md), [MVP ERD](MVP_ERD.md). 이 문서는 제품 전체의 논리 데이터 관계와 저장 불변식을 정리한 **팀 리뷰용 설계안**이다. [ERD 설명](ERD_설명.md)은 PRD v1.38 시점의 물리 컬럼 후보이므로 v1.40의 이관 후 대화, 새 문의 동의, 부분 실패 저장을 반영한 DDL로 간주하지 않는다. 아래의 `MVP`는 PRD 8.2, `후속`은 8.3의 필수 범위다. 세부 컬럼·상태·인덱스·마이그레이션은 해당 기능 구현 전에 합의한다.
+기준: [PRD](PRD.md) v1.40 · 2026-10-20, [API 설계](API.md), [ERD 설명](ERD_설명.md). 이 문서는 제품 전체의 논리 데이터 관계와 저장 불변식을 정리한 **팀 리뷰용 설계안**이다. [ERD 설명](ERD_설명.md)은 PRD v1.38 시점의 물리 컬럼 후보이므로 v1.40의 이관 후 대화, 새 문의 동의, 부분 실패 저장을 반영한 DDL로 간주하지 않는다. 아래의 `MVP`는 PRD 8.2, `후속`은 8.3의 필수 범위다. 세부 컬럼·상태·인덱스·마이그레이션은 해당 기능 구현 전에 합의한다.
 
 ## 1. 소유권과 공통 규칙
 
@@ -21,9 +21,9 @@
 | 후속 | `ticket_event`, `handoff_request`, 후속 `ticket_assignment` | 담당자 가져오기/반환, AI 내용 정정 전후·주체·사유, 처리 완료·사용자 해결 확인, 재이관 제외 이력, 관리자 수동 배정. 현재 부서와 배정 이력의 종료 시각을 일치시킴 |
 | 후속 | `incident_group`, `incident_group_event`, `incident_group_rejoin`, `ticket_embedding` | 동일 부서·미완료·공통 해결 근거를 검증한 그룹. 대표·구성 티켓, 일괄 완료의 티켓별 결과, 분리·재오픈 이력, 관리자 재결합 승인. 벡터 유사성은 후보 검색에만 사용 |
 | 후속 | `notification`, `recovery_case`, `agent_step` | 해결 확인 알림의 실제 저장 시각, 기존 작업·배정·재이관 기술 복구의 원본/시도 이력, 단계별 공개 가능한 근거와 실패. 기술 복구와 업무 판단을 분리 |
-| 후속 | `service`, `service_dependency`, `knowledge_document`, `knowledge_document_version`, `knowledge_chunk` | 가상 서비스·의존 관계, 문서 출처·접근 범위·검수·버전·데이터 분할. 승인된 접근 가능 자료만 검색. 평가 사건이 검색 지식·프롬프트 예시에 유입되지 않게 구분 |
+| 후속 | `knowledge_document`, `knowledge_document_version`, `knowledge_chunk`; 서비스·의존 관계 저장 방식은 미정 | 문서 출처·접근 범위·검수·버전·데이터 분할. PRD의 가상 서비스와 의존 관계는 GraphRAG에 필요하지만 최신 ERD에서 `service`, `service_dependency` 테이블이 제외되어 저장 방식을 합의해야 함. 승인된 접근 가능 자료만 검색하고 평가 사건은 검색 지식·프롬프트 예시와 분리 |
 
-물리명과 FK 후보는 [ERD 설명](ERD_설명.md)을 참조한다. 그 문서에 없는 생성 작업·멱등성·메시지 관련성·동의 기록은 아래 불변식을 충족하도록 별도 설계해야 한다. [MVP ERD](MVP_ERD.md)의 `departments/users/inquiries/messages/problems/ai_runs/ticket_work_items/tickets`는 첫 E2E의 8개 엔터티를 설명하는 다른 명명 초안이다. 두 ERD를 한 DB에 그대로 중복 생성하지 않는다. 최종 물리 명명과 매핑은 마이그레이션 작성 전에 하나로 확정한다.
+물리명과 FK 후보는 [ERD 설명](ERD_설명.md)을 참조한다. 최신 ERD에는 첫 E2E의 생성 작업·멱등성·메시지 관련성·새 문의 동의 및 서비스 의존 관계 저장 방식이 없다. 이 불변식을 충족할 물리 모델을 구현 전에 합의해야 한다. 과거 MVP ERD에서 사용한 `departments/users/inquiries/messages/problems/ai_runs/ticket_work_items/tickets` 명명은 현재 ERD의 `department/member/inquiry/message/inquiry_problem/agent_run/ticket`과 다르므로 중복 테이블로 만들지 않는다.
 
 ## 3. 문의·대화·새 문의 분리
 
