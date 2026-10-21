@@ -14,7 +14,7 @@ Claude Code의 진입점은 [CLAUDE.md](CLAUDE.md)이며 AGENTS.md를 먼저 읽
 
 ## 첫 작업
 
-팀이 PRD와 MVP 범위를 함께 검토하고 역할을 나눕니다. ERD는 [MVP 데이터 설계](docs/MVP_DATA.md), 프론트·Spring·Python 연결은 [MVP API](docs/MVP_API.md)를 읽고 최소 계약을 리뷰합니다. 두 문서는 첫 E2E 범위의 설계안입니다. 합의한 API는 OpenAPI와 JSON Schema로 구체화합니다.
+팀이 PRD와 MVP 범위를 함께 검토하고 역할을 나눕니다. 전체 데이터 관계는 [데이터 설계](docs/DATA.md), 프론트·Spring·Python 연결은 [API 설계](docs/API.md)를 읽고 기능별 계약을 리뷰합니다. 두 문서는 구현 전 검토할 설계안입니다. 합의한 API는 OpenAPI와 JSON Schema로 구체화합니다.
 
 기술 구성은 React·Java 21 기반 Spring·Python 3.13 + LangGraph + FastAPI·PostgreSQL입니다. 개발 버전은 Node.js 24.22.0, React 19.3.0, Spring Boot 4.1.1, LangGraph 1.2.16, FastAPI 0.143.5, Uvicorn 0.53.0입니다. 전체 버전과 검증 범위는 [개발 안내](docs/AGENT_DEVELOPMENT.md)의 9~11장을 따릅니다. OpenAI API 기반 LLM과 비용 최소화를 적용하며, 정확한 모델·공용 환경·실행 명령은 구현과 실측을 통해 정합니다. 현재는 초기 문서를 준비한 단계입니다.
 

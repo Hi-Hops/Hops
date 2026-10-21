@@ -21,7 +21,7 @@ React 문의 입력 → Spring 로그인·문의 저장
                → 사용자 카드·관리자 목록 조회
 ```
 
-개발 중에는 Fake로 연결을 먼저 검사할 수 있으나, MVP 완료에는 실제 단일 에이전트 E2E와 평가 결과가 필요하다. React·Spring·Python의 책임과 API는 [MVP API](MVP_API.md), 저장 관계는 [MVP 데이터](MVP_DATA.md)를 따른다.
+개발 중에는 Fake로 연결을 먼저 검사할 수 있으나, MVP 완료에는 실제 단일 에이전트 E2E와 평가 결과가 필요하다. React·Spring·Python의 책임과 API 설계안은 [API](API.md), 저장 관계 설계안은 [DATA](DATA.md)를 참조한다. 기능별 상세 계약은 구현 전에 합의한다.
 
 - 로그인 계정·부서 seed와 사용자 권한을 준비한다.
 - 문의·메시지·정정·문의 버전을 저장한다.
