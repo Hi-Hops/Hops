@@ -1,0 +1,281 @@
+{
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "const": "mvp-1"
+    },
+    "runId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "inquiryId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "inquiryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "deadlineAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "actorContext": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "departmentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "required": [
+        "userId",
+        "departmentId",
+        "roles"
+      ],
+      "additionalProperties": false
+    },
+    "departments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sender": {
+            "enum": [
+              "USER",
+              "ASSISTANT"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "required": [
+          "messageId",
+          "revision",
+          "sender",
+          "content"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "sender": {
+                  "const": "USER"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "content": {
+                  "maxLength": 4000
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ACCOUNT_AUTH",
+                  "PERMISSION",
+                  "NETWORK_ACCESS",
+                  "SOFTWARE",
+                  "BUSINESS_SERVICE_ERROR",
+                  "OTHER"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "ANALYZING",
+              "WAITING_USER",
+              "READY_FOR_TICKET",
+              "TICKETED",
+              "OUT_OF_SCOPE"
+            ]
+          },
+          "questionCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          }
+        },
+        "required": [
+          "id",
+          "summary",
+          "category",
+          "status",
+          "questionCount"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "workItems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "problemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workScope": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "RETRY_WAIT",
+              "NEEDS_REVIEW",
+              "SUPERSEDED"
+            ]
+          },
+          "ticketId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "problemId",
+          "workScope",
+          "status",
+          "ticketId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "executionSeconds": {
+          "const": 90
+        },
+        "modelCallSeconds": {
+          "const": 30
+        },
+        "modelErrorRetries": {
+          "const": 1
+        },
+        "formatRepairRetries": {
+          "const": 1
+        },
+        "questionsPerProblem": {
+          "const": 3
+        }
+      },
+      "required": [
+        "executionSeconds",
+        "modelCallSeconds",
+        "modelErrorRetries",
+        "formatRepairRetries",
+        "questionsPerProblem"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "runId",
+    "inquiryId",
+    "inquiryVersion",
+    "deadlineAt",
+    "actorContext",
+    "departments",
+    "messages",
+    "problems",
+    "workItems",
+    "budget"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mvp-1 execution request (review draft)"
+}

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "mvp-1",
+  "runId": "00000000-0000-4000-8000-000000000001",
+  "inquiryId": "00000000-0000-4000-8000-000000000002",
+  "inquiryVersion": 1,
+  "deadlineAt": "2026-10-21T00:01:30Z",
+  "actorContext": {
+    "userId": "00000000-0000-4000-8000-000000000003",
+    "departmentId": "00000000-0000-4000-8000-000000000004",
+    "roles": [
+      "EMPLOYEE"
+    ]
+  },
+  "departments": [
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "code": "NETWORK",
+      "name": "테스트 네트워크 부서"
+    }
+  ],
+  "messages": [
+    {
+      "messageId": "00000000-0000-4000-8000-000000000016",
+      "revision": 1,
+      "sender": "USER",
+      "content": "VPN 연결이 실패하고, 포털 데이터 조회도 안 됩니다."
+    }
+  ],
+  "problems": [],
+  "workItems": [],
+  "budget": {
+    "executionSeconds": 90,
+    "modelCallSeconds": 30,
+    "modelErrorRetries": 1,
+    "formatRepairRetries": 1,
+    "questionsPerProblem": 3
+  }
+}

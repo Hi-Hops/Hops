@@ -1,0 +1,12 @@
+{
+  "answer": "사내 IT 지원 범위의 문의를 입력해 주세요.",
+  "problems": [
+    {
+      "ref": "new:p1",
+      "summary": "테스트용 범위 밖 문의",
+      "category": null,
+      "action": "OUT_OF_SCOPE"
+    }
+  ],
+  "ticketProposals": []
+}

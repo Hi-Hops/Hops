@@ -1,0 +1,40 @@
+{
+  "answer": "VPN 문제는 담당 부서에 연결하고, 포털 오류는 추가 정보를 확인하겠습니다.",
+  "problems": [
+    {
+      "ref": "new:p1",
+      "summary": "VPN 연결 실패",
+      "category": "NETWORK_ACCESS",
+      "action": "PROPOSE_TICKETS"
+    },
+    {
+      "ref": "new:p2",
+      "summary": "포털 데이터 조회 실패",
+      "category": "BUSINESS_SERVICE_ERROR",
+      "action": "ASK_USER",
+      "question": "어떤 메뉴에서 어떤 오류가 표시되나요?"
+    }
+  ],
+  "ticketProposals": [
+    {
+      "ref": "new:w1",
+      "problemRef": "new:p1",
+      "workScope": "VPN 접속 장애 조사",
+      "title": "VPN 연결 실패",
+      "description": "VPN 연결 오류로 업무 접속이 어렵습니다.",
+      "category": "NETWORK_ACCESS",
+      "departmentCode": "NETWORK",
+      "purpose": "INCIDENT",
+      "diagnosisSummary": "문의 내용에 따른 초기 분류입니다.",
+      "handoffReason": "접속 상태 확인과 담당 부서 조사가 필요합니다.",
+      "uncertainty": "실제 장애 원인은 확인하지 못했습니다.",
+      "evidence": [
+        {
+          "messageId": "00000000-0000-4000-8000-000000000016",
+          "messageRevision": 1,
+          "summary": "사용자가 VPN 연결 오류를 보고했습니다."
+        }
+      ]
+    }
+  ]
+}

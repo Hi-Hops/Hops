@@ -8,7 +8,7 @@
 
 1주 MVP는 실제 단일 에이전트를 연결한 E2E와 기준선 평가다. 로그인·문의 저장·티켓 생성·부서 배정·조회는 실제 서비스에서 처리한다. 실제 모델로 추가 질문·정정·복합 문의를 분석하고 결과·설정·실행 이력을 보존한다. 후속 단계는 Supervisor와 4개 전문 에이전트로 개선하여 동일 조건의 수치를 비교한다. 아래 역할별 registry·계약·통합 준비는 최종 멀티 에이전트 구조를 대상으로 하며 MVP부터 4개 역할을 실행하도록 요구하지 않는다.
 
-개발 언어 버전은 Python 3.13, Java 21이다. AI 서버는 LangGraph로 실행 흐름·상태를 관리하고 FastAPI로 Spring 연동용 HTTP API와 스트리밍 응답을 제공한다. 네 에이전트는 하나의 서버 내부 모듈로 구현하며 HTTP 처리는 공통 어댑터에서 맡는다. 선정한 프레임워크·Node.js 버전은 9~11장을 따른다. 패키지 관리 도구·DB·Java 패치 버전은 별도로 맞춘다. 프론트–Spring 실시간 전달은 WebSocket, Spring–Python 진행 전달은 SSE를 사용한다. Spring이 구독하고 Python FastAPI가 실행 이벤트를 제공한다. 최종 결과 경로는 외부 API 계약에서 별도로 합의한다.
+개발 언어 버전은 Python 3.13, Java 21이다. AI 서버는 LangGraph로 실행 흐름·상태를 관리하고 FastAPI로 Spring 연동용 HTTP API와 스트리밍 응답을 제공한다. 네 에이전트는 하나의 서버 내부 모듈로 구현하며 HTTP 처리는 공통 어댑터에서 맡는다. 선정한 프레임워크·Node.js 버전은 9~11장을 따른다. 패키지 관리 도구·DB·Java 패치 버전은 별도로 맞춘다. 사용자 인증은 JWT, 프론트–Node.js 실시간 전달은 Socket.io, Spring–Python 진행 전달은 SSE를 사용한다. Spring은 업무 REST·권한·저장을 맡고 Node.js는 실시간 중계를 맡는다. Spring이 구독하고 Python FastAPI가 실행 이벤트를 제공한다. 최종 결과 경로는 외부 API 계약에서 별도로 합의한다.
 
 ## 2. 먼저 함께 준비할 서비스 기반
 
@@ -27,7 +27,7 @@ React 문의 입력 → Spring 로그인·문의 저장
 - 문의·메시지·정정·문의 버전을 저장한다.
 - runId를 발급하고 실행 요청·결과 수신·중복 수신을 처리한다.
 - 생성 작업 단위로 티켓과 부서를 저장한다. 일부 실패 시 성공한 티켓을 보존한다.
-- REST로 진행·저장 결과를 조회하고 WebSocket 재접속 후 REST로 복구한다.
+- REST로 진행·저장 결과를 조회하고 Socket.io 재접속 후 REST로 복구한다.
 - 202 접수, AI 분석 성공, 실제 업무 저장 성공을 구분해 화면에 표시한다.
 
 ### 모두가 공유할 가상 기업 정보
@@ -155,6 +155,8 @@ ai/
 
 이 선택을 기다리는 동안 각 담당자는 계약에 맞는 fixture와 Fake, 역할별 로직을 준비할 수 있다. 실제 통합 전에 공통 선택과 기계 판독 계약을 리뷰해야 한다.
 
+MVP 실행 데이터의 JSON Schema·가상 예시·검증 실행 방법과 미정 계약은 [MVP 실행 계약](../contracts/mvp/README.md)을 참조한다. 이 초안의 형식 검증은 서비스 통합 승인을 뜻하지 않는다.
+
 ## 9. AI 서버 개발 버전
 
 Python 3.13을 사용하며 초기 직접 의존성을 다음 버전으로 고정한다.
@@ -182,9 +184,9 @@ Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕�
 
 ## 11. 백엔드 개발 버전과 검증 범위
 
-Java 21 + Spring Boot 4.1.1을 사용한다. Spring Framework·Security·Data JPA 등의 의존성은 Spring Boot가 관리하는 버전을 따른다. Spring 내 Swagger UI를 사용하는 경우 springdoc-openapi-starter-webmvc-ui 3.1.1을 연동 후보로 유지한다. 직접 작성한 OpenAPI YAML이 계약 원본이며 코드에서 생성한 문서가 이를 자동 대체하지 않는다.
+Java 21 + Spring Boot 4.1.1을 사용한다. Spring Framework·Security·Data JPA 등의 의존성은 Spring Boot가 관리하는 버전을 따른다. Spring 내 Swagger UI를 사용하는 경우 springdoc-openapi-starter-webmvc-ui 3.1.1을 연동 후보로 유지한다. 직접 작성한 OpenAPI 문서(JSON 또는 YAML)가 계약 원본이며 코드에서 생성한 문서가 이를 자동 대체하지 않는다.
 
-Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. 빌드는 Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용한다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞추고, 저장소의 Wrapper로 실행한다. 현재 Spring 초기 실행 기반과 실제 업무·DB·AI 연동은 구분하며, 구성과 테스트·빌드·실행 방법은 [Spring 개발 안내](../backend/spring/hops/README.md)를 따른다. DB 저장, FastAPI SSE 수신과 브라우저 WebSocket 전달은 별도 통합 검증 대상이다.
+Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. 빌드는 Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용한다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞추고, 저장소의 Wrapper로 실행한다. 현재 Spring 초기 실행 기반과 실제 업무·DB·AI 연동은 구분하며, 구성과 테스트·빌드·실행 방법은 [Spring 개발 안내](../backend/spring/hops/README.md)를 따른다. DB 저장, FastAPI SSE 수신과 Node.js를 통한 브라우저 Socket.io 전달은 별도 통합 검증 대상이다.
 
 출처: [Spring Boot 요구사항](https://docs.spring.io/spring-boot/system-requirements.html), [springdoc](https://springdoc.org/).
 

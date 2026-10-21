@@ -5,15 +5,15 @@
 
 [PRD](PRD.md)의 로그인 → 문의 분석 → 복수 티켓 생성·부서 배정 → 관리자 조회만 다룬다. [데이터 설계](MVP_DATA.md)의 M1~M6에 대응한다. 기존 상세 계약에서 필요한 부분을 추린 **팀 리뷰용 최소 설계안**이다. 아래 API가 구현되어 있다는 뜻은 아니다. MVP는 실제 단일 에이전트를 연결해 문의 분석·복수 티켓 생성·부서 배정을 검증하고 평가 결과를 보존한다. 후속 단계에서 동일한 서비스 경계를 유지하며 멀티 에이전트로 개선한다.
 
-**통신 방식과 계약 개정 범위:** 프론트–Spring의 실시간 대시보드·채팅 진행은 WebSocket을 사용한다. Spring–Python 진행 상태는 SSE를 사용한다. Spring이 FastAPI의 스트림을 구독한다. 아래 3·4절의 HTTP 실행 요청·callback은 기존 설계안이며 SSE 스트림 경로·인증·재연결과 최종 결과 전달을 확정한 뒤 갱신한다. 현재 callback을 SSE와 동시에 구현하도록 요구하는 것은 아니다.
+**통신 방식과 계약 개정 범위:** 프론트–Node.js의 실시간 대시보드·채팅 진행은 Socket.io를 사용한다. Spring은 업무 REST·권한·저장을 담당하고 Node.js는 실시간 중계를 담당한다. Spring–Python 진행 상태는 SSE를 사용한다. Spring이 FastAPI의 스트림을 구독한다. 아래 3·4절의 HTTP 실행 요청·callback은 기존 설계안이며 SSE 스트림 경로·인증·재연결과 최종 결과 전달을 확정한 뒤 갱신한다. 현재 callback을 SSE와 동시에 구현하도록 요구하는 것은 아니다.
 
-React는 Spring에만 요청한다. Spring이 인증·저장·배정을 담당하고 Python은 분석 결과를 반환한다. AI가 티켓을 직접 저장하거나 브라우저가 부서를 지정해 확정하는 API는 없다.
+React의 업무 REST 요청은 Spring으로, 실시간 연결은 Node.js의 Socket.io로 보낸다. Spring이 인증·저장·배정을 담당하고 Python은 분석 결과를 반환한다. AI가 티켓을 직접 저장하거나 브라우저가 부서를 지정해 확정하는 API는 없다.
 
 ## 1. 공통 요청·응답
 
 - REST 본문은 UTF-8 JSON이다. UUID는 문자열, 시간은 UTC RFC 3339 문자열, 버전·횟수는 정수다. DB의 snake_case를 API에서는 camelCase로 표현한다.
 - 성공 응답은 객체를 바로 반환한다. 목록은 `{ "items": [], "page": 0, "size": 20, "totalElements": 0 }` 형태다. 페이지는 0부터 시작하고 size 기본 20, 최대 100을 제안한다.
-- 자체 로그인 세션 쿠키는 HttpOnly로 사용한다. 운영 HTTPS에서는 Secure를 적용한다. 변경 요청은 CSRF 토큰을 검사한다. 비밀번호·세션 토큰을 로그에 남기지 않는다.
+- 자체 로그인은 JWT를 사용하고 Spring이 발급·검증한다. #20의 Authorization: Bearer 전달안, 만료·로그아웃·무효화·유휴 만료와 CSRF 적용 여부는 상세 계약 검토 대상이다. 사용자 JWT를 서비스 간 인증의 대체 수단으로 사용하지 않는다. 비밀번호·토큰·Authorization 헤더를 로그에 남기지 않는다.
 - 업무 변경 요청에는 `Idempotency-Key`를 보낸다. 범위는 사용자·HTTP 메소드·경로·키다. 같은 본문은 기존 응답, 다른 본문은 409다. 로그인·로그아웃은 업무 멱등키 대상이 아니다.
 - 메시지 `content`는 Unicode 코드 포인트 기준 1~4,000자이며 공백만 있는 값은 거부한다. 줄바꿈을 임의 변경하거나 초과 내용을 자르지 않는다.
 - `202`는 접수 성공이다. 분석·티켓 저장 완료는 REST 상세와 실행 상태로 확인한다.
@@ -35,15 +35,14 @@ React는 Spring에만 요청한다. Spring이 인증·저장·배정을 담당�
 
 ### 로그인과 초기 정보 (M1)
 
-- `GET /api/auth/csrf` → 200 `{token, headerName}`. 로그인 전에도 발급하며 반환된 헤더로 변경 요청을 보낸다.
-- `POST /api/auth/login` — `{loginId, password}` → 200 `{userId, displayName, departmentId, roles}`와 세션 쿠키.
-- `GET /api/auth/session` → 200 위 사용자 정보. 유효한 세션이 없으면 401.
-- `POST /api/auth/logout` → 204. 세션을 무효화한다.
+- `POST /api/auth/login` — `{loginId, password}`로 로그인하고 JWT와 사용자 정보를 반환한다. #20의 응답안은 `{accessToken, userId, loginId, displayName, departmentId, roles}`이며 상세 스키마는 인증 담당과 고정한다.
+- `GET /api/auth/session` — 기존 경로를 유지하는 사용자 정보 조회안이다. JWT 인증 방식과 최종 응답은 #20과 맞춘다.
+- `POST /api/auth/logout` — 기존 경로 후보다. JWT 무효화·갱신 정책과 응답 형식은 합의 후 고정한다. 기존 CSRF 발급 API는 JWT 전달 방식 결정 전 필수 계약으로 취급하지 않는다.
 - `GET /api/departments` → 200 `{items:[{id, code, name, active}]}`. 인증된 사용자에게 부서 카탈로그를 제공한다. 이 작은 기준 목록은 페이지네이션하지 않는다.
 
 ### 문의와 대화 (M2·M3)
 
-- `POST /api/inquiries` — `{content}` → 202 `{inquiryId, inquiryVersion, messageId, runId}`. 문의자·소속은 세션에서 얻는다.
+- `POST /api/inquiries` — `{content}` → 202 `{inquiryId, inquiryVersion, messageId, runId}`. 문의자·소속은 검증된 인증 정보에서 얻는다.
 - `GET /api/inquiries?page=0&size=20` → 본인 문의만 최신 갱신순 목록. 각 항목은 `id, title, status, updatedAt, ticketCount`다.
 - `GET /api/inquiries/{inquiryId}` → `id, title, version, status, summary, problems, tickets, creationFailures, currentRun`. summary와 currentRun은 없으면 null이다. tickets는 실제 저장된 티켓만 담는다.
 - `GET /api/inquiries/{inquiryId}/messages?page=0&size=20` → 대화순 메시지 목록. 항목은 `messageId, revision, sender, content, createdAt, revisions`다. revisions에는 이전 버전의 `revision, content, createdAt`을 담는다.
@@ -92,7 +91,7 @@ React는 Spring에만 요청한다. Spring이 인증·저장·배정을 담당�
 
 ## 3. Spring → Python 실행 요청
 
-`POST /internal/agent-runs`는 서비스 간 인증으로만 호출한다. 브라우저 세션으로 직접 접근할 수 없다. 필수 입력은 다음과 같다.
+`POST /internal/agent-runs`는 서비스 간 인증으로만 호출한다. 사용자 JWT만으로 직접 접근할 수 없다. 필수 입력은 다음과 같다.
 
 - `schemaVersion`: 문자열 `mvp-1`. 이번 최소 계약의 버전이며 기존 상세 계약과 별개다.
 - `runId`, `inquiryId`: UUID. `inquiryVersion`: 정수. `deadlineAt`: 종료 제한 시각.
@@ -157,7 +156,7 @@ Spring은 200 `{eventId, disposition}`으로 수신을 확인한다. disposition
 
 ## 5. 실시간 표시와 복구
 
-MVP의 영속 상태 원본은 REST다. WebSocket은 진행 단계·답변 조각·상태 변경을 빠르게 보여주는 보조 통로다. 접속 경로는 `/ws`를 제안하며 세션과 Origin을 검증한다.
+MVP의 영속 상태 원본은 REST다. Node.js의 Socket.io는 진행 단계·답변 조각·상태 변경을 빠르게 보여주는 보조 통로다. 기존 `/ws` 경로는 확정 계약이 아니다. Socket.io 연결 인증, Origin 검사, 문의 구독 권한 검사와 Spring–Node.js 전달 형식은 별도 계약으로 정한다. 아래 이벤트 이름·payload는 의미 검토안이며 Socket.io 구현 완료를 뜻하지 않는다.
 
 - 구독 요청: `{type:"subscribe", inquiryId}`. 서버가 문의 조회 권한을 검사한다.
 - 이벤트 외피: `{type, inquiryId, inquiryVersion, runId, payload}`.
@@ -166,7 +165,7 @@ MVP의 영속 상태 원본은 REST다. WebSocket은 진행 단계·답변 조�
 - `state_changed`: payload `{}`. 문의와 실행 상세를 REST로 다시 조회한다.
 - `error`: payload `{code, message}`. 저장 성공을 추정하지 않는다.
 
-최종 답변은 먼저 메시지로 저장한 뒤 state_changed를 보낸다. 이전 문의 버전의 스트림은 표시하지 않는다. 재연결 시 문의·메시지·실행을 REST로 조회하며 이벤트 재생 서버는 만들지 않는다. 세션 만료 후 재로그인해 같은 문의를 이어간다.
+최종 답변은 먼저 메시지로 저장한 뒤 state_changed를 보낸다. 이전 문의 버전의 스트림은 표시하지 않는다. 재연결 시 문의·메시지·실행을 REST로 조회하며 이벤트 재생 서버는 만들지 않는다. 인증 만료 후 재로그인해 같은 문의를 이어간다.
 
 ## 6. 첫 E2E 완료 조건
 
