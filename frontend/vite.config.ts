@@ -8,7 +8,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     resolve: {
-      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+        '@contracts': fileURLToPath(new URL('../specs/contracts', import.meta.url)),
+        '@fixtures': fileURLToPath(new URL('../specs/mocks', import.meta.url)),
+      },
     },
     server: {
       proxy: {

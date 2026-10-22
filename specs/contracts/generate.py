@@ -81,6 +81,9 @@ def render() -> dict[str, str]:
             # 원시 별칭은 언어별 기본 타입으로 참조를 풀어서 생성한다.
             ts += [f'export type {name} = {kind(schema, "ts")};', '']
             py += [f'{name} = {kind(schema, "py")}', '']
+    ts += ['/** 생성 타입 이름과 JSON fixture를 연결한다. */', 'export type ContractTypes = {']
+    ts += [f'  {name}: {name};' for name in definitions]
+    ts += ['};', '']
     java += ['}']
     # Java에는 원시 type alias가 없어 해당 별칭만 기본 타입으로 치환한다.
     java_text = '\n'.join(java) + '\n'
