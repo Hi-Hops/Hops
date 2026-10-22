@@ -1,0 +1,68 @@
+.button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-4);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.primary {
+  background: var(--color-text);
+  color: var(--color-on-ink);
+  border-color: var(--color-text);
+}
+.primary:not(:disabled):hover {
+  background: var(--color-ink-hover);
+}
+.secondary {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+}
+.secondary:not(:disabled):hover,
+.ghost:not(:disabled):hover {
+  background: var(--color-sunken);
+}
+.ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.danger {
+  color: var(--color-danger);
+  background: var(--color-surface);
+  border-color: var(--color-danger-border);
+}
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+.field label {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+}
+.field input {
+  width: 100%;
+  height: var(--control-height);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: var(--space-2) var(--space-3);
+}
+.field small {
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+}
+.field input[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}

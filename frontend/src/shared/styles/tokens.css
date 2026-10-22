@@ -1,0 +1,86 @@
+@font-face {
+  font-family: 'IBM Plex Sans KR';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/assets/IBMPlexSansKR-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'IBM Plex Sans KR';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/assets/IBMPlexSansKR-SemiBold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'IBM Plex Sans KR';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/assets/IBMPlexSansKR-Bold.ttf') format('truetype');
+}
+:root {
+  --color-bg: #f6f7f9;
+  --color-surface: #fff;
+  --color-nav: #fafafa;
+  --color-sunken: #f3f4f6;
+  --color-text: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #646b79;
+  --color-on-ink: #fff;
+  --color-ink-hover: #273347;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-primary: #ea580c;
+  --color-primary-soft: #fff4ed;
+  --color-primary-strong: #c2410c;
+  --color-progress-bg: #eff6ff;
+  --color-progress: #1d4ed8;
+  --color-progress-border: #bfdbfe;
+  --color-success-bg: #ecfdf5;
+  --color-success: #047857;
+  --color-success-border: #a7f3d0;
+  --color-attention-bg: #fffbeb;
+  --color-attention: #b45309;
+  --color-attention-border: #fde68a;
+  --color-danger-bg: #fef2f2;
+  --color-danger: #b91c1c;
+  --color-danger-border: #fecaca;
+  --color-overlay: #11182773;
+  --color-user-detail: #202b3b;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+  --space-9: 64px;
+  --space-10: 96px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+  --font-sans: 'IBM Plex Sans KR', sans-serif;
+  --font-size-sm: 12px;
+  --font-size-label: 13px;
+  --font-size-md: 14px;
+  --font-size-body: 15px;
+  --font-size-lg: 16px;
+  --font-size-xl: 22px;
+  --font-size-hero: 32px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --header-height: 56px;
+  --sidenav-width: 248px;
+  --content-max-width: 1096px;
+  --home-width: 760px;
+  --login-width: 420px;
+  --message-width: 520px;
+  --answer-width: 760px;
+  --control-height: 40px;
+  --control-height-sm: 32px;
+}
