@@ -1,0 +1,1739 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:hops:mock:1",
+  "title": "Hops Mock 계약 1 — 팀 리뷰 전",
+  "description": "언어 간 wire JSON 원본. 루트가 아니라 $defs의 객체를 선택해 검증한다. 운영 승인 계약이 아니다.",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "IsoDateTime": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+    },
+    "UserContent": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "pattern": "[^\\u0009-\\u000d\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+    },
+    "Category": {
+      "type": "string",
+      "enum": [
+        "ACCOUNT_AUTH",
+        "PERMISSION",
+        "NETWORK_ACCESS",
+        "SOFTWARE",
+        "BUSINESS_SERVICE_ERROR",
+        "OTHER"
+      ]
+    },
+    "Role": {
+      "type": "string",
+      "enum": [
+        "BIZ_ADMIN",
+        "AGENT_OPS_ADMIN"
+      ]
+    },
+    "InquiryStatus": {
+      "type": "string",
+      "enum": [
+        "IN_PROGRESS",
+        "WAITING_USER",
+        "RESOLVED",
+        "CLOSED_UNCONFIRMED",
+        "CLOSED"
+      ]
+    },
+    "ProcessingStatus": {
+      "type": "string",
+      "enum": [
+        "WAITING",
+        "IN_PROGRESS",
+        "WAITING_CONFIRM",
+        "RESOLVED",
+        "CLOSED_UNCONFIRMED"
+      ]
+    },
+    "ProblemStatus": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Mock 표시값은 mock-profile.json 참조. 운영 코드 목록은 미확정이며 미등록 문자열을 허용한다."
+    },
+    "RoutingStatus": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Mock 표시값은 mock-profile.json 참조. 운영 코드 목록은 미확정이며 미등록 문자열을 허용한다."
+    },
+    "RunStatus": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Mock 표시값은 mock-profile.json 참조. 운영 코드 목록은 미확정이며 미등록 문자열을 허용한다."
+    },
+    "ErrorCode": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Mock 표시값은 mock-profile.json 참조. 운영 코드 목록은 미확정이며 미등록 문자열을 허용한다."
+    },
+    "Effect": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Mock 표시값은 mock-profile.json 참조. 운영 코드 목록은 미확정이며 미등록 문자열을 허용한다."
+    },
+    "Department": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isRoutable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "name",
+        "isRoutable"
+      ],
+      "additionalProperties": false
+    },
+    "CurrentUser": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "employeeNo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "department": {
+          "$ref": "#/$defs/Department"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Role"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "employeeNo",
+        "name",
+        "department",
+        "roles"
+      ],
+      "additionalProperties": false
+    },
+    "LoginRequest": {
+      "type": "object",
+      "properties": {
+        "loginId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "password": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "loginId",
+        "password"
+      ],
+      "additionalProperties": false
+    },
+    "LoginResponse": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        },
+        "user": {
+          "$ref": "#/$defs/CurrentUser"
+        }
+      },
+      "required": [
+        "accessToken",
+        "expiresAt",
+        "user"
+      ],
+      "additionalProperties": false
+    },
+    "ApiErrorBody": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "requestId",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "MessageRevision": {
+      "type": "object",
+      "properties": {
+        "revisionNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "content": {
+          "$ref": "#/$defs/UserContent"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        }
+      },
+      "required": [
+        "revisionNo",
+        "content",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "ChatMessage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "sequenceNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "sender": {
+          "type": "string",
+          "enum": [
+            "USER",
+            "AI"
+          ]
+        },
+        "content": {
+          "type": "string"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        },
+        "revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MessageRevision"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "inquiryId",
+        "revision",
+        "sequenceNo",
+        "sender",
+        "content",
+        "createdAt",
+        "revisions"
+      ],
+      "additionalProperties": false
+    },
+    "Problem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "ACCOUNT_AUTH",
+            "PERMISSION",
+            "NETWORK_ACCESS",
+            "SOFTWARE",
+            "BUSINESS_SERVICE_ERROR",
+            "OTHER",
+            null
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ProblemStatus"
+        },
+        "questionCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      },
+      "required": [
+        "id",
+        "summary",
+        "category",
+        "status",
+        "questionCount"
+      ],
+      "additionalProperties": false
+    },
+    "RunSummary": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApiErrorBody"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "inquiryVersion",
+        "status",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "TicketCard": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "problemId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "ticketNumber": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "department": {
+          "$ref": "#/$defs/Department"
+        },
+        "processingStatus": {
+          "$ref": "#/$defs/ProcessingStatus"
+        },
+        "routingStatus": {
+          "$ref": "#/$defs/RoutingStatus"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        }
+      },
+      "required": [
+        "id",
+        "inquiryId",
+        "problemId",
+        "workItemId",
+        "ticketNumber",
+        "title",
+        "department",
+        "processingStatus",
+        "routingStatus",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "AssignmentHistory": {
+      "type": "object",
+      "properties": {
+        "department": {
+          "$ref": "#/$defs/Department"
+        },
+        "assignedAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        },
+        "endedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        }
+      },
+      "required": [
+        "department",
+        "assignedAt",
+        "endedAt"
+      ],
+      "additionalProperties": false
+    },
+    "TicketDetail": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "problemId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "workItemId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "ticketNumber": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "department": {
+          "$ref": "#/$defs/Department"
+        },
+        "processingStatus": {
+          "$ref": "#/$defs/ProcessingStatus"
+        },
+        "routingStatus": {
+          "$ref": "#/$defs/RoutingStatus"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        },
+        "description": {
+          "type": "string"
+        },
+        "diagnosisSummary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "assignmentHistory": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AssignmentHistory"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "inquiryId",
+        "problemId",
+        "workItemId",
+        "ticketNumber",
+        "title",
+        "department",
+        "processingStatus",
+        "routingStatus",
+        "createdAt",
+        "description",
+        "diagnosisSummary",
+        "assignmentHistory"
+      ],
+      "additionalProperties": false
+    },
+    "CreationFailure": {
+      "type": "object",
+      "properties": {
+        "workItemId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "problemId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "errorCode": {
+          "$ref": "#/$defs/ErrorCode"
+        }
+      },
+      "required": [
+        "workItemId",
+        "problemId",
+        "status",
+        "errorCode"
+      ],
+      "additionalProperties": false
+    },
+    "InquiryResult": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "status": {
+          "$ref": "#/$defs/InquiryStatus"
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Problem"
+          }
+        },
+        "tickets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TicketCard"
+          }
+        },
+        "creationFailures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CreationFailure"
+          }
+        },
+        "currentRun": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "status",
+        "problems",
+        "tickets",
+        "creationFailures",
+        "currentRun"
+      ],
+      "additionalProperties": false
+    },
+    "InquirySummary": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/InquiryStatus"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "TicketPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TicketCard"
+          }
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "totalElements": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "items",
+        "page",
+        "size",
+        "totalElements"
+      ],
+      "additionalProperties": false
+    },
+    "InquiryPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InquirySummary"
+          }
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "totalElements": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "items",
+        "page",
+        "size",
+        "totalElements"
+      ],
+      "additionalProperties": false
+    },
+    "MessagePage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChatMessage"
+          }
+        },
+        "nextAfterSequenceNo": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "items",
+        "nextAfterSequenceNo"
+      ],
+      "additionalProperties": false
+    },
+    "TicketListQuery": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "processingStatus": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "WAITING",
+            "IN_PROGRESS",
+            "WAITING_CONFIRM",
+            "RESOLVED",
+            "CLOSED_UNCONFIRMED",
+            null
+          ]
+        }
+      },
+      "required": [
+        "page",
+        "size",
+        "processingStatus"
+      ],
+      "additionalProperties": false
+    },
+    "InquiryListQuery": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "page",
+        "size"
+      ],
+      "additionalProperties": false
+    },
+    "MessageListQuery": {
+      "type": "object",
+      "properties": {
+        "afterSequenceNo": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "afterSequenceNo",
+        "size"
+      ],
+      "additionalProperties": false
+    },
+    "InquiryCreateCommand": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "content": {
+          "$ref": "#/$defs/UserContent"
+        }
+      },
+      "required": [
+        "requestId",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "MessageSendCommand": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedInquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "content": {
+          "$ref": "#/$defs/UserContent"
+        }
+      },
+      "required": [
+        "requestId",
+        "inquiryId",
+        "expectedInquiryVersion",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "MessageReviseCommand": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "expectedInquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "content": {
+          "$ref": "#/$defs/UserContent"
+        },
+        "messageId": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "requestId",
+        "inquiryId",
+        "expectedInquiryVersion",
+        "content",
+        "messageId"
+      ],
+      "additionalProperties": false
+    },
+    "InquiryTarget": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "INQUIRY"
+        },
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "DepartmentTicketsTarget": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "DEPARTMENT_TICKETS"
+        },
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "TicketTarget": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "TICKET"
+        },
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "SubscriptionTarget": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/InquiryTarget"
+        },
+        {
+          "$ref": "#/$defs/DepartmentTicketsTarget"
+        },
+        {
+          "$ref": "#/$defs/TicketTarget"
+        }
+      ]
+    },
+    "SubscriptionCommand": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "target": {
+          "$ref": "#/$defs/SubscriptionTarget"
+        }
+      },
+      "required": [
+        "requestId",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "StoredAck": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "messageId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "runId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "effect": {
+          "$ref": "#/$defs/Effect"
+        }
+      },
+      "required": [
+        "ok",
+        "requestId",
+        "inquiryId",
+        "inquiryVersion",
+        "messageId",
+        "revision",
+        "runId",
+        "effect"
+      ],
+      "additionalProperties": false
+    },
+    "ErrorAck": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "error": {
+          "$ref": "#/$defs/ApiErrorBody"
+        }
+      },
+      "required": [
+        "ok",
+        "requestId",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "SubscriptionAccepted": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "requestId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "target": {
+          "$ref": "#/$defs/SubscriptionTarget"
+        }
+      },
+      "required": [
+        "ok",
+        "requestId",
+        "target"
+      ],
+      "additionalProperties": false
+    },
+    "CommandAck": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StoredAck"
+        },
+        {
+          "$ref": "#/$defs/ErrorAck"
+        }
+      ]
+    },
+    "SubscriptionAck": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SubscriptionAccepted"
+        },
+        {
+          "$ref": "#/$defs/ErrorAck"
+        }
+      ]
+    },
+    "AgentProgressPayload": {
+      "type": "object",
+      "properties": {
+        "stepNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "stepType": {
+          "type": "string"
+        },
+        "displaySummary": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stepNo",
+        "stepType",
+        "displaySummary",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "AnswerDeltaPayload": {
+      "type": "object",
+      "properties": {
+        "messageId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "messageId",
+        "seq",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AgentProgressEvent": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "payload": {
+          "$ref": "#/$defs/AgentProgressPayload"
+        }
+      },
+      "required": [
+        "eventId",
+        "inquiryId",
+        "inquiryVersion",
+        "runId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "AnswerDeltaEvent": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "payload": {
+          "$ref": "#/$defs/AnswerDeltaPayload"
+        }
+      },
+      "required": [
+        "eventId",
+        "inquiryId",
+        "inquiryVersion",
+        "runId",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "MessageStoredEvent": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "messageId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "requestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "eventId",
+        "inquiryId",
+        "inquiryVersion",
+        "messageId",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "StateChangedEvent": {
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "target": {
+          "$ref": "#/$defs/SubscriptionTarget"
+        },
+        "inquiryVersion": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "eventId",
+        "target",
+        "inquiryVersion"
+      ],
+      "additionalProperties": false
+    },
+    "Ref": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|new:[a-zA-Z0-9_-]+)$"
+    },
+    "ActorContext": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "departmentId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Role"
+          }
+        },
+        "accessScopeRef": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "userId",
+        "departmentId",
+        "roles",
+        "accessScopeRef"
+      ],
+      "additionalProperties": false
+    },
+    "AiDepartment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "isRoutable": {
+          "type": "boolean"
+        },
+        "responsibilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "name",
+        "isRoutable",
+        "responsibilities"
+      ],
+      "additionalProperties": false
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "MESSAGE",
+            "DOCUMENT",
+            "TOOL"
+          ]
+        },
+        "sourceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "observedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "sourceId",
+        "sourceVersion",
+        "summary",
+        "observedAt"
+      ],
+      "additionalProperties": false
+    },
+    "WorkItem": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/Ref"
+        },
+        "problemRef": {
+          "$ref": "#/$defs/Ref"
+        },
+        "workScope": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "ticketId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "ref",
+        "problemRef",
+        "workScope",
+        "status",
+        "ticketId"
+      ],
+      "additionalProperties": false
+    },
+    "AiRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "hops-mock-1"
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "actor": {
+          "$ref": "#/$defs/ActorContext"
+        },
+        "deadlineAt": {
+          "$ref": "#/$defs/IsoDateTime"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChatMessage"
+          }
+        },
+        "existingProblems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Problem"
+          }
+        },
+        "existingWorkItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkItem"
+          }
+        },
+        "departments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AiDepartment"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "runId",
+        "inquiryId",
+        "inquiryVersion",
+        "actor",
+        "deadlineAt",
+        "messages",
+        "existingProblems",
+        "existingWorkItems",
+        "departments",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "AiProblem": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/Ref"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "ACCOUNT_AUTH",
+            "PERMISSION",
+            "NETWORK_ACCESS",
+            "SOFTWARE",
+            "BUSINESS_SERVICE_ERROR",
+            "OTHER",
+            null
+          ]
+        },
+        "questionCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "ASK_USER",
+            "PROPOSE_TICKETS",
+            "OUT_OF_SCOPE"
+          ]
+        },
+        "question": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "ref",
+        "summary",
+        "category",
+        "questionCount",
+        "action",
+        "question",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "TicketProposal": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/Ref"
+        },
+        "problemRef": {
+          "$ref": "#/$defs/Ref"
+        },
+        "workScope": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/$defs/Category"
+        },
+        "departmentCode": {
+          "type": "string",
+          "minLength": 1
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "INCIDENT",
+            "CS_REVIEW"
+          ]
+        },
+        "diagnosisSummary": {
+          "type": "string"
+        },
+        "handoffReason": {
+          "type": "string"
+        },
+        "uncertainty": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "ref",
+        "problemRef",
+        "workScope",
+        "title",
+        "description",
+        "category",
+        "departmentCode",
+        "purpose",
+        "diagnosisSummary",
+        "handoffReason",
+        "uncertainty",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "AiSuccess": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "hops-mock-1"
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "status": {
+          "type": "string",
+          "const": "OK"
+        },
+        "answer": {
+          "type": "string"
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AiProblem"
+          }
+        },
+        "ticketProposals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TicketProposal"
+          }
+        },
+        "error": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "runId",
+        "inquiryId",
+        "inquiryVersion",
+        "status",
+        "answer",
+        "problems",
+        "ticketProposals",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "AiFailure": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "hops-mock-1"
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ERROR",
+            "TIMED_OUT",
+            "CANCELLED"
+          ]
+        },
+        "error": {
+          "$ref": "#/$defs/ApiErrorBody"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "runId",
+        "inquiryId",
+        "inquiryVersion",
+        "status",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "AiResult": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AiSuccess"
+        },
+        {
+          "$ref": "#/$defs/AiFailure"
+        }
+      ]
+    },
+    "AiAccepted": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "hops-mock-1"
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "status": {
+          "type": "string",
+          "const": "ACCEPTED"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "runId",
+        "inquiryId",
+        "inquiryVersion",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "AiProgress": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "hops-mock-1"
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "payload": {
+          "$ref": "#/$defs/AgentProgressPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "runId",
+        "inquiryId",
+        "inquiryVersion",
+        "payload"
+      ],
+      "additionalProperties": false
+    },
+    "AiDelta": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "hops-mock-1"
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "payload": {
+          "$ref": "#/$defs/AnswerDeltaPayload"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "runId",
+        "inquiryId",
+        "inquiryVersion",
+        "payload"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

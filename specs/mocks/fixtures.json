@@ -1,0 +1,1981 @@
+{
+  "schemaVersion": "hops-mock-1",
+  "synthetic": true,
+  "cases": [
+    {
+      "id": "department-0",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000010",
+        "code": "ACCOUNT_PERMISSION",
+        "name": "계정 권한",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-1",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000011",
+        "code": "NETWORK",
+        "name": "네트워크",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-2",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000012",
+        "code": "CS",
+        "name": "CS",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-3",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000013",
+        "code": "DB",
+        "name": "DB",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-4",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000014",
+        "code": "BACKEND",
+        "name": "backend",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-5",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000015",
+        "code": "FRONTEND",
+        "name": "frontend",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-6",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000016",
+        "code": "INFRA",
+        "name": "인프라",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-7",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000017",
+        "code": "SYSTEM",
+        "name": "시스템",
+        "isRoutable": true
+      }
+    },
+    {
+      "id": "department-8",
+      "type": "Department",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000018",
+        "code": "DEMO_BUSINESS",
+        "name": "가상 업무부서",
+        "isRoutable": false
+      }
+    },
+    {
+      "id": "user-0",
+      "type": "CurrentUser",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000100",
+        "employeeNo": "DEMO-001",
+        "name": "가상 문의자",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000018",
+          "code": "DEMO_BUSINESS",
+          "name": "가상 업무부서",
+          "isRoutable": false
+        },
+        "roles": []
+      }
+    },
+    {
+      "id": "user-1",
+      "type": "CurrentUser",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000101",
+        "employeeNo": "DEMO-002",
+        "name": "가상 네트워크 담당",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "code": "NETWORK",
+          "name": "네트워크",
+          "isRoutable": true
+        },
+        "roles": []
+      }
+    },
+    {
+      "id": "user-2",
+      "type": "CurrentUser",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000102",
+        "employeeNo": "DEMO-003",
+        "name": "가상 backend 담당",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000014",
+          "code": "BACKEND",
+          "name": "backend",
+          "isRoutable": true
+        },
+        "roles": []
+      }
+    },
+    {
+      "id": "user-3",
+      "type": "CurrentUser",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000103",
+        "employeeNo": "DEMO-004",
+        "name": "가상 업무 관리자",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000018",
+          "code": "DEMO_BUSINESS",
+          "name": "가상 업무부서",
+          "isRoutable": false
+        },
+        "roles": [
+          "BIZ_ADMIN"
+        ]
+      }
+    },
+    {
+      "id": "login-request",
+      "type": "LoginRequest",
+      "value": {
+        "loginId": "demo.requester",
+        "password": "mock-only-password"
+      }
+    },
+    {
+      "id": "login-0",
+      "type": "LoginResponse",
+      "value": {
+        "accessToken": "mock-only-user-0",
+        "expiresAt": "2026-10-23T00:30:00Z",
+        "user": {
+          "id": "00000000-0000-4000-8000-000000000100",
+          "employeeNo": "DEMO-001",
+          "name": "가상 문의자",
+          "department": {
+            "id": "00000000-0000-4000-8000-000000000018",
+            "code": "DEMO_BUSINESS",
+            "name": "가상 업무부서",
+            "isRoutable": false
+          },
+          "roles": []
+        }
+      }
+    },
+    {
+      "id": "login-1",
+      "type": "LoginResponse",
+      "value": {
+        "accessToken": "mock-only-user-1",
+        "expiresAt": "2026-10-23T00:30:00Z",
+        "user": {
+          "id": "00000000-0000-4000-8000-000000000101",
+          "employeeNo": "DEMO-002",
+          "name": "가상 네트워크 담당",
+          "department": {
+            "id": "00000000-0000-4000-8000-000000000011",
+            "code": "NETWORK",
+            "name": "네트워크",
+            "isRoutable": true
+          },
+          "roles": []
+        }
+      }
+    },
+    {
+      "id": "login-2",
+      "type": "LoginResponse",
+      "value": {
+        "accessToken": "mock-only-user-2",
+        "expiresAt": "2026-10-23T00:30:00Z",
+        "user": {
+          "id": "00000000-0000-4000-8000-000000000102",
+          "employeeNo": "DEMO-003",
+          "name": "가상 backend 담당",
+          "department": {
+            "id": "00000000-0000-4000-8000-000000000014",
+            "code": "BACKEND",
+            "name": "backend",
+            "isRoutable": true
+          },
+          "roles": []
+        }
+      }
+    },
+    {
+      "id": "login-3",
+      "type": "LoginResponse",
+      "value": {
+        "accessToken": "mock-only-user-3",
+        "expiresAt": "2026-10-23T00:30:00Z",
+        "user": {
+          "id": "00000000-0000-4000-8000-000000000103",
+          "employeeNo": "DEMO-004",
+          "name": "가상 업무 관리자",
+          "department": {
+            "id": "00000000-0000-4000-8000-000000000018",
+            "code": "DEMO_BUSINESS",
+            "name": "가상 업무부서",
+            "isRoutable": false
+          },
+          "roles": [
+            "BIZ_ADMIN"
+          ]
+        }
+      }
+    },
+    {
+      "id": "ticket-network",
+      "type": "TicketCard",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000401",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "problemId": "00000000-0000-4000-8000-000000000201",
+        "workItemId": "00000000-0000-4000-8000-000000000501",
+        "ticketNumber": "TK-DEMO-001",
+        "title": "VPN 접속 오류",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "code": "NETWORK",
+          "name": "네트워크",
+          "isRoutable": true
+        },
+        "processingStatus": "WAITING",
+        "routingStatus": "ASSIGNED",
+        "createdAt": "2026-10-23T00:00:00Z"
+      }
+    },
+    {
+      "id": "ticket-detail",
+      "type": "TicketDetail",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000401",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "problemId": "00000000-0000-4000-8000-000000000201",
+        "workItemId": "00000000-0000-4000-8000-000000000501",
+        "ticketNumber": "TK-DEMO-001",
+        "title": "VPN 접속 오류",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "code": "NETWORK",
+          "name": "네트워크",
+          "isRoutable": true
+        },
+        "processingStatus": "WAITING",
+        "routingStatus": "ASSIGNED",
+        "createdAt": "2026-10-23T00:00:00Z",
+        "description": "가상 VPN 연결 시 오류가 발생합니다.",
+        "diagnosisSummary": "가상 접속 오류 관측. 실제 진단 결과가 아닙니다.",
+        "assignmentHistory": [
+          {
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000011",
+              "code": "NETWORK",
+              "name": "네트워크",
+              "isRoutable": true
+            },
+            "assignedAt": "2026-10-23T00:00:00Z",
+            "endedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "ticket-backend",
+      "type": "TicketCard",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000402",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "problemId": "00000000-0000-4000-8000-000000000201",
+        "workItemId": "00000000-0000-4000-8000-000000000502",
+        "ticketNumber": "TK-DEMO-002",
+        "title": "VPN 의존 서비스 확인",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000014",
+          "code": "BACKEND",
+          "name": "backend",
+          "isRoutable": true
+        },
+        "processingStatus": "WAITING",
+        "routingStatus": "ASSIGNED",
+        "createdAt": "2026-10-23T00:00:00Z"
+      }
+    },
+    {
+      "id": "inquiry-result",
+      "type": "InquiryResult",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000200",
+        "version": 2,
+        "status": "WAITING_USER",
+        "problems": [
+          {
+            "id": "00000000-0000-4000-8000-000000000201",
+            "summary": "VPN 접속 오류",
+            "category": "NETWORK_ACCESS",
+            "status": "TICKET_CREATED",
+            "questionCount": 1
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000202",
+            "summary": "협업 도구 권한 요청",
+            "category": "PERMISSION",
+            "status": "CREATION_FAILED",
+            "questionCount": 0
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000203",
+            "summary": "메신저 증상 확인",
+            "category": "OTHER",
+            "status": "WAITING_USER",
+            "questionCount": 1
+          }
+        ],
+        "tickets": [
+          {
+            "id": "00000000-0000-4000-8000-000000000401",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000501",
+            "ticketNumber": "TK-DEMO-001",
+            "title": "VPN 접속 오류",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000011",
+              "code": "NETWORK",
+              "name": "네트워크",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000402",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000502",
+            "ticketNumber": "TK-DEMO-002",
+            "title": "VPN 의존 서비스 확인",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000014",
+              "code": "BACKEND",
+              "name": "backend",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          }
+        ],
+        "creationFailures": [
+          {
+            "workItemId": "00000000-0000-4000-8000-000000000503",
+            "problemId": "00000000-0000-4000-8000-000000000202",
+            "status": "FAILED",
+            "errorCode": "TICKET_WRITE_FAILED"
+          }
+        ],
+        "currentRun": {
+          "id": "00000000-0000-4000-8000-000000000301",
+          "inquiryVersion": 2,
+          "status": "SUCCEEDED",
+          "error": null
+        }
+      }
+    },
+    {
+      "id": "inquiry-after-question",
+      "type": "InquiryResult",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000200",
+        "version": 1,
+        "status": "WAITING_USER",
+        "problems": [
+          {
+            "id": "00000000-0000-4000-8000-000000000201",
+            "summary": "VPN 접속 오류",
+            "category": "NETWORK_ACCESS",
+            "status": "WAITING_USER",
+            "questionCount": 1
+          }
+        ],
+        "tickets": [],
+        "creationFailures": [],
+        "currentRun": {
+          "id": "00000000-0000-4000-8000-000000000300",
+          "inquiryVersion": 1,
+          "status": "SUCCEEDED",
+          "error": null
+        }
+      }
+    },
+    {
+      "id": "inquiry-completed-routing",
+      "type": "InquiryResult",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000200",
+        "version": 2,
+        "status": "IN_PROGRESS",
+        "problems": [
+          {
+            "id": "00000000-0000-4000-8000-000000000201",
+            "summary": "VPN 접속 오류",
+            "category": "NETWORK_ACCESS",
+            "status": "TICKET_CREATED",
+            "questionCount": 1
+          }
+        ],
+        "tickets": [
+          {
+            "id": "00000000-0000-4000-8000-000000000401",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000501",
+            "ticketNumber": "TK-DEMO-001",
+            "title": "VPN 접속 오류",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000011",
+              "code": "NETWORK",
+              "name": "네트워크",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000402",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000502",
+            "ticketNumber": "TK-DEMO-002",
+            "title": "VPN 의존 서비스 확인",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000014",
+              "code": "BACKEND",
+              "name": "backend",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          }
+        ],
+        "creationFailures": [],
+        "currentRun": {
+          "id": "00000000-0000-4000-8000-000000000301",
+          "inquiryVersion": 2,
+          "status": "SUCCEEDED",
+          "error": null
+        }
+      }
+    },
+    {
+      "id": "empty-inquiry",
+      "type": "InquiryResult",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000210",
+        "version": 1,
+        "status": "IN_PROGRESS",
+        "problems": [],
+        "tickets": [],
+        "creationFailures": [],
+        "currentRun": null
+      }
+    },
+    {
+      "id": "message-user",
+      "type": "ChatMessage",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000601",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "revision": 1,
+        "sequenceNo": 1,
+        "sender": "USER",
+        "content": "VPN 접속 오류가 나요.",
+        "createdAt": "2026-10-23T00:00:00Z",
+        "revisions": []
+      }
+    },
+    {
+      "id": "message-ai",
+      "type": "ChatMessage",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000602",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "revision": 1,
+        "sequenceNo": 2,
+        "sender": "AI",
+        "content": "오류 코드를 알려 주세요.",
+        "createdAt": "2026-10-23T00:00:00Z",
+        "revisions": []
+      }
+    },
+    {
+      "id": "message-revised",
+      "type": "ChatMessage",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000601",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "revision": 2,
+        "sequenceNo": 1,
+        "sender": "USER",
+        "content": "VPN 809 오류가 나요.",
+        "createdAt": "2026-10-23T00:00:00Z",
+        "revisions": [
+          {
+            "revisionNo": 1,
+            "content": "VPN 접속 오류가 나요.",
+            "createdAt": "2026-10-23T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "messages",
+      "type": "MessagePage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000601",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "VPN 접속 오류가 나요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000602",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 2,
+            "sender": "AI",
+            "content": "오류 코드를 알려 주세요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          }
+        ],
+        "nextAfterSequenceNo": null
+      }
+    },
+    {
+      "id": "messages-page-1",
+      "type": "MessagePage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000601",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "VPN 접속 오류가 나요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          }
+        ],
+        "nextAfterSequenceNo": 1
+      }
+    },
+    {
+      "id": "messages-page-2",
+      "type": "MessagePage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000602",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 2,
+            "sender": "AI",
+            "content": "오류 코드를 알려 주세요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          }
+        ],
+        "nextAfterSequenceNo": null
+      }
+    },
+    {
+      "id": "messages-final",
+      "type": "MessagePage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000601",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "VPN 접속 오류가 나요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000602",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 2,
+            "sender": "AI",
+            "content": "오류 코드를 알려 주세요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000603",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 3,
+            "sender": "USER",
+            "content": "오류 코드는 809예요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000605",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 4,
+            "sender": "AI",
+            "content": "담당 부서에 연결했어요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          }
+        ],
+        "nextAfterSequenceNo": null
+      }
+    },
+    {
+      "id": "tickets-network",
+      "type": "TicketPage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000401",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000501",
+            "ticketNumber": "TK-DEMO-001",
+            "title": "VPN 접속 오류",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000011",
+              "code": "NETWORK",
+              "name": "네트워크",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          }
+        ],
+        "page": 0,
+        "size": 20,
+        "totalElements": 1
+      }
+    },
+    {
+      "id": "tickets-backend",
+      "type": "TicketPage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000402",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000502",
+            "ticketNumber": "TK-DEMO-002",
+            "title": "VPN 의존 서비스 확인",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000014",
+              "code": "BACKEND",
+              "name": "backend",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          }
+        ],
+        "page": 0,
+        "size": 20,
+        "totalElements": 1
+      }
+    },
+    {
+      "id": "tickets-empty",
+      "type": "TicketPage",
+      "value": {
+        "items": [],
+        "page": 0,
+        "size": 20,
+        "totalElements": 0
+      }
+    },
+    {
+      "id": "tickets-admin",
+      "type": "TicketPage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000401",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000501",
+            "ticketNumber": "TK-DEMO-001",
+            "title": "VPN 접속 오류",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000011",
+              "code": "NETWORK",
+              "name": "네트워크",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000402",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "problemId": "00000000-0000-4000-8000-000000000201",
+            "workItemId": "00000000-0000-4000-8000-000000000502",
+            "ticketNumber": "TK-DEMO-002",
+            "title": "VPN 의존 서비스 확인",
+            "department": {
+              "id": "00000000-0000-4000-8000-000000000014",
+              "code": "BACKEND",
+              "name": "backend",
+              "isRoutable": true
+            },
+            "processingStatus": "WAITING",
+            "routingStatus": "ASSIGNED",
+            "createdAt": "2026-10-23T00:00:00Z"
+          }
+        ],
+        "page": 0,
+        "size": 20,
+        "totalElements": 2
+      }
+    },
+    {
+      "id": "ticket-query",
+      "type": "TicketListQuery",
+      "value": {
+        "page": 0,
+        "size": 20,
+        "processingStatus": null
+      }
+    },
+    {
+      "id": "inquiry-query",
+      "type": "InquiryListQuery",
+      "value": {
+        "page": 0,
+        "size": 20
+      }
+    },
+    {
+      "id": "message-query",
+      "type": "MessageListQuery",
+      "value": {
+        "afterSequenceNo": 0,
+        "size": 20
+      }
+    },
+    {
+      "id": "inquiry-list",
+      "type": "InquiryPage",
+      "value": {
+        "items": [
+          {
+            "id": "00000000-0000-4000-8000-000000000200",
+            "title": "VPN 접속 오류 외 2건",
+            "status": "WAITING_USER",
+            "createdAt": "2026-10-23T00:00:00Z"
+          }
+        ],
+        "page": 0,
+        "size": 20,
+        "totalElements": 1
+      }
+    },
+    {
+      "id": "create",
+      "type": "InquiryCreateCommand",
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000701",
+        "content": "VPN 접속 오류가 나요."
+      }
+    },
+    {
+      "id": "send",
+      "type": "MessageSendCommand",
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "expectedInquiryVersion": 1,
+        "content": "오류 코드는 809예요."
+      }
+    },
+    {
+      "id": "revise",
+      "type": "MessageReviseCommand",
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000703",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "expectedInquiryVersion": 2,
+        "content": "VPN 809 오류가 나요.",
+        "messageId": "00000000-0000-4000-8000-000000000601"
+      }
+    },
+    {
+      "id": "create-ack",
+      "type": "CommandAck",
+      "value": {
+        "ok": true,
+        "requestId": "00000000-0000-4000-8000-000000000701",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 1,
+        "messageId": "00000000-0000-4000-8000-000000000601",
+        "revision": 1,
+        "runId": "00000000-0000-4000-8000-000000000300",
+        "effect": "ANALYSIS_STARTED"
+      }
+    },
+    {
+      "id": "send-ack",
+      "type": "CommandAck",
+      "value": {
+        "ok": true,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "messageId": "00000000-0000-4000-8000-000000000603",
+        "revision": 1,
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "effect": "ANALYSIS_STARTED"
+      }
+    },
+    {
+      "id": "revise-ack",
+      "type": "CommandAck",
+      "value": {
+        "ok": true,
+        "requestId": "00000000-0000-4000-8000-000000000703",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 3,
+        "messageId": "00000000-0000-4000-8000-000000000601",
+        "revision": 2,
+        "runId": "00000000-0000-4000-8000-000000000302",
+        "effect": "ANALYSIS_STARTED"
+      }
+    },
+    {
+      "id": "supplement-send",
+      "type": "MessageSendCommand",
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000704",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "expectedInquiryVersion": 3,
+        "content": "발생 시각은 오전 9시예요."
+      }
+    },
+    {
+      "id": "supplement-ack",
+      "type": "CommandAck",
+      "value": {
+        "ok": true,
+        "requestId": "00000000-0000-4000-8000-000000000704",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 4,
+        "messageId": "00000000-0000-4000-8000-000000000604",
+        "revision": 1,
+        "runId": null,
+        "effect": "SUPPLEMENT_SAVED"
+      }
+    },
+    {
+      "id": "error-400-INVALID_INPUT",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "INVALID_INPUT",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": false
+      }
+    },
+    {
+      "id": "ack-INVALID_INPUT",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "INVALID_INPUT",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "error-401-UNAUTHENTICATED",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "UNAUTHENTICATED",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": false
+      }
+    },
+    {
+      "id": "ack-UNAUTHENTICATED",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "UNAUTHENTICATED",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "error-403-ACCESS_DENIED",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "ACCESS_DENIED",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": false
+      }
+    },
+    {
+      "id": "ack-ACCESS_DENIED",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "ACCESS_DENIED",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "error-404-NOT_FOUND",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "NOT_FOUND",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": false
+      }
+    },
+    {
+      "id": "ack-NOT_FOUND",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "NOT_FOUND",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "error-409-INQUIRY_VERSION_CONFLICT",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "INQUIRY_VERSION_CONFLICT",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": false
+      }
+    },
+    {
+      "id": "ack-INQUIRY_VERSION_CONFLICT",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "INQUIRY_VERSION_CONFLICT",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "error-409-IDEMPOTENCY_KEY_REUSED",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "IDEMPOTENCY_KEY_REUSED",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": false
+      }
+    },
+    {
+      "id": "ack-IDEMPOTENCY_KEY_REUSED",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "IDEMPOTENCY_KEY_REUSED",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "error-429-RATE_LIMITED",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "RATE_LIMITED",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": true
+      }
+    },
+    {
+      "id": "ack-RATE_LIMITED",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "RATE_LIMITED",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "id": "error-503-SERVICE_UNAVAILABLE",
+      "type": "ApiErrorBody",
+      "value": {
+        "code": "SERVICE_UNAVAILABLE",
+        "message": "가상 테스트 오류입니다.",
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "retryable": true
+      }
+    },
+    {
+      "id": "ack-SERVICE_UNAVAILABLE",
+      "type": "CommandAck",
+      "value": {
+        "ok": false,
+        "requestId": "00000000-0000-4000-8000-000000000702",
+        "error": {
+          "code": "SERVICE_UNAVAILABLE",
+          "message": "가상 테스트 오류입니다.",
+          "requestId": "00000000-0000-4000-8000-000000000702",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "id": "subscribe-0",
+      "type": "SubscriptionCommand",
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000710",
+        "target": {
+          "type": "INQUIRY",
+          "id": "00000000-0000-4000-8000-000000000200"
+        }
+      }
+    },
+    {
+      "id": "subscribe-ack-0",
+      "type": "SubscriptionAck",
+      "value": {
+        "ok": true,
+        "requestId": "00000000-0000-4000-8000-000000000710",
+        "target": {
+          "type": "INQUIRY",
+          "id": "00000000-0000-4000-8000-000000000200"
+        }
+      }
+    },
+    {
+      "id": "subscribe-1",
+      "type": "SubscriptionCommand",
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000711",
+        "target": {
+          "type": "DEPARTMENT_TICKETS",
+          "id": "00000000-0000-4000-8000-000000000011"
+        }
+      }
+    },
+    {
+      "id": "subscribe-ack-1",
+      "type": "SubscriptionAck",
+      "value": {
+        "ok": true,
+        "requestId": "00000000-0000-4000-8000-000000000711",
+        "target": {
+          "type": "DEPARTMENT_TICKETS",
+          "id": "00000000-0000-4000-8000-000000000011"
+        }
+      }
+    },
+    {
+      "id": "subscribe-2",
+      "type": "SubscriptionCommand",
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000712",
+        "target": {
+          "type": "TICKET",
+          "id": "00000000-0000-4000-8000-000000000401"
+        }
+      }
+    },
+    {
+      "id": "subscribe-ack-2",
+      "type": "SubscriptionAck",
+      "value": {
+        "ok": true,
+        "requestId": "00000000-0000-4000-8000-000000000712",
+        "target": {
+          "type": "TICKET",
+          "id": "00000000-0000-4000-8000-000000000401"
+        }
+      }
+    },
+    {
+      "id": "progress",
+      "type": "AgentProgressEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000801",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "payload": {
+          "stepNo": 1,
+          "stepType": "INTAKE",
+          "displaySummary": "문의 내용을 확인해요.",
+          "status": "RUNNING"
+        }
+      }
+    },
+    {
+      "id": "delta-1",
+      "type": "AnswerDeltaEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000810",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "payload": {
+          "messageId": "00000000-0000-4000-8000-000000000605",
+          "seq": 1,
+          "text": "담당 "
+        }
+      }
+    },
+    {
+      "id": "delta-2",
+      "type": "AnswerDeltaEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000811",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "payload": {
+          "messageId": "00000000-0000-4000-8000-000000000605",
+          "seq": 2,
+          "text": "부서에 "
+        }
+      }
+    },
+    {
+      "id": "delta-3",
+      "type": "AnswerDeltaEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000812",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "payload": {
+          "messageId": "00000000-0000-4000-8000-000000000605",
+          "seq": 3,
+          "text": "연결했어요."
+        }
+      }
+    },
+    {
+      "id": "stale-delta",
+      "type": "AnswerDeltaEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000820",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 1,
+        "runId": "00000000-0000-4000-8000-000000000300",
+        "payload": {
+          "messageId": "00000000-0000-4000-8000-000000000605",
+          "seq": 1,
+          "text": "이전 결과"
+        }
+      }
+    },
+    {
+      "id": "old-run-delta",
+      "type": "AnswerDeltaEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000821",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "runId": "00000000-0000-4000-8000-000000000399",
+        "payload": {
+          "messageId": "00000000-0000-4000-8000-000000000605",
+          "seq": 1,
+          "text": "동일 버전 이전 실행"
+        }
+      }
+    },
+    {
+      "id": "stored",
+      "type": "MessageStoredEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000830",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "messageId": "00000000-0000-4000-8000-000000000603",
+        "requestId": "00000000-0000-4000-8000-000000000702"
+      }
+    },
+    {
+      "id": "changed-0",
+      "type": "StateChangedEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000840",
+        "target": {
+          "type": "INQUIRY",
+          "id": "00000000-0000-4000-8000-000000000200"
+        },
+        "inquiryVersion": 2
+      }
+    },
+    {
+      "id": "changed-1",
+      "type": "StateChangedEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000841",
+        "target": {
+          "type": "DEPARTMENT_TICKETS",
+          "id": "00000000-0000-4000-8000-000000000011"
+        },
+        "inquiryVersion": null
+      }
+    },
+    {
+      "id": "changed-2",
+      "type": "StateChangedEvent",
+      "value": {
+        "eventId": "00000000-0000-4000-8000-000000000842",
+        "target": {
+          "type": "TICKET",
+          "id": "00000000-0000-4000-8000-000000000401"
+        },
+        "inquiryVersion": null
+      }
+    },
+    {
+      "id": "run",
+      "type": "RunSummary",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000301",
+        "inquiryVersion": 2,
+        "status": "SUCCEEDED",
+        "error": null
+      }
+    },
+    {
+      "id": "ai-request",
+      "type": "AiRequest",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000300",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 1,
+        "actor": {
+          "userId": "00000000-0000-4000-8000-000000000100",
+          "departmentId": "00000000-0000-4000-8000-000000000018",
+          "roles": [],
+          "accessScopeRef": "mock:owner:inquiry-200"
+        },
+        "deadlineAt": "2026-10-23T00:01:00Z",
+        "messages": [
+          {
+            "id": "00000000-0000-4000-8000-000000000601",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "VPN 접속 오류가 나요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          }
+        ],
+        "existingProblems": [],
+        "existingWorkItems": [],
+        "departments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000010",
+            "code": "ACCOUNT_PERMISSION",
+            "name": "계정 권한",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 계정 권한 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000011",
+            "code": "NETWORK",
+            "name": "네트워크",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 네트워크 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000012",
+            "code": "CS",
+            "name": "CS",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 CS 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000013",
+            "code": "DB",
+            "name": "DB",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 DB 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000014",
+            "code": "BACKEND",
+            "name": "backend",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 backend 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000015",
+            "code": "FRONTEND",
+            "name": "frontend",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 frontend 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000016",
+            "code": "INFRA",
+            "name": "인프라",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 인프라 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000017",
+            "code": "SYSTEM",
+            "name": "시스템",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 시스템 처리"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "msg-601-r1",
+            "kind": "MESSAGE",
+            "sourceId": "00000000-0000-4000-8000-000000000601",
+            "sourceVersion": "1",
+            "summary": "가상 VPN 오류 문의",
+            "observedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "ai-ask",
+      "type": "AiResult",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000300",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 1,
+        "status": "OK",
+        "answer": "오류 코드를 알려 주세요.",
+        "problems": [
+          {
+            "ref": "new:vpn",
+            "summary": "VPN 접속 오류",
+            "category": "NETWORK_ACCESS",
+            "questionCount": 0,
+            "action": "ASK_USER",
+            "question": "오류 코드를 알려 주세요.",
+            "evidenceIds": [
+              "msg-601-r1"
+            ]
+          }
+        ],
+        "ticketProposals": [],
+        "error": null
+      }
+    },
+    {
+      "id": "ai-request-tickets",
+      "type": "AiRequest",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "actor": {
+          "userId": "00000000-0000-4000-8000-000000000100",
+          "departmentId": "00000000-0000-4000-8000-000000000018",
+          "roles": [],
+          "accessScopeRef": "mock:owner:inquiry-200"
+        },
+        "deadlineAt": "2026-10-23T00:01:00Z",
+        "messages": [
+          {
+            "id": "00000000-0000-4000-8000-000000000601",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "VPN 접속 오류가 나요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000602",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 2,
+            "sender": "AI",
+            "content": "오류 코드를 알려 주세요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000603",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 3,
+            "sender": "USER",
+            "content": "오류 코드는 809예요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          }
+        ],
+        "existingProblems": [
+          {
+            "id": "00000000-0000-4000-8000-000000000201",
+            "summary": "VPN 접속 오류",
+            "category": "NETWORK_ACCESS",
+            "status": "WAITING_USER",
+            "questionCount": 1
+          }
+        ],
+        "existingWorkItems": [],
+        "departments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000010",
+            "code": "ACCOUNT_PERMISSION",
+            "name": "계정 권한",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 계정 권한 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000011",
+            "code": "NETWORK",
+            "name": "네트워크",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 네트워크 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000012",
+            "code": "CS",
+            "name": "CS",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 CS 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000013",
+            "code": "DB",
+            "name": "DB",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 DB 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000014",
+            "code": "BACKEND",
+            "name": "backend",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 backend 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000015",
+            "code": "FRONTEND",
+            "name": "frontend",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 frontend 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000016",
+            "code": "INFRA",
+            "name": "인프라",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 인프라 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000017",
+            "code": "SYSTEM",
+            "name": "시스템",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 시스템 처리"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "msg-601-r1",
+            "kind": "MESSAGE",
+            "sourceId": "00000000-0000-4000-8000-000000000601",
+            "sourceVersion": "1",
+            "summary": "가상 VPN 오류 문의",
+            "observedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "ai-tickets",
+      "type": "AiResult",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "status": "OK",
+        "answer": "담당 부서에 연결할 내용을 정리했어요.",
+        "problems": [
+          {
+            "ref": "00000000-0000-4000-8000-000000000201",
+            "summary": "VPN 접속 오류",
+            "category": "NETWORK_ACCESS",
+            "questionCount": 1,
+            "action": "PROPOSE_TICKETS",
+            "question": null,
+            "evidenceIds": [
+              "msg-601-r1"
+            ]
+          }
+        ],
+        "ticketProposals": [
+          {
+            "ref": "new:work-vpn",
+            "problemRef": "00000000-0000-4000-8000-000000000201",
+            "workScope": "VPN 연결 확인",
+            "title": "VPN 접속 오류",
+            "description": "가상 VPN 연결 시 오류가 발생합니다.",
+            "category": "NETWORK_ACCESS",
+            "departmentCode": "NETWORK",
+            "purpose": "INCIDENT",
+            "diagnosisSummary": "가상 접속 오류 관측. 실제 진단 결과가 아닙니다.",
+            "handoffReason": "가상 네트워크 부서 관할",
+            "uncertainty": null,
+            "evidenceIds": [
+              "msg-601-r1"
+            ]
+          },
+          {
+            "ref": "new:work-service",
+            "problemRef": "00000000-0000-4000-8000-000000000201",
+            "workScope": "VPN 의존 서비스 확인",
+            "title": "VPN 의존 서비스 확인",
+            "description": "가상 VPN 연결 시 오류가 발생합니다.",
+            "category": "NETWORK_ACCESS",
+            "departmentCode": "BACKEND",
+            "purpose": "INCIDENT",
+            "diagnosisSummary": "가상 접속 오류 관측. 실제 진단 결과가 아닙니다.",
+            "handoffReason": "가상 네트워크 부서 관할",
+            "uncertainty": null,
+            "evidenceIds": [
+              "msg-601-r1"
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "id": "ai-out-of-scope",
+      "type": "AiResult",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000300",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 1,
+        "status": "OK",
+        "answer": "IT 지원 범위 밖의 질문이에요.",
+        "problems": [
+          {
+            "ref": "new:outside",
+            "summary": "가상 범위 밖 질문",
+            "category": null,
+            "questionCount": 0,
+            "action": "OUT_OF_SCOPE",
+            "question": null,
+            "evidenceIds": [
+              "msg-601-r1"
+            ]
+          }
+        ],
+        "ticketProposals": [],
+        "error": null
+      }
+    },
+    {
+      "id": "ai-request-cs",
+      "type": "AiRequest",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "actor": {
+          "userId": "00000000-0000-4000-8000-000000000100",
+          "departmentId": "00000000-0000-4000-8000-000000000018",
+          "roles": [],
+          "accessScopeRef": "mock:owner:inquiry-200"
+        },
+        "deadlineAt": "2026-10-23T00:01:00Z",
+        "messages": [
+          {
+            "id": "00000000-0000-4000-8000-000000000601",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "VPN 접속 오류가 나요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000602",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 2,
+            "sender": "AI",
+            "content": "오류 코드를 알려 주세요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000603",
+            "inquiryId": "00000000-0000-4000-8000-000000000200",
+            "revision": 1,
+            "sequenceNo": 3,
+            "sender": "USER",
+            "content": "오류 코드는 809예요.",
+            "createdAt": "2026-10-23T00:00:00Z",
+            "revisions": []
+          }
+        ],
+        "existingProblems": [
+          {
+            "id": "00000000-0000-4000-8000-000000000201",
+            "summary": "확인되지 않는 IT 증상",
+            "category": "OTHER",
+            "status": "WAITING_USER",
+            "questionCount": 3
+          }
+        ],
+        "existingWorkItems": [],
+        "departments": [
+          {
+            "id": "00000000-0000-4000-8000-000000000010",
+            "code": "ACCOUNT_PERMISSION",
+            "name": "계정 권한",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 계정 권한 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000011",
+            "code": "NETWORK",
+            "name": "네트워크",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 네트워크 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000012",
+            "code": "CS",
+            "name": "CS",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 CS 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000013",
+            "code": "DB",
+            "name": "DB",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 DB 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000014",
+            "code": "BACKEND",
+            "name": "backend",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 backend 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000015",
+            "code": "FRONTEND",
+            "name": "frontend",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 frontend 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000016",
+            "code": "INFRA",
+            "name": "인프라",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 인프라 처리"
+            ]
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000017",
+            "code": "SYSTEM",
+            "name": "시스템",
+            "isRoutable": true,
+            "responsibilities": [
+              "가상 시스템 처리"
+            ]
+          }
+        ],
+        "evidence": [
+          {
+            "id": "msg-601-r1",
+            "kind": "MESSAGE",
+            "sourceId": "00000000-0000-4000-8000-000000000601",
+            "sourceVersion": "1",
+            "summary": "가상 VPN 오류 문의",
+            "observedAt": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "ai-cs-review",
+      "type": "AiResult",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "status": "OK",
+        "answer": "추가 확인이 필요한 IT 문의를 CS 검토 대상으로 제안했어요.",
+        "problems": [
+          {
+            "ref": "00000000-0000-4000-8000-000000000201",
+            "summary": "확인되지 않는 IT 증상",
+            "category": "OTHER",
+            "questionCount": 3,
+            "action": "PROPOSE_TICKETS",
+            "question": null,
+            "evidenceIds": [
+              "msg-601-r1"
+            ]
+          }
+        ],
+        "ticketProposals": [
+          {
+            "ref": "new:cs-review",
+            "problemRef": "00000000-0000-4000-8000-000000000201",
+            "workScope": "VPN 연결 확인",
+            "title": "VPN 접속 오류",
+            "description": "가상 VPN 연결 시 오류가 발생합니다.",
+            "category": "OTHER",
+            "departmentCode": "CS",
+            "purpose": "CS_REVIEW",
+            "diagnosisSummary": "가상 접속 오류 관측. 실제 진단 결과가 아닙니다.",
+            "handoffReason": "가상 네트워크 부서 관할",
+            "uncertainty": null,
+            "evidenceIds": [
+              "msg-601-r1"
+            ]
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "id": "ticket-cs",
+      "type": "TicketCard",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000403",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "problemId": "00000000-0000-4000-8000-000000000201",
+        "workItemId": "00000000-0000-4000-8000-000000000504",
+        "ticketNumber": "TK-DEMO-003",
+        "title": "IT 문의 초기 검토",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000012",
+          "code": "CS",
+          "name": "CS",
+          "isRoutable": true
+        },
+        "processingStatus": "WAITING",
+        "routingStatus": "CS_REVIEW",
+        "createdAt": "2026-10-23T00:00:00Z"
+      }
+    },
+    {
+      "id": "ai-timeout",
+      "type": "AiResult",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "status": "TIMED_OUT",
+        "error": {
+          "code": "DEADLINE_EXCEEDED",
+          "message": "가상 실행 제한 시간 초과",
+          "requestId": "00000000-0000-4000-8000-000000000301",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "ai-accepted",
+      "type": "AiAccepted",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000300",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 1,
+        "status": "ACCEPTED"
+      }
+    },
+    {
+      "id": "ai-progress",
+      "type": "AiProgress",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "payload": {
+          "stepNo": 1,
+          "stepType": "INTAKE",
+          "displaySummary": "문의 내용을 확인해요.",
+          "status": "RUNNING"
+        }
+      }
+    },
+    {
+      "id": "ai-delta",
+      "type": "AiDelta",
+      "value": {
+        "schemaVersion": "hops-mock-1",
+        "runId": "00000000-0000-4000-8000-000000000301",
+        "inquiryId": "00000000-0000-4000-8000-000000000200",
+        "inquiryVersion": 2,
+        "payload": {
+          "messageId": "00000000-0000-4000-8000-000000000605",
+          "seq": 1,
+          "text": "담당 "
+        }
+      }
+    },
+    {
+      "id": "unknown-state",
+      "type": "RunSummary",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000301",
+        "inquiryVersion": 2,
+        "status": "FUTURE_UNKNOWN_STATUS",
+        "error": null
+      }
+    }
+  ]
+}

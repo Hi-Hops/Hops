@@ -1,0 +1,95 @@
+# F003 문의 시작과 채팅
+
+상태: 초안 · 범위: MVP · 담당: frontend(화면) · 협의: infra(이벤트 중계), backend(저장·검증), ai(분석·답변)
+근거: PRD 3.1, 4.3, 4.4, 8.2 · API 1, 2.1, 2.4 · DATA 3 · ERD `inquiry`, `message`, `inquiry_problem`, `agent_run`, `agent_step`
+
+## 1. 목표
+
+메인에서 IT 문제를 입력해 문의를 시작하고, 채팅에서 분석 진행·추가 질문·안내를 실시간으로 본다. 저장이 확인되기 전에는 "전송 중"으로 보여 주고, 실패해도 입력을 잃지 않는다. (PRD 4.3, 4.4)
+
+## 2. 화면
+
+| 화면 | 경로(제안) | 접근 |
+|---|---|---|
+| 메인(질문 입력) | `/` | 로그인 사용자 |
+| 채팅 | `/inquiries/:inquiryId/chat` | 문의 소유자 |
+
+## 3. 사용자 시나리오
+
+1. 문의자가 메인에서 "VPN이 안 돼요"를 입력하면 채팅 화면으로 이동하고 분석 진행 단계가 보인다.
+2. AI가 부족한 정보를 물으면 답한다. 같은 문제에 대한 추가 질문은 최대 3번이다.
+3. 분석이 끝나면 문제별 결과와 티켓 카드가 보인다(F005).
+4. 전송이 실패하거나 연결이 끊기면, 입력이 남아 있고 다시 보낼 수 있다.
+5. 티켓이 모두 만들어진 뒤 더 보낸 메시지는 담당자에게 전달될 정보 보완으로 저장된다.
+
+## 4. 인수 조건
+
+**문의 시작 (메인)**
+- **F003-AC01 문의 생성**
+  When 메인에서 전송하면 · Then `inquiry.create` `{requestId,content}`를 보내고, ACK로 저장이 확인될 때까지 "전송 중"을 표시한다. 저장이 확인되면 받은 `inquiryId`의 채팅 화면으로 이동한다. Node.js가 받은 것만으로 성공을 표시하지 않는다. (PRD 4.3 · API 2.4)
+- **F003-AC02 입력 검증**
+  공백 포함 1~4,000 코드 포인트만 보낸다. 공백만 있으면 전송 버튼을 막고, 4,000을 넘으면 넘은 양을 알리고 원문을 그대로 둔다. (API 1 · PRD 4.4)
+- **F003-AC03 전송 실패**
+  ACK가 오류면 입력을 보존하고 오류 종류에 맞게 안내한다. 동일 요청의 재전송은 같은 `requestId`, 내용·대상 버전을 고친 새 요청은 새 `requestId`를 쓴다. (PRD 4.3)
+- **F003-AC04 결과 미확인**
+  ACK 시간 초과나 연결 끊김이면 "실패"가 아니라 "결과 확인 중"으로 표시하고, 같은 `requestId`로 결과를 확인하거나 다시 보낸다. 새 `requestId`를 만들지 않고, 서버가 돌려준 문의 하나로만 이동한다(중복 생성 방지는 서버 책임). (API 2.4 · ACK 시간 기준 Q-INF-5)
+
+**채팅**
+- **F003-AC05 대화 불러오기**
+  채팅 화면에 들어가면 `GET /api/inquiries/{id}/messages`로 대화를 순서대로 보여 주고(F002-AC02 구독과 함께), 사용자·AI 말풍선을 구분한다. 페이지를 넘겨도 순서가 바뀌지 않는다. (API 2.1 · ERD `message.sender_type`)
+- **F003-AC06 메시지 전송**
+  `message.send` `{requestId,inquiryId,expectedInquiryVersion,content}`를 보낸다. 저장 ACK 전에는 "전송 중", `message.stored` 또는 저장 ACK 뒤에 정식 메시지로 표시한다. F003-AC02~AC04 규칙을 똑같이 적용한다. (API 2.4)
+- **F003-AC07 분석 진행 표시**
+  `agent.progress`로 단계 문구를 보여 주고, `answer.delta`로 답변을 이어 붙여 임시로 보여 준다. 최종 답변은 저장된 메시지로 바꿔 표시한다. 내부 사고 과정은 보여 주지 않는다. (PRD 4.4, 5.1 · 표시 내용 Q-AI-1, Q-AI-2)
+- **F003-AC08 추가 질문**
+  AI의 추가 질문을 질문으로 구분해 보여 준다. 질문 횟수는 서버 값(`questionCount`)을 쓰고, 화면에서 세지 않는다. 3번 뒤에도 부서를 판별하기 어려운 IT 문의는 CS 검토 티켓 카드로 나타난다(F005). (PRD 3.1 · DATA 3)
+- **F003-AC09 범위 밖 질문**
+  범위 밖 질문에는 안내만 보여 주고 티켓 카드를 만들지 않는다. (PRD 3.1)
+- **F003-AC10 분석 시간 초과**
+  실행이 시간 초과로 끝나면 해결 실패나 CS 분류와 다른 문구로 알리고 "다시 분석"을 제공한다(`POST /api/runs/{id}/retries`). 이미 저장된 티켓은 그대로 둔다. (PRD 4.4 · API 2.1)
+- **F003-AC11 모델·통신 장애**
+  모델·통신 장애는 "분류할 수 없음"과 다른 문구로 표시한다. (PRD 3.1 · API 1)
+- **F003-AC12 이관 이후 입력**
+  모든 문제의 분석·티켓 생성이 끝난 뒤 보낸 메시지는 "정보 보완으로 저장"으로 표시하고 분석 진행을 띄우지 않는다. 저장 결과에 `runId`가 없을 수 있다. 아직 분석 중인 문제가 있으면 그 문제의 분석은 계속한다. (PRD 4.4 · API 2.4 · 저장 결과 구분 필드 Q-BE-10)
+- **F003-AC13 버전 충돌**
+  `expectedInquiryVersion`이 서버와 달라 충돌이 나면 최신 대화를 다시 불러오고, 보내려던 내용은 입력창에 남긴다. (API 1)
+- **F003-AC14 결과 반영**
+  분석 결과로 문제·티켓이 바뀌면(`state.changed`) `GET /api/inquiries/{id}`로 다시 조회해 F005 카드를 갱신한다. (API 2.4)
+
+## 5. 계약(화면이 기대하는 값)
+
+공통 필드·필수/nullable·wire 표현의 원본은 [JSON Schema와 필드 표](../contracts/README.md)다. 아래는 이번 Mock 프로필의 연결표이며 팀 승인·운영 미정 질문의 확정을 뜻하지 않는다. 기존 API의 최소 의미를 구체화한 제안이다.
+
+| 용도 | 경로·이벤트 | 공통 Mock 타입 | 미정 추적 |
+|---|---|---|---|
+| 문의 생성 | inquiry.create | InquiryCreateCommand → CommandAck | Q-INF-6 |
+| 메시지 전송 | message.send | MessageSendCommand → CommandAck | Q-INF-6, Q-BE-10 |
+| 대화 조회 | GET /api/inquiries/{id}/messages | MessageListQuery → MessagePage(ChatMessage[]) | Q-BE-7 |
+| 실행 조회 | GET /api/runs/{id} | RunSummary | Q-BE-8 |
+| 진행·답변 조각 | agent.progress / answer.delta | AgentProgressEvent / AnswerDeltaEvent | Q-AI-1/2 |
+| 문의 결과 | GET /api/inquiries/{id} | InquiryResult | Q-BE-3/4, Q-ALL-2 |
+
+Mock의 실행 재시도 API는 이번 범위 밖이다. AC10의 시간 초과 안내까지 재현하며 다시 분석 버튼의 실제 연결은 Q-BE-8 합의 후 진행한다. AI 답변 저장은 ChatMessage, 질문 구분은 서버가 저장한 Problem.status/questionCount를 함께 사용한다. 별도 구조화 가이드 payload(Q-AI-3)는 이번 Mock에 추가하지 않는다.
+
+## 6. 메시지 상태
+
+```text
+작성 → 전송 중(ACK 대기) → 저장됨
+                        → 오류: 입력 보존, 같은 requestId로 재전송
+                        → 결과 확인 중(ACK 시간 초과·끊김): 같은 requestId로 확인·재전송
+분석: 진행 중(agent.progress) → 답변 작성 중(answer.delta) → 저장된 답변
+     → 시간 초과: 다시 분석 / 장애: 장애 안내
+```
+
+## 7. 범위 밖
+
+새 문의 분리 동의(PRD 4.4. PRD 8.2에 없고 이슈 #30에는 있음 → [F008](../F008-split-consent/spec.md), Q-ALL-7), 해결 신고, 이미지 업로드(PRD 8.4 MVP 제외), PDF 매뉴얼(선택), 채팅 예시 질문(MVP 포함 여부 Q-ALL-6).
+
+## 8. 막히는 정도
+
+- 목으로 진행 가능: 메인·채팅 화면, 입력 검증, 전송 상태, 진행 표시 틀, 재전송 흐름.
+- 결정 전 구현 보류: ACK 결과 필드(Q-INF-6), 문의 버전(Q-BE-3), AI 답변 형태(Q-AI-3).
+
+## 공통 Mock 계약 (2026-10-23)
+
+이 기능의 Mock 전송 데이터는 [공통 Schema·생성 DTO](../contracts/README.md)와 [operation 목록](../contracts/operations.json)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. 이 절은 Mock 개발용 제안이며 기존 계약 표의 미정 항목이나 팀 승인 상태를 확정으로 바꾸지 않는다. 서버 저장·권한·AI 품질 완료를 뜻하지 않는다.

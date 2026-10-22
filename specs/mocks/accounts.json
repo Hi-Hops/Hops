@@ -1,0 +1,27 @@
+{
+  "synthetic": true,
+  "password": "mock-only-password",
+  "accounts": [
+    {
+      "loginId": "demo.requester",
+      "userFixture": "user-0",
+      "loginFixture": "login-0"
+    },
+    {
+      "loginId": "demo.network",
+      "userFixture": "user-1",
+      "loginFixture": "login-1"
+    },
+    {
+      "loginId": "demo.backend",
+      "userFixture": "user-2",
+      "loginFixture": "login-2"
+    },
+    {
+      "loginId": "demo.admin",
+      "userFixture": "user-3",
+      "loginFixture": "login-3"
+    }
+  ],
+  "note": "가짜 인증 어댑터 전용. 실제 JWT·DB 인증에 사용하지 않는다."
+}

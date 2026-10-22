@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "hops-mock-1",
+  "status": "MOCK_DRAFT",
+  "defaultPageSize": 20,
+  "maxPageSize": 100,
+  "ackTimeoutMs": 10000,
+  "authentication": {
+    "tokenStorage": "MEMORY",
+    "refresh": false,
+    "expiresAfterSeconds": 1800,
+    "note": "테스트 시계만 사용. 운영 정책 미확정"
+  },
+  "codes": {
+    "ProblemStatus": [
+      "ANALYZING",
+      "WAITING_USER",
+      "TICKET_CREATED",
+      "CREATION_FAILED",
+      "OUT_OF_SCOPE"
+    ],
+    "RoutingStatus": [
+      "ASSIGNED",
+      "CS_REVIEW"
+    ],
+    "RunStatus": [
+      "RUNNING",
+      "SUCCEEDED",
+      "FAILED",
+      "TIMED_OUT",
+      "SUPERSEDED"
+    ],
+    "Effect": [
+      "ANALYSIS_STARTED",
+      "SUPPLEMENT_SAVED"
+    ],
+    "ErrorCode": [
+      "INVALID_INPUT",
+      "UNAUTHENTICATED",
+      "ACCESS_DENIED",
+      "NOT_FOUND",
+      "INQUIRY_VERSION_CONFLICT",
+      "IDEMPOTENCY_KEY_REUSED",
+      "RATE_LIMITED",
+      "MODEL_UNAVAILABLE",
+      "DEADLINE_EXCEEDED",
+      "TICKET_WRITE_FAILED",
+      "SERVICE_UNAVAILABLE"
+    ]
+  }
+}
