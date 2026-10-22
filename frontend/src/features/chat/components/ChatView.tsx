@@ -1,3 +1,4 @@
+import { ResultPanel } from '@/features/inquiry';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { ApiError } from '@/shared/api/client';
@@ -112,6 +113,7 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
             <small className={styles.progress}>작성 중인 답변이에요. 저장된 결과가 아니에요.</small>
           </div>
         )}
+        <ResultPanel result={data} />
         {(runStatus === 'TIMED_OUT' || runStatus === 'FAILED') && (
           <div className={styles.runError} role="alert">
             <strong>
