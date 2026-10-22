@@ -90,3 +90,15 @@ export const router = createBrowserRouter([
 - `RequireAuth`: `/api/auth/me` 조회 중에는 로딩, 401이면 `/login`으로 보내고 돌아올 경로를 기억한다(F001-AC05).
 - `RequireRole`: 역할이 없으면 `/403`으로 보낸다. 내용을 먼저 그리지 않는다(F001-AC04).
 - 메뉴는 `src/app/navigation.ts`의 역할별 정의를 읽어 그린다(COMPONENTS 2절). 경로 문자열을 메뉴·링크에 직접 흩어 쓰지 않고 `src/app/paths.ts`의 함수(`paths.inquiryChat(id)`)로 만든다.
+
+## 현재 Mock 구현 경로 (2026-10-23)
+
+위 표는 제품 전체의 제안 경로다. 이번 구현은 로그인·채팅·결과·정정·티켓 조회로 한정하며 실제 등록 경로는 다음과 같다.
+
+- `/login`, `/`, `/inquiries/:inquiryId/chat`: F001~F005 Mock 화면.
+- `/inquiries`: 재진입용 최소 목록. F006 전체 상세 모달·필터·숨김 기능은 구현하지 않았다.
+- `/tickets/:ticketId?`: 목록과 URL 상세 모달. 현재 부서 또는 BIZ_ADMIN 범위를 서버 대역에서 검사한다. `page`, `size`, `processingStatus`만 이번 계약에 포함한다.
+- `/admin/tickets/:ticketId?`: BIZ_ADMIN 가드 아래 같은 `TicketsPage`를 재사용한다. 전체 티켓 조회만 제공하며 F007/F010 전체 관리자 기능 완료를 뜻하지 않는다.
+- `/403`, `*`: 권한 없음과 찾을 수 없음 화면. 보호 경로는 인증 후 접근한다.
+
+경로 생성기는 features/pages에서도 참조할 수 있게 `shared/config/paths.ts`에 두고 `app/paths.ts`는 재노출한다. 티켓 모달은 optional param 경로 하나로 등록해 목록 컴포넌트와 검색 조건을 유지한다. 운영 관리자·문의 상세 모달·복구 경로는 아직 등록하지 않았다.

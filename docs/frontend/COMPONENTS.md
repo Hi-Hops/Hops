@@ -97,6 +97,6 @@
 
 ## Mock 구현 반영 (2026-10-23)
 
-`ErrorState(title, onRetry?)`, `LoadingState(label?)`를 `shared/ui`에서 재사용한다. 조회 실패는 alert, 조회 중은 status로 안내한다. 상태 배지의 tone은 neutral/progress/attention/success/danger다. `RouteModal(title, description, onClose, returnFocusId?, children)`은 Radix Dialog를 사용하며 URL 변경은 호출 기능이 담당한다. 상세 종료 시 목록 링크 또는 페이지 제목으로 포커스를 돌린다. 티켓 상세와 목록은 같은 검색 조건을 유지한다.
+`ErrorState(title, description?, onRetry?)`, `LoadingState(label?)`를 `shared/ui`에서 재사용한다. 조회 실패는 alert, 조회 중은 status로 안내한다. 상태 배지의 tone은 neutral/progress/attention/success/danger다. `RouteModal(title, description, onClose, returnFocusId?, children)`은 Radix Dialog를 사용하며 URL 변경은 호출 기능이 담당한다. 상세 종료 시 목록 링크 또는 페이지 제목으로 포커스를 돌린다. 티켓 상세와 목록은 같은 검색 조건을 유지한다.
 
 현재 공개 기능 컴포넌트는 `ResultPanel`, `TicketStatuses`(inquiry), `MessageRevision`(chat 내부), `TicketBoard`(ticket)다. 기획 목록의 이름을 그대로 파일로 미리 만들지 않고 구현된 공개 진입점만 노출한다.
