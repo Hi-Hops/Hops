@@ -1,3 +1,4 @@
+import { MessageRevision } from './MessageRevision';
 import { ResultPanel } from '@/features/inquiry';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
@@ -84,6 +85,9 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
               {message.sender === 'USER' && <small>나 · {displayDate(message.createdAt)}</small>}
               <p>{message.content}</p>
             </div>
+            {message.sender === 'USER' && (
+              <MessageRevision message={message} version={data.version} onStored={chat.refresh} />
+            )}
           </article>
         ))}
         {chat.messages.hasNextPage && (
