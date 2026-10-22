@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { logout, useSession } from '@/features/auth';
+import { RealtimeBoundary } from '@/features/realtime';
 import { Button } from '@/shared/ui/Button';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
 import styles from './AppLayout.module.css';
@@ -93,7 +94,9 @@ export function AppLayout() {
           </nav>
         </aside>
         <div className={styles.content}>
-          <Outlet />
+          <RealtimeBoundary>
+            <Outlet />
+          </RealtimeBoundary>
         </div>
       </div>
     </div>

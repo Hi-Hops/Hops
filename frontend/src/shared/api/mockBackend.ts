@@ -1,5 +1,11 @@
 import accounts from '@fixtures/accounts.json';
-import type { ApiErrorBody, CurrentUser, LoginRequest, LoginResponse } from './types';
+import type {
+  ApiErrorBody,
+  CurrentUser,
+  LoginRequest,
+  LoginResponse,
+  SubscriptionTarget,
+} from './types';
 import { fixture } from './mockData';
 
 export class MockHttpError extends Error {
@@ -43,6 +49,35 @@ export class MockBackend {
   expire(token: string) {
     const session = this.sessions.get(token);
     if (session) session.expiresAt = 0;
+  }
+
+  authorizeTarget(token: string, target: SubscriptionTarget) {
+    const user = this.currentUser(token);
+    const requester = fixture('user-0', 'CurrentUser');
+    if (
+      target.type === 'INQUIRY' &&
+      user.id === requester.id &&
+      target.id === fixture('inquiry-result', 'InquiryResult').id
+    )
+      return;
+    if (
+      target.type === 'DEPARTMENT_TICKETS' &&
+      ((user.department.isRoutable && target.id === user.department.id) ||
+        user.roles.includes('BIZ_ADMIN'))
+    )
+      return;
+    if (target.type === 'TICKET') {
+      const tickets = fixture('inquiry-result', 'InquiryResult').tickets;
+      if (
+        tickets.some(
+          (ticket) =>
+            ticket.id === target.id &&
+            (ticket.department.id === user.department.id || user.roles.includes('BIZ_ADMIN')),
+        )
+      )
+        return;
+    }
+    this.error(403, 'ACCESS_DENIED', '이 정보에 접근할 권한이 없어요.');
   }
 
   request(path: string, method: string, body: unknown, token: string | null): unknown {
