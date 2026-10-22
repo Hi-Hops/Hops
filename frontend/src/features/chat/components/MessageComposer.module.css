@@ -1,0 +1,103 @@
+.container {
+  width: 100%;
+  display: grid;
+  gap: var(--space-2);
+}
+.composer {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+.composer:focus-within {
+  border-color: var(--color-primary);
+}
+.label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.composer textarea {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  padding: 0;
+  outline: none;
+  resize: vertical;
+  line-height: 1.65;
+  font-size: var(--font-size-body);
+  background: transparent;
+  color: var(--color-text);
+}
+.composer textarea:focus-visible {
+  outline: none;
+}
+.composer textarea::placeholder {
+  color: var(--color-text-muted);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.bar > span:first-child {
+  margin-right: auto;
+}
+.bar button {
+  min-height: var(--control-height-sm);
+  font-size: var(--font-size-label);
+  padding: var(--space-1) var(--space-3);
+}
+.home .composer {
+  padding: var(--space-5);
+  border-color: var(--color-border);
+}
+.home textarea {
+  min-height: 112px;
+}
+.home .bar button {
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-4);
+}
+.notice {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-progress-bg);
+  color: var(--color-progress);
+  font-size: var(--font-size-label);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.error {
+  color: var(--color-danger);
+  font-size: var(--font-size-label);
+}
+.notice.error {
+  background: var(--color-danger-bg);
+}
+.helper {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+@media (max-width: 600px) {
+  .bar {
+    flex-wrap: wrap;
+  }
+  .bar > span:first-child {
+    flex-basis: 100%;
+  }
+  .notice {
+    display: grid;
+  }
+}

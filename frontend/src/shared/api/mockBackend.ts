@@ -1,22 +1,10 @@
 import accounts from '@fixtures/accounts.json';
-import type {
-  ApiErrorBody,
-  CurrentUser,
-  LoginRequest,
-  LoginResponse,
-  SubscriptionTarget,
-} from './types';
+import type { CurrentUser, LoginRequest, LoginResponse, SubscriptionTarget } from './types';
 import { fixture } from './mockData';
-
-export class MockHttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly body: ApiErrorBody,
-  ) {
-    super(body.message);
-    this.name = 'MockHttpError';
-  }
-}
+import { MockHttpError } from './mockError';
+import { mockWorkspace } from './mockWorkspace';
+import type { StoredCommand, StoredCommandName } from '@/shared/realtime/types';
+export { MockHttpError } from './mockError';
 
 export class MockBackend {
   private sessions = new Map<string, { user: CurrentUser; expiresAt: number }>();
@@ -28,6 +16,7 @@ export class MockBackend {
   reset() {
     this.sessions.clear();
     this.nextFailure = null;
+    mockWorkspace.reset();
   }
 
   error(status: number, code: string, message: string): never {
@@ -52,32 +41,11 @@ export class MockBackend {
   }
 
   authorizeTarget(token: string, target: SubscriptionTarget) {
-    const user = this.currentUser(token);
-    const requester = fixture('user-0', 'CurrentUser');
-    if (
-      target.type === 'INQUIRY' &&
-      user.id === requester.id &&
-      target.id === fixture('inquiry-result', 'InquiryResult').id
-    )
-      return;
-    if (
-      target.type === 'DEPARTMENT_TICKETS' &&
-      ((user.department.isRoutable && target.id === user.department.id) ||
-        user.roles.includes('BIZ_ADMIN'))
-    )
-      return;
-    if (target.type === 'TICKET') {
-      const tickets = fixture('inquiry-result', 'InquiryResult').tickets;
-      if (
-        tickets.some(
-          (ticket) =>
-            ticket.id === target.id &&
-            (ticket.department.id === user.department.id || user.roles.includes('BIZ_ADMIN')),
-        )
-      )
-        return;
-    }
-    this.error(403, 'ACCESS_DENIED', '이 정보에 접근할 권한이 없어요.');
+    mockWorkspace.authorize(this.currentUser(token), target);
+  }
+
+  command(name: StoredCommandName, command: StoredCommand, token: string) {
+    return mockWorkspace.command(this.currentUser(token), name, command);
   }
 
   request(path: string, method: string, body: unknown, token: string | null): unknown {
@@ -108,6 +76,30 @@ export class MockBackend {
       if (token) this.sessions.delete(token);
       return undefined;
     }
+    const url = new URL(path, 'http://mock.invalid');
+    const readNumber = (key: string, fallback: number, max: number) => {
+      const raw = url.searchParams.get(key);
+      if (raw === null) return fallback;
+      if (!/^\d+$/u.test(raw) || Number(raw) > max)
+        this.error(400, 'INVALID_INPUT', '조회 조건을 확인해 주세요.');
+      return Number(raw);
+    };
+    const page = readNumber('page', 0, 2147483647);
+    const size = readNumber('size', 20, 100);
+    if (size < 1) this.error(400, 'INVALID_INPUT', '페이지 크기를 확인해 주세요.');
+    if (url.pathname === '/api/inquiries') return mockWorkspace.listInquiries(user, page, size);
+    const inquiryMatch = /^\/api\/inquiries\/([^/]+)(\/messages)?$/u.exec(url.pathname);
+    if (inquiryMatch?.[1])
+      return inquiryMatch[2]
+        ? mockWorkspace.messages(
+            user,
+            inquiryMatch[1],
+            readNumber('afterSequenceNo', 0, 2147483647),
+            size,
+          )
+        : mockWorkspace.readInquiry(user, inquiryMatch[1]);
+    const runMatch = /^\/api\/runs\/([^/]+)$/u.exec(url.pathname);
+    if (runMatch?.[1]) return mockWorkspace.readRun(user, runMatch[1]);
     this.error(404, 'NOT_FOUND', '요청한 정보를 찾을 수 없어요.');
   }
 }

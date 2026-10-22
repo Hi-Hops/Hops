@@ -5,6 +5,8 @@ import { LoginPage } from '@/pages/login/LoginPage';
 import { HomePage } from '@/pages/home/HomePage';
 import { TicketsPage } from '@/pages/tickets/TicketsPage';
 import { ErrorPage } from '@/pages/errors/ErrorPage';
+import { InquiryChatPage } from '@/pages/inquiry-chat/InquiryChatPage';
+import { InquiriesPage } from '@/pages/inquiries/InquiriesPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -15,6 +17,8 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <HomePage /> },
+          { path: '/inquiries/:inquiryId/chat', element: <InquiryChatPage /> },
+          { path: '/inquiries', element: <InquiriesPage /> },
           { path: '/tickets', element: <TicketsPage /> },
           { path: '*', element: <ErrorPage /> },
         ],
