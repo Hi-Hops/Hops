@@ -1,5 +1,11 @@
 import accounts from '@fixtures/accounts.json';
-import type { CurrentUser, LoginRequest, LoginResponse, SubscriptionTarget } from './types';
+import type {
+  CurrentUser,
+  LoginRequest,
+  LoginResponse,
+  SubscriptionTarget,
+  TicketPage,
+} from './types';
 import { fixture } from './mockData';
 import { MockHttpError } from './mockError';
 import { mockWorkspace } from './mockWorkspace';
@@ -98,6 +104,29 @@ export class MockBackend {
             size,
           )
         : mockWorkspace.readInquiry(user, inquiryMatch[1]);
+    if (url.pathname === '/api/tickets') {
+      if (!user.department.isRoutable && !user.roles.includes('BIZ_ADMIN'))
+        this.error(403, 'ACCESS_DENIED', '부서 티켓 조회 권한이 없어요.');
+      const status = url.searchParams.get('processingStatus');
+      if (
+        status &&
+        !['WAITING', 'IN_PROGRESS', 'WAITING_CONFIRM', 'RESOLVED', 'CLOSED_UNCONFIRMED'].includes(
+          status,
+        )
+      )
+        this.error(400, 'INVALID_INPUT', '처리 상태를 확인해 주세요.');
+      const tickets = mockWorkspace
+        .tickets(user)
+        .filter((ticket) => !status || ticket.processingStatus === status);
+      return {
+        items: tickets.slice(page * size, (page + 1) * size),
+        page,
+        size,
+        totalElements: tickets.length,
+      } satisfies TicketPage;
+    }
+    const ticketMatch = /^\/api\/tickets\/([^/]+)$/u.exec(url.pathname);
+    if (ticketMatch?.[1]) return mockWorkspace.ticket(user, ticketMatch[1]);
     const runMatch = /^\/api\/runs\/([^/]+)$/u.exec(url.pathname);
     if (runMatch?.[1]) return mockWorkspace.readRun(user, runMatch[1]);
     this.error(404, 'NOT_FOUND', '요청한 정보를 찾을 수 없어요.');

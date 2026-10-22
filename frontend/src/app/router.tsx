@@ -19,7 +19,7 @@ export const router = createBrowserRouter([
           { path: '/', element: <HomePage /> },
           { path: '/inquiries/:inquiryId/chat', element: <InquiryChatPage /> },
           { path: '/inquiries', element: <InquiriesPage /> },
-          { path: '/tickets', element: <TicketsPage /> },
+          { path: '/tickets/:ticketId?', element: <TicketsPage /> },
           { path: '*', element: <ErrorPage /> },
         ],
       },

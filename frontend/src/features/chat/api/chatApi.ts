@@ -1,13 +1,5 @@
 import { apiRequest } from '@/shared/api/client';
-import { mockBackend } from '@/shared/api/mockBackend';
-import { mockWorkspace } from '@/shared/api/mockWorkspace';
-import { realtime } from '@/shared/realtime/mockTransport';
 import type { InquiryResult, MessagePage, RunSummary } from '@/shared/api/types';
-
-realtime.setProcessor((name, command, token) => mockBackend.command(name, command, token));
-mockWorkspace.setPublisher((name, event) => {
-  realtime.publish(name, event);
-});
 
 export const chatKeys = {
   all: ['chat'] as const,

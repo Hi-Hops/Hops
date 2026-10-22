@@ -1,3 +1,4 @@
+import { mockWorkspace } from '@/shared/api/mockWorkspace';
 import type { SubscriptionCommand, SubscriptionTarget, ErrorAck } from '@/shared/api/types';
 import { mockBackend, MockHttpError } from '@/shared/api/mockBackend';
 import type {
@@ -133,3 +134,9 @@ export class MockTransport {
 }
 
 export const realtime = new MockTransport();
+
+// Mock 전용 연결은 진입 화면에 의존하지 않고 한 번 초기화한다.
+realtime.setProcessor((name, command, token) => mockBackend.command(name, command, token));
+mockWorkspace.setPublisher((name, event) => {
+  realtime.publish(name, event);
+});

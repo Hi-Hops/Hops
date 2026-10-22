@@ -3,6 +3,7 @@ import { fixture } from './mockData';
 import { mockError } from './mockError';
 import type {
   ChatMessage,
+  Department,
   CommandAck,
   CurrentUser,
   InquiryPage,
@@ -129,10 +130,23 @@ export class MockWorkspace {
     return {
       ...template,
       ...structuredClone(ticket),
+      description: ticket.id === template.id ? template.description : ticket.title,
+      diagnosisSummary: ticket.id === template.id ? template.diagnosisSummary : null,
       assignmentHistory: [
         { department: ticket.department, assignedAt: ticket.createdAt, endedAt: null },
       ],
     };
+  }
+  /** 테스트에서 서버 측 재이관 후 권한 변화를 재현한다. 사용자 조작 API가 아니다. */
+  reassignForTest(id: string, department: Department) {
+    for (const record of this.records.values()) {
+      const ticket = record.inquiry.tickets.find((item) => item.id === id);
+      if (ticket) {
+        ticket.department = structuredClone(department);
+        return;
+      }
+    }
+    mockError(404, 'NOT_FOUND', '티켓을 찾을 수 없어요.');
   }
   authorize(user: CurrentUser, target: SubscriptionTarget) {
     if (target.type === 'INQUIRY') {
