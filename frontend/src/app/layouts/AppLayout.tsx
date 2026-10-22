@@ -1,3 +1,4 @@
+import { paths } from '@/shared/config/paths';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -84,11 +85,11 @@ export function AppLayout() {
               <>
                 <p className={styles.group}>업무</p>
                 <NavLink
-                  to="/tickets"
+                  to={user.roles.includes('BIZ_ADMIN') ? paths.adminTickets : paths.tickets}
                   className={({ isActive }) => (isActive ? styles.active : styles.link)}
                 >
                   <span className={styles.navIcon} aria-hidden="true" />
-                  부서 티켓 현황
+                  {user.roles.includes('BIZ_ADMIN') ? '전체 티켓 현황' : '부서 티켓 현황'}
                 </NavLink>
               </>
             )}

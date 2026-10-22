@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useSession } from '@/features/auth';
 import { useSubscription } from '@/features/realtime';
 import { paths } from '@/shared/config/paths';
@@ -9,6 +9,8 @@ export function useTickets() {
   const [search, setSearch] = useSearchParams();
   const { ticketId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const base = location.pathname.startsWith('/admin/') ? paths.adminTickets : paths.tickets;
   const canRead = user ? user.department.isRoutable || user.roles.includes('BIZ_ADMIN') : false;
   const query = useQuery({
     queryKey: ticketKeys.list(search.toString(), user?.id ?? ''),
@@ -26,13 +28,14 @@ export function useTickets() {
   }
   return {
     user,
+    base,
     query,
     canRead,
     ticketId,
     search,
     change,
     close: () => {
-      void navigate({ pathname: paths.tickets, search: search.toString() }, { replace: true });
+      void navigate({ pathname: base, search: search.toString() }, { replace: true });
     },
   };
 }

@@ -1,12 +1,11 @@
+import { RequireRole } from './guards/RequireRole';
+import { ForbiddenPage } from '@/pages/errors/ForbiddenPage';
 import { createBrowserRouter } from 'react-router';
 import { RequireAuth } from './guards/RequireAuth';
 import { AppLayout } from './layouts/AppLayout';
 import { LoginPage } from '@/pages/login/LoginPage';
 import { HomePage } from '@/pages/home/HomePage';
-import { TicketsPage } from '@/pages/tickets/TicketsPage';
 import { ErrorPage } from '@/pages/errors/ErrorPage';
-import { InquiryChatPage } from '@/pages/inquiry-chat/InquiryChatPage';
-import { InquiriesPage } from '@/pages/inquiries/InquiriesPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -17,9 +16,40 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <HomePage /> },
-          { path: '/inquiries/:inquiryId/chat', element: <InquiryChatPage /> },
-          { path: '/inquiries', element: <InquiriesPage /> },
-          { path: '/tickets/:ticketId?', element: <TicketsPage /> },
+          {
+            path: '/inquiries/:inquiryId/chat',
+            lazy: () =>
+              import('@/pages/inquiry-chat/InquiryChatPage').then(({ InquiryChatPage }) => ({
+                Component: InquiryChatPage,
+              })),
+          },
+          {
+            path: '/inquiries',
+            lazy: () =>
+              import('@/pages/inquiries/InquiriesPage').then(({ InquiriesPage }) => ({
+                Component: InquiriesPage,
+              })),
+          },
+          {
+            path: '/tickets/:ticketId?',
+            lazy: () =>
+              import('@/pages/tickets/TicketsPage').then(({ TicketsPage }) => ({
+                Component: TicketsPage,
+              })),
+          },
+          {
+            element: <RequireRole role="BIZ_ADMIN" />,
+            children: [
+              {
+                path: '/admin/tickets/:ticketId?',
+                lazy: () =>
+                  import('@/pages/tickets/TicketsPage').then(({ TicketsPage }) => ({
+                    Component: TicketsPage,
+                  })),
+              },
+            ],
+          },
+          { path: '/403', element: <ForbiddenPage /> },
           { path: '*', element: <ErrorPage /> },
         ],
       },

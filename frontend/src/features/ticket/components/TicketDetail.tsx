@@ -21,6 +21,13 @@ export function TicketDetail({ id, onClose }: { id: string; onClose: () => void 
                 ? '티켓을 찾을 수 없어요'
                 : '티켓을 불러오지 못했어요'
           }
+          description={
+            error instanceof ApiError && error.status === 403
+              ? '현재 접근 가능한 부서 티켓 목록으로 돌아가 주세요.'
+              : error instanceof ApiError && error.status === 404
+                ? '티켓 주소를 확인하거나 목록에서 다시 선택해 주세요.'
+                : undefined
+          }
           onRetry={() => {
             void query.refetch();
           }}

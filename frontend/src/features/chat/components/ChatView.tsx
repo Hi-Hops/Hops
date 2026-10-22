@@ -32,6 +32,13 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
               ? '문의를 찾을 수 없어요'
               : '문의를 불러오지 못했어요'
         }
+        description={
+          error instanceof ApiError && error.status === 403
+            ? '본인 문의 내역에서 접근 가능한 문의를 선택해 주세요.'
+            : error instanceof ApiError && error.status === 404
+              ? '문의 주소를 확인하거나 새 문의를 시작해 주세요.'
+              : undefined
+        }
         onRetry={chat.refresh}
       />
     );

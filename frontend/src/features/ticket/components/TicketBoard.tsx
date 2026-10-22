@@ -30,7 +30,10 @@ export function TicketBoard() {
       </header>
       {!board.canRead ? (
         <>
-          <ErrorState title="부서 티켓 조회 권한이 없어요" />
+          <ErrorState
+            title="부서 티켓 조회 권한이 없어요"
+            description="현재 처리 부서 구성원 또는 업무 관리자로 로그인해 주세요."
+          />
           <Link to={paths.home}>IT 문의하기로 돌아가기</Link>
         </>
       ) : (
@@ -104,7 +107,7 @@ export function TicketBoard() {
                         <Link
                           id={`ticket-${ticket.id}`}
                           to={{
-                            pathname: paths.ticket(ticket.id),
+                            pathname: `${board.base}/${encodeURIComponent(ticket.id)}`,
                             search: board.search.toString(),
                           }}
                         >

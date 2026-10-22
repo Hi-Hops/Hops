@@ -4,6 +4,7 @@ export const paths = {
   login: '/login',
   inquiries: '/inquiries',
   tickets: '/tickets',
+  adminTickets: '/admin/tickets',
   inquiryChat: (id: string) => `/inquiries/${encodeURIComponent(id)}/chat`,
   ticket: (id: string) => `/tickets/${encodeURIComponent(id)}`,
 };
