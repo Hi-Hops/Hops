@@ -1,0 +1,123 @@
+package com.hihops.hops.global.security;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.matchesPattern;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.servlet.http.HttpServletRequest;
+
+/**
+ * Spring Security 기본 설정을 확인한다: 주소별 접근 규칙, 401·403 공통 오류 응답, CORS, 프록시 HTTPS 헤더.
+ * JWT 검증은 서명 방식이 정해진 뒤 추가하므로, 로그인한 상태는 @WithMockUser(테스트용 가짜 사용자)로 흉내 낸다.
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("local")
+@Import(SecurityConfigTest.TestSecurityController.class)
+class SecurityConfigTest {
+
+    private static final String UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ApplicationContext context;
+
+    @Test
+    void 임시_계정과_비밀번호를_자동으로_만들지_않는다() {
+        assertThat(context.getBeansOfType(UserDetailsService.class)).isEmpty();
+    }
+
+    @Test
+    void 로그인하지_않고_API를_호출하면_401_공통_오류로_응답한다() throws Exception {
+        mockMvc.perform(get("/api/tickets"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.requestId").value(matchesPattern(UUID_PATTERN)));
+    }
+
+    @Test
+    void 로그인_API는_로그인_없이_접근할_수_있다() throws Exception {
+        // 아직 로그인 API가 없어서 404지만, 401로 막히지 않았다는 것이 핵심이다.
+        mockMvc.perform(post("/api/auth/login"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser
+    void 로그인한_사용자는_API에_접근할_수_있다() throws Exception {
+        mockMvc.perform(get("/test/security/scheme"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser
+    void 권한이_없으면_403_공통_오류로_응답한다() throws Exception {
+        mockMvc.perform(get("/test/security/denied"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void 허용한_프론트_주소의_CORS_요청은_통과한다() throws Exception {
+        mockMvc.perform(options("/api/tickets")
+                        .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"));
+    }
+
+    @Test
+    void 허용하지_않은_주소의_CORS_요청은_거부한다() throws Exception {
+        mockMvc.perform(options("/api/tickets")
+                        .header(HttpHeaders.ORIGIN, "http://evil.example.com")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
+    }
+
+    @Test
+    @WithMockUser
+    void 프록시가_알려준_HTTPS를_원래_요청_방식으로_인식한다() throws Exception {
+        mockMvc.perform(get("/test/security/scheme").header("X-Forwarded-Proto", "https"))
+                .andExpect(content().string("https"));
+    }
+
+    @TestConfiguration
+    @RestController
+    static class TestSecurityController {
+
+        @GetMapping("/test/security/scheme")
+        String scheme(HttpServletRequest request) {
+            return request.getScheme();
+        }
+
+        @GetMapping("/test/security/denied")
+        void denied() {
+            throw new AccessDeniedException("권한 없음");
+        }
+    }
+}

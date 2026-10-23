@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,6 +34,7 @@ import jakarta.validation.constraints.NotBlank;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
+@WithMockUser // 이 테스트는 오류·로그 형식을 보므로 로그인한 상태로 실행한다 (인증 규칙은 SecurityConfigTest).
 @Import(GlobalExceptionHandlerTest.TestErrorController.class)
 class GlobalExceptionHandlerTest {
 
