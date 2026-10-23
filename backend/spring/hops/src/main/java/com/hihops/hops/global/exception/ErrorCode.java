@@ -6,8 +6,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 
 /**
- * API 공통 오류 코드. 상태 구분은 docs/API.md §1을 따른다.
- * retryable은 같은 요청을 다시 보내면 성공할 수 있는 일시 오류에만 true로 둔다.
+ * API 공통 오류 코드 목록. 각 항목은 HTTP 상태, 기본 안내 문구, 재시도 가능 여부를 가진다.
+ *
+ * <p>상태 구분은 docs/API.md §1을 따른다: 400 입력, 401 로그인, 403 권한, 404 없음, 409 충돌, 429 제한, 503 일시 장애.
+ * 405·415는 HTTP 표준 오류를 500으로 잘못 응답하지 않으려고, 500은 예상하지 못한 오류용으로 추가했다.
+ *
+ * <p>retryable은 같은 요청을 다시 보내면 성공할 수 있는 일시 오류(429, 503)에만 true로 둔다.
+ * 기능에서 새 오류가 필요하면 여기에 항목을 추가한다 (예: INQUIRY_VERSION_CONFLICT).
  */
 public enum ErrorCode {
     INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.", false),
@@ -44,7 +49,8 @@ public enum ErrorCode {
     }
 
     /**
-     * Spring 웹 계층 예외의 HTTP 상태를 공통 오류 코드로 바꾼다. 정의되지 않은 상태는 400대면 INVALID_REQUEST, 그 외는 INTERNAL_ERROR.
+     * Spring이 정한 HTTP 상태(예: 없는 경로 404)를 공통 오류 코드로 바꾼다. {@link GlobalExceptionHandler}에서 사용한다.
+     * 목록에 없는 상태는 400대면 INVALID_REQUEST, 그 외는 INTERNAL_ERROR로 처리한다.
      */
     public static ErrorCode fromStatus(HttpStatusCode statusCode) {
         return Arrays.stream(values())

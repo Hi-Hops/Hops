@@ -26,6 +26,10 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
+/**
+ * 공통 오류 응답(docs/API.md §1)이 지켜지는지 확인한다.
+ * 아래 TestErrorController는 테스트에서만 쓰는 가짜 API로, 일부러 각종 예외를 던진다.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
