@@ -28,6 +28,11 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+// OS 기본 인코딩(Windows MS949 등)과 상관없이 한글 소스를 UTF-8로 컴파일한다.
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
 }
