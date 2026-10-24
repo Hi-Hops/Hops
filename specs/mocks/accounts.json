@@ -1,5 +1,9 @@
 {
   "synthetic": true,
+  "preview": {
+    "userFixture": "user-preview",
+    "loginIdEnv": "VITE_MOCK_PREVIEW_ID"
+  },
   "accounts": [
     {
       "userFixture": "user-0",

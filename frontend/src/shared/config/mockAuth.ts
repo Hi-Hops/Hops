@@ -4,6 +4,12 @@ import mapping from '@fixtures/accounts.json';
 export function readMockAuth(env: Record<string, unknown> = import.meta.env) {
   const password = env[mapping.passwordEnv];
   if (typeof password !== 'string' || !password.trim()) return null;
+  const previewId = env[mapping.preview.loginIdEnv];
+  if (typeof previewId === 'string' && previewId.trim())
+    return {
+      password,
+      accounts: [{ userFixture: mapping.preview.userFixture, loginId: previewId.trim() }],
+    };
   const accounts = mapping.accounts.map((account) => {
     const raw = env[account.loginIdEnv];
     return { userFixture: account.userFixture, loginId: typeof raw === 'string' ? raw.trim() : '' };

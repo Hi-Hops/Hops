@@ -10,6 +10,7 @@ export const TEST_LOGINS = {
 };
 export function setupMockCredentials() {
   vi.stubEnv('VITE_DATA_MODE', 'mock');
+  vi.stubEnv('VITE_MOCK_PREVIEW_ID', '');
   vi.stubEnv('VITE_MOCK_REQUESTER_ID', TEST_LOGINS.requester.loginId);
   vi.stubEnv('VITE_MOCK_NETWORK_ID', TEST_LOGINS.network.loginId);
   vi.stubEnv('VITE_MOCK_BACKEND_ID', TEST_LOGINS.backend.loginId);

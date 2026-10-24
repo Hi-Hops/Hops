@@ -18,12 +18,15 @@
 
 | 계정 | 역할/부서 | 확인할 내용 |
 |---|---|---|
+| `VITE_MOCK_PREVIEW_ID` | 가상 업무부서, BIZ_ADMIN | 예시 문의의 소유자로 채팅·내 문의와 전체 부서 티켓을 한 계정으로 조회 |
 | `VITE_MOCK_REQUESTER_ID` | 가상 업무부서, roles=[] | 자기 문의·채팅·결과 조회 |
 | `VITE_MOCK_NETWORK_ID` | 네트워크, roles=[] | 네트워크 티켓만 목록·상세 조회 |
 | `VITE_MOCK_BACKEND_ID` | backend, roles=[] | backend 티켓만 조회, 네트워크 상세 거부 |
 | `VITE_MOCK_ADMIN_ID` | 가상 업무부서, BIZ_ADMIN | 두 부서 티켓 조회 허용. 문의 전체 대화는 별도 권한 아님 |
 
 처리 부서 8개+비처리 요청자 부서 1개다. ACCOUNT_PERMISSION 등 부서 code는 Mock 카탈로그 제안이며 운영 카탈로그 확정이 아니다. 사용자 정보의 소속 부서와 티켓의 처리 부서를 구분한다.
+
+`accounts.json.preview`는 단일 체험 계정 매핑이다. `user-preview`는 예시 문의 소유자인 `user-0`와 동일한 회원 ID에 BIZ_ADMIN을 부여한 Mock 전용 사용자 스냅샷이다. 체험 아이디와 공통 비밀번호만 설정하면 이 프로필로 로그인하고, 체험 아이디를 비우면 기존 네 역할의 계정을 사용한다. 두 로그인 모드는 혼용하지 않는다. 실제 서버 모드의 사용자·역할 응답은 변경하지 않는다.
 
 기본 흐름의 inquiry-after-question은 질문 후 version=1, inquiry-completed-routing은 응답 후 version=2다. 전자는 티켓 없음, 후자는 같은 문제에 네트워크·backend 티켓 2개가 있다. inquiry-result는 별도 복합 문의 스냅샷으로 문제 3개(성공/실패/질문 중)를 동시에 표현한다. 시나리오마다 초기 상태를 리셋하며 서로 다른 스냅샷을 하나의 연속 실행으로 오해하지 않는다.
 

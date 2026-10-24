@@ -1976,6 +1976,24 @@
         "status": "FUTURE_UNKNOWN_STATUS",
         "error": null
       }
+    },
+    {
+      "id": "user-preview",
+      "type": "CurrentUser",
+      "value": {
+        "id": "00000000-0000-4000-8000-000000000100",
+        "employeeNo": "DEMO-001",
+        "name": "가상 문의자",
+        "department": {
+          "id": "00000000-0000-4000-8000-000000000018",
+          "code": "DEMO_BUSINESS",
+          "name": "가상 업무부서",
+          "isRoutable": false
+        },
+        "roles": [
+          "BIZ_ADMIN"
+        ]
+      }
     }
   ]
 }
