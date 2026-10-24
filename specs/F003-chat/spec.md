@@ -49,6 +49,7 @@
   범위 밖 질문에는 안내만 보여 주고 티켓 카드를 만들지 않는다. (PRD 3.1)
 - **F003-AC10 분석 시간 초과**
   실행이 시간 초과로 끝나면 해결 실패나 CS 분류와 다른 문구로 알리고 "다시 분석"을 제공한다(`POST /api/runs/{id}/retries`). 이미 저장된 티켓은 그대로 둔다. (PRD 4.4 · API 2.1)
+  위 문장은 최종 목표다. 현재 Mock·임시 Live Adapter 구현은 시간 초과 안내만 제공하며 재시도 버튼·API 호출은 미구현이다. 전체 AC10 완료로 표시하지 않는다. Q-BE-8 합의 후 재시도 계약을 연결한다.
 - **F003-AC11 모델·통신 장애**
   모델·통신 장애는 "분류할 수 없음"과 다른 문구로 표시한다. (PRD 3.1 · API 1)
 - **F003-AC12 이관 이후 입력**
@@ -76,7 +77,7 @@
 | 진행·답변 조각 | agent.progress / answer.delta | AgentProgressEvent / AnswerDeltaEvent | Q-AI-1/2 |
 | 문의 결과 | GET /api/inquiries/{id} | InquiryResult | Q-BE-3/4, Q-ALL-2 |
 
-Mock의 실행 재시도 API는 이번 범위 밖이다. AC10의 시간 초과 안내까지 재현하며 다시 분석 버튼의 실제 연결은 Q-BE-8 합의 후 진행한다. AI 답변 저장은 ChatMessage, 질문 구분은 서버가 저장한 Problem.status/questionCount를 함께 사용한다. 별도 구조화 가이드 payload(Q-AI-3)는 이번 Mock에 추가하지 않는다.
+Mock·임시 Live Adapter의 실행 재시도 버튼·API는 이번 범위 밖이다. AC10의 시간 초과 안내까지 재현하며 실제 재시도 연결은 Q-BE-8 합의 후 진행한다. AI 답변 저장은 ChatMessage, 질문 구분은 서버가 저장한 Problem.status/questionCount를 함께 사용한다. 별도 구조화 가이드 payload(Q-AI-3)는 이번 Mock에 추가하지 않는다.
 
 ## 6. 메시지 상태
 
@@ -85,7 +86,7 @@ Mock의 실행 재시도 API는 이번 범위 밖이다. AC10의 시간 초과 �
                         → 오류: 입력 보존, 같은 requestId로 재전송
                         → 결과 확인 중(ACK 시간 초과·끊김): 같은 requestId로 확인·재전송
 분석: 진행 중(agent.progress) → 답변 작성 중(answer.delta) → 저장된 답변
-     → 시간 초과: 다시 분석 / 장애: 장애 안내
+     → 시간 초과: 안내(재시도 연결 미구현) / 장애: 장애 안내
 ```
 
 ## 7. 범위 밖

@@ -115,7 +115,7 @@ AI 결과의 임시 참조·근거·부서·버전은 [데이터 타입 문서](
 
 ## 9. 프론트 live 연동 프로필
 
-설정은 [프론트 README](../../frontend/README.md#2-실행-모드와-env)를 따른다. 서버는 2절·8절의 URL/이벤트와 [DATA_TYPES](DATA_TYPES.md)의 타입을 구현한다. 이 절은 기존 Mock 계약을 개발 서버에 연결하는 최소 프로필이며 Q-BE-2·Q-INF-1/2/4/6의 운영 정책 합의를 대신하지 않는다.
+설정은 [프론트 README](../../frontend/README.md#2-실행-모드와-env)를 따른다. 현재 임시 Live Adapter는 2절·8절의 URL/이벤트와 [DATA_TYPES](DATA_TYPES.md)의 타입을 기대한다. 실제 서버에 적용할 표현은 담당자 간 확인·합의한다. 이 절은 기존 Mock 계약을 개발 서버에 연결하는 최소 제안 프로필이며 [합의 전 항목](README.md#팀-합의-전-항목)이나 Q-BE-2·Q-INF-1/2/4/6의 운영 정책 합의를 대신하지 않는다.
 
 - REST는 설정한 Spring origin에 `/api/...`를 붙인다. 로그인은 `LoginRequest` JSON을 보내고 `LoginResponse` 자체를 받는다. 나머지 인증 요청은 `Authorization: Bearer <accessToken>`이다. `/api/auth/me` 응답으로 사용자·부서·역할을 확정한다. 응답은 `{ data: ... }` wrapper를 추가하지 않는다. 로그아웃은 204 본문 없음이다.
 - Socket.IO 4.x 호환 서버를 사용한다. 기본 namespace `/`, 접속 path `/socket.io`이며 path는 환경 설정으로 바꿀 수 있다. path는 namespace나 룸 이름이 아니다. 연결마다 `socket.handshake.auth.token`에 토큰을 받는다. URL 쿼리·이벤트 payload로 토큰을 요구하지 않는다. polling과 WebSocket 업그레이드를 지원한다.
@@ -127,4 +127,4 @@ AI 결과의 임시 참조·근거·부서·버전은 [데이터 타입 문서](
 - 재접속 때 토큰으로 다시 인증하고 화면의 target을 다시 구독한다. 서버는 이전 socket의 룸을 새 socket에 무조건 복구하지 말고 현재 권한을 검증한다. 같은 target의 여러 소비자는 클라이언트 참조 횟수를 관리하고 마지막 해제 때만 서버에 release한다. 로그아웃·계정 전환·연결 종료는 이전 구독과 대기 전송을 정리한다.
 - 브라우저 origin을 Spring REST와 Node Socket.IO 양쪽 CORS에 허용한다. Spring은 GET/POST/OPTIONS와 Authorization·Content-Type을 허용하며 live는 쿠키를 보내지 않는다. 토큰은 메모리에서 관리하고 만료 시 재로그인한다. refresh·쿠키 인증·부서 변경 권한 회수는 구현된 것으로 가정하지 않는다. HTTPS 화면에서 혼합 콘텐츠 요청은 사용하지 않는다.
 
-현재 프론트는 `GET /api/departments`를 직접 호출하지 않으며 `/api/auth/me`와 티켓 응답 안의 Department를 사용한다. F009 관련 대화·티켓 처리 명령과 F008·F010은 이 연동 범위 밖이다. AI 내부 `/internal/mock/...` 경로는 Python↔Spring의 Mock 제안이며 프론트 live에서 호출하거나 운영 경로로 확정하지 않는다.
+현재 프론트는 `GET /api/departments`를 직접 호출하지 않으며 `/api/auth/me`와 티켓 응답 안의 Department를 사용한다. F003-AC10 분석 재시도(`POST /api/runs/{id}/retries`)는 호출하지 않고 시간 초과 안내만 제공한다. F009 관련 대화·티켓 처리 명령과 F008·F010도 이 연동 범위 밖이다. AI 내부 `/internal/mock/...` 경로는 Python↔Spring의 Mock 제안이며 프론트 live에서 호출하거나 운영 경로로 확정하지 않는다.
