@@ -1,12 +1,13 @@
 import { TEST_LOGINS } from '@/test/mockCredentials';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { login, useSession } from '@/features/auth';
 import { mockBackend } from '@/shared/api/mockBackend';
 import { mockWorkspace } from '@/shared/api/mockWorkspace';
 import { fixture } from '@/shared/api/mockData';
 import { realtime } from '@/shared/realtime/mockTransport';
+import { realtime as transport } from '@/shared/realtime';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { ChatMessage } from '@/shared/api/types';
 import '../api/chatApi';
@@ -18,6 +19,9 @@ beforeEach(async () => {
   const token = useSession.getState().token;
   if (!token) throw new Error('토큰 필요');
   realtime.connect(token);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 function actor() {
   const user = useSession.getState().user;
@@ -34,11 +38,24 @@ async function edit() {
 }
 describe('F004 메시지 정정', () => {
   it('F004-AC01 저장 ACK 전 정정 중을 표시하고 입력을 검증한다', async () => {
+    let releaseAck: (() => void) | undefined;
+    vi.spyOn(transport, 'send').mockImplementationOnce((name, command) => {
+      if (name !== 'message.revise' || !('messageId' in command)) throw new Error('정정 요청 필요');
+      return new Promise((resolve) => {
+        releaseAck = () => {
+          resolve(mockWorkspace.command(actor(), 'message.revise', command));
+        };
+      });
+    });
     const updated = vi.fn();
     renderWithProviders(<MessageRevision message={message()} version={2} onStored={updated} />);
     const user = await edit();
     await user.click(screen.getByRole('button', { name: '정정 저장' }));
     expect(screen.getByRole('button', { name: '정정 중' })).toBeDisabled();
+    expect(updated).not.toHaveBeenCalled();
+    act(() => {
+      releaseAck?.();
+    });
     await waitFor(() => {
       expect(updated).toHaveBeenCalledOnce();
     });
