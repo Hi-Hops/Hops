@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ChatMessage, MessageReviseCommand } from '@/shared/api/types';
-import { realtime } from '@/shared/realtime/mockTransport';
+import { realtime } from '@/shared/realtime';
 import { useSession } from '@/features/auth';
 import { contentError } from '@/shared/lib/content';
 import { useDrafts } from '../model/draftStore';

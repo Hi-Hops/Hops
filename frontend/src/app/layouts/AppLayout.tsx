@@ -1,4 +1,5 @@
 import { paths } from '@/shared/config/paths';
+import { connectionMode } from '@/shared/config/connection';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -41,12 +42,12 @@ export function AppLayout() {
           <span aria-hidden="true" />
           Hops
         </NavLink>
-        <span className={styles.mock}>Mock 체험</span>
+        {connectionMode() === 'mock' && <span className={styles.mock}>Mock 체험</span>}
         <div className={styles.user}>
           <span className={styles.avatar}>{user.name.slice(0, 1)}</span>
           <div>
             <strong>{user.name}</strong>
-            <p>데모시스템 · {user.department.name}</p>
+            <p>{user.department.name}</p>
           </div>
         </div>
         <Button

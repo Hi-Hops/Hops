@@ -1,4 +1,5 @@
 import { ApiError } from '@/shared/api/client';
+import { connectionMode } from '@/shared/config/connection';
 import { displayDate } from '@/shared/lib/date';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
@@ -53,7 +54,7 @@ export function TicketDetail({ id, onClose }: { id: string; onClose: () => void 
         <section className={styles.diagnosis}>
           <h4>AI 진단 요약</h4>
           <p>{data.diagnosisSummary ?? '저장된 AI 진단이 없어요.'}</p>
-          <small>Mock 데이터 · 실제 진단 결과가 아니에요</small>
+          {connectionMode() === 'mock' && <small>Mock 데이터 · 실제 진단 결과가 아니에요</small>}
         </section>
         <section>
           <h4>배정 이력</h4>

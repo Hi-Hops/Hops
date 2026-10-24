@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { realtime } from '@/shared/realtime/mockTransport';
+import { useQueryClient } from '@tanstack/react-query';
+import { realtime } from '@/shared/realtime';
 import type { SubscriptionTarget } from '@/shared/api/types';
 import { useConnection } from '../model/connectionStore';
 
 export function useSubscription(target: SubscriptionTarget | null) {
+  const client = useQueryClient();
   const connection = useConnection((state) => state.state);
   const [denied, setDenied] = useState(false);
   const type = target?.type;
@@ -23,6 +25,7 @@ export function useSubscription(target: SubscriptionTarget | null) {
             requestId: crypto.randomUUID(),
             target: currentTarget,
           });
+        if (active && subscribed) void client.invalidateQueries();
       });
     return () => {
       active = false;
@@ -32,6 +35,6 @@ export function useSubscription(target: SubscriptionTarget | null) {
           target: currentTarget,
         });
     };
-  }, [connection, id, type]);
+  }, [client, connection, id, type]);
   return { denied };
 }

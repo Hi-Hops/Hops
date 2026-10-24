@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useSubscription } from '@/features/realtime';
-import { realtime } from '@/shared/realtime/mockTransport';
+import { realtime } from '@/shared/realtime';
 import { StreamBuffer } from '@/shared/realtime/streamBuffer';
 import type { ChatMessage } from '@/shared/api/types';
 import { chatKeys, getInquiry, getMessages } from '../api/chatApi';

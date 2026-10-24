@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { StoredAck } from '@/shared/api/types';
 import type { StoredCommand, StoredCommandName } from '@/shared/realtime/types';
-import { realtime } from '@/shared/realtime/mockTransport';
+import { realtime } from '@/shared/realtime';
 import { contentError, codePointLength } from '@/shared/lib/content';
 import { Button } from '@/shared/ui/Button';
 import { useSession } from '@/features/auth';

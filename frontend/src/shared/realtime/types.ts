@@ -37,3 +37,12 @@ export type CommandProcessor = (
   command: StoredCommand,
   token: string,
 ) => CommandAck;
+
+export type RealtimeTransport = {
+  connect: (token: string) => void;
+  disconnect: () => void;
+  getState: () => ConnectionState;
+  onConnection: (listener: (state: ConnectionState) => void) => () => void;
+  on: <K extends keyof EventMap>(name: K, handler: (event: EventMap[K]) => void) => () => void;
+  send: <K extends CommandName>(name: K, command: CommandMap[K]) => Promise<CommandResult<K>>;
+};

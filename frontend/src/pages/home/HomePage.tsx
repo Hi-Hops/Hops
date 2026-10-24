@@ -2,6 +2,7 @@ import { useSession } from '@/features/auth';
 import { MessageComposer } from '@/features/chat';
 import { useNavigate } from 'react-router';
 import { paths } from '@/shared/config/paths';
+import { connectionMode } from '@/shared/config/connection';
 import styles from './HomePage.module.css';
 
 export function HomePage() {
@@ -22,7 +23,9 @@ export function HomePage() {
           }}
         />
       </div>
-      <p className={styles.mockNote}>Mock 체험에서는 미리 준비된 질문과 처리 결과를 사용해요.</p>
+      {connectionMode() === 'mock' && (
+        <p className={styles.mockNote}>Mock 체험에서는 미리 준비된 질문과 처리 결과를 사용해요.</p>
+      )}
     </main>
   );
 }
