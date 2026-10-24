@@ -158,7 +158,7 @@ export function TicketBoard() {
           )}
         </section>
       )}
-      {board.ticketId && (
+      {board.canRead && board.ticketId && (
         <RouteModal
           title="티켓 상세"
           description="문의 요약과 진단, 처리 부서 및 배정 이력을 확인해요."

@@ -1,7 +1,7 @@
 import { TEST_LOGINS } from '@/test/mockCredentials';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Route, Routes, useLocation } from 'react-router';
 import { login, useSession } from '@/features/auth';
 import { RealtimeBoundary } from '@/features/realtime';
@@ -11,11 +11,17 @@ import { fixture } from '@/shared/api/mockData';
 import { realtime } from '@/shared/realtime/mockTransport';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { TicketBoard } from './TicketBoard';
+import { TicketDetail } from './TicketDetail';
+import * as ticketApi from '../api/ticketApi';
+import { realtime as transport } from '@/shared/realtime';
 beforeEach(async () => {
   mockBackend.reset();
   useSession.getState().logout();
   realtime.disconnect();
   await login(TEST_LOGINS.network);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 function Location() {
   const location = useLocation();
@@ -46,6 +52,49 @@ function view(path = '/tickets') {
 }
 const network = () => fixture('ticket-network', 'TicketCard');
 describe('F009 부서 티켓 조회', () => {
+  it('F009-AC06 권한 없는 상세 URL은 모달·상세 API·티켓 구독을 시작하지 않는다', async () => {
+    await login(TEST_LOGINS.requester);
+    const request = vi.spyOn(ticketApi, 'getTicket');
+    const send = vi.spyOn(transport, 'send');
+    view(`/tickets/${network().id}`);
+    await waitFor(() => {
+      expect(realtime.getState()).toBe('connected');
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('조회 권한이 없어요');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(request).not.toHaveBeenCalled();
+    expect(
+      send.mock.calls.some(
+        ([name, command]) =>
+          name === 'subscription.request' &&
+          'target' in command &&
+          command.target.type === 'TICKET',
+      ),
+    ).toBe(false);
+  });
+  it('F009-AC06 상세 컴포넌트를 직접 렌더링해도 권한 없으면 조회·구독하지 않는다', async () => {
+    await login(TEST_LOGINS.requester);
+    const request = vi.spyOn(ticketApi, 'getTicket');
+    const send = vi.spyOn(transport, 'send');
+    const rendered = renderWithProviders(
+      <RealtimeBoundary>
+        <TicketDetail id={network().id} onClose={vi.fn()} />
+      </RealtimeBoundary>,
+    );
+    await waitFor(() => {
+      expect(realtime.getState()).toBe('connected');
+    });
+    await rendered.client.invalidateQueries({ queryKey: ['tickets'] });
+    expect(request).not.toHaveBeenCalled();
+    expect(
+      send.mock.calls.some(
+        ([name, command]) =>
+          name === 'subscription.request' &&
+          'target' in command &&
+          command.target.type === 'TICKET',
+      ),
+    ).toBe(false);
+  });
   it('F009-AC01 서버가 허용한 현재 부서의 티켓만 표시한다', async () => {
     view();
     expect(await screen.findByRole('link', { name: /TK-DEMO-001/u })).toBeVisible();

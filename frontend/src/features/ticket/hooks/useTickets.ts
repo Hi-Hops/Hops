@@ -4,6 +4,7 @@ import { useSession } from '@/features/auth';
 import { useSubscription } from '@/features/realtime';
 import { paths } from '@/shared/config/paths';
 import { getTickets, ticketKeys } from '../api/ticketApi';
+import { canReadTickets } from '../model/permissions';
 export function useTickets() {
   const user = useSession((state) => state.user);
   const [search, setSearch] = useSearchParams();
@@ -11,7 +12,7 @@ export function useTickets() {
   const navigate = useNavigate();
   const location = useLocation();
   const base = location.pathname.startsWith('/admin/') ? paths.adminTickets : paths.tickets;
-  const canRead = user ? user.department.isRoutable || user.roles.includes('BIZ_ADMIN') : false;
+  const canRead = canReadTickets(user);
   const query = useQuery({
     queryKey: ticketKeys.list(search.toString(), user?.id ?? ''),
     queryFn: ({ signal }) => getTickets(search.toString(), signal),
