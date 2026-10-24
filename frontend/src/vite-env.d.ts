@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_DATA_MODE?: string;
+  readonly VITE_SOCKET_PATH?: string;
   readonly VITE_MOCK_REQUESTER_ID?: string;
   readonly VITE_MOCK_NETWORK_ID?: string;
   readonly VITE_MOCK_BACKEND_ID?: string;
