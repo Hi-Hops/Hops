@@ -1,0 +1,222 @@
+{
+  "schemaVersion": "hops-mock-1",
+  "scenarios": [
+    {
+      "id": "login-chat-ticket",
+      "acceptanceCriteria": [
+        "F001-AC01",
+        "F003-AC01",
+        "F003-AC08",
+        "F005-AC02",
+        "F009-AC01"
+      ],
+      "fixtureSequence": [
+        "login-request",
+        "login-0",
+        "create",
+        "create-ack",
+        "ai-request",
+        "ai-accepted",
+        "ai-ask",
+        "inquiry-after-question",
+        "send",
+        "send-ack",
+        "ai-request-tickets",
+        "ai-tickets",
+        "stored",
+        "changed-0",
+        "inquiry-completed-routing",
+        "messages-final",
+        "login-1",
+        "tickets-network",
+        "ticket-detail"
+      ],
+      "expected": "문의자가 보낸 문의는 자기 문의에서 조회하고, 네트워크 부서 계정으로 전환 후 같은 티켓 ID를 조회한다. 계정 전환 전에 문의자 캐시를 비운다."
+    },
+    {
+      "id": "partial-failure",
+      "acceptanceCriteria": [
+        "F005-AC01",
+        "F005-AC04"
+      ],
+      "fixtureSequence": [
+        "inquiry-result"
+      ],
+      "expected": "같은 문제의 네트워크·backend 티켓 2개, 다른 문제의 생성 실패, 추가 질문 문제를 동시에 보존한다."
+    },
+    {
+      "id": "revision",
+      "acceptanceCriteria": [
+        "F004-AC01",
+        "F004-AC02",
+        "F004-AC03"
+      ],
+      "fixtureSequence": [
+        "revise",
+        "revise-ack",
+        "message-revised",
+        "stale-delta"
+      ],
+      "expected": "문의 버전 3·메시지 revision 2로 갱신. 이전 버전 답변은 무시하고 기존 티켓을 유지한다."
+    },
+    {
+      "id": "supplement",
+      "acceptanceCriteria": [
+        "F003-AC12",
+        "F004-AC04"
+      ],
+      "fixtureSequence": [
+        "supplement-send",
+        "supplement-ack"
+      ],
+      "expected": "모든 문제의 이관 완료를 사전 조건으로 둔다. runId null·SUPPLEMENT_SAVED이며 재분석하지 않는다."
+    },
+    {
+      "id": "ack-loss",
+      "acceptanceCriteria": [
+        "F003-AC04"
+      ],
+      "fixtureSequence": [
+        "create",
+        "create-ack",
+        "create",
+        "create-ack"
+      ],
+      "expected": "첫 ACK를 전송 계층에서 누락시킨다. 동일 행위자·명령·키·본문 재전송은 같은 문의·메시지를 반환한다."
+    },
+    {
+      "id": "conflict",
+      "acceptanceCriteria": [
+        "F003-AC13",
+        "F004-AC05"
+      ],
+      "fixtureSequence": [
+        "send",
+        "ack-INQUIRY_VERSION_CONFLICT"
+      ],
+      "expected": "최신 버전을 재조회하고 입력을 보존한다. 변경된 버전·본문으로 다시 보내는 새 의도에는 새 requestId를 쓴다."
+    },
+    {
+      "id": "delta-order",
+      "acceptanceCriteria": [
+        "F002-AC04",
+        "F002-AC05"
+      ],
+      "fixtureSequence": [
+        "delta-1",
+        "delta-3",
+        "delta-2",
+        "delta-2"
+      ],
+      "expected": "중복 eventId는 무시하고 누락 순번을 버퍼링해 1·2·3 순으로 한 번씩 조합한다."
+    },
+    {
+      "id": "old-run",
+      "acceptanceCriteria": [
+        "F002-AC05"
+      ],
+      "fixtureSequence": [
+        "old-run-delta",
+        "stale-delta"
+      ],
+      "expected": "현재 runId=301·version=2일 때 두 이벤트를 모두 무시한다."
+    },
+    {
+      "id": "reconnect",
+      "acceptanceCriteria": [
+        "F002-AC07"
+      ],
+      "fixtureSequence": [
+        "subscribe-0",
+        "subscribe-ack-0",
+        "messages",
+        "inquiry-result",
+        "run"
+      ],
+      "expected": "재인증·재구독 뒤 REST 결과로 복구한다. 누락 조각은 저장 메시지로 교체한다."
+    },
+    {
+      "id": "permission",
+      "acceptanceCriteria": [
+        "F009-AC06"
+      ],
+      "fixtureSequence": [
+        "login-2",
+        "error-403-ACCESS_DENIED",
+        "tickets-backend"
+      ],
+      "expected": "backend 계정은 네트워크 상세를 조회할 수 없다. 자기 부서 목록만 받는다."
+    },
+    {
+      "id": "empty-and-error",
+      "acceptanceCriteria": [
+        "F009-AC04"
+      ],
+      "fixtureSequence": [
+        "tickets-empty",
+        "error-503-SERVICE_UNAVAILABLE"
+      ],
+      "expected": "빈 목록과 서버 오류를 구분한다."
+    },
+    {
+      "id": "auth-expiry",
+      "acceptanceCriteria": [
+        "F001-AC05",
+        "F001-AC06",
+        "F001-AC08"
+      ],
+      "fixtureSequence": [
+        "error-401-UNAUTHENTICATED",
+        "login-0"
+      ],
+      "expected": "초안은 같은 사용자에게만 복원한다. 다른 사용자 로그인·로그아웃 시 사용자 캐시·미전송 요청·구독을 비운다."
+    },
+    {
+      "id": "timeout",
+      "acceptanceCriteria": [
+        "F003-AC10",
+        "F003-AC11"
+      ],
+      "fixtureSequence": [
+        "ai-timeout"
+      ],
+      "expected": "모델 실패를 범위 밖·CS 검토로 바꾸지 않는다. 실행 재시도 API는 이 Mock 범위에서 제외한다."
+    },
+    {
+      "id": "pagination",
+      "acceptanceCriteria": [
+        "F003-AC05",
+        "F009-AC03"
+      ],
+      "fixtureSequence": [
+        "messages-page-1",
+        "messages-page-2",
+        "ticket-query"
+      ],
+      "expected": "메시지는 sequenceNo 오름차순 커서이며 화면 페이지·필터를 URL에 보존한다."
+    },
+    {
+      "id": "unknown-status",
+      "acceptanceCriteria": [
+        "F005-AC09"
+      ],
+      "fixtureSequence": [
+        "unknown-state"
+      ],
+      "expected": "미등록 상태는 알 수 없는 상태로 표시하고 성공·실패로 추측하지 않는다."
+    },
+    {
+      "id": "cs-review",
+      "acceptanceCriteria": [
+        "F003-AC08",
+        "F005-AC03"
+      ],
+      "fixtureSequence": [
+        "ai-request-cs",
+        "ai-cs-review",
+        "ticket-cs"
+      ],
+      "expected": "질문 3회 소진 뒤에는 추가 질문 없이 CS_REVIEW 제안을 검증해 저장하며 CS 검토와 기술 장애를 구분한다."
+    }
+  ]
+}

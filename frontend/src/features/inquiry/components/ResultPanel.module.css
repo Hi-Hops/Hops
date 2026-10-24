@@ -1,0 +1,83 @@
+.panel {
+  width: min(var(--answer-width), 100%);
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-attention-bg);
+  border-bottom: 1px solid var(--color-attention-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-attention);
+}
+.header h2 {
+  font-size: var(--font-size-md);
+}
+.problem {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--font-size-md);
+}
+.heading h3 {
+  font-size: var(--font-size-md);
+  margin-right: auto;
+}
+.number {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.ticket {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-top: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.statuses {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: var(--font-size-label);
+}
+.meta {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin-top: var(--space-2);
+}
+.failure {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  font-size: var(--font-size-label);
+}
+.failure p {
+  margin-top: var(--space-1);
+}
+.question {
+  margin-top: var(--space-2);
+  color: var(--color-attention);
+  font-size: var(--font-size-label);
+}
+.footer {
+  background: var(--color-nav);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

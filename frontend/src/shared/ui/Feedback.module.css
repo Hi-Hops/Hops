@@ -1,0 +1,75 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+.badge img {
+  flex: none;
+}
+.neutral {
+  color: var(--color-text-secondary);
+  background: var(--color-sunken);
+}
+.progress {
+  color: var(--color-progress);
+  background: var(--color-progress-bg);
+  border-color: var(--color-progress-border);
+}
+.success {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border-color: var(--color-success-border);
+}
+.attention {
+  color: var(--color-attention);
+  background: var(--color-attention-bg);
+  border-color: var(--color-attention-border);
+}
+.danger {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+  border-color: var(--color-danger-border);
+}
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  color: var(--color-text-muted);
+}
+.spinner {
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 2px solid var(--color-border-strong);
+  border-top-color: var(--color-primary);
+  border-radius: var(--radius-pill);
+  animation: spin 0.8s linear infinite;
+}
+.error {
+  padding: var(--space-6);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  margin: var(--space-6);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
