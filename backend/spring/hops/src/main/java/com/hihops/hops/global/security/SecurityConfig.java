@@ -18,8 +18,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /**
  * Spring Security 설정: 누가 어떤 주소에 접근할 수 있는지 정한다.
  *
- * <p>현재 상태: JWT 검증은 서명 방식(RS256 등)이 Node.js 담당과 정해진 뒤 추가한다(docs/API.md §2.5 구현 전 확정).
- * 그 전까지 인증 수단이 없으므로 아래 "열어 둔 주소"를 뺀 모든 요청은 401이 된다.
+ * <p>인증: 요청의 {@code Authorization: Bearer 토큰}을 {@link JwtConfig} 규칙으로 검증한다.
+ * JWT는 Spring만 발급·검증한다(팀 결정). 아래 "열어 둔 주소"를 뺀 요청은 올바른 토큰이 없으면 401이 된다.
  *
  * <p>필터 순서: RequestIdFilter → RequestLoggingFilter → Security(이 설정) → Controller
  */
@@ -49,6 +49,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll() // 로그인 전에는 토큰이 없다
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated())
+                // Bearer 토큰 검증. 토큰이 틀리거나 만료되면 errorResponder가 401 공통 오류로 응답한다.
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                        .authenticationEntryPoint(errorResponder))
                 // 401·403도 공통 오류 형식으로 응답
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(errorResponder)

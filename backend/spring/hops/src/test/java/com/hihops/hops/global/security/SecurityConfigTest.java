@@ -30,7 +30,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * Spring Security 기본 설정을 확인한다: 주소별 접근 규칙, 401·403 공통 오류 응답, CORS, 프록시 HTTPS 헤더.
- * JWT 검증은 서명 방식이 정해진 뒤 추가하므로, 로그인한 상태는 @WithMockUser(테스트용 가짜 사용자)로 흉내 낸다.
+ * 여기서는 주소 규칙만 보므로 로그인한 상태는 @WithMockUser(테스트용 가짜 사용자)로 흉내 낸다. 실제 JWT 검증은 JwtAuthenticationTest에서 본다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
