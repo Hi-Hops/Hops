@@ -11,6 +11,7 @@ import { realtime } from '@/shared/realtime/mockTransport';
 import { contentError, codePointLength } from '@/shared/lib/content';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { MessageComposer } from './MessageComposer';
+import { RecentInquiries } from '@/features/inquiry';
 import '../api/chatApi';
 import { useDrafts } from '../model/draftStore';
 
@@ -32,15 +33,48 @@ async function compose(content: string) {
 }
 
 describe('F003 메시지 전송', () => {
+  it('F003-AC01 F006-AC10 이벤트·구독 없이 저장 ACK만으로 세션 목록을 갱신한다', async () => {
+    const stored = vi.fn();
+    renderWithProviders(
+      <>
+        <RecentInquiries />
+        <MessageComposer isHome onStored={stored} />
+      </>,
+    );
+    expect(await screen.findAllByRole('link')).toHaveLength(1);
+    await compose('VPN ACK만 받은 새 문의');
+    await waitFor(() => {
+      expect(screen.getAllByRole('link')).toHaveLength(2);
+    });
+    expect(screen.getByRole('link', { name: /VPN ACK만 받은 새 문의/u })).toBeVisible();
+    expect(stored).toHaveBeenCalledOnce();
+  });
+  it.each(['error', 'unknown'] as const)(
+    'F003-AC03/04 %s ACK는 목록 갱신이나 화면 이동을 성공 처리하지 않는다',
+    async (kind) => {
+      const stored = vi.fn();
+      const rendered = renderWithProviders(<MessageComposer isHome onStored={stored} />);
+      const invalidate = vi.spyOn(rendered.client, 'invalidateQueries');
+      if (kind === 'error') mockWorkspace.failNextCommand();
+      else realtime.loseNextAck();
+      await compose('ACK 확인 전 보존');
+      await screen.findByRole('button', { name: '같은 요청으로 다시 확인' });
+      expect(invalidate).not.toHaveBeenCalled();
+      expect(stored).not.toHaveBeenCalled();
+      expect(screen.getByLabelText('문의 내용')).toHaveValue('ACK 확인 전 보존');
+    },
+  );
   it('F003-AC15 화면 이동 뒤 늦은 저장 ACK가 이전 화면으로 이동시키지 않는다', async () => {
     const stored = vi.fn();
     const rendered = renderWithProviders(<MessageComposer isHome onStored={stored} />);
+    const invalidate = vi.spyOn(rendered.client, 'invalidateQueries');
     await compose('이동 전에 전송');
     rendered.unmount();
     await waitFor(() => {
       expect(useDrafts.getState().drafts.new?.pending).toBeNull();
     });
     expect(stored).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['inquiries'] });
   });
   it('F003-AC01 저장 ACK 전에는 전송 중이며 확인 뒤 문의 ID를 전달한다', async () => {
     const stored = vi.fn();

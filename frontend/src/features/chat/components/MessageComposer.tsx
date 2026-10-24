@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { StoredAck } from '@/shared/api/types';
 import type { StoredCommand, StoredCommandName } from '@/shared/realtime/types';
 import { realtime } from '@/shared/realtime';
@@ -26,6 +27,7 @@ export function MessageComposer({
   isHome = false,
   focusKey,
 }: MessageComposerProps) {
+  const client = useQueryClient();
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const mounted = useRef(false);
   useEffect(() => {
@@ -65,11 +67,13 @@ export function MessageComposer({
           ? await realtime.send('message.send', request.command)
           : { ok: 'unknown' as const };
     if (useSession.getState().user?.id !== actorId) return;
-    if (
-      reply.ok === true &&
-      useDrafts.getState().drafts[key]?.pending?.command.requestId === request.command.requestId
-    ) {
-      useDrafts.getState().set(key, { content: '', pending: null });
+    if (reply.ok === true) {
+      if (
+        useDrafts.getState().drafts[key]?.pending?.command.requestId === request.command.requestId
+      ) {
+        useDrafts.getState().set(key, { content: '', pending: null });
+      }
+      void client.invalidateQueries({ queryKey: ['inquiries'] });
     }
     if (!mounted.current) return;
     if (reply.ok === 'unknown') {
