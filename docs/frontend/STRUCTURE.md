@@ -1,115 +1,58 @@
-# 폴더 구조와 레이어 규칙
+# 코드 구조
 
-상태: 초안 · 범위: `frontend/src` · 강제 수단: ESLint `no-restricted-imports`([TOOLING 6절](TOOLING.md#6-eslint))
+범위: `frontend/src`. 레이어 의존은 [ESLint 설정](../../frontend/eslint.config.js)의 import 제한으로 검사한다.
 
-## 1. 전체 구조
-
-```text
-frontend/src/
-├─ main.tsx                 # 진입점. app/만 가져온다
-├─ vite-env.d.ts
-├─ app/                     # 앱 조립: 라우터·Provider·레이아웃·권한 가드
-│  ├─ router.tsx            # ROUTES.md의 표를 코드로 옮긴 곳(경로 정의는 여기 한 곳)
-│  ├─ providers.tsx         # QueryClient·인증·소켓 Provider
-│  ├─ layouts/              # AppLayout(헤더+내비게이션), AuthLayout(로그인)
-│  ├─ guards/               # RequireAuth, RequireRole
-│  └─ navigation.ts         # 역할별 메뉴 정의(COMPONENTS 2절)
-├─ pages/                   # 경로 하나 = 폴더 하나. 기능을 조립만 한다
-│  ├─ login/LoginPage.tsx
-│  ├─ home/HomePage.tsx
-│  ├─ inquiry-chat/InquiryChatPage.tsx
-│  ├─ inquiries/InquiriesPage.tsx
-│  ├─ tickets/TicketsPage.tsx
-│  ├─ admin-tickets/AdminTicketsPage.tsx
-│  ├─ operator-recovery/OperatorRecoveryPage.tsx
-│  └─ errors/ForbiddenPage.tsx, NotFoundPage.tsx
-├─ features/                # 스펙 기능 단위. 화면 로직·데이터 통신·도메인 컴포넌트
-│  ├─ auth/                 # F001
-│  ├─ realtime/             # F002 (연결 상태·구독 훅)
-│  ├─ chat/                 # F003, F004, F008
-│  ├─ inquiry/              # F005, F006
-│  ├─ ticket/               # F007, F009
-│  └─ creation-failure/     # F010
-├─ shared/                  # 기능을 모르는 공통 코드
-│  ├─ api/                  # client.ts, queryClient.ts, types/(CONTRACT_TYPES.md)
-│  ├─ realtime/             # socket.ts(연결 생성·명령 전송·ACK 처리)
-│  ├─ ui/                   # 공통 컴포넌트(COMPONENTS.md)
-│  ├─ lib/                  # 순수 함수(글자 수, 날짜 표시, requestId 생성 등)
-│  ├─ config/               # env.ts(환경 변수 읽기)
-│  └─ styles/               # tokens.css, global.css
-└─ test/                    # setup.ts, fixtures/, renderWithProviders.tsx
-```
-
-기능 폴더와 스펙의 대응은 [WORKFLOW 2절](WORKFLOW.md#2-기능과-폴더의-대응)에 있다. 새 기능 폴더는 스펙이 생길 때만 만든다.
-
-## 2. 기능 폴더 내부
+## 1. 코드 위치와 의존 방향
 
 ```text
-features/<기능>/
-├─ index.ts                 # 공개 진입점. 밖에서 쓰는 것만 export
-├─ api/<기능>Api.ts          # REST 함수와 쿼리 키
-├─ realtime/                # 이 기능이 쓰는 소켓 명령·이벤트 처리(필요할 때만)
-├─ hooks/use<이름>.ts        # 화면이 쓰는 훅(useQuery·useMutation 감싸기)
-├─ components/<이름>.tsx     # 이 기능 전용 컴포넌트
-│  ├─ <이름>.module.css
-│  └─ <이름>.test.tsx
-└─ model/                   # 순수 로직: 상태 표시명, 매핑, 검증, zustand 스토어
+src/
+├─ app/       라우터·Provider·인증/역할 가드·앱 레이아웃
+├─ pages/     경로별 화면 조립
+├─ features/  auth·realtime·chat·inquiry·ticket의 동작과 도메인 UI
+├─ shared/    api·realtime·ui·lib·config·styles
+└─ test/      공통 테스트 설정과 렌더 도우미
 ```
 
-- 하위 폴더는 필요할 때만 만든다. 빈 폴더를 미리 만들지 않는다.
-- `index.ts`에는 다른 레이어가 실제로 쓰는 것만 내보낸다. `export *`는 쓰지 않는다(타입 모음 `shared/api/types/index.ts`의 `export type *`만 예외).
+의존 방향은 **app → pages → features → shared**다. `shared`는 특정 기능을 가져오지 않는다. `features`는 다른 기능의 공개 진입점(`@/features/<기능>`)으로만 참조하며 순환 의존을 만들지 않는다. `pages`는 기능을 조립하고 공용 API를 사용하며 기능 내부 파일을 직접 가져오지 않는다.
 
-## 3. 레이어 의존 방향
+기능 내부는 필요한 `api/`, `hooks/`, `model/`, `components/`와 공개 `index.ts`를 둔다. 앞으로 쓸 수 있다는 이유만으로 폴더·컴포넌트를 미리 만들지 않는다. 같은 기능 내부는 한 단계 상대 경로를 사용할 수 있고 다른 레이어·기능은 `@/` 별칭을 사용한다. `../../` 경로는 쓰지 않는다.
 
-```text
-app  →  pages  →  features  →  shared
-```
+기능 대응은 auth=F001, realtime=F002, chat=F003·F004, inquiry=F005·내 문의 최소 목록, ticket=F009·관리자 최소 조회다. 후속 기능은 해당 스펙을 구현할 때 구조를 추가한다.
 
-| 레이어 | 가져와도 되는 것 | 가져오면 안 되는 것 |
-|---|---|---|
-| `app` | pages, features(공개 진입점), shared | — |
-| `pages` | features(공개 진입점), shared | app, 기능 내부 파일(`@/features/x/components/...`) |
-| `features` | shared, 다른 기능의 공개 진입점 | app, pages, 다른 기능의 내부 파일 |
-| `shared` | shared 안의 다른 폴더, 외부 패키지 | app, pages, features |
+## 2. 이름과 공개 진입점
 
-- 기능끼리 서로 가져오는 순환을 만들지 않는다. 두 기능이 같은 것을 필요로 하면 `shared`로 내린다(단, 기능 지식이 들어가면 내리지 않고 한쪽 기능의 공개 진입점으로 연다).
-- 같은 폴더 안은 상대 경로(`./`, `../`), 그 밖은 `@/` 별칭을 쓴다. 두 단계 이상 상위 상대 경로(`../../`)는 린트 오류다.
-- `pages`는 데이터를 직접 가져오지 않는다. 기능의 훅을 부르고 컴포넌트를 배치한다.
+- 폴더는 kebab-case, 컴포넌트·페이지는 PascalCase, 훅은 `useXxx`, 일반 TS 파일은 camelCase다.
+- 컴포넌트·스타일·테스트는 같은 위치에 `Name.tsx`, `Name.module.css`, `Name.test.tsx`로 둔다.
+- 공개 `index.ts`에는 외부에서 실제로 사용하는 것만 내보낸다. 기능 구현을 통째로 재노출하지 않는다.
+- 서버 필드·이벤트 이름은 계약 문서의 이름을 유지한다. 표시명은 소유 기능의 `model/`에 둔다.
+- 실제 경로 등록은 `app/router.tsx`, 공용 경로 생성기는 `shared/config/paths.ts`에서 관리한다.
 
-## 4. 이름 규칙
+## 3. 상태를 두는 위치
 
-| 대상 | 형식 | 예 |
-|---|---|---|
-| 폴더 | kebab-case | `creation-failure/`, `inquiry-chat/` |
-| 컴포넌트 파일·컴포넌트 | PascalCase, 파일 하나에 공개 컴포넌트 하나 | `TicketCard.tsx` → `TicketCard` |
-| 페이지 | `<이름>Page` | `InquiriesPage` |
-| 훅 | `use` + camelCase | `useInquiryResult.ts` |
-| 그 밖의 TS 파일 | camelCase | `inquiryApi.ts`, `statusLabels.ts` |
-| 타입 | PascalCase, `type`으로 선언 | `TicketCard`, `InquiryStatus` |
-| 컴포넌트 props 타입 | `<컴포넌트>Props` | `TicketCardProps` |
-| 상수 | UPPER_SNAKE_CASE | `ACK_TIMEOUT_MS`, `MAX_MESSAGE_CODE_POINTS` |
-| 쿼리 키 | `<기능>Keys` 객체 | `inquiryKeys.detail(id)` |
-| 이벤트 처리 함수 / props | `handle<동작>` / `on<동작>` | `handleSubmit`, `onRetry` |
-| 불리언 | `is`·`has`·`can` 접두 | `isPending`, `canRetry` |
-| 테스트 파일 | 대상 파일 옆 `<이름>.test.tsx` | `TicketCard.test.tsx` |
-| CSS Module | `<컴포넌트>.module.css`, 클래스는 camelCase | `styles.cardHeader` |
+- 조회한 문의·메시지·티켓: TanStack Query 캐시. 별도 Zustand/useState 사본을 만들지 않는다.
+- 목록 필터·페이지·상세 대상: URL 경로와 쿼리. 상세를 닫아도 목록 조건을 유지한다.
+- 한 화면의 열림·편집 상태: 컴포넌트 로컬 상태.
+- 로그인·연결·여러 화면을 거치는 미전송 입력: 소유 기능의 상태 저장소.
+- 분석 진행·답변 조각: 임시 상태. 저장 결과처럼 Query 캐시에 확정하지 않는다.
 
-서버 계약의 이름(필드·상태 코드·이벤트 이름)은 바꾸지 않고 그대로 쓴다. 화면용 이름이 필요하면 `model/`의 매핑 함수에서 바꾼다.
+저장 이벤트 후 조회 캐시를 무효화하고 서버 결과로 맞춘다. 재접속·계정 전환과 입력 보존 규칙은 [전송 계약](../../specs/contracts/WIRE_CONTRACT.md)을 따른다.
 
-## 5. 상태를 두는 위치
+## 4. 현재 공통 UI
 
-| 상태 | 두는 곳 | 하지 말 것 |
-|---|---|---|
-| 서버 데이터(문의·티켓·목록·상세·실행) | TanStack Query 캐시 | zustand·useState로 복사해 따로 관리 |
-| 주소로 공유돼야 하는 상태(필터·페이지·열린 모달의 대상 ID) | URL 경로·쿼리 | 컴포넌트 상태에만 보관(모달 닫기 후 목록 유지 규칙 위반, PRD 4.11) |
-| 입력 중인 값, 열림·닫힘 같은 화면 한 곳의 상태 | `useState` / `useReducer` | 전역 스토어 |
-| 여러 화면이 함께 쓰는 클라이언트 상태(로그인 사용자, 소켓 연결 상태, 보내지 못한 입력) | 해당 기능의 `model/` zustand 스토어 | 서버 데이터를 섞어 넣기 |
-| 실시간 임시 표시(진행 단계, 답변 조각) | 해당 기능 훅의 로컬 상태 또는 스토어 | 저장된 데이터처럼 Query 캐시에 써 넣기 |
+공통 구현은 [shared/ui](../../frontend/src/shared/ui)에 있다. 정확한 props는 각 소스의 타입을 확인한다.
 
-실시간 이벤트를 받으면 저장 결과는 REST를 다시 조회해 반영한다(`queryClient.invalidateQueries`). 이벤트 내용으로 캐시를 직접 고치는 것은 `message.stored`처럼 저장 확정 이벤트에 한하며, 그 뒤에도 REST 결과가 최종이다(API 2.4 · PRD 5.1).
+- `Button`: primary/secondary/ghost/danger. 로딩 시 비활성화하고 버튼 이름을 유지한다. 기본 type은 button이다.
+- `TextField`: 보이는 label과 error/hint를 연결한다. 비밀번호는 input의 password 타입을 사용한다.
+- `LoadingState`: 조회 중 status 안내.
+- `ErrorState`: 제목·설명·선택적 다시 시도. 빈 결과와 구분한다.
+- `StatusBadge`: label과 neutral/progress/attention/success/danger tone. 색 외에 문구를 제공한다.
+- `RouteModal`: Radix Dialog 기반. 제목·설명·닫기·포커스 복귀를 처리한다. URL 변경과 목록 조건 유지는 호출 기능이 담당한다.
 
-## 6. 스타일 파일
+헤더·메뉴는 `app/layouts/AppLayout`, 연결 상태는 `features/realtime`에서 조립한다. 기능 지식이 들어간 결과 카드·정정·티켓 UI는 소유 기능 안에 둔다. 공통 UI는 데이터를 조회하지 않고 props로 받는다. 실제 재사용이 필요할 때 공통으로 올리고, 추가하면 이 목록과 접근성 테스트를 함께 갱신한다.
 
-- 컴포넌트 스타일은 CSS Modules(`*.module.css`, Vite 기본 기능)로 쓴다. 전역 CSS는 `shared/styles/`의 두 파일만 둔다.
-- 색·간격·글꼴·반경 값은 `shared/styles/tokens.css`의 CSS 변수로만 쓴다. 컴포넌트 CSS에 색 값을 직접 쓰지 않는다.
-- 디자인 원본(Figma 등)과 토큰 값은 아직 팀이 정하지 않았다. 정해지기 전에는 토큰 이름만 쓰고 값은 임시로 둔다(COMPONENTS 1절).
+## 5. 타입·Mock·스타일
+
+- 프론트 전송 타입은 `shared/api/types`에서 [공통 타입 문서](../../specs/contracts/DATA_TYPES.md)에 맞춰 직접 관리한다. 백엔드·AI용 타입을 프론트에 미리 추가하지 않는다.
+- 공용 예시는 `specs/mocks/`, 읽기 어댑터는 `shared/api/mockData.ts`다. 테스트 전용 인증 값은 `test/mockCredentials.ts`에서 생성하며 개인 `.env`를 재사용하지 않는다.
+- 현재 `shared/api/mockBackend.ts`, `mockWorkspace.ts`, `shared/realtime/mockTransport.ts`는 실제 서버와 분리한 메모리 대역이다.
+- CSS Modules를 사용하고 색·간격·폰트·모서리는 `shared/styles/tokens.css`의 변수를 재사용한다. 전역 스타일은 `shared/styles/`에서 관리한다. 디자인 자산은 `frontend/public/assets/`에 있다.
