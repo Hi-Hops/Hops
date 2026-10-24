@@ -4,6 +4,8 @@
 
 프론트·백엔드·Node 채팅 서버·AI 담당자는 다음 문서를 기준으로 자기 서비스의 타입과 검증을 구현한다. 공통 폴더에서 언어별 코드나 DTO를 생성·배포하지 않는다.
 
+프론트는 Mock과 live 모드에서 같은 JSON 계약을 사용한다. 서버 담당자는 [REST·이벤트 연결표와 live 프로필](WIRE_CONTRACT.md#9-프론트-live-연동-프로필), 실행 담당자는 [프론트 환경 설정](../../frontend/README.md)을 확인한다. live 통신 어댑터 제공과 팀원 서버의 구현·통합 검증 완료는 구분한다.
+
 - [데이터 타입과 필드](DATA_TYPES.md): 공통 기본 타입·값 목록·객체 필드·필수/nullable·제약.
 - [요청·응답과 전송 규칙](WIRE_CONTRACT.md): REST·Socket·AI 입출력 연결, 권한, 오류, ACK·재전송·버전·순서.
 - [Mock 데이터](../mocks/README.md): 화면과 테스트에서 사용하는 JSON 예시. 실행용 로그인 값은 frontend/.env에만 작성한다.

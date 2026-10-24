@@ -1,6 +1,6 @@
 # wire JSON·REST·Socket.IO·AI 계약
 
-상태: `hops-mock-1` Mock 개발용 초안. 전체 필드와 타입은 [DATA_TYPES.md](DATA_TYPES.md), 작업별 입출력은 이 문서의 연결표를 따른다. 언어별 코드 생성은 제공하지 않는다.
+상태: `hops-mock-1` 기반 개발 연동용 초안. Mock과 프론트 live 어댑터가 같은 JSON 계약을 사용한다. 운영 정책 승인·팀원 서버 통합 완료를 뜻하지 않는다. 전체 필드와 타입은 [DATA_TYPES.md](DATA_TYPES.md), 작업별 입출력은 이 문서의 연결표를 따른다. 언어별 코드 생성은 제공하지 않는다.
 
 ## 1. 공통 표현
 
@@ -112,3 +112,19 @@ AI 결과의 임시 참조·근거·부서·버전은 [데이터 타입 문서](
 | SOCKET_EVENT | `state.changed` | 없음 | StateChangedEvent | {"direction": "Spring -> Node -> React"} |
 | AI_HTTP | `POST /internal/mock/v1/runs` | AiRequest | AiAccepted | {"successStatus": 202, "auth": "SERVICE_AUTH_PENDING"} |
 | AI_SSE | `GET /internal/mock/v1/runs/{runId}/events` | 없음 | progress: AiProgress, answer.delta: AiDelta, result: AiResult | {"auth": "SERVICE_AUTH_PENDING"} |
+
+## 9. 프론트 live 연동 프로필
+
+설정은 [프론트 README](../../frontend/README.md#2-실행-모드와-env)를 따른다. 서버는 2절·8절의 URL/이벤트와 [DATA_TYPES](DATA_TYPES.md)의 타입을 구현한다. 이 절은 기존 Mock 계약을 개발 서버에 연결하는 최소 프로필이며 Q-BE-2·Q-INF-1/2/4/6의 운영 정책 합의를 대신하지 않는다.
+
+- REST는 설정한 Spring origin에 `/api/...`를 붙인다. 로그인은 `LoginRequest` JSON을 보내고 `LoginResponse` 자체를 받는다. 나머지 인증 요청은 `Authorization: Bearer <accessToken>`이다. `/api/auth/me` 응답으로 사용자·부서·역할을 확정한다. 응답은 `{ data: ... }` wrapper를 추가하지 않는다. 로그아웃은 204 본문 없음이다.
+- Socket.IO 4.x 호환 서버를 사용한다. 기본 namespace `/`, 접속 path `/socket.io`이며 path는 환경 설정으로 바꿀 수 있다. path는 namespace나 룸 이름이 아니다. 연결마다 `socket.handshake.auth.token`에 토큰을 받는다. URL 쿼리·이벤트 payload로 토큰을 요구하지 않는다. polling과 WebSocket 업그레이드를 지원한다.
+- Node는 연결 주체와 `SubscriptionCommand.target` 접근 권한을 Spring에 확인하고 허용된 target만 룸에 참여시킨다. 룸 내부 이름은 서버가 결정한다. Spring↔Node 내부 검증·중계 경로는 서버 담당자의 별도 계약이며 프론트는 직접 호출하지 않는다.
+- 명령명은 `inquiry.create`, `message.send`, `message.revise`, `subscription.request`, `subscription.release`다. 8절에 연결한 JSON을 단일 payload로 받고 **Socket.IO ACK 콜백의 첫 번째 인자 하나에** `CommandAck` 또는 `SubscriptionAck` 객체를 반환한다. 서버 콜백에 `(null, result)`를 보내거나 별도 `ack` 이벤트로 응답하지 않는다. 클라이언트 `.timeout()` 콜백의 첫 번째 오류 인자는 Socket.IO가 추가하는 값이다.
+- `CommandAck.ok=true`는 Spring 저장 확인 이후에만 보낸다. 프론트는 requestId·대상/저장 식별자·필수 ACK 필드를 확인한다. 잘못된 ACK·10초 시간 초과·전송 중 연결 종료는 결과 미확인으로 둔다. 자동 저장 재시도나 오프라인 명령 적재는 하지 않으며 재확인은 같은 requestId·같은 본문이다.
+- 서버→프론트 이벤트는 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`다. 각 Event 객체 하나를 보낸다. `message.stored`·`state.changed`는 REST 재조회 신호이며 답변 조각을 DB 저장 완료로 취급하지 않는다. 티켓 목록/상세는 신호 외에도 주기적으로 REST를 조회한다.
+- 연결 거부는 Socket.IO `connect_error`로 전달하고 `error.data`에 `ApiErrorBody`를 넣는다. `UNAUTHENTICATED`는 현재 세션 만료, `ACCESS_DENIED`는 연결 거부, `SERVICE_UNAVAILABLE`은 중계 서버/업무 서버 연결 장애로 표시한다. 단순 네트워크 오류는 인증 실패로 간주하지 않는다. 명령·구독 거부는 해당 오류 ACK로 반환한다.
+- 재접속 때 토큰으로 다시 인증하고 화면의 target을 다시 구독한다. 서버는 이전 socket의 룸을 새 socket에 무조건 복구하지 말고 현재 권한을 검증한다. 같은 target의 여러 소비자는 클라이언트 참조 횟수를 관리하고 마지막 해제 때만 서버에 release한다. 로그아웃·계정 전환·연결 종료는 이전 구독과 대기 전송을 정리한다.
+- 브라우저 origin을 Spring REST와 Node Socket.IO 양쪽 CORS에 허용한다. Spring은 GET/POST/OPTIONS와 Authorization·Content-Type을 허용하며 live는 쿠키를 보내지 않는다. 토큰은 메모리에서 관리하고 만료 시 재로그인한다. refresh·쿠키 인증·부서 변경 권한 회수는 구현된 것으로 가정하지 않는다. HTTPS 화면에서 혼합 콘텐츠 요청은 사용하지 않는다.
+
+현재 프론트는 `GET /api/departments`를 직접 호출하지 않으며 `/api/auth/me`와 티켓 응답 안의 Department를 사용한다. F009 관련 대화·티켓 처리 명령과 F008·F010은 이 연동 범위 밖이다. AI 내부 `/internal/mock/...` 경로는 Python↔Spring의 Mock 제안이며 프론트 live에서 호출하거나 운영 경로로 확정하지 않는다.

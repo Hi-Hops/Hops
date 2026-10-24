@@ -55,4 +55,5 @@ src/
 - 프론트 전송 타입은 `shared/api/types`에서 [공통 타입 문서](../../specs/contracts/DATA_TYPES.md)에 맞춰 직접 관리한다. 백엔드·AI용 타입을 프론트에 미리 추가하지 않는다.
 - 공용 예시는 `specs/mocks/`, 읽기 어댑터는 `shared/api/mockData.ts`다. 테스트 전용 인증 값은 `test/mockCredentials.ts`에서 생성하며 개인 `.env`를 재사용하지 않는다.
 - 현재 `shared/api/mockBackend.ts`, `mockWorkspace.ts`, `shared/realtime/mockTransport.ts`는 실제 서버와 분리한 메모리 대역이다.
+- 화면의 REST는 `shared/api/client.ts`, 실시간은 `shared/realtime/index.ts`를 사용한다. `shared/config/connection.ts`의 모드에 따라 Mock 또는 fetch·`socketTransport.ts`를 선택하며 기능에서 Mock 구현을 직접 import하지 않는다. 설정·연동 방법은 [실행 안내](../../frontend/README.md), 요청 URL·이벤트 이름은 [전송 계약](../../specs/contracts/WIRE_CONTRACT.md)에 둔다.
 - CSS Modules를 사용하고 색·간격·폰트·모서리는 `shared/styles/tokens.css`의 변수를 재사용한다. 전역 스타일은 `shared/styles/`에서 관리한다. 디자인 자산은 `frontend/public/assets/`에 있다.

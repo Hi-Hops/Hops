@@ -47,7 +47,7 @@
 
 | 용도 | 이름 | 공통 Mock 타입 | 미정 추적 |
 |---|---|---|---|
-| 연결 인증 | auth.token | 가짜 토큰 문자열(실서비스는 JWT 계약) | Q-BE-2, Q-INF-4 |
+| 연결 인증 | auth.token | Mock 가짜 토큰 / live Spring 발급 accessToken | Q-BE-2, Q-INF-4 |
 | 구독/해제 | subscription.request / subscription.release | SubscriptionCommand → SubscriptionAck | Q-INF-3/6 |
 | 진행 | agent.progress | AgentProgressEvent | Q-AI-1 |
 | 답변 조각 | answer.delta | AnswerDeltaEvent | Q-AI-2 |
@@ -55,6 +55,8 @@
 | 업무 변경 | state.changed | StateChangedEvent | Q-INF-6 |
 
 구독 ACK와 저장 CommandAck를 혼용하지 않는다. 서버·JS·Java 클라이언트 버전(Q-INF-1), 연결 주소/CORS(Q-INF-2), 권한 변경 전달(Q-INF-4)은 운영 연결 전 합의한다. Mock 구독은 INQUIRY/DEPARTMENT_TICKETS/TICKET만 포함한다.
+
+개발 서버 연결은 [live 프로필](../contracts/WIRE_CONTRACT.md#9-프론트-live-연동-프로필)의 접속 path·인증·오류·ACK 규칙을 따른다. 실제 모드도 같은 target을 사용한다. 브라우저 설정은 [프론트 실행 안내](../../frontend/README.md)에 있으며 운영 미정 정책을 확정하지 않는다.
 
 ## 5. 연결 상태
 
