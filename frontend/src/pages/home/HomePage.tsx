@@ -1,6 +1,6 @@
 import { useSession } from '@/features/auth';
 import { MessageComposer } from '@/features/chat';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { paths } from '@/shared/config/paths';
 import { connectionMode } from '@/shared/config/connection';
 import styles from './HomePage.module.css';
@@ -8,6 +8,7 @@ import styles from './HomePage.module.css';
 export function HomePage() {
   const name = useSession((state) => state.user?.name);
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <main className={styles.page}>
       <h1>무엇을 도와드릴까요, {name} 님?</h1>
@@ -18,6 +19,7 @@ export function HomePage() {
       <div className={styles.composer}>
         <MessageComposer
           isHome
+          focusKey={location.key}
           onStored={(ack) => {
             void navigate(paths.inquiryChat(ack.inquiryId));
           }}

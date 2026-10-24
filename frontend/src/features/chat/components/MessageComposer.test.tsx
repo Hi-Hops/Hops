@@ -12,6 +12,7 @@ import { contentError, codePointLength } from '@/shared/lib/content';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { MessageComposer } from './MessageComposer';
 import '../api/chatApi';
+import { useDrafts } from '../model/draftStore';
 
 beforeEach(async () => {
   mockBackend.reset();
@@ -31,6 +32,16 @@ async function compose(content: string) {
 }
 
 describe('F003 메시지 전송', () => {
+  it('F003-AC15 화면 이동 뒤 늦은 저장 ACK가 이전 화면으로 이동시키지 않는다', async () => {
+    const stored = vi.fn();
+    const rendered = renderWithProviders(<MessageComposer isHome onStored={stored} />);
+    await compose('이동 전에 전송');
+    rendered.unmount();
+    await waitFor(() => {
+      expect(useDrafts.getState().drafts.new?.pending).toBeNull();
+    });
+    expect(stored).not.toHaveBeenCalled();
+  });
   it('F003-AC01 저장 ACK 전에는 전송 중이며 확인 뒤 문의 ID를 전달한다', async () => {
     const stored = vi.fn();
     renderWithProviders(<MessageComposer isHome onStored={stored} />);

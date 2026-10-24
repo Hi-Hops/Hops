@@ -1,5 +1,21 @@
 .recent {
-  margin-top: var(--space-7);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.sessions {
+  overflow-y: auto;
+  min-height: 0;
+}
+.sessions > p {
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+@media (max-width: 600px) {
+  .sessions {
+    max-height: 30dvh;
+  }
 }
 .recent h2 {
   font-size: var(--font-size-sm);
@@ -10,10 +26,32 @@
 .recentLink,
 .current {
   display: grid;
-  gap: 2px;
+  grid-template-columns: var(--space-2) minmax(0, 1fr);
+  gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-1);
   border-radius: var(--radius-md);
+}
+.sessionText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-top: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-text-muted);
+}
+.dot[data-tone='progress'] {
+  background: var(--color-progress);
+}
+.dot[data-tone='attention'] {
+  background: var(--color-attention);
+}
+.dot[data-tone='success'] {
+  background: var(--color-success);
 }
 .recent strong {
   font-size: var(--font-size-label);

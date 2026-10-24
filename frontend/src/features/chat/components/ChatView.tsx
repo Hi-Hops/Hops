@@ -138,6 +138,7 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
       </div>
       <div className={styles.dock}>
         <MessageComposer
+          key={inquiryId}
           inquiryId={inquiryId}
           version={data.version}
           onStored={chat.refresh}

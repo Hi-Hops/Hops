@@ -67,32 +67,33 @@ export function AppLayout() {
       <div className={styles.body}>
         <aside className={styles.sidebar}>
           <nav aria-label="주 메뉴">
-            <p className={styles.group}>문의</p>
             <NavLink
               end
               to="/"
               className={({ isActive }) => (isActive ? styles.active : styles.link)}
             >
-              <span className={styles.navIcon} aria-hidden="true" />
-              IT 문의하기
-            </NavLink>
-            <NavLink
-              to="/inquiries"
-              className={({ isActive }) => (isActive ? styles.active : styles.link)}
-            >
-              <span className={styles.navIcon} aria-hidden="true" />내 문의 내역
+              <span className={styles.navIcon} aria-hidden="true" />+ 새 문의
             </NavLink>
             {(user.department.isRoutable || user.roles.includes('BIZ_ADMIN')) && (
               <>
                 <p className={styles.group}>업무</p>
                 <NavLink
-                  to={user.roles.includes('BIZ_ADMIN') ? paths.adminTickets : paths.tickets}
+                  to={paths.tickets}
                   className={({ isActive }) => (isActive ? styles.active : styles.link)}
                 >
                   <span className={styles.navIcon} aria-hidden="true" />
-                  {user.roles.includes('BIZ_ADMIN') ? '전체 티켓 현황' : '부서 티켓 현황'}
+                  부서 티켓 현황
                 </NavLink>
               </>
+            )}
+            {user.roles.includes('BIZ_ADMIN') && (
+              <NavLink
+                to={paths.adminTickets}
+                className={({ isActive }) => (isActive ? styles.active : styles.link)}
+              >
+                <span className={styles.navIcon} aria-hidden="true" />
+                관리자 페이지
+              </NavLink>
             )}
           </nav>
           <RecentInquiries />

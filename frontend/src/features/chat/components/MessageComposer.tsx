@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StoredAck } from '@/shared/api/types';
 import type { StoredCommand, StoredCommandName } from '@/shared/realtime/types';
 import { realtime } from '@/shared/realtime';
@@ -15,6 +15,7 @@ type MessageComposerProps = {
   onStored: (ack: StoredAck) => void;
   onRefresh?: () => void;
   isHome?: boolean;
+  focusKey?: string;
 };
 
 export function MessageComposer({
@@ -23,7 +24,19 @@ export function MessageComposer({
   onStored,
   onRefresh,
   isHome = false,
+  focusKey,
 }: MessageComposerProps) {
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (isHome) inputRef.current?.focus();
+  }, [isHome, focusKey]);
   const key = inquiryId ?? 'new';
   const draft = useDrafts((state) => state.drafts[key]);
   const content = draft?.content ?? '';
@@ -52,6 +65,13 @@ export function MessageComposer({
           ? await realtime.send('message.send', request.command)
           : { ok: 'unknown' as const };
     if (useSession.getState().user?.id !== actorId) return;
+    if (
+      reply.ok === true &&
+      useDrafts.getState().drafts[key]?.pending?.command.requestId === request.command.requestId
+    ) {
+      useDrafts.getState().set(key, { content: '', pending: null });
+    }
+    if (!mounted.current) return;
     if (reply.ok === 'unknown') {
       setStatus('unknown');
       setNotice('결과 확인 중이에요. 같은 요청으로 다시 확인할 수 있어요.');
@@ -67,7 +87,6 @@ export function MessageComposer({
       }
       return;
     }
-    useDrafts.getState().set(key, { content: '', pending: null });
     setStatus('idle');
     setNotice(
       reply.effect === 'SUPPLEMENT_SAVED'
@@ -107,6 +126,7 @@ export function MessageComposer({
           {isHome ? '문의 내용' : '메시지 입력'}
         </label>
         <textarea
+          ref={inputRef}
           id={`message-${key}`}
           value={content}
           placeholder={

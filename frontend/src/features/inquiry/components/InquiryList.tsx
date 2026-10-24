@@ -5,6 +5,7 @@ import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { useInquiries } from '../api/inquiryApi';
+import { inquiryStatus } from '../model/status';
 import styles from './InquiryList.module.css';
 
 export function InquiryList() {
@@ -50,8 +51,8 @@ export function InquiryList() {
                   </td>
                   <td>
                     <StatusBadge
-                      label={item.status === 'WAITING_USER' ? '추가 확인 중' : '진행 중'}
-                      tone="progress"
+                      label={inquiryStatus[item.status].label}
+                      tone={inquiryStatus[item.status].tone}
                     />
                   </td>
                   <td>{displayDate(item.createdAt)}</td>

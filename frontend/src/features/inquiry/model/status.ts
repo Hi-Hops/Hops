@@ -1,6 +1,13 @@
-import type { ProcessingStatus } from '@/shared/api/types';
+import type { InquiryStatus, ProcessingStatus } from '@/shared/api/types';
 import type { Tone } from '@/shared/ui/StatusBadge';
 type Display = { label: string; tone: Tone };
+export const inquiryStatus: Record<InquiryStatus, Display> = {
+  IN_PROGRESS: { label: '진행 중', tone: 'progress' },
+  WAITING_USER: { label: '추가 확인 중', tone: 'attention' },
+  RESOLVED: { label: '해결 완료', tone: 'success' },
+  CLOSED_UNCONFIRMED: { label: '미확인 종료', tone: 'neutral' },
+  CLOSED: { label: '종료', tone: 'neutral' },
+};
 export const processing: Record<ProcessingStatus, Display> = {
   WAITING: { label: '처리 대기', tone: 'neutral' },
   IN_PROGRESS: { label: '처리 중', tone: 'progress' },

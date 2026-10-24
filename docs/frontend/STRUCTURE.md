@@ -50,6 +50,8 @@ src/
 
 헤더·메뉴는 `app/layouts/AppLayout`, 연결 상태는 `features/realtime`에서 조립한다. 기능 지식이 들어간 결과 카드·정정·티켓 UI는 소유 기능 안에 둔다. 공통 UI는 데이터를 조회하지 않고 props로 받는다. 실제 재사용이 필요할 때 공통으로 올리고, 추가하면 이 목록과 접근성 테스트를 함께 갱신한다.
 
+`AppLayout`의 사이드바는 상단 업무 메뉴와 하단 개인 채팅 세션으로 구성한다. `features/inquiry/components/RecentInquiries`가 세션 목록을 표시하고 같은 기능의 API 훅이 InquiryPage를 순차 조회한다. 서버 응답은 Query 캐시에서 관리하며 별도 클라이언트 목록 사본을 만들지 않는다. 새 문의 버튼은 기존 draft 저장소의 `new` 입력을 유지한 채 메인 입력창에 포커스를 옮긴다.
+
 ## 5. 타입·Mock·스타일
 
 - 프론트 전송 타입은 `shared/api/types`에서 [공통 타입 문서](../../specs/contracts/DATA_TYPES.md)에 맞춰 직접 관리한다. 백엔드·AI용 타입을 프론트에 미리 추가하지 않는다.
