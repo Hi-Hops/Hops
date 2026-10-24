@@ -162,8 +162,8 @@
       "id": "login-request",
       "type": "LoginRequest",
       "value": {
-        "loginId": "demo.requester",
-        "password": "mock-only-password"
+        "loginId": "<login-id>",
+        "password": "<password>"
       }
     },
     {

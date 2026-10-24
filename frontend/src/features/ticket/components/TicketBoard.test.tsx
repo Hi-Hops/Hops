@@ -1,3 +1,4 @@
+import { TEST_LOGINS } from '@/test/mockCredentials';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -14,7 +15,7 @@ beforeEach(async () => {
   mockBackend.reset();
   useSession.getState().logout();
   realtime.disconnect();
-  await login({ loginId: 'demo.network', password: 'mock-only-password' });
+  await login(TEST_LOGINS.network);
 });
 function Location() {
   const location = useLocation();
@@ -127,7 +128,7 @@ describe('F009 부서 티켓 조회', () => {
   });
   it('F009-AC01 업무 관리자는 허용된 전체 목록을 조회한다', async () => {
     useSession.getState().logout();
-    await login({ loginId: 'demo.admin', password: 'mock-only-password' });
+    await login(TEST_LOGINS.admin);
     view();
     expect(await screen.findByText('TK-DEMO-002')).toBeVisible();
     expect(screen.getByText('TK-DEMO-001')).toBeVisible();
@@ -135,7 +136,7 @@ describe('F009 부서 티켓 조회', () => {
   });
   it('F009-AC03 다음·이전 페이지 이동을 주소에 반영한다', async () => {
     useSession.getState().logout();
-    await login({ loginId: 'demo.admin', password: 'mock-only-password' });
+    await login(TEST_LOGINS.admin);
     view('/tickets?size=1');
     await screen.findByRole('table');
     await userEvent.click(screen.getByRole('button', { name: '다음' }));
@@ -163,7 +164,7 @@ describe('F009 부서 티켓 조회', () => {
   });
   it('F009-AC06 일반 문의자는 직접 URL로 부서 티켓을 조회할 수 없다', async () => {
     useSession.getState().logout();
-    await login({ loginId: 'demo.requester', password: 'mock-only-password' });
+    await login(TEST_LOGINS.requester);
     view();
     expect(screen.getByRole('alert')).toHaveTextContent('조회 권한이 없어요');
     expect(screen.queryByRole('table')).not.toBeInTheDocument();

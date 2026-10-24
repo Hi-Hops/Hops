@@ -87,20 +87,6 @@ export function LoginForm({
         </Button>
       </form>
       <p className={styles.caption}>사내 IT 문의를 시작하고 처리 현황을 확인하세요.</p>
-      <details className={styles.demo}>
-        <summary>Mock 테스트 계정 안내</summary>
-        <p>
-          문의자: demo.requester
-          <br />
-          네트워크: demo.network
-          <br />
-          backend: demo.backend
-          <br />
-          업무 관리자: demo.admin
-          <br />
-          공통 비밀번호: mock-only-password
-        </p>
-      </details>
     </section>
   );
 }

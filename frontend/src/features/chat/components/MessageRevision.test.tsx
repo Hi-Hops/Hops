@@ -1,3 +1,4 @@
+import { TEST_LOGINS } from '@/test/mockCredentials';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,7 +14,7 @@ import { MessageRevision } from './MessageRevision';
 beforeEach(async () => {
   mockBackend.reset();
   useSession.getState().logout();
-  await login({ loginId: 'demo.requester', password: 'mock-only-password' });
+  await login(TEST_LOGINS.requester);
   const token = useSession.getState().token;
   if (!token) throw new Error('토큰 필요');
   realtime.connect(token);

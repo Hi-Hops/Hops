@@ -1,3 +1,4 @@
+import { TEST_LOGINS } from '@/test/mockCredentials';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,7 +17,7 @@ beforeEach(async () => {
   mockBackend.reset();
   useSession.getState().logout();
   realtime.disconnect();
-  await login({ loginId: 'demo.requester', password: 'mock-only-password' });
+  await login(TEST_LOGINS.requester);
   const token = useSession.getState().token;
   if (!token) throw new Error('테스트 로그인 실패');
   realtime.connect(token);
@@ -117,7 +118,7 @@ describe('F003 메시지 전송', () => {
     await screen.findByText(/결과 확인 중이에요/u);
     useSession.getState().expire();
     rendered.unmount();
-    await login({ loginId: 'demo.requester', password: 'mock-only-password' });
+    await login(TEST_LOGINS.requester);
     const token = useSession.getState().token;
     if (!token) throw new Error('로그인 필요');
     realtime.connect(token);

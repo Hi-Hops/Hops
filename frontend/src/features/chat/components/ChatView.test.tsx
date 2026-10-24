@@ -1,3 +1,4 @@
+import { TEST_LOGINS } from '@/test/mockCredentials';
 import { screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { login, useSession } from '@/features/auth';
@@ -12,7 +13,7 @@ import type { StoredAck } from '@/shared/api/types';
 beforeEach(async () => {
   mockBackend.reset();
   useSession.getState().logout();
-  await login({ loginId: 'demo.requester', password: 'mock-only-password' });
+  await login(TEST_LOGINS.requester);
 });
 function start(content: string) {
   const user = useSession.getState().user;

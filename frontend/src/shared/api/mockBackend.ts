@@ -1,4 +1,4 @@
-import accounts from '@fixtures/accounts.json';
+import { readMockAuth } from '@/shared/config/mockAuth';
 import type {
   CurrentUser,
   LoginRequest,
@@ -63,8 +63,15 @@ export class MockBackend {
     if (path === '/api/auth/login' && method === 'POST') {
       // HTTP 대역 경계: 호출부의 공통 LoginRequest를 해석한다. 실제 인증 구현은 아니다.
       const credentials = body as LoginRequest;
-      const account = accounts.accounts.find((item) => item.loginId === credentials.loginId);
-      if (!account || credentials.password !== accounts.password)
+      const config = readMockAuth();
+      if (!config)
+        this.error(
+          503,
+          'MOCK_AUTH_NOT_CONFIGURED',
+          'Mock 로그인 설정이 없거나 올바르지 않아요. .env의 계정 값을 확인하고 실행 서버를 다시 시작해 주세요.',
+        );
+      const account = config.accounts.find((item) => item.loginId === credentials.loginId);
+      if (!account || credentials.password !== config.password)
         this.error(401, 'UNAUTHENTICATED', '아이디 또는 비밀번호를 확인해 주세요.');
       const user = fixture(account.userFixture, 'CurrentUser');
       const expiresAt = Date.now() + 1_800_000;

@@ -1,27 +1,27 @@
 {
   "synthetic": true,
-  "password": "mock-only-password",
   "accounts": [
     {
-      "loginId": "demo.requester",
       "userFixture": "user-0",
-      "loginFixture": "login-0"
+      "loginFixture": "login-0",
+      "loginIdEnv": "VITE_MOCK_REQUESTER_ID"
     },
     {
-      "loginId": "demo.network",
       "userFixture": "user-1",
-      "loginFixture": "login-1"
+      "loginFixture": "login-1",
+      "loginIdEnv": "VITE_MOCK_NETWORK_ID"
     },
     {
-      "loginId": "demo.backend",
       "userFixture": "user-2",
-      "loginFixture": "login-2"
+      "loginFixture": "login-2",
+      "loginIdEnv": "VITE_MOCK_BACKEND_ID"
     },
     {
-      "loginId": "demo.admin",
       "userFixture": "user-3",
-      "loginFixture": "login-3"
+      "loginFixture": "login-3",
+      "loginIdEnv": "VITE_MOCK_ADMIN_ID"
     }
   ],
-  "note": "가짜 인증 어댑터 전용. 실제 JWT·DB 인증에 사용하지 않는다."
+  "note": "가짜 인증용 역할 매핑. 로그인 값은 frontend/.env에서 설정하며 기본값이 없다.",
+  "passwordEnv": "VITE_MOCK_PASSWORD"
 }

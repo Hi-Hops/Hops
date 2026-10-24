@@ -1,3 +1,4 @@
+import { TEST_LOGINS } from '@/test/mockCredentials';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fixture } from '@/shared/api/mockData';
 import { mockBackend } from '@/shared/api/mockBackend';
@@ -14,7 +15,7 @@ beforeEach(() => {
   session = mockBackend.request(
     '/api/auth/login',
     'POST',
-    { loginId: 'demo.requester', password: 'mock-only-password' },
+    TEST_LOGINS.requester,
     null,
   ) as LoginResponse;
 });

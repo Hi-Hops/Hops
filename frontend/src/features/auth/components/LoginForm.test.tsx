@@ -1,3 +1,4 @@
+import { TEST_LOGINS } from '@/test/mockCredentials';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -16,9 +17,9 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-async function fillLogin(password = 'mock-only-password') {
+async function fillLogin(password: string = TEST_LOGINS.requester.password) {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText('아이디'), 'demo.requester');
+  await user.type(screen.getByLabelText('아이디'), TEST_LOGINS.requester.loginId);
   await user.type(screen.getByLabelText('비밀번호'), password);
   await user.click(screen.getByRole('button', { name: '로그인' }));
 }
@@ -37,12 +38,12 @@ describe('F001 로그인', () => {
     renderWithProviders(<LoginForm onSuccess={vi.fn()} />);
     await fillLogin('wrong-password');
     expect(await screen.findByRole('alert')).toHaveTextContent('아이디 또는 비밀번호');
-    expect(screen.getByLabelText('아이디')).toHaveValue('demo.requester');
+    expect(screen.getByLabelText('아이디')).toHaveValue(TEST_LOGINS.requester.loginId);
     expect(screen.getByLabelText('비밀번호')).toHaveValue('');
   });
   it('F001-AC03 토큰 디코딩 대신 /auth/me를 조회한다', async () => {
     const spy = vi.spyOn(mockBackend, 'request');
-    const current = await login({ loginId: 'demo.network', password: 'mock-only-password' });
+    const current = await login(TEST_LOGINS.network);
     expect(spy).toHaveBeenCalledWith('/api/auth/me', 'GET', undefined, expect.any(String));
     expect(current.department.code).toBe('NETWORK');
   });
@@ -69,7 +70,7 @@ describe('F001 로그인', () => {
     off();
   });
   it('F001-AC07 인증 만료는 작업 취소가 아니라 인증 상태만 변경한다', async () => {
-    await login({ loginId: 'demo.requester', password: 'mock-only-password' });
+    await login(TEST_LOGINS.requester);
     const token = useSession.getState().token;
     if (!token) throw new Error('테스트 로그인 실패');
     mockBackend.expire(token);
@@ -78,7 +79,7 @@ describe('F001 로그인', () => {
     expect(useSession.getState().previousUserId).toBe(fixture('user-0', 'CurrentUser').id);
   });
   it('F001-AC08 로그아웃 요청 실패 시에도 인증 정보를 정리한다', async () => {
-    await login({ loginId: 'demo.requester', password: 'mock-only-password' });
+    await login(TEST_LOGINS.requester);
     mockBackend.failNext();
     await expect(logout()).rejects.toBeInstanceOf(ApiError);
     expect(useSession.getState().token).toBeNull();
