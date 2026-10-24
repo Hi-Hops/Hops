@@ -17,6 +17,7 @@ type MessageComposerProps = {
   onRefresh?: () => void;
   isHome?: boolean;
   focusKey?: string;
+  historyReady?: boolean;
 };
 
 export function MessageComposer({
@@ -26,6 +27,7 @@ export function MessageComposer({
   onRefresh,
   isHome = false,
   focusKey,
+  historyReady = true,
 }: MessageComposerProps) {
   const client = useQueryClient();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -50,7 +52,7 @@ export function MessageComposer({
   const connection = useConnection((state) => state.state);
   const invalid = contentError(content);
   async function send(retry = false) {
-    if (status === 'sending' || (invalid && !retry)) return;
+    if (!historyReady || status === 'sending' || (invalid && !retry)) return;
     const event: StoredCommandName = inquiryId ? 'message.send' : 'inquiry.create';
     const command: StoredCommand = inquiryId
       ? { requestId: crypto.randomUUID(), inquiryId, expectedInquiryVersion: version, content }
@@ -110,6 +112,7 @@ export function MessageComposer({
           {(status === 'unknown' || (status === 'error' && pending)) && (
             <Button
               variant="secondary"
+              disabled={!historyReady}
               onClick={() => {
                 void send(true);
               }}
@@ -151,7 +154,7 @@ export function MessageComposer({
           }}
           aria-invalid={Boolean(invalid && content)}
           aria-describedby={`composer-help-${key}`}
-          disabled={status === 'sending'}
+          disabled={!historyReady || status === 'sending'}
         />
         <div className={styles.bar}>
           <span id={`composer-help-${key}`}>Enter 전송 · Shift+Enter 줄바꿈</span>
@@ -163,7 +166,7 @@ export function MessageComposer({
           <Button
             type="submit"
             isLoading={status === 'sending'}
-            disabled={Boolean(invalid) || connection !== 'connected'}
+            disabled={!historyReady || Boolean(invalid) || connection !== 'connected'}
           >
             {status === 'sending' ? '전송 중' : isHome ? '질문하기 ↑' : '보내기 ↑'}
           </Button>

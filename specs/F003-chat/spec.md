@@ -38,6 +38,7 @@
 **채팅**
 - **F003-AC05 대화 불러오기**
   채팅 화면에 들어가면 `GET /api/inquiries/{id}/messages`로 대화를 순서대로 보여 주고(F002-AC02 구독과 함께), 사용자·AI 말풍선을 구분한다. 페이지를 넘겨도 순서가 바뀌지 않는다. (API 2.1 · ERD `message.sender_type`)
+  현재 개발 프로필은 오름차순 afterSequenceNo 커서를 사용하므로 nextAfterSequenceNo가 null이 될 때까지 후속 페이지를 자동 조회한다. 최신 저장 메시지 확보 전·조회 실패 중에는 전송·정정을 막고 작성 내용을 보존한다. 후속 페이지 실패는 기존 대화를 유지한 채 실패 위치부터 재시도한다. 다음 커서가 진행하지 않으면 오류로 멈춘다. 최신 페이지 우선 조회용 새 API·서버 스냅샷 계약은 이번 변경에 추가하지 않는다.
 - **F003-AC06 메시지 전송**
   `message.send` `{requestId,inquiryId,expectedInquiryVersion,content}`를 보낸다. 저장 ACK 전에는 "전송 중", `message.stored` 또는 저장 ACK 뒤에 정식 메시지로 표시한다. F003-AC02~AC04 규칙을 똑같이 적용한다. (API 2.4)
 - **F003-AC07 분석 진행 표시**

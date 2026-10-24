@@ -16,9 +16,14 @@ export function useChat(id: string) {
   const messages = useInfiniteQuery({
     queryKey: chatKeys.messages(id),
     initialPageParam: 0,
-    queryFn: ({ pageParam }) => getMessages(id, pageParam),
+    queryFn: ({ pageParam, signal }) => getMessages(id, pageParam, signal),
     getNextPageParam: (page) => page.nextAfterSequenceNo ?? undefined,
   });
+  const { fetchNextPage, hasNextPage, isFetching, isSuccess } = messages;
+  useEffect(() => {
+    if (isSuccess && hasNextPage && !isFetching) void fetchNextPage();
+  }, [fetchNextPage, hasNextPage, isFetching, isSuccess]);
+  const historyReady = inquiry.isSuccess && isSuccess && !hasNextPage && !isFetching;
   const subscription = useSubscription({ type: 'INQUIRY', id });
   const version = inquiry.data?.version ?? 0;
   const runId = inquiry.data?.currentRun?.id ?? '';
@@ -76,5 +81,14 @@ export function useChat(id: string) {
     void client.invalidateQueries({ queryKey: chatKeys.all });
     void client.invalidateQueries({ queryKey: ['inquiries'] });
   }
-  return { inquiry, messages, items, live, pending, refresh, denied: subscription.denied };
+  return {
+    inquiry,
+    messages,
+    items,
+    live,
+    pending,
+    refresh,
+    historyReady,
+    denied: subscription.denied,
+  };
 }

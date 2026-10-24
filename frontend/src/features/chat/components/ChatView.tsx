@@ -8,7 +8,6 @@ import { displayDate } from '@/shared/lib/date';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { Button } from '@/shared/ui/Button';
 import { useChat } from '../hooks/useChat';
 import { MessageComposer } from './MessageComposer';
 import styles from './ChatView.module.css';
@@ -73,7 +72,9 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
           <ErrorState
             title="대화를 불러오지 못했어요"
             onRetry={() => {
-              void chat.messages.refetch();
+              void (chat.messages.isFetchNextPageError
+                ? chat.messages.fetchNextPage()
+                : chat.messages.refetch());
             }}
           />
         )}
@@ -93,19 +94,17 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
               <p>{message.content}</p>
             </div>
             {message.sender === 'USER' && (
-              <MessageRevision message={message} version={data.version} onStored={chat.refresh} />
+              <MessageRevision
+                message={message}
+                version={data.version}
+                onStored={chat.refresh}
+                disabled={!chat.historyReady}
+              />
             )}
           </article>
         ))}
-        {chat.messages.hasNextPage && (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              void chat.messages.fetchNextPage();
-            }}
-          >
-            대화 더 불러오기
-          </Button>
+        {!chat.historyReady && !chat.messages.isError && (
+          <p role="status">최신 대화를 불러오고 있어요. 확인이 끝나면 메시지를 보낼 수 있어요.</p>
         )}
         {chat.pending && (
           <div role="status" className={styles.aiRow}>
@@ -141,6 +140,7 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
           key={inquiryId}
           inquiryId={inquiryId}
           version={data.version}
+          historyReady={chat.historyReady}
           onStored={chat.refresh}
           onRefresh={chat.refresh}
         />

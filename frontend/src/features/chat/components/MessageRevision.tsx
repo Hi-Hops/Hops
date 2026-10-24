@@ -3,8 +3,18 @@ import { codePointLength } from '@/shared/lib/content';
 import { Button } from '@/shared/ui/Button';
 import { useRevision } from '../hooks/useRevision';
 import styles from './MessageRevision.module.css';
-type MessageRevisionProps = { message: ChatMessage; version: number; onStored: () => void };
-export function MessageRevision({ message, version, onStored }: MessageRevisionProps) {
+type MessageRevisionProps = {
+  message: ChatMessage;
+  version: number;
+  onStored: () => void;
+  disabled?: boolean;
+};
+export function MessageRevision({
+  message,
+  version,
+  onStored,
+  disabled = false,
+}: MessageRevisionProps) {
   const editor = useRevision(message, version, onStored);
   if (message.sender !== 'USER') return null;
   return (
@@ -14,7 +24,7 @@ export function MessageRevision({ message, version, onStored }: MessageRevisionP
           className={styles.editor}
           onSubmit={(event) => {
             event.preventDefault();
-            void editor.save();
+            if (!disabled) void editor.save();
           }}
         >
           <label htmlFor={`revision-${message.id}`}>메시지 정정</label>
@@ -23,7 +33,7 @@ export function MessageRevision({ message, version, onStored }: MessageRevisionP
             autoFocus
             id={`revision-${message.id}`}
             value={editor.content}
-            disabled={editor.busy}
+            disabled={disabled || editor.busy}
             onChange={(event) => {
               editor.change(event.target.value);
             }}
@@ -34,7 +44,11 @@ export function MessageRevision({ message, version, onStored }: MessageRevisionP
             <Button variant="secondary" disabled={editor.busy} onClick={editor.cancel}>
               취소
             </Button>
-            <Button type="submit" isLoading={editor.busy} disabled={Boolean(editor.invalid)}>
+            <Button
+              type="submit"
+              isLoading={editor.busy}
+              disabled={disabled || Boolean(editor.invalid)}
+            >
               {editor.busy ? '정정 중' : '정정 저장'}
             </Button>
           </div>
@@ -42,7 +56,7 @@ export function MessageRevision({ message, version, onStored }: MessageRevisionP
         </form>
       ) : (
         <div className={styles.meta}>
-          <Button variant="ghost" onClick={editor.start}>
+          <Button variant="ghost" disabled={disabled} onClick={editor.start}>
             내용 정정
           </Button>
           {message.revision > 1 && <span>정정됨 · {message.revision}차</span>}
