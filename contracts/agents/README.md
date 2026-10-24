@@ -4,7 +4,7 @@
 
 [PRD](../../docs/PRD.md)의 Supervisor와 4개 전문 에이전트를 서로 독립적으로 개발하기 위한 계약이다. 담당자별 준비와 통합 순서는 [개발 안내](../../docs/AGENT_DEVELOPMENT.md)를 따른다. 아직 구현·팀 승인 완료를 뜻하지 않는다.
 
-로그인·채팅·부서 티켓의 서비스 연결용 Mock은 [공통 wire 계약](../../specs/contracts/README.md)을 따른다. [언어 매핑](../../specs/contracts/LANGUAGE_MAPPING.md)의 어댑터를 통해 이 내부 agent-1과 변환하며 내부 계약을 교체하지 않는다.
+로그인·채팅·부서 티켓의 서비스 연결용 Mock은 [공통 wire 계약](../../specs/contracts/README.md)을 따른다. [공통 데이터 타입 문서](../../specs/contracts/DATA_TYPES.md#서비스-내부-표현)를 기준으로 각 서비스의 어댑터를 통해 이 내부 agent-1과 변환하며 내부 계약을 교체하지 않는다.
 
 ## 1. 적용 경계
 

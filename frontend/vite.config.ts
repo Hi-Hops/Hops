@@ -10,7 +10,6 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
-        '@contracts': fileURLToPath(new URL('../specs/contracts', import.meta.url)),
         '@fixtures': fileURLToPath(new URL('../specs/mocks', import.meta.url)),
       },
     },

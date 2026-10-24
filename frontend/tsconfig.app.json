@@ -9,7 +9,6 @@
     "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"],
-      "@contracts/*": ["../specs/contracts/*"],
       "@fixtures/*": ["../specs/mocks/*"]
     },
     "strict": true,

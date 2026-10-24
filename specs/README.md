@@ -10,7 +10,7 @@
 
 ## 공통 Mock 계약 진입점
 
-로그인·채팅·부서 티켓 조회의 네 영역 공통 JSON 구조는 [공통 계약](contracts/README.md), 실행 가능한 자료 검사는 [Mock 안내](mocks/README.md)를 참조한다. 생성 타입은 TypeScript(프론트·Node 공용)·Java·Python을 제공한다. 서비스 코드 구현·팀 승인 계약은 아니며 미정 질문은 유지한다.
+로그인·채팅·부서 티켓 조회의 네 영역 공통 JSON 구조는 [공통 계약](contracts/README.md), Mock 자료 안내는 [Mock 안내](mocks/README.md)를 참조한다. 필드·데이터 타입·입출력은 문서로 명시하며 각 서비스가 필요한 타입을 구현한다. 서비스 코드 구현·팀 승인 계약은 아니며 미정 질문은 유지한다.
 
 ## 범위
 

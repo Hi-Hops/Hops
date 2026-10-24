@@ -1,6 +1,6 @@
 # wire JSON·REST·Socket.IO·AI 계약
 
-상태: `hops-mock-1` Mock 개발용 초안. 경로·타입의 기계 판독 목록은 [operations.json](operations.json), 전체 필드는 [DATA_TYPES.md](DATA_TYPES.md)가 원본에서 생성된다.
+상태: `hops-mock-1` Mock 개발용 초안. 전체 필드와 타입은 [DATA_TYPES.md](DATA_TYPES.md), 작업별 입출력은 이 문서의 연결표를 따른다. 언어별 코드 생성은 제공하지 않는다.
 
 ## 1. 공통 표현
 
@@ -9,8 +9,8 @@
 - UUID는 소문자 하이픈 문자열, 시각은 UTC Z 문자열이다. 배열·객체의 순서를 인덱스 ID로 쓰지 않는다.
 - 버전·revision·순번은 1부터, page는 0부터. 질문 횟수는 0~3. 모든 정수는 필드별 최소값부터 2,147,483,647 이하이며 문자열·boolean을 숫자로 바꾸지 않는다.
 - 사용자 메시지는 1~4,000 Unicode 코드 포인트. JS `[...content].length`, Java `codePointCount`, Python `len`을 사용한다. 단독 surrogate는 거부한다. 원문을 trim/자동 절단해 저장하지 않는다.
-- 공백만 있는지 판단하는 문자 집합은 UserContent.pattern에 명시한다. 언어별 `trim/strip/\\s`의 서로 다른 동작에 의존하지 않는다. 서버도 같은 검사를 한다.
-- category 6개와 기존 문의·처리 상태 코드는 Schema enum을 따른다. 문제·배정·실행·오류 코드는 운영 미정이므로 string으로 받는다. Mock 대표값만 mock-profile.json에 둔다. 미등록 값은 알 수 없는 상태로 표시하고 성공으로 추정하지 않는다.
+- 공백만 있는지 판단하는 문자 집합은 데이터 타입 문서의 UserContent 공백 집합에 명시한다. 언어별 `trim/strip/\\s`의 서로 다른 동작에 의존하지 않는다. 서버도 같은 검사를 한다.
+- category 6개와 기존 문의·처리 상태 코드는 데이터 타입 문서의 값 목록을 따른다. 문제·배정·실행·오류 코드는 운영 미정이므로 string으로 받는다. Mock 대표값만 mock-profile.json에 둔다. 미등록 값은 알 수 없는 상태로 표시하고 성공으로 추정하지 않는다.
 
 ## 2. REST와 페이지
 
@@ -47,9 +47,9 @@ Mock은 메모리의 가짜 토큰을 계정 fixture와 연결한다. 토큰 수
 
 ## 4. 명령·ACK·멱등성
 
-`inquiry.create`, `message.send`, `message.revise`는 operations.json의 명령 타입을 쓰고 **CommandAck**로 응답한다. ok=true는 Spring의 해당 메시지 저장 확인이다. ACK의 runId는 분석 실행 접수 식별자이며 티켓 저장 성공을 뜻하지 않는다.
+`inquiry.create`, `message.send`, `message.revise`는 아래 작업 연결표의 명령 타입을 쓰고 **CommandAck**로 응답한다. ok=true는 Spring의 해당 메시지 저장 확인이다. ACK의 runId는 분석 실행 접수 식별자이며 티켓 저장 성공을 뜻하지 않는다.
 
-구독 request/release는 **SubscriptionAck**다. 성공 응답에는 target이 있으며 inquiryId/messageId 같은 저장 결과 필드는 없다. 다른 variant의 필드를 섞으면 스키마 검사가 실패한다. error.requestId는 바깥 requestId와 같아야 한다.
+구독 request/release는 **SubscriptionAck**다. 성공 응답에는 target이 있으며 inquiryId/messageId 같은 저장 결과 필드는 없다. 다른 variant의 필드를 섞으면 계약 위반이다. error.requestId는 바깥 requestId와 같아야 한다.
 
 | 상황 | 화면·키 처리 |
 |---|---|
@@ -85,4 +85,30 @@ SubscriptionTarget은 INQUIRY(id=문의), DEPARTMENT_TICKETS(id=부서), TICKET(
 
 AI_SSE는 Python→Spring, Socket 이벤트는 Spring→Node→React다. Spring이 공개 가능한 payload만 변환하고 eventId를 발급한다. Python이 프론트에 바로 state.changed·티켓 저장 ACK를 보내지 않는다.
 
-AI 결과의 임시 참조·근거·부서·버전은 [언어 매핑](LANGUAGE_MAPPING.md)의 의미 검사도 통과해야 한다. JSON Schema의 모양 검사만으로 참조 유효성·권한·실제 저장을 보장하지 않는다.
+AI 결과의 임시 참조·근거·부서·버전은 [데이터 타입 문서](DATA_TYPES.md#서비스-내부-표현)의 의미 규칙도 지켜야 한다. 데이터의 형식 확인만으로 참조 유효성·권한·실제 저장을 보장하지 않는다.
+
+## 8. 작업별 데이터 타입 연결
+
+| 전송 | 경로·이벤트 | 요청 타입 | 응답 타입 | 조건 |
+|---|---|---|---|---|
+| REST | `POST /api/auth/login` | LoginRequest | LoginResponse | {"successStatus": 200, "auth": "NONE"} |
+| REST | `GET /api/auth/me` | 없음 | CurrentUser | {"successStatus": 200, "auth": "USER"} |
+| REST | `POST /api/auth/logout` | 없음 | 없음 | {"successStatus": 204, "auth": "USER"} |
+| REST | `GET /api/departments` | 없음 | Department | {"responseArray": true, "successStatus": 200, "auth": "USER"} |
+| REST | `GET /api/inquiries` | InquiryListQuery | InquiryPage | {"requestLocation": "query", "successStatus": 200, "auth": "OWNER"} |
+| REST | `GET /api/inquiries/{id}` | 없음 | InquiryResult | {"successStatus": 200, "auth": "OWNER"} |
+| REST | `GET /api/inquiries/{id}/messages` | MessageListQuery | MessagePage | {"requestLocation": "query", "successStatus": 200, "auth": "OWNER"} |
+| REST | `GET /api/runs/{id}` | 없음 | RunSummary | {"successStatus": 200, "auth": "OWNER"} |
+| REST | `GET /api/tickets` | TicketListQuery | TicketPage | {"requestLocation": "query", "successStatus": 200, "auth": "CURRENT_DEPARTMENT_OR_BIZ_ADMIN"} |
+| REST | `GET /api/tickets/{id}` | 없음 | TicketDetail | {"successStatus": 200, "auth": "CURRENT_DEPARTMENT_OR_BIZ_ADMIN"} |
+| SOCKET_COMMAND | `inquiry.create` | InquiryCreateCommand | CommandAck | {"direction": "React -> Node -> Spring -> Node -> React"} |
+| SOCKET_COMMAND | `message.send` | MessageSendCommand | CommandAck | {"direction": "React -> Node -> Spring -> Node -> React"} |
+| SOCKET_COMMAND | `message.revise` | MessageReviseCommand | CommandAck | {"direction": "React -> Node -> Spring -> Node -> React"} |
+| SOCKET_COMMAND | `subscription.request` | SubscriptionCommand | SubscriptionAck | {"direction": "React -> Node (Spring 현재 권한 검증)"} |
+| SOCKET_COMMAND | `subscription.release` | SubscriptionCommand | SubscriptionAck | {"direction": "React -> Node (Spring 현재 권한 검증)"} |
+| SOCKET_EVENT | `agent.progress` | 없음 | AgentProgressEvent | {"direction": "Spring -> Node -> React"} |
+| SOCKET_EVENT | `answer.delta` | 없음 | AnswerDeltaEvent | {"direction": "Spring -> Node -> React"} |
+| SOCKET_EVENT | `message.stored` | 없음 | MessageStoredEvent | {"direction": "Spring -> Node -> React"} |
+| SOCKET_EVENT | `state.changed` | 없음 | StateChangedEvent | {"direction": "Spring -> Node -> React"} |
+| AI_HTTP | `POST /internal/mock/v1/runs` | AiRequest | AiAccepted | {"successStatus": 202, "auth": "SERVICE_AUTH_PENDING"} |
+| AI_SSE | `GET /internal/mock/v1/runs/{runId}/events` | 없음 | progress: AiProgress, answer.delta: AiDelta, result: AiResult | {"auth": "SERVICE_AUTH_PENDING"} |

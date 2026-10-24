@@ -43,7 +43,7 @@
 
 ## 4. 계약(화면이 기대하는 값)
 
-공통 필드·필수/nullable·wire 표현의 원본은 [JSON Schema와 필드 표](../contracts/README.md)다. 아래는 이번 Mock 프로필의 연결표이며 팀 승인·운영 미정 질문의 확정을 뜻하지 않는다. 기존 API의 최소 의미를 구체화한 제안이다.
+공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래는 이번 Mock 프로필의 연결표이며 팀 승인·운영 미정 질문의 확정을 뜻하지 않는다. 기존 API의 최소 의미를 구체화한 제안이다.
 
 | 용도 | 이름 | 공통 Mock 타입 | 미정 추적 |
 |---|---|---|---|
@@ -75,4 +75,4 @@ Node.js 서버 내부 구현, Spring 여러 인스턴스 라우팅, 이벤트 �
 
 ## 공통 Mock 계약 (2026-10-23)
 
-이 기능의 Mock 전송 데이터는 [공통 Schema·생성 DTO](../contracts/README.md)와 [operation 목록](../contracts/operations.json)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. 이 절은 Mock 개발용 제안이며 기존 계약 표의 미정 항목이나 팀 승인 상태를 확정으로 바꾸지 않는다. 서버 저장·권한·AI 품질 완료를 뜻하지 않는다.
+이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. 이 절은 Mock 개발용 제안이며 기존 계약 표의 미정 항목이나 팀 승인 상태를 확정으로 바꾸지 않는다. 서버 저장·권한·AI 품질 완료를 뜻하지 않는다.
