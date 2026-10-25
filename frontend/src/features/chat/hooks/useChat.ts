@@ -15,15 +15,15 @@ export function useChat(id: string) {
   });
   const messages = useInfiniteQuery({
     queryKey: chatKeys.messages(id),
-    initialPageParam: 0,
+    initialPageParam: null as number | null,
     queryFn: ({ pageParam, signal }) => getMessages(id, pageParam, signal),
-    getNextPageParam: (page) => page.nextAfterSequenceNo ?? undefined,
+    getNextPageParam: (page) => page.nextBeforeSequenceNo ?? undefined,
   });
-  const { fetchNextPage, hasNextPage, isFetching, isSuccess } = messages;
-  useEffect(() => {
-    if (isSuccess && hasNextPage && !isFetching) void fetchNextPage();
-  }, [fetchNextPage, hasNextPage, isFetching, isSuccess]);
-  const historyReady = inquiry.isSuccess && isSuccess && !hasNextPage && !isFetching;
+  const historyReady =
+    inquiry.isSuccess &&
+    Boolean(messages.data) &&
+    !messages.isRefetchError &&
+    !messages.isRefetching;
   const subscription = useSubscription({ type: 'INQUIRY', id });
   const version = inquiry.data?.version ?? 0;
   const runId = inquiry.data?.currentRun?.id ?? '';

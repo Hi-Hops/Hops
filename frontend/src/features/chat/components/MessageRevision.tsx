@@ -29,6 +29,16 @@ export function MessageRevision({
         >
           <label htmlFor={`revision-${message.id}`}>메시지 정정</label>
           <p>기존 티켓은 유지돼요. 분석 중인 문제에는 최신 내용을 반영해요.</p>
+          {editor.conflict && (
+            <div>
+              <strong>
+                {disabled
+                  ? '최신 내용을 조회하고 있어요.'
+                  : '최신 원문과 작성 중인 정정을 비교한 뒤 저장해 주세요.'}
+              </strong>
+              <p>서버의 최신 원문: {message.content}</p>
+            </div>
+          )}
           <textarea
             autoFocus
             id={`revision-${message.id}`}

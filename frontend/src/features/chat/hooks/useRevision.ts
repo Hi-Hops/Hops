@@ -10,10 +10,12 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [conflict, setConflict] = useState(false);
   const content = draft?.content ?? message.content;
   function change(value: string) {
     useDrafts.getState().set(key, { content: value, pending: null });
     setNotice('');
+    setConflict(false);
   }
   function cancel() {
     useDrafts.getState().set(key, { content: message.content, pending: null });
@@ -49,6 +51,7 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
     if (!reply.ok) {
       setNotice(reply.error.message);
       if (reply.error.code === 'INQUIRY_VERSION_CONFLICT') {
+        setConflict(true);
         useDrafts.getState().set(key, { content, pending: null });
         onStored();
       }
@@ -77,6 +80,7 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
     save,
     busy,
     notice,
+    conflict,
     invalid: contentError(content),
   };
 }

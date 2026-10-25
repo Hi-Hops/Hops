@@ -5,6 +5,7 @@ import type {
   LoginResponse,
   SubscriptionTarget,
   TicketPage,
+  RunRetryRequest,
 } from './types';
 import { fixture } from './mockData';
 import { MockHttpError } from './mockError';
@@ -121,15 +122,29 @@ export class MockBackend {
     const size = readNumber('size', 20, 100);
     if (size < 1) this.error(400, 'INVALID_INPUT', '페이지 크기를 확인해 주세요.');
     if (url.pathname === '/api/inquiries') return mockWorkspace.listInquiries(user, page, size);
+    if (
+      (url.searchParams.has('afterSequenceNo') && url.searchParams.has('beforeSequenceNo')) ||
+      url.searchParams.get('beforeSequenceNo') === '0'
+    )
+      this.error(400, 'INVALID_INPUT', '메시지 커서를 확인해 주세요.');
     const inquiryMatch = /^\/api\/inquiries\/([^/]+)(\/messages)?$/u.exec(url.pathname);
     if (inquiryMatch?.[1])
       return inquiryMatch[2]
-        ? mockWorkspace.messages(
-            user,
-            inquiryMatch[1],
-            readNumber('afterSequenceNo', 0, 2147483647),
-            size,
-          )
+        ? url.searchParams.has('afterSequenceNo')
+          ? mockWorkspace.messages(
+              user,
+              inquiryMatch[1],
+              readNumber('afterSequenceNo', 0, 2147483647),
+              size,
+            )
+          : mockWorkspace.history(
+              user,
+              inquiryMatch[1],
+              url.searchParams.has('beforeSequenceNo')
+                ? readNumber('beforeSequenceNo', 0, 2147483647)
+                : null,
+              size,
+            )
         : mockWorkspace.readInquiry(user, inquiryMatch[1]);
     if (url.pathname === '/api/tickets') {
       if (!user.department.isRoutable && !user.roles.includes('BIZ_ADMIN'))
@@ -154,6 +169,20 @@ export class MockBackend {
     }
     const ticketMatch = /^\/api\/tickets\/([^/]+)$/u.exec(url.pathname);
     if (ticketMatch?.[1]) return mockWorkspace.ticket(user, ticketMatch[1]);
+    const retryMatch = /^\/api\/runs\/([^/]+)\/retries$/u.exec(url.pathname);
+    if (retryMatch?.[1] && method === 'POST') {
+      const request = body as RunRetryRequest;
+      if (
+        typeof body !== 'object' ||
+        body === null ||
+        typeof request.requestId !== 'string' ||
+        !request.requestId ||
+        !Number.isSafeInteger(request.expectedInquiryVersion) ||
+        request.expectedInquiryVersion < 1
+      )
+        this.error(400, 'INVALID_INPUT', '재시도 요청을 확인해 주세요.');
+      return mockWorkspace.retryRun(user, retryMatch[1], request);
+    }
     const runMatch = /^\/api\/runs\/([^/]+)$/u.exec(url.pathname);
     if (runMatch?.[1]) return mockWorkspace.readRun(user, runMatch[1]);
     this.error(404, 'NOT_FOUND', '요청한 정보를 찾을 수 없어요.');

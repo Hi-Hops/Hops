@@ -44,7 +44,7 @@ describe('F001 환경 변수 Mock 로그인', () => {
     ).toEqual(fixture('inquiry-result', 'InquiryResult'));
     expect(
       mockBackend.request(`/api/inquiries/${id}/messages`, 'GET', undefined, session.accessToken),
-    ).toEqual(fixture('messages', 'MessagePage'));
+    ).toEqual({ items: fixture('messages', 'MessagePage').items, nextBeforeSequenceNo: null });
     const tickets = mockBackend.request(
       '/api/tickets',
       'GET',

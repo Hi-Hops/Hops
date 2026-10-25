@@ -88,7 +88,7 @@ describe('F003 대화 조회·분석', () => {
   it.each([
     ['시간 초과 예시', '분석 시간이 초과됐어요'],
     ['모델 오류 예시', '모델·통신 오류로 분석을 끝내지 못했어요'],
-  ])('F003-AC10(안내만 구현) F003-AC11 %s를 별도로 안내한다', async (content, expected) => {
+  ])('F003-AC10 F003-AC11 %s를 별도로 안내하고 다시 분석을 제공한다', async (content, expected) => {
     const ack = start(content);
     mockWorkspace.flushPending();
     renderWithProviders(
@@ -97,7 +97,7 @@ describe('F003 대화 조회·분석', () => {
       </RealtimeBoundary>,
     );
     expect(await screen.findByRole('alert')).toHaveTextContent(expected);
-    expect(screen.queryByRole('button', { name: '다시 분석' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '다시 분석' })).toBeEnabled();
   });
   it('F003-AC12 이관 이후 메시지는 실행 없이 정보 보완으로 저장한다', () => {
     const ack = start('VPN 오류');

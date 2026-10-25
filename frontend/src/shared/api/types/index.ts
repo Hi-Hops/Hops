@@ -173,6 +173,16 @@ export type MessagePage = {
   nextAfterSequenceNo: number | null;
 };
 
+export type MessageHistoryPage = {
+  items: ChatMessage[];
+  nextBeforeSequenceNo: number | null;
+};
+
+export type RunRetryRequest = {
+  requestId: Uuid;
+  expectedInquiryVersion: number;
+};
+
 export type InquiryCreateCommand = {
   requestId: Uuid;
   content: UserContent;

@@ -9,6 +9,8 @@ import type {
   InquiryPage,
   InquiryResult,
   MessagePage,
+  MessageHistoryPage,
+  RunRetryRequest,
   Problem,
   RunSummary,
   StoredAck,
@@ -36,6 +38,8 @@ export class MockWorkspace {
   private jobs = new Map<ReturnType<typeof setTimeout>, () => void>();
   private publisher: Publisher | null = null;
   private rejectNext = false;
+  private retries = new Map<string, { body: string; run: RunSummary; inquiryId: string }>();
+  private retrySources = new Map<string, string>();
   constructor() {
     this.reset();
   }
@@ -50,6 +54,8 @@ export class MockWorkspace {
     this.jobs.clear();
     this.records.clear();
     this.saved.clear();
+    this.retries.clear();
+    this.retrySources.clear();
     this.rejectNext = false;
     const ownerId = fixture('user-0', 'CurrentUser').id;
     const inquiry = fixture('inquiry-result', 'InquiryResult');
@@ -108,6 +114,65 @@ export class MockWorkspace {
       items,
       nextAfterSequenceNo: all.length > size ? (items.at(-1)?.sequenceNo ?? null) : null,
     };
+  }
+  history(user: CurrentUser, id: string, before: number | null, size: number): MessageHistoryPage {
+    const all = this.owned(user, id)
+      .messages.filter((message) => before === null || message.sequenceNo < before)
+      .sort((a, b) => a.sequenceNo - b.sequenceNo);
+    const items = structuredClone(all.slice(-size));
+    return {
+      items,
+      nextBeforeSequenceNo: all.length > size ? (items[0]?.sequenceNo ?? null) : null,
+    };
+  }
+  retryRun(user: CurrentUser, id: string, request: RunRetryRequest): RunSummary {
+    const record =
+      [...this.records.values()].find((item) => item.inquiry.currentRun?.id === id) ??
+      this.records.get(this.retrySources.get(id) ?? '');
+    const key = `${user.id}:${id}:${request.requestId}`;
+    const previous = this.retries.get(key);
+    if (previous) {
+      if (previous.body !== JSON.stringify(request))
+        mockError(409, 'IDEMPOTENCY_KEY_REUSED', '요청 내용이 변경됐어요.');
+      // 소유권은 응답 재사용 때도 확인한다.
+      this.owned(user, previous.inquiryId);
+      return structuredClone(previous.run);
+    }
+    if (!record) mockError(404, 'NOT_FOUND', '실행을 찾을 수 없어요. 최신 내용을 조회해 주세요.');
+    this.owned(user, record.inquiry.id);
+    if (record.inquiry.version !== request.expectedInquiryVersion)
+      mockError(409, 'INQUIRY_VERSION_CONFLICT', '최신 내용을 확인해 주세요.');
+    const current = record.inquiry.currentRun;
+    if (!current) mockError(404, 'NOT_FOUND', '실행을 찾을 수 없어요.');
+    if (current.status === 'RUNNING') {
+      this.retries.set(key, {
+        body: JSON.stringify(request),
+        run: structuredClone(current),
+        inquiryId: record.inquiry.id,
+      });
+      return structuredClone(current);
+    }
+    if (current.id !== id) mockError(409, 'RUN_NOT_RETRYABLE', '최신 실행 상태를 확인해 주세요.');
+    if (!['TIMED_OUT', 'FAILED'].includes(current.status) || !current.error?.retryable)
+      mockError(409, 'RUN_NOT_RETRYABLE', '이 실행은 다시 분석할 수 없어요.');
+    const run = {
+      id: crypto.randomUUID(),
+      inquiryVersion: record.inquiry.version,
+      status: 'RUNNING',
+      error: null,
+    };
+    record.inquiry.currentRun = run;
+    this.retrySources.set(id, record.inquiry.id);
+    this.retries.set(key, {
+      body: JSON.stringify(request),
+      run: structuredClone(run),
+      inquiryId: record.inquiry.id,
+    });
+    // 개발용 일시 장애는 재시도 후 정상화한다. 실제 단계 체크포인트 복구를 흉내 내지 않는다.
+    record.mode = 'simple';
+    this.scheduleAnalysis(record, run.id, run.inquiryVersion);
+    this.changed(record);
+    return structuredClone(run);
   }
   tickets(user: CurrentUser): TicketCard[] {
     return structuredClone(
@@ -359,7 +424,7 @@ export class MockWorkspace {
           code: record.mode === 'timeout' ? 'DEADLINE_EXCEEDED' : 'MODEL_UNAVAILABLE',
           message: '분석을 끝내지 못했어요. 이미 저장된 결과는 유지돼요.',
           requestId: runId,
-          retryable: false,
+          retryable: true,
         };
         this.changed(record);
         return;
