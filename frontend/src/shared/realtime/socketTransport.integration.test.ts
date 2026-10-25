@@ -127,6 +127,21 @@ async function connect() {
 }
 
 describe('F002·F003·F004 실제 Socket.IO 어댑터', () => {
+  it('F002-AC07 재접속 시간 창을 넘기면 자동 시도를 멈추고 수동 연결로 복구한다', async () => {
+    transport.disconnect();
+    transport = new SocketTransport(100, 80);
+    await connect();
+    peer?.conn.close();
+    await vi.waitFor(
+      () => {
+        expect(transport.getState()).toBe('disconnected');
+      },
+      { timeout: 2000 },
+    );
+    await connect();
+    expect(transport.getState()).toBe('connected');
+    expect(expired).not.toHaveBeenCalled();
+  });
   it('F002-AC01 토큰과 커스텀 path로 연결하고 모든 채팅 명령과 저장 ACK를 전달한다', async () => {
     await connect();
     const create = { requestId: crypto.randomUUID(), content: '원문\n유지' };
@@ -245,8 +260,10 @@ describe('F002·F003·F004 실제 Socket.IO 어댑터', () => {
         requestId: crypto.randomUUID(),
         content: '인증 만료',
       }),
-    ).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
-    expect(expired).toHaveBeenCalledOnce();
+    ).toEqual({ ok: 'unknown' });
+    await vi.waitFor(() => {
+      expect(expired).toHaveBeenCalledOnce();
+    });
   });
   it('F002-AC01 채팅 서버 네트워크 장애를 로그인 만료로 바꾸지 않는다', async () => {
     vi.stubEnv('VITE_SOCKET_URL', 'http://127.0.0.1:1');

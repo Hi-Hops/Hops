@@ -74,6 +74,7 @@ describe('F001 로그인', () => {
     const token = useSession.getState().token;
     if (!token) throw new Error('테스트 로그인 실패');
     mockBackend.expire(token);
+    mockBackend.expireRefresh();
     await expect(apiRequest('/api/auth/me')).rejects.toBeInstanceOf(ApiError);
     expect(useSession.getState().user).toBeNull();
     expect(useSession.getState().previousUserId).toBe(fixture('user-0', 'CurrentUser').id);

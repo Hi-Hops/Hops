@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { liveConnection } from '@/shared/config/connection';
-import { reportUnauthorized } from '@/shared/api/client';
+import { recoverAuthorization, reportUnauthorized } from '@/shared/api/client';
 import { isApiError, isRecord } from '@/shared/api/wire';
 import type { SubscriptionCommand } from '@/shared/api/types';
 import type {
@@ -52,8 +52,24 @@ export class SocketTransport implements RealtimeTransport {
   private listeners = new Map<keyof EventMap, Set<(event: unknown) => void>>();
   private pending = new Set<() => void>();
   private subscriptions = new Map<string, SubscriptionEntry>();
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(private ackTimeout = 10_000) {}
+  constructor(
+    private ackTimeout = 10_000,
+    private reconnectWindow = 30_000,
+  ) {}
+  private clearReconnectTimer() {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+  private startReconnectTimer(windowMs = this.reconnectWindow) {
+    if (this.reconnectTimer) return;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.socket?.disconnect();
+      this.setState('disconnected');
+    }, windowMs);
+  }
 
   getState() {
     return this.state;
@@ -99,15 +115,22 @@ export class SocketTransport implements RealtimeTransport {
       autoConnect: false,
       forceNew: true,
       reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
+      timeout: 5000,
     });
     this.socket = socket;
     this.setState('connecting');
+    this.startReconnectTimer(Math.max(5000, this.reconnectWindow));
     socket.on('connect', () => {
+      this.clearReconnectTimer();
       this.setState('connected');
     });
     socket.on('disconnect', () => {
       this.reset();
-      this.setState('disconnected');
+      this.setState('connecting');
+      this.startReconnectTimer();
     });
     socket.on('connect_error', (error) => {
       this.reset();
@@ -115,7 +138,18 @@ export class SocketTransport implements RealtimeTransport {
       this.setState(
         isApiError(data) && data.code === 'SERVICE_UNAVAILABLE' ? 'relayError' : 'disconnected',
       );
-      if (isApiError(data) && data.code === 'UNAUTHENTICATED') reportUnauthorized(token);
+      if (
+        isApiError(data) &&
+        ['UNAUTHENTICATED', 'ACCESS_TOKEN_EXPIRED', 'AUTH_CONTEXT_CHANGED'].includes(data.code)
+      ) {
+        this.clearReconnectTimer();
+        socket.disconnect();
+        if (data.code === 'AUTH_CONTEXT_CHANGED') reportUnauthorized(token);
+        else
+          void recoverAuthorization(token).catch(() => {
+            this.setState('disconnected');
+          });
+      }
     });
     socket.on('agent.progress', (event) => {
       this.publish('agent.progress', event);
@@ -132,6 +166,7 @@ export class SocketTransport implements RealtimeTransport {
     socket.connect();
   }
   disconnect() {
+    this.clearReconnectTimer();
     this.reset();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
@@ -168,7 +203,17 @@ export class SocketTransport implements RealtimeTransport {
         }
         // 이벤트별 ACK variant와 requestId를 확인한 외부 데이터 경계다.
         const accepted = reply as CommandResult<CommandName>;
-        if (accepted.ok === false && accepted.error.code === 'UNAUTHENTICATED')
+        if (
+          accepted.ok === false &&
+          ['UNAUTHENTICATED', 'ACCESS_TOKEN_EXPIRED'].includes(accepted.error.code)
+        ) {
+          finish({ ok: 'unknown' });
+          void recoverAuthorization(token).catch(() => {
+            this.setState('disconnected');
+          });
+          return;
+        }
+        if (accepted.ok === false && accepted.error.code === 'AUTH_CONTEXT_CHANGED')
           reportUnauthorized(token);
         finish(accepted);
       });

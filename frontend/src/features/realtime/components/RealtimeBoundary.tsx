@@ -37,6 +37,15 @@ export function RealtimeBoundary({ children }: { children: ReactNode }) {
       realtime.disconnect();
     };
   }, [client, token]);
+  useEffect(() => {
+    function online() {
+      if (token && realtime.getState() !== 'connected') realtime.connect(token);
+    }
+    window.addEventListener('online', online);
+    return () => {
+      window.removeEventListener('online', online);
+    };
+  }, [token]);
   function reconnect() {
     try {
       if (token) realtime.connect(token);

@@ -15,12 +15,14 @@ export { MockHttpError } from './mockError';
 export class MockBackend {
   private sessions = new Map<string, { user: CurrentUser; expiresAt: number }>();
   private nextFailure: number | null = null;
+  private refresh: { user: CurrentUser; expiresAt: number } | null = null;
 
   failNext(status = 503) {
     this.nextFailure = status;
   }
   reset() {
     this.sessions.clear();
+    this.refresh = null;
     this.nextFailure = null;
     mockWorkspace.reset();
   }
@@ -44,6 +46,9 @@ export class MockBackend {
   expire(token: string) {
     const session = this.sessions.get(token);
     if (session) session.expiresAt = 0;
+  }
+  expireRefresh() {
+    this.refresh = null;
   }
 
   authorizeTarget(token: string, target: SubscriptionTarget) {
@@ -77,18 +82,33 @@ export class MockBackend {
       const expiresAt = Date.now() + 1_800_000;
       const accessToken = `mock:${crypto.randomUUID()}`;
       this.sessions.set(accessToken, { user, expiresAt });
+      this.refresh = { user, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
       return {
         accessToken,
         expiresAt: new Date(expiresAt).toISOString(),
         user,
       } satisfies LoginResponse;
     }
-    const user = this.currentUser(token);
-    if (path === '/api/auth/me') return user;
+    if (path === '/api/auth/refresh' && method === 'POST') {
+      if (!this.refresh || this.refresh.expiresAt <= Date.now())
+        this.error(401, 'REFRESH_TOKEN_EXPIRED', '인증이 만료됐어요. 다시 로그인해 주세요.');
+      const user = structuredClone(this.refresh.user);
+      const expiresAt = Date.now() + 1_800_000;
+      const accessToken = `mock:${crypto.randomUUID()}`;
+      this.sessions.set(accessToken, { user, expiresAt });
+      return {
+        accessToken,
+        expiresAt: new Date(expiresAt).toISOString(),
+        user,
+      } satisfies LoginResponse;
+    }
     if (path === '/api/auth/logout' && method === 'POST') {
+      this.refresh = null;
       if (token) this.sessions.delete(token);
       return undefined;
     }
+    const user = this.currentUser(token);
+    if (path === '/api/auth/me') return user;
     const url = new URL(path, 'http://mock.invalid');
     const readNumber = (key: string, fallback: number, max: number) => {
       const raw = url.searchParams.get(key);

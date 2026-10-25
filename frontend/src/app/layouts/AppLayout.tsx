@@ -2,8 +2,8 @@ import { paths } from '@/shared/config/paths';
 import { connectionMode } from '@/shared/config/connection';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { logout, useSession } from '@/features/auth';
+import { useEffect, useState } from 'react';
+import { logout, refreshSession, useSession } from '@/features/auth';
 import { RealtimeBoundary } from '@/features/realtime';
 import { RecentInquiries } from '@/features/inquiry';
 import { Button } from '@/shared/ui/Button';
@@ -13,6 +13,7 @@ import styles from './AppLayout.module.css';
 export function AppLayout() {
   const user = useSession((state) => state.user);
   const expiresAt = useSession((state) => state.expiresAt);
+  const [refreshError, setRefreshError] = useState(false);
   const client = useQueryClient();
   const navigate = useNavigate();
   useEffect(
@@ -26,7 +27,11 @@ export function AppLayout() {
     if (!expiresAt) return;
     const timer = setTimeout(
       () => {
-        useSession.getState().expire();
+        const token = useSession.getState().token;
+        if (token)
+          void refreshSession(token).catch(() => {
+            setRefreshError(true);
+          });
       },
       Math.max(0, Date.parse(expiresAt) - Date.now()),
     );
@@ -64,6 +69,26 @@ export function AppLayout() {
           로그아웃
         </Button>
       </header>
+      {refreshError && (
+        <div role="alert">
+          인증 서버에 연결하지 못했어요. 입력은 유지됩니다.{' '}
+          <Button
+            onClick={() => {
+              const token = useSession.getState().token;
+              if (token)
+                void refreshSession(token)
+                  .then(() => {
+                    setRefreshError(false);
+                  })
+                  .catch(() => {
+                    setRefreshError(true);
+                  });
+            }}
+          >
+            인증 다시 연결
+          </Button>
+        </div>
+      )}
       <div className={styles.body}>
         <aside className={styles.sidebar}>
           <nav aria-label="주 메뉴">
