@@ -7,6 +7,7 @@
 1. 이 문서에서 협업 규칙을 확인한다.
 2. [PRD](docs/PRD.md)에서 프로젝트의 목적·범위·핵심 정책을 읽는다.
 3. 변경 작업에는 [Git 컨벤션](GIT_CONVENTION.md)을 적용한다.
+4. 프론트엔드(`frontend/`, `specs/`의 화면 기능) 작업에는 [프론트엔드 개발 기준](docs/frontend/README.md)을 따른다.
 
 Claude Code는 루트 [CLAUDE.md](CLAUDE.md)를 진입점으로 사용한다. 다른 AI에는 작업 시작 시 이 문서를 직접 읽도록 요청한다. 읽지 못한 파일을 읽었다고 가정하지 않는다.
 

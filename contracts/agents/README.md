@@ -4,6 +4,8 @@
 
 [PRD](../../docs/PRD.md)의 Supervisor와 4개 전문 에이전트를 서로 독립적으로 개발하기 위한 계약이다. 담당자별 준비와 통합 순서는 [개발 안내](../../docs/AGENT_DEVELOPMENT.md)를 따른다. 아직 구현·팀 승인 완료를 뜻하지 않는다.
 
+로그인·채팅·부서 티켓의 서비스 연결용 Mock은 [공통 wire 계약](../../specs/contracts/README.md)을 따른다. [공통 데이터 타입 문서](../../specs/contracts/DATA_TYPES.md#서비스-내부-표현)를 기준으로 각 서비스의 어댑터를 통해 이 내부 agent-1과 변환하며 내부 계약을 교체하지 않는다.
+
 ## 1. 적용 경계
 
 Python 3.13 + LangGraph + FastAPI 애플리케이션 하나 안에서 Supervisor가 에이전트 모듈을 호출한다. LangGraph는 내부 실행 흐름을, FastAPI는 서비스 간 HTTP 어댑터를 담당한다. 이 내부 역할 계약은 후속 멀티 에이전트 구조에 적용한다. MVP는 실제 단일 에이전트를 서비스 어댑터에 연결하고 기준선 평가 결과를 보존한다. Fake는 개발 중 역할별 연결 테스트 용도이며 MVP 평가를 대신하지 않는다. 에이전트마다 HTTP 서버·모델 연결·업무 DB 저장 코드를 따로 만들지 않는다.
