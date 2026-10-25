@@ -1,7 +1,13 @@
 # F002 Socket.IO 연결·구독·재접속 복구
 
-상태: 초안 · 범위: MVP · 담당: frontend(클라이언트) · 협의: infra(Node.js Socket.IO 서버), backend(권한·확정 이벤트)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP · 담당: frontend(클라이언트) · 협의: infra(Node.js Socket.IO 서버), backend(권한·확정 이벤트)
 근거: PRD 4.11, 5.1, 5.4, 8.2 · API 2.4, 2.5 · DATA 5
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+내부 검증 3초·저장 ACK 10초·자동 재접속 최대 30초다. auth.invalidated(AuthInvalidatedEvent)·relay.status(RelayStatusEvent)를 추가한다. 서버는 통지 전에 접근/구독을 회수하고 복원 시 재인증·재구독·REST 동기화한다. 새 제어 이벤트의 Node/프론트 처리는 아직 구현하지 않았다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -44,9 +50,9 @@
 
 ## 4. 계약(화면이 기대하는 값)
 
-공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래는 이번 Mock 프로필의 연결표이며 팀 승인·운영 미정 질문의 확정을 뜻하지 않는다. 기존 API의 최소 의미를 구체화한 제안이다.
+공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래 MVP 연결표는 확정 개발 기준이다. 후속 기능 후보와 실제 담당 구현·검증은 구분한다.
 
-| 용도 | 이름 | 공통 Mock 타입 | 미정 추적 |
+| 용도 | 이름 | 공통 계약 타입 | 구현·검증 추적 |
 |---|---|---|---|
 | 연결 인증 | auth.token | Mock 가짜 토큰 / live Spring 발급 accessToken | Q-BE-2, Q-INF-4 |
 | 구독/해제 | subscription.request / subscription.release | SubscriptionCommand → SubscriptionAck | Q-INF-3/6 |
@@ -54,10 +60,17 @@
 | 답변 조각 | answer.delta | AnswerDeltaEvent | Q-AI-2 |
 | 메시지 저장 | message.stored | MessageStoredEvent | Q-INF-6 |
 | 업무 변경 | state.changed | StateChangedEvent | Q-INF-6 |
+| 인증 회수 | auth.invalidated | AuthInvalidatedEvent | Q-INF-4, Node/프론트 구현 필요 |
+| 중계 상태 | relay.status | RelayStatusEvent | Q-INF-7, Node/프론트 구현 필요 |
 
-구독 ACK와 저장 CommandAck를 혼용하지 않는다. 서버·JS·Java 클라이언트 버전(Q-INF-1), 연결 주소/CORS(Q-INF-2), 권한 변경 전달(Q-INF-4)은 운영 연결 전 합의한다. Mock 구독은 INQUIRY/DEPARTMENT_TICKETS/TICKET만 포함한다.
+구독 ACK와 저장 CommandAck를 혼용하지 않는다. 서버·JS·Java 클라이언트 버전(Q-INF-1), 연결 주소/CORS(Q-INF-2), 권한 회수/제어 이벤트(Q-INF-4)는 확정 계약에 맞게 구현·검증한다. Mock 구독은 INQUIRY/DEPARTMENT_TICKETS/TICKET만 포함한다.
 
-개발 서버 연결은 [live 프로필](../contracts/WIRE_CONTRACT.md#9-프론트-live-연동-프로필)의 접속 path·인증·오류·ACK 규칙을 따른다. 실제 모드도 같은 target을 사용한다. 브라우저 설정은 [프론트 실행 안내](../../frontend/README.md)에 있으며 운영 미정 정책을 확정하지 않는다.
+개발 서버 연결은 [live 프로필](../contracts/WIRE_CONTRACT.md#9-프론트-live-연동-프로필)의 접속 path·인증·오류·ACK 규칙을 따른다. 실제 모드도 같은 target을 사용한다. 브라우저 설정은 [프론트 실행 안내](../../frontend/README.md), 정책과 미검증 항목은 공통 계약 10·11절을 따른다.
+
+- **F002-AC10 인증 회수 제어 이벤트(구현 필요)**
+  서버가 접근/구독을 먼저 회수한 뒤 auth.invalidated를 수신하면 만료는 refresh·재연결, AUTH_CONTEXT_CHANGED/REFRESH_TOKEN_REVOKED는 재로그인한다. 통지 유실 시에도 서버는 기존 권한 요청을 차단해야 한다.
+- **F002-AC11 중계 단절/복구 제어 이벤트(구현 필요)**
+  relay.status=UNAVAILABLE이면 입력을 보존하고 전송을 보류한다. AVAILABLE이면 재인증·재구독·REST 복원 후 전송을 허용하며 저장 명령은 자동 재전송하지 않는다.
 
 ## 5. 연결 상태
 
@@ -74,8 +87,8 @@ Node.js 서버 내부 구현, Spring 여러 인스턴스 라우팅, 이벤트 �
 ## 7. 막히는 정도
 
 - 목으로 진행 가능: 테스트용 Socket.IO 서버로 연결·ACK·끊김·재접속·중복 이벤트를 재현해 클라이언트를 먼저 만든다.
-- 결정 전 구현 보류: 구독 대상 형식(Q-INF-3), 이벤트 외피(Q-INF-6), 연결 주소(Q-INF-2).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.
 
 ## 공통 Mock 계약 (2026-10-23)
 
-이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. 이 절은 Mock 개발용 제안이며 기존 계약 표의 미정 항목이나 팀 승인 상태를 확정으로 바꾸지 않는다. 서버 저장·권한·AI 품질 완료를 뜻하지 않는다.
+이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. Mock은 계약 예시의 일부이며 모든 확정 정책을 구현한 서버가 아니다. 팀 리뷰·서버 저장/권한·AI 품질 검증 완료를 뜻하지 않는다.

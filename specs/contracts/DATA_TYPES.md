@@ -1,6 +1,6 @@
 # 공통 데이터 필드
 
-상태: Mock 계약 초안 / 팀 리뷰 전. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다.
+상태: 2026-10-25 개발 기준 확정 / 팀 리뷰·서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
 
 모든 객체 필드는 필수다. nullable은 키를 생략하지 않고 null을 보낸다. 배열은 []를 보낸다.
 
@@ -18,12 +18,25 @@
 - `Role`: `BIZ_ADMIN`, `AGENT_OPS_ADMIN`.
 - `InquiryStatus`: `IN_PROGRESS`, `WAITING_USER`, `RESOLVED`, `CLOSED_UNCONFIRMED`, `CLOSED`.
 - `ProcessingStatus`: `WAITING`, `IN_PROGRESS`, `WAITING_CONFIRM`, `RESOLVED`, `CLOSED_UNCONFIRMED`.
-- `ProblemStatus`: 문자열. 운영 코드 미정 항목은 미등록 값도 받아 안전한 안내로 표시한다.
-- `RoutingStatus`: 문자열. 운영 코드 미정 항목은 미등록 값도 받아 안전한 안내로 표시한다.
-- `RunStatus`: 문자열. 운영 코드 미정 항목은 미등록 값도 받아 안전한 안내로 표시한다.
-- `ErrorCode`: 문자열. 운영 코드 미정 항목은 미등록 값도 받아 안전한 안내로 표시한다.
-- `Effect`: 문자열. 운영 코드 미정 항목은 미등록 값도 받아 안전한 안내로 표시한다.
+- `ProblemStatus`: `ANALYZING`(분석 중), `WAITING_USER`(추가 질문 중), `TICKET_CREATED`(티켓 생성·배정됨), `CREATION_FAILED`(생성 실패), `OUT_OF_SCOPE`(지원 범위 밖). 부분 성공은 tickets/creationFailures와 함께 표시한다. 이 코드만으로 해결을 확정하지 않는다.
+- `RoutingStatus`: `ASSIGNED`(부서 배정됨), `CS_REVIEW`(CS 검토), `REASSIGNING`(재배정 중), `EXCEPTION`(배정 예외), `RECOVERY_PENDING`(복구 대기). 개인 담당자 유무는 이 코드에 섞지 않고 담당자 식별자로 관리한다. 현재 TicketCard/Detail은 담당자 필드를 제공하지 않으며 담당자 기능은 후속이다.
+- `RunStatus`: `QUEUED`(대기), `RUNNING`(분석 중), `SUCCEEDED`(분석 완료), `FAILED`(실패), `TIMED_OUT`(시간 초과), `SUPERSEDED`(새 입력 버전/실행으로 대체됨). 분석 성공과 티켓 저장 성공은 별개다.
+- `RecoveryStatus`(후속): `PENDING`(복구 대기), `RETRYING`(재시도 중), `RECOVERED`(복구 완료), `FAILED`(복구 실패). 현재 화면/응답 타입에 구현되었다고 가정하지 않는다.
+- `ConsentStatus`(후속): `PENDING`(응답 대기), `ACCEPTED`(동의), `DECLINED`(거절), `EXPIRED`(만료), `INVALIDATED`(대상 내용 변경으로 무효). 만료 시간·후속 payload는 해당 기능 구현 전에 정한다.
+- `ErrorCode`: `UNAUTHENTICATED`, `ACCESS_TOKEN_EXPIRED`, `REFRESH_TOKEN_EXPIRED`, `REFRESH_TOKEN_REVOKED`, `AUTH_CONTEXT_CHANGED`, `ACCESS_DENIED`, `INVALID_INPUT`, `NOT_FOUND`, `INQUIRY_VERSION_CONFLICT`, `IDEMPOTENCY_KEY_REUSED`, `RUN_NOT_RETRYABLE`, `RATE_LIMITED`, `SERVICE_UNAVAILABLE`, `DEADLINE_EXCEEDED`, `MODEL_UNAVAILABLE`. 동작은 WIRE_CONTRACT 10절을 따른다. INVALID_RESPONSE/NETWORK_ERROR/CONNECTION_NOT_CONFIGURED/MOCK_AUTH_NOT_CONFIGURED는 프론트·Mock 로컬 오류이며 서버 업무 코드와 구분한다.
+- `Effect`: `ANALYSIS_STARTED`, `SUPPLEMENT_SAVED`.
+
+위 값은 생산자의 개발 계약이다. 소비자는 버전 차이에 따른 미등록 문자열을 받아도 성공으로 추정하지 않고 안전한 안내로 표시한다. 현재 프론트의 문자열 타입·Mock 예제·실제 서버가 모든 값을 구현했다는 뜻은 아니다.
+
 - `Ref`: 기존 저장 항목의 UUID 또는 아직 저장되지 않은 항목의 `new:` 접두 임시 참조 문자열. 원본 제약: `^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|new:[a-zA-Z0-9_-]+)$`.
+
+### 상태 전이 기준
+
+- 실행: QUEUED → RUNNING → SUCCEEDED/FAILED/TIMED_OUT. QUEUED/RUNNING에서 입력 버전 또는 활성 실행이 교체되면 SUPERSEDED다. 재시도는 실패 실행의 상태를 되돌리지 않고 새 runId를 만든다. 이미 저장된 성공 업무는 유지한다.
+- 문제: ANALYZING → WAITING_USER/TICKET_CREATED/CREATION_FAILED/OUT_OF_SCOPE, 추가 답변은 WAITING_USER → ANALYZING이다. 생성 실패 작업의 기술 복구는 기존 workItemId로 성공 티켓을 연결한다. 이관이 끝난 문제의 정정은 정보 보완이며 자동 재배정하지 않는다. 같은 문제의 부분 성공/질문 진행은 문제 상태 하나로 tickets/creationFailures를 숨기지 않는다.
+- 배정: ASSIGNED/CS_REVIEW → REASSIGNING → ASSIGNED/CS_REVIEW/EXCEPTION/RECOVERY_PENDING. EXCEPTION은 업무 관리자 판단, RECOVERY_PENDING은 운영 기술 복구로 구분한다. 실제 재이관 저장 성공 전에는 처리 부서를 바꾸지 않는다.
+- 후속 복구: PENDING/FAILED → RETRYING → RECOVERED/FAILED. 재접수와 완료는 별개다. 후속 동의: PENDING → ACCEPTED/DECLINED/EXPIRED/INVALIDATED. 같은 동의 재요청으로 새 문의를 중복 생성하지 않는다.
+- 정의되지 않은 전이를 성공으로 추정하지 않는다. 후속 기능의 상세 전이·권한·원자 저장은 해당 기능 계약에서 추가 검증한다.
 
 ## 합성 타입
 
@@ -323,6 +336,26 @@
 | `ok` | `true` | {"const": true} |
 | `requestId` | `Uuid` | 필수 |
 | `target` | `SubscriptionTarget` | 필수 |
+
+## AuthInvalidatedEvent
+
+`auth.invalidated`는 인증 대상 사용자에게만 보내는 제어 이벤트다. 문의 이벤트 외피를 사용하지 않는다. 서버는 통지 전에 해당 인증·구독 권한을 회수하며 통지 유실이 접근 허용으로 이어지지 않게 한다.
+
+| 필드 | 타입 | 필수 | 의미 |
+|---|---|---|---|
+| eventId | Uuid | 예 | 중복 통지 제거 |
+| code | string | 예 | ACCESS_TOKEN_EXPIRED / AUTH_CONTEXT_CHANGED / REFRESH_TOKEN_REVOKED 중 하나 |
+| message | string | 예 | 공개 가능한 안내. 토큰·비밀값 제외 |
+
+## RelayStatusEvent
+
+`relay.status`는 Node↔Spring 중계 상태가 바뀔 때 연결된 클라이언트에 보내는 제어 이벤트다. 업무 저장 성공·인증 만료를 뜻하지 않는다.
+
+| 필드 | 타입 | 필수 | 의미 |
+|---|---|---|---|
+| eventId | Uuid | 예 | 중복 통지 제거 |
+| status | string | 예 | AVAILABLE / UNAVAILABLE |
+| occurredAt | IsoDateTime | 예 | 상태 확인 시각 |
 
 ## AgentProgressPayload
 

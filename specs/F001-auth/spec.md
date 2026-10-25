@@ -1,7 +1,13 @@
 # F001 JWT 로그인·인증 만료·권한 이동
 
-상태: 초안 · 범위: MVP · 담당: frontend(화면) · 협의: backend(인증), infra(소켓 인증)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP · 담당: frontend(화면) · 협의: backend(인증), infra(소켓 인증)
 근거: PRD 2, 4.2, 4.11, 8.5 · API 1, 2.1, 2.5 · DATA 5 · ERD `member`, `member_role`
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+Access 메모리 15분·HttpOnly Refresh 최초 로그인부터 절대 7일·매 갱신 회전·현재 로그인 세션 로그아웃을 적용한다. 부서/역할 변경·차단은 기존 인증/구독 회수 후 재로그인, 일반 403은 권한 안내다. 서버 쿠키·키·CSRF·회전/폐기 구현·통합 검증은 남았다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -46,14 +52,14 @@
 
 ## 5. 계약(화면이 기대하는 값)
 
-공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래는 이번 Mock 프로필의 연결표이며 팀 승인·운영 미정 질문의 확정을 뜻하지 않는다. 기존 API의 최소 의미를 구체화한 제안이다.
+공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래 MVP 연결표는 확정 개발 기준이다. 후속 기능 후보와 실제 담당 구현·검증은 구분한다.
 
-| 용도 | 경로 | 공통 Mock 타입 | 미정 추적 |
+| 용도 | 경로 | 공통 계약 타입 | 구현·검증 추적 |
 |---|---|---|---|
 | 로그인 | POST /api/auth/login | LoginRequest → LoginResponse | Q-BE-1/2 |
 | 현재 사용자 | GET /api/auth/me | CurrentUser | Q-BE-1, Q-ALL-5 |
 | 로그아웃 | POST /api/auth/logout | 204, 본문 없음 | 서버 폐기/CSRF Q-BE-2 |
-| 부서 | GET /api/departments | Department[] | isRoutable 추가 제안 Q-ALL-5 |
+| 부서 | GET /api/departments | Department[] | isRoutable 필수(DATA_TYPES), 현재 접근은 서버 검사 |
 | 오류 | REST 오류 | ApiErrorBody | Q-ALL-4 |
 
 Mock은 메모리 가짜 Access/Refresh 세션으로 갱신·만료를 재현한다. 실제 HttpOnly 쿠키·JWT·회전/폐기·CSRF 검증은 Spring 구현 및 통합 검증이 필요하다. 임시 live는 POST /api/auth/refresh를 호출하며 반환 타입은 LoginResponse다. 사용자 이름은 CurrentUser이며 기존 Me와 같은 의미다.
@@ -74,8 +80,8 @@ Mock은 메모리 가짜 Access/Refresh 세션으로 갱신·만료를 재현한
 ## 8. 막히는 정도
 
 - 목으로 진행 가능: 로그인 화면, 헤더, 권한 없음·찾을 수 없음, 라우트 이동 규칙.
-- 결정 전 구현 보류: 토큰 저장 위치와 갱신 흐름(Q-BE-2), 로그인 응답 처리(Q-BE-1).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.
 
 ## 공통 Mock 계약 (2026-10-23)
 
-이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. 이 절은 Mock 개발용 제안이며 기존 계약 표의 미정 항목이나 팀 승인 상태를 확정으로 바꾸지 않는다. 서버 저장·권한·AI 품질 완료를 뜻하지 않는다.
+이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. Mock은 계약 예시의 일부이며 모든 확정 정책을 구현한 서버가 아니다. 팀 리뷰·서버 저장/권한·AI 품질 검증 완료를 뜻하지 않는다.

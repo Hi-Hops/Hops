@@ -1,7 +1,13 @@
 # F006 내 문의 목록·상세
 
-상태: 초안 · 범위: MVP(확인 필요 Q-ALL-1) · 담당: frontend(화면) · 협의: backend(조회)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP 최소 개인 세션 목록·채팅 재진입 / 독립 상세 모달은 후속 · 담당: frontend(화면) · 협의: backend(조회)
 근거: PRD 4.1, 4.5 · API 1, 2.1 · DATA 1, 3 · ERD `inquiry`
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+MVP는 AC01~AC03의 최소 목록과 AC10~AC12의 세션/재진입이다. AC04~AC09의 독립 상세 모달 및 연결 예외는 후속 완료 조건이다. 목록 기본 20·최대 100, createdAt DESC·id DESC. 숨김/검색/확장 필터는 후속이다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -55,16 +61,16 @@
 
 | 용도 | 경로 | 판정 | 비고 |
 |---|---|---|---|
-| 목록 | `GET /api/inquiries` | 초안 | 정렬·필터·검색 파라미터 없음 → Q-BE-5 |
-| 상세 | `GET /api/inquiries/{id}` | 초안 | F005와 같은 응답 |
-| 종합 상태 값 | ERD `IN_PROGRESS / WAITING_USER / RESOLVED / CLOSED_UNCONFIRMED / CLOSED` | 초안 | 화면 표시명 → Q-ALL-2 |
+| 목록 | `GET /api/inquiries` | 개발 기준 확정 | 기본 20·최대 100, createdAt DESC·id DESC. 검색/확장 필터 후속(Q-BE-5) |
+| 상세 | `GET /api/inquiries/{id}` | 개발 기준 확정 | F005와 같은 응답 |
+| 종합 상태 값 | ERD `IN_PROGRESS / WAITING_USER / RESOLVED / CLOSED_UNCONFIRMED / CLOSED` | 개발 기준 확정 | 코드/표시명은 DATA_TYPES(Q-ALL-2) |
 | 숨기기·복원 | — | 미정 | API 2.2 "구현 전 합의", ERD 컬럼 없음. 이 스펙 범위 밖 |
 
 ## 6. 범위 밖
 
-숨기기·복원(PRD 4.5에 있으나 경로·저장 위치 미정), 검색·필터·정렬(파라미터 미정, Q-BE-5), 해결 신고·해결 확인 응답(후속).
+숨기기·복원(PRD 4.5에 있으나 경로·저장 위치 미정), 검색·확장 필터(후속, 기본 정렬은 확정 Q-BE-5), 해결 신고·해결 확인 응답(후속).
 
 ## 7. 막히는 정도
 
 - 목으로 진행 가능: 목록·상세 모달·빈 화면·실패 화면 전부.
-- 결정 전 구현 보류: 필터·정렬(Q-BE-5), MVP 포함 여부(Q-ALL-1).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.

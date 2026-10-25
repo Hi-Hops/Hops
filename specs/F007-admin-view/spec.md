@@ -1,7 +1,13 @@
 # F007 업무 관리자 조회
 
-상태: 초안 · 범위: MVP(조회만) · 담당: frontend(화면) · 협의: backend(조회·권한), infra(대시보드 이벤트)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP 읽기 전용 티켓 목록·상세 / 독립 실패·예외 목록은 후속 · 담당: frontend(화면) · 협의: backend(조회·권한), infra(대시보드 이벤트)
 근거: PRD 2, 4.7, 5.1, 8.2 · API 2.1, 2.4 · DATA 1, 4 · ERD `ticket`, `ticket_assignment`, `member_role`
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+MVP는 업무 관리자 읽기 전용 티켓 목록·상세이며 BIZ_ADMIN을 서버가 검사한다. 현재 필터 processingStatus만 제공한다. AC04 독립 실패 목록과 AC08의 실패 목록 간 부분 로딩은 후속이다. AC07은 허용된 DEPARTMENT_TICKETS 대상만 구독하며 전체 관리자 전용 room을 가정하지 않는다. 타인 문의 전체 대화는 공개하지 않는다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -12,7 +18,7 @@
 | 화면 | 경로(제안) | 접근 |
 |---|---|---|
 | 관리자 조회 | `/admin/tickets` | 업무 관리자 |
-| 티켓 상세(읽기 전용) | `/admin/tickets/:ticketId` | 업무 관리자 · [F009](../F009-department-tickets/spec.md) 상세 화면 재사용 제안, 경로 통합은 Q-FE-1 |
+| 티켓 상세(읽기 전용) | `/admin/tickets/:ticketId` | 업무 관리자 · [F009](../F009-department-tickets/spec.md) 상세 컴포넌트 재사용, 현재 두 경로 유지(Q-FE-1) |
 
 ## 3. 사용자 시나리오
 
@@ -46,11 +52,11 @@
 
 | 용도 | 경로 | 판정 | 비고 |
 |---|---|---|---|
-| 티켓 목록 | `GET /api/tickets` | 초안 | 관리자 범위를 역할로 구분하는지, 파라미터로 구분하는지 → Q-BE-6 |
-| 티켓 상세 | `GET /api/tickets/{id}` | 초안 | 응답 필드 없음 → Q-BE-6 |
-| 생성 실패 | `GET /api/creation-failures` | 초안 | 역할별로 보이는 정보가 다름(API 2.1) |
+| 티켓 목록 | `GET /api/tickets` | 개발 기준 확정 | BIZ_ADMIN을 서버가 검사, processingStatus 필터만 현재 범위 |
+| 티켓 상세 | `GET /api/tickets/{id}` | 개발 기준 확정 | TicketDetail(DATA_TYPES), 서버 권한 범위 검증 필요 |
+| 생성 실패 | `GET /api/creation-failures` | 후속 후보 | 역할별 필드는 Q-BE-15, API 2.2 |
 | 배정 예외 전용 목록 | `GET /api/admin/routing-exceptions` | 초안(후속) | API 2.2 후속. MVP는 티켓 목록의 배정 상태로 구분 |
-| 대시보드 이벤트 | `state.changed` | 초안 | 관리자 구독 대상 → Q-INF-3 |
+| 대시보드 이벤트 | `state.changed` | 개발 기준 확정 | 허용된 DEPARTMENT_TICKETS만 사용(Q-INF-3), 전용 관리자 대상 추가 없음 |
 
 ## 6. 범위 밖
 
@@ -59,4 +65,4 @@
 ## 7. 막히는 정도
 
 - 목으로 진행 가능: 목록·상세·빈/실패 상태·권한 이동.
-- 결정 전 구현 보류: 목록 범위·필터 파라미터와 상세 응답 필드(Q-BE-6), 배정 상태 코드(Q-ALL-2).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.

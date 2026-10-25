@@ -1,7 +1,13 @@
 # F008 새 문의 분리 동의
 
-상태: 초안 · 범위: 이슈 #30 포함, 원본 문서상 후속(MVP 포함 여부 Q-ALL-7) · 담당: frontend(화면) · 협의: infra(이벤트 중계), backend(동의 저장·새 문의 생성), ai(별개 문의 판단)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: 후속 · MVP 제외, 상세 입출력 설계 필요 · 담당: frontend(화면) · 협의: infra(이벤트 중계), backend(동의 저장·새 문의 생성), ai(별개 문의 판단)
 근거: PRD 4.4 "새 문의 분리", 5.1 · API 2.1(동의 설명 문단), 2.4 `inquiry.split.respond` · DATA 3, 7 · ERD 저장 위치 없음(DATA 2)
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+이 문서의 인수 조건은 후속 기능 착수 기준이며 현재 구현/MVP 완료 조건이 아니다. ConsentStatus는 DATA_TYPES에 정의했다. 후보·동의 만료 값·ACK·연결 조회의 전체 계약은 Q-BE-13/Q-AI-5에서 담당자가 설계한다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -56,7 +62,7 @@ AI가 같은 채팅 안의 내용을 별개 문의로 판단하면, 새 문의�
 |---|---|---|---|
 | 동의 응답 | `inquiry.split.respond` `{requestId,inquiryId,expectedInquiryVersion,consentId,accepted}` | 초안 | API 2.4. ACK 결과의 새 문의 ID 필드 → Q-BE-13 |
 | 동의 후보 전달 | — | 미정 | Spring → React 전달 방법, 후보 문맥·출처 형식 → Q-BE-13 |
-| 동의 상태 값 | — | 미정 | 대기·동의·거절·만료 등 → Q-ALL-2, Q-BE-13 |
+| 동의 상태 값 | ConsentStatus(DATA_TYPES) | 개발 기준 확정 | 후속 상세 payload/만료 값은 Q-BE-13 |
 | 동의 저장 위치 | — | 미정 | DATA 2 "최신 ERD에 없음". `QUESTIONS.md` 6절 |
 | 원본·새 문의 연결 조회 | `GET /api/inquiries/{id}` 응답 | 미정 | 응답에 연결 필드가 없음 → Q-BE-13 |
 | 별개 문의 판단 | 에이전트 결과 | 미정 | PR #38 결과 예시의 `action` 값에 분리 후보 없음 → Q-AI-5 |
@@ -77,4 +83,4 @@ AI의 별개 문의 판단 기준, 여러 후보를 한 번에 나누기, 이미
 ## 9. 막히는 정도
 
 - 목으로 진행 가능: 동의 카드, 전송 상태, 이동·링크 표시.
-- 결정 전 구현 보류: MVP 포함 여부(Q-ALL-7), 후보 전달과 ACK 필드(Q-BE-13), 에이전트 결과의 분리 후보 표현(Q-AI-5).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.

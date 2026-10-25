@@ -1,7 +1,13 @@
 # F010 생성 실패 목록·재시도와 역할별 권한
 
-상태: 초안 · 범위: 목록은 MVP(API 2.1), 재시도는 이슈 #31 포함·원본 문서상 후속(Q-ALL-7) · 담당: frontend(화면) · 협의: backend(조회·재시도·권한)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: 후속 · 독립 실패 목록·운영 기술 복구 UI는 MVP 제외 · 담당: frontend(화면) · 협의: backend(조회·재시도·권한)
 근거: PRD 2, 4.7, 4.8, 8.3 · API 2.1 `GET /api/creation-failures`, 2.2 `/api/operator/recovery-cases` · DATA 4, 5 · ERD `recovery_case`, `member_role`
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+전체 독립 목록·운영 기술 복구 UI는 후속이다. 현재 문의 결과의 부분 실패 카드는 F005에서 표시하고, 문의자 분석 재시도는 F003의 run 재시도 계약을 따른다. RecoveryStatus만 DATA_TYPES에 정의했으며 역할별 필드·복구 API·예산은 Q-BE-15에서 설계한다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -60,10 +66,10 @@ MVP 2.1 표에는 생성 실패를 재시도하는 경로가 없다. `POST /api/
 | 용도 | 경로·이벤트 | 판정 | 비고 |
 |---|---|---|---|
 | 생성 실패 목록 | `GET /api/creation-failures` | 초안 | API 2.1. 역할별 응답 필드 → Q-BE-15, 페이지 → Q-BE-5 |
-| 실패 항목 | `workItemId, problemId, status, errorCode` | 초안 | API 2.1 제안. `workItemId`가 가리킬 테이블 없음 → Q-BE-4 |
-| 기술 재시도 | `POST /api/operator/recovery-cases/{id}/retries` | 초안(후속) | API 2.2. 생성 실패 ID와 `recovery_case` ID 관계, MVP 경로 → Q-BE-15 |
-| 실행 재시도 | `POST /api/runs/{id}/retries` | 초안 | 실행 재시도와 작업 재시도의 경계 → Q-BE-8 |
-| 복구 상태 값 | ERD `recovery_case.recovery_status` "미처리·진행 중·완료"(한글 설명만) | 미정 | 코드 값 → Q-ALL-2 |
+| 실패 항목 | `workItemId, problemId, status, errorCode` | 초안 | API 2.1 제안. 생성 작업 저장소 후보·실제 DDL 구현 필요(Q-BE-4) |
+| 기술 재시도 | `POST /api/operator/recovery-cases/{id}/retries` | 초안(후속) | API 2.2. 생성 실패 ID와 recoveryCaseId 관계·복구 경로는 후속 상세(Q-BE-15) |
+| 실행 재시도(참조) | `POST /api/runs/{id}/retries` | 개발 기준 확정 | 문의자 분석 재시도는 F003/Q-BE-8, 운영 작업 복구와 별개 |
+| 복구 상태 값 | RecoveryStatus(DATA_TYPES) | 개발 기준 확정 | 후속 복구 API/전이 구현은 Q-BE-15 |
 | 역할 값 | `BIZ_ADMIN`, `AGENT_OPS_ADMIN` | 초안 | ERD `member_role.role` → Q-ALL-5 |
 
 ## 7. 화면 상태
@@ -81,4 +87,4 @@ MVP 2.1 표에는 생성 실패를 재시도하는 경로가 없다. `POST /api/
 ## 9. 막히는 정도
 
 - 목으로 진행 가능: 목록, 역할별 화면 분기, 접수·완료 상태 표시.
-- 결정 전 구현 보류: 역할별 응답 필드와 재시도 경로(Q-BE-15), 복구 상태 코드(Q-ALL-2), MVP 포함 여부(Q-ALL-7).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.

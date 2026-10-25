@@ -1,7 +1,13 @@
 # F009 부서 티켓 목록·상세와 관련 대화
 
-상태: 초안 · 범위: 목록·상세 조회는 MVP(API 2.1), 관련 대화는 이슈 #31 포함·원본 문서상 후속(Q-ALL-7) · 담당: frontend(화면) · 협의: backend(조회·권한), infra(구독)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP 부서 티켓 읽기 전용 목록·상세 / 관련 대화·담당 업무는 후속 · 담당: frontend(화면) · 협의: backend(조회·권한), infra(구독)
 근거: PRD 4.6, 4.11, 8.3 · API 2.1 `GET /api/tickets`, 2.2 `GET /api/tickets/{id}/messages`, 2.4 · DATA 3, 4 · ERD `ticket`, `ticket_assignment`, `member`
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+MVP는 현재 처리 부서 또는 BIZ_ADMIN 범위의 읽기 전용 목록·상세다. AC07~AC09의 관련 대화는 후속이다. 목록 기본 20·최대 100, processingStatus 필터만 사용한다. routingStatus/개인 담당자 필터·가져오기/처리는 후속이다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -24,7 +30,7 @@ API 2.1이 목록·상세를 MVP에 두므로 F009-AC01~AC06은 MVP로 쓴다. �
 | 부서 티켓 목록 | `/tickets` | 현재 처리 부서 구성원 |
 | 티켓 상세 | `/tickets/:ticketId` | 현재 처리 부서 구성원, 업무 관리자(관련 대화 권한은 Q-BE-14) |
 
-업무 관리자 화면(F007)의 티켓 상세는 같은 상세 화면을 읽기 전용으로 재사용하는 것을 제안한다. 경로를 하나로 합칠지는 Q-FE-1에서 정한다.
+업무 관리자 화면(F007)은 같은 상세 컴포넌트를 읽기 전용으로 재사용한다. 현재 /tickets/:ticketId와 /admin/tickets/:ticketId 경로를 유지한다(Q-FE-1).
 
 ## 4. 사용자 시나리오
 
@@ -66,9 +72,9 @@ API 2.1이 목록·상세를 MVP에 두므로 F009-AC01~AC06은 MVP로 쓴다. �
 
 ## 6. 계약(화면이 기대하는 값)
 
-공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래는 이번 Mock 프로필의 연결표이며 팀 승인·운영 미정 질문의 확정을 뜻하지 않는다. 기존 API의 최소 의미를 구체화한 제안이다.
+공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래 MVP 연결표는 확정 개발 기준이다. 후속 기능 후보와 실제 담당 구현·검증은 구분한다.
 
-| 용도 | 경로·이벤트 | 공통 Mock 타입 | 미정 추적 |
+| 용도 | 경로·이벤트 | 공통 계약 타입 | 구현·검증 추적 |
 |---|---|---|---|
 | 부서/관리자 목록 | GET /api/tickets | TicketListQuery → TicketPage(TicketCard[]) | Q-BE-5/6 |
 | 읽기 전용 상세 | GET /api/tickets/{id} | TicketDetail, AssignmentHistory[] | Q-BE-6/12 |
@@ -77,7 +83,7 @@ API 2.1이 목록·상세를 MVP에 두므로 F009-AC01~AC06은 MVP로 쓴다. �
 | 변경 재조회 | state.changed | StateChangedEvent | Q-INF-6 |
 | 관련 대화 | GET /api/tickets/{id}/messages | 이번 공통 Mock 제외 | Q-BE-14, Q-ALL-7 |
 
-목록은 서버가 현재 사용자 부서 또는 BIZ_ADMIN 권한으로 범위를 정한다. 필터는 page/size/processingStatus만 제공하며 부서 선택으로 권한을 넓히지 않는다. 처리 부서 구성원이 아닌 업무 관리자도 허용되지만 운영 관리자 역할만으로는 허용되지 않는다. 이 기능의 출시 MVP 범위는 Q-ALL-7 확인 대상이며 이번 Mock 착수와 구분한다.
+목록은 서버가 현재 사용자 부서 또는 BIZ_ADMIN 권한으로 범위를 정한다. 필터는 page/size/processingStatus만 제공하며 부서 선택으로 권한을 넓히지 않는다. 처리 부서 구성원이 아닌 업무 관리자도 허용되지만 운영 관리자 역할만으로는 허용되지 않는다. 읽기 전용 목록·상세는 MVP, 관련 대화는 후속으로 확정했다(Q-ALL-7). 실제 서버 구현·통합 검증은 별도다.
 
 ## 7. 범위 밖
 
@@ -86,8 +92,8 @@ API 2.1이 목록·상세를 MVP에 두므로 F009-AC01~AC06은 MVP로 쓴다. �
 ## 8. 막히는 정도
 
 - 목으로 진행 가능: 목록·상세·권한 없음·빈/실패 상태, 관련 대화 표시 틀.
-- 결정 전 구현 보류: 목록 범위와 상세 응답(Q-BE-6), 관련 대화 범위·권한(Q-BE-14), MVP 포함 여부(Q-ALL-7).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.
 
 ## 공통 Mock 계약 (2026-10-23)
 
-이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. 이 절은 Mock 개발용 제안이며 기존 계약 표의 미정 항목이나 팀 승인 상태를 확정으로 바꾸지 않는다. 서버 저장·권한·AI 품질 완료를 뜻하지 않는다.
+이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. Mock은 계약 예시의 일부이며 모든 확정 정책을 구현한 서버가 아니다. 팀 리뷰·서버 저장/권한·AI 품질 검증 완료를 뜻하지 않는다.

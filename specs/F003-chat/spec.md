@@ -1,7 +1,13 @@
 # F003 문의 시작과 채팅
 
-상태: 초안 · 범위: MVP · 담당: frontend(화면) · 협의: infra(이벤트 중계), backend(저장·검증), ai(분석·답변)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP · 담당: frontend(화면) · 협의: infra(이벤트 중계), backend(저장·검증), ai(분석·답변)
 근거: PRD 3.1, 4.3, 4.4, 8.2 · API 1, 2.1, 2.4 · DATA 3 · ERD `inquiry`, `message`, `inquiry_problem`, `agent_run`, `agent_step`
+
+## 확정 범위와 남은 작업 (2026-10-25)
+
+초기 단일 AI의 시간/LLM 시도/출력 제한은 공통 계약 10절을 따른다. 답변 텍스트·문제 상태·저장 티켓 카드를 표시하며 예시 질문·구조화 가이드는 후속이다. 실제 AI 예산 강제·SSE·평가는 담당자 구현/검증이 남았다.
+
+정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
 ## 1. 목표
 
@@ -66,9 +72,9 @@
 
 ## 5. 계약(화면이 기대하는 값)
 
-공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래는 이번 Mock 프로필의 연결표이며 팀 승인·운영 미정 질문의 확정을 뜻하지 않는다. 기존 API의 최소 의미를 구체화한 제안이다.
+공통 필드·필수/nullable·wire 표현의 원본은 [데이터 타입·필드 문서](../contracts/DATA_TYPES.md)다. 아래 MVP 연결표는 확정 개발 기준이다. 후속 기능 후보와 실제 담당 구현·검증은 구분한다.
 
-| 용도 | 경로·이벤트 | 공통 Mock 타입 | 미정 추적 |
+| 용도 | 경로·이벤트 | 공통 계약 타입 | 구현·검증 추적 |
 |---|---|---|---|
 | 문의 생성 | inquiry.create | InquiryCreateCommand → CommandAck | Q-INF-6 |
 | 메시지 전송 | message.send | MessageSendCommand → CommandAck | Q-INF-6, Q-BE-10 |
@@ -91,13 +97,13 @@
 
 ## 7. 범위 밖
 
-새 문의 분리 동의(PRD 4.4. PRD 8.2에 없고 이슈 #30에는 있음 → [F008](../F008-split-consent/spec.md), Q-ALL-7), 해결 신고, 이미지 업로드(PRD 8.4 MVP 제외), PDF 매뉴얼(선택), 채팅 예시 질문(MVP 포함 여부 Q-ALL-6).
+새 문의 분리 동의(PRD 4.4. 후속 확정, 이슈 본문 조정은 별도 → [F008](../F008-split-consent/spec.md), Q-ALL-7), 해결 신고, 이미지 업로드(PRD 8.4 MVP 제외), PDF 매뉴얼(선택), 채팅 예시 질문(후속 확정 Q-ALL-6).
 
 ## 8. 막히는 정도
 
 - 목으로 진행 가능: 메인·채팅 화면, 입력 검증, 전송 상태, 진행 표시 틀, 재전송 흐름.
-- 결정 전 구현 보류: ACK 결과 필드(Q-INF-6), 문의 버전(Q-BE-3), AI 답변 형태(Q-AI-3).
+- 구현·검증 상태: 위 확정 범위와 공통 계약 11절을 따른다. 후속 상세 설계는 QUESTIONS의 해당 ID로 추적한다.
 
 ## 공통 Mock 계약 (2026-10-23)
 
-이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. 이 절은 Mock 개발용 제안이며 기존 계약 표의 미정 항목이나 팀 승인 상태를 확정으로 바꾸지 않는다. 서버 저장·권한·AI 품질 완료를 뜻하지 않는다.
+이 기능의 Mock 전송 데이터는 [공통 데이터 타입 문서](../contracts/DATA_TYPES.md)와 [요청·응답 연결표](../contracts/WIRE_CONTRACT.md#8-작업별-데이터-타입-연결)을 따른다. 공용 입력·응답·이벤트 예시는 [Mock 시나리오](../mocks/README.md)를 사용한다. Mock은 계약 예시의 일부이며 모든 확정 정책을 구현한 서버가 아니다. 팀 리뷰·서버 저장/권한·AI 품질 검증 완료를 뜻하지 않는다.
