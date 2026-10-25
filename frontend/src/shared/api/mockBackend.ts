@@ -119,7 +119,11 @@ export class MockBackend {
       return Number(raw);
     };
     const page = readNumber('page', 0, 2147483647);
-    const size = readNumber('size', 20, 100);
+    const size = readNumber(
+      'size',
+      url.pathname.endsWith('/messages') && !url.searchParams.has('afterSequenceNo') ? 30 : 20,
+      100,
+    );
     if (size < 1) this.error(400, 'INVALID_INPUT', '페이지 크기를 확인해 주세요.');
     if (url.pathname === '/api/inquiries') return mockWorkspace.listInquiries(user, page, size);
     if (
