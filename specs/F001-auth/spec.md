@@ -34,6 +34,7 @@
   Given 문의자 · When 관리자 화면 주소로 들어가면 · Then 내용을 보여 주지 않고 권한 없음 화면으로 이동해 접근 가능한 화면을 안내한다. 서버가 403을 돌려줘도 같은 화면을 쓴다. (PRD 4.11)
 - **F001-AC05 토큰 만료**
   Given 로그인 상태에서 토큰 만료 · When REST가 401을 받거나 소켓이 인증 실패로 끊기면 · Then 합의된 갱신 정책을 적용하고(Q-BE-2), 갱신할 수 없으면 입력을 보존한 채 재로그인을 안내한다. 재로그인 뒤 원래 화면으로 돌아가 다시 연결·구독한다(F002). (PRD 4.2)
+  개발 프로필은 Access Token 만료 시 단일 refresh 요청을 공유한다. Refresh Token 만료·폐기 또는 서버가 AUTH_CONTEXT_CHANGED로 확인한 부서/역할 변경은 재로그인한다. 단순 권한 부족 403은 권한 안내, 갱신 통신 장애는 입력을 유지한 재연결 안내다. WIRE_CONTRACT 10절을 따른다.
 - **F001-AC06 미전송 입력 재전송**
   같은 사용자로 재로그인한 뒤 동일한 미확인 요청을 다시 보낼 때는 사용자 확인 후 같은 `requestId`를 쓴다. 내용·대상 버전을 고친 새 요청은 새 키를 쓴다. 다른 계정 로그인·로그아웃 시 이전 사용자 캐시·초안·대기 명령·구독을 정리한다. (PRD 4.2 · API 1)
 - **F001-AC07 만료가 작업 취소로 보이지 않음**
@@ -55,7 +56,7 @@
 | 부서 | GET /api/departments | Department[] | isRoutable 추가 제안 Q-ALL-5 |
 | 오류 | REST 오류 | ApiErrorBody | Q-ALL-4 |
 
-Mock은 메모리 가짜 토큰·재로그인만 사용한다. 실제 JWT 클레임·서명·폐기·갱신·CSRF는 API 2.5와 Q-BE-2의 별도 운영 계약이다. 사용자 이름은 CurrentUser이며 기존 Me와 같은 의미다.
+Mock은 메모리 가짜 Access/Refresh 세션으로 갱신·만료를 재현한다. 실제 HttpOnly 쿠키·JWT·회전/폐기·CSRF 검증은 Spring 구현 및 통합 검증이 필요하다. 임시 live는 POST /api/auth/refresh를 호출하며 반환 타입은 LoginResponse다. 사용자 이름은 CurrentUser이며 기존 Me와 같은 의미다.
 
 ## 6. 화면 상태
 

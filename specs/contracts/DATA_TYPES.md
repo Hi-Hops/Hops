@@ -211,6 +211,14 @@
 | `items` | `Array<ChatMessage>` | 필수 |
 | `nextAfterSequenceNo` | `number \| null` | {"minimum": 1, "maximum": 2147483647} |
 
+## MessageHistoryPage · MessageHistoryQuery · RunRetryRequest 추가 프로필
+
+- `MessageHistoryPage`: `items: Array<ChatMessage>`와 `nextBeforeSequenceNo: number | null`이 필수다. items는 오래된 순서이며 다음 커서는 첫 항목의 sequenceNo, 더 이전이 없으면 null이다.
+- `MessageHistoryQuery`: `size: number`(기본 30, 1~100), `beforeSequenceNo: number | null`(1~2147483647). null은 URL에서 생략하며 최신 페이지를 뜻한다. 이전 페이지는 해당 순번 미만이다. 기존 afterSequenceNo와 동시에 보내지 않는다.
+- `RunRetryRequest`: `requestId: Uuid`, `expectedInquiryVersion: number`(1~2147483647). 경로의 원본 runId와 함께 멱등 범위를 구성한다. 응답은 RunSummary다.
+- Refresh 응답은 기존 `LoginResponse`다. Refresh Token 원문은 JSON에 추가하지 않으며 실제 서버의 HttpOnly 쿠키로 전달한다. Mock 메모리 세션은 실제 쿠키 검증을 대신하지 않는다.
+- 위 추가 타입의 처리 규칙·상태·오류는 WIRE_CONTRACT 10절을 따른다. 기존 MessagePage/MessageListQuery는 전방 조회 호환 예제이며 새 프론트 채팅은 MessageHistoryPage/MessageHistoryQuery를 사용한다.
+
 ## TicketListQuery
 
 | 필드 | JSON 표현 | 조건 |

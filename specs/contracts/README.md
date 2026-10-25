@@ -2,6 +2,8 @@
 
 상태: `hops-mock-1` · Mock 개발용 초안 / 팀 리뷰 전.
 
+2026-10-25 추가 개발 프로필은 [WIRE_CONTRACT 10절](WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필)에 모은다. refresh·최신 30개·분석 재시도의 프론트/Mock과 실제 서버 구현을 구분하며 기존 미결 질문을 팀 승인 없이 완료 처리하지 않는다.
+
 다음 문서는 프론트·백엔드·Node 채팅 서버·AI가 타입과 검증을 협의하기 위한 개발용 계약안이다. 현재 Mock·임시 Live Adapter는 이 표현을 사용하지만 다른 담당자의 최종 구현이나 운영 계약을 확정하지 않는다. 공통 폴더에서 언어별 코드나 DTO를 생성·배포하지 않는다.
 
 프론트는 Mock과 live 모드에서 같은 JSON 계약을 사용한다. 서버 담당자는 [REST·이벤트 연결표와 live 프로필](WIRE_CONTRACT.md#9-프론트-live-연동-프로필), 실행 담당자는 [프론트 환경 설정](../../frontend/README.md)을 확인한다. live 통신 어댑터 제공과 팀원 서버의 구현·통합 검증 완료는 구분한다.
@@ -27,7 +29,7 @@
 
 - F001: LoginRequest, LoginResponse, CurrentUser, Department, Role, ApiErrorBody.
 - F002: SubscriptionTarget, SubscriptionCommand, SubscriptionAck, AgentProgressEvent, AnswerDeltaEvent, MessageStoredEvent, StateChangedEvent.
-- F003: InquiryCreateCommand, MessageSendCommand, CommandAck, ChatMessage, MessagePage, InquiryResult, RunSummary.
+- F003: InquiryCreateCommand, MessageSendCommand, CommandAck, ChatMessage, MessageHistoryQuery, MessageHistoryPage, InquiryResult, RunSummary, RunRetryRequest. 기존 MessagePage는 전방 조회 호환 예제다.
 - F004: MessageReviseCommand, CommandAck, ChatMessage, MessageRevision, InquiryResult.
 - F005: InquiryResult, Problem, TicketCard, CreationFailure, RunSummary.
 - F006 재진입용 최소 목록: InquiryListQuery, InquiryPage, InquirySummary. 전체 F006 계약 확정을 뜻하지 않는다.

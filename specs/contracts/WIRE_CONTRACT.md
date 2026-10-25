@@ -19,13 +19,15 @@
 | 작업 | 요청 | 성공 |
 |---|---|---|
 | POST /api/auth/login | LoginRequest | 200 LoginResponse |
+| POST /api/auth/refresh | 본문 없음, Refresh 쿠키 | 200 LoginResponse |
 | GET /api/auth/me | Bearer 토큰 | 200 CurrentUser |
 | POST /api/auth/logout | Bearer 토큰, 본문 없음 | 204 본문 없음 |
 | GET /api/departments | 인증 | 200 Department[] |
 | GET /api/inquiries | page, size 쿼리 | 200 InquiryPage |
 | GET /api/inquiries/{id} | 문의 UUID | 200 InquiryResult |
-| GET /api/inquiries/{id}/messages | afterSequenceNo(미지정=0), size | 200 MessagePage |
+| GET /api/inquiries/{id}/messages | beforeSequenceNo(미지정=최신), size(기본 30) | 200 MessageHistoryPage |
 | GET /api/runs/{id} | 실행 UUID | 200 RunSummary |
+| POST /api/runs/{id}/retries | RunRetryRequest | 200 RunSummary(접수/기존 실행) |
 | GET /api/tickets | page, size, processingStatus(선택) | 200 TicketPage |
 | GET /api/tickets/{id} | 티켓 UUID | 200 TicketDetail |
 
@@ -33,7 +35,7 @@ page 기본 0, size 기본 20/최대 100은 Mock 제안값이다. 음수·범위
 
 문의·티켓 목록은 createdAt 내림차순, 같은 시각이면 id 내림차순이다. 티켓 필터·페이지는 현재 사용자 권한 범위를 먼저 제한한 뒤 계산한다. 전체 목록을 프론트에서 잘라 페이지를 만든 것으로 실제 API 검증을 대체하지 않는다.
 
-메시지는 sequenceNo 오름차순이다. afterSequenceNo보다 큰 항목을 size개 반환하고 다음 항목이 있으면 마지막 sequenceNo를 nextAfterSequenceNo로, 끝이면 null을 보낸다. 정정은 sequenceNo를 바꾸지 않는다. 페이지 간 수정·신규 입력이 있으면 재조회하고 id/revision으로 중복 제거한다. 데이터 스냅샷 고정 기능은 이번 제안에 포함하지 않는다.
+채팅은 최신 30개를 조회하고 items를 sequenceNo 오름차순으로 반환한다. beforeSequenceNo는 미만 조건이며 이전 항목이 더 있으면 items 첫 항목의 순번을 nextBeforeSequenceNo로, 없으면 null을 반환한다. 정정은 순번을 바꾸지 않고 id/revision으로 중복 제거한다. 기존 afterSequenceNo/nextAfterSequenceNo 전방 조회는 호환 예제로 유지하며 beforeSequenceNo와 동시 사용은 400이다. 스냅샷 고정은 제공하지 않는다. 상세는 10절을 따른다.
 
 ## 3. 인증·권한
 
@@ -123,8 +125,50 @@ AI 결과의 임시 참조·근거·부서·버전은 [데이터 타입 문서](
 - 명령명은 `inquiry.create`, `message.send`, `message.revise`, `subscription.request`, `subscription.release`다. 8절에 연결한 JSON을 단일 payload로 받고 **Socket.IO ACK 콜백의 첫 번째 인자 하나에** `CommandAck` 또는 `SubscriptionAck` 객체를 반환한다. 서버 콜백에 `(null, result)`를 보내거나 별도 `ack` 이벤트로 응답하지 않는다. 클라이언트 `.timeout()` 콜백의 첫 번째 오류 인자는 Socket.IO가 추가하는 값이다.
 - `CommandAck.ok=true`는 Spring 저장 확인 이후에만 보낸다. 프론트는 requestId·대상/저장 식별자·필수 ACK 필드를 확인한다. 잘못된 ACK·10초 시간 초과·전송 중 연결 종료는 결과 미확인으로 둔다. 자동 저장 재시도나 오프라인 명령 적재는 하지 않으며 재확인은 같은 requestId·같은 본문이다.
 - 서버→프론트 이벤트는 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`다. 각 Event 객체 하나를 보낸다. `message.stored`·`state.changed`는 REST 재조회 신호이며 답변 조각을 DB 저장 완료로 취급하지 않는다. 티켓 목록/상세는 신호 외에도 주기적으로 REST를 조회한다.
-- 연결 거부는 Socket.IO `connect_error`로 전달하고 `error.data`에 `ApiErrorBody`를 넣는다. `UNAUTHENTICATED`는 현재 세션 만료, `ACCESS_DENIED`는 연결 거부, `SERVICE_UNAVAILABLE`은 중계 서버/업무 서버 연결 장애로 표시한다. 단순 네트워크 오류는 인증 실패로 간주하지 않는다. 명령·구독 거부는 해당 오류 ACK로 반환한다.
+- 연결 거부는 Socket.IO `connect_error`로 전달하고 `error.data`에 `ApiErrorBody`를 넣는다. `UNAUTHENTICATED`는 refresh 대상, `AUTH_CONTEXT_CHANGED`는 재로그인, `ACCESS_DENIED`는 권한 거부, `SERVICE_UNAVAILABLE`은 중계 서버/업무 서버 장애다. 단순 네트워크 오류는 인증 실패로 간주하지 않는다. 명령·구독 거부는 해당 오류 ACK로 반환한다.
 - 재접속 때 토큰으로 다시 인증하고 화면의 target을 다시 구독한다. 서버는 이전 socket의 룸을 새 socket에 무조건 복구하지 말고 현재 권한을 검증한다. 같은 target의 여러 소비자는 클라이언트 참조 횟수를 관리하고 마지막 해제 때만 서버에 release한다. 로그아웃·계정 전환·연결 종료는 이전 구독과 대기 전송을 정리한다.
-- 브라우저 origin을 Spring REST와 Node Socket.IO 양쪽 CORS에 허용한다. Spring은 GET/POST/OPTIONS와 Authorization·Content-Type을 허용하며 live는 쿠키를 보내지 않는다. 토큰은 메모리에서 관리하고 만료 시 재로그인한다. refresh·쿠키 인증·부서 변경 권한 회수는 구현된 것으로 가정하지 않는다. HTTPS 화면에서 혼합 콘텐츠 요청은 사용하지 않는다.
+- 브라우저 origin을 Spring REST와 Node Socket.IO 양쪽 CORS에 허용한다. Spring은 GET/POST/OPTIONS와 Authorization·Content-Type을 허용한다. 업무 요청은 Bearer, 로그인/refresh/로그아웃은 쿠키를 포함하며 10절의 CORS·Origin/CSRF 조건을 함께 적용한다. 실제 쿠키 발급·부서 변경 구독 회수는 서버 구현이 필요하다. HTTPS 화면에서 혼합 콘텐츠 요청은 사용하지 않는다.
 
-현재 프론트는 `GET /api/departments`를 직접 호출하지 않으며 `/api/auth/me`와 티켓 응답 안의 Department를 사용한다. F003-AC10 분석 재시도(`POST /api/runs/{id}/retries`)는 호출하지 않고 시간 초과 안내만 제공한다. F009 관련 대화·티켓 처리 명령과 F008·F010도 이 연동 범위 밖이다. AI 내부 `/internal/mock/...` 경로는 Python↔Spring의 Mock 제안이며 프론트 live에서 호출하거나 운영 경로로 확정하지 않는다.
+현재 프론트는 `GET /api/departments`를 직접 호출하지 않으며 `/api/auth/me`와 티켓 응답 안의 Department를 사용한다. 분석 재시도·refresh·최신 대화 조회는 아래 추가 프로필을 따른다. F009 관련 대화·티켓 처리 명령과 F008·F010은 이 연동 범위 밖이다. AI 내부 `/internal/mock/...` 경로는 Python↔Spring의 Mock 제안이며 프론트 live에서 호출하거나 운영 경로로 확정하지 않는다.
+
+## 10. 인증·재접속·최신 대화·분석 재시도 추가 프로필
+
+상태: 2026-10-25 개발 방향 반영 · 작성자 외 팀원 리뷰 전. 이 절은 2·3·9절의 이전 최소 프로필보다 우선한다. 프론트/Mock 구현과 실제 Spring·Node·AI 구현 완료는 구분한다. Q-BE-2/7/8, Q-INF-4/5/6의 팀 합의를 완료 처리하지 않는다.
+
+### 인증과 권한
+
+- Access Token은 메모리에 보관한다. 만료 시 POST /api/auth/refresh(본문 없음)로 갱신하고 LoginResponse를 받는다. 동시 갱신은 한 요청을 공유한다. Refresh Token 원문은 JS·JSON·로그에 제공하지 않는 HttpOnly 쿠키를 권장 프로필로 사용한다. 발급·회전·재사용 검출·폐기는 Spring이 구현한다.
+- 로그인/refresh/로그아웃만 credentials=include, 업무 REST는 Bearer와 credentials=omit이다. 쿠키 발급/삭제, 허용 Origin 검증·CSRF 방어, 정확한 CORS origin과 Allow-Credentials는 Spring 담당자가 함께 구현해야 한다. 운영 HTTPS의 Secure, 같은 사이트의 SameSite=Lax를 기본으로 검토하고 다른 사이트 배포는 SameSite=None/Secure와 별도 CSRF 정책을 합의한다. 프론트만으로 쿠키 보안을 구현했다고 보지 않는다.
+- Refresh 만료·폐기(401)는 입력을 보존한 재로그인이다. 갱신 네트워크/503은 재연결 안내이며 인증 만료로 확정하지 않는다. ordinary ACCESS_DENIED(403)는 권한 안내다. 서버가 현재 부서/역할과 토큰 문맥의 차이를 확인하면 AUTH_CONTEXT_CHANGED로 응답하고 기존 소켓/구독을 회수하며 프론트는 재로그인을 요청한다.
+- 갱신한 권한이 이전과 달라져도 재로그인한다. 로그아웃/계정 전환 뒤 도착한 이전 refresh 응답은 반영하지 않는다. 실제 서버 푸시 권한 회수는 아직 서버 작업이다.
+
+### 시간과 Node→Spring 내부 검증 제안
+
+- 저장 ACK는 10초이며 분석 완료를 기다리지 않는다. Node→Spring 검증은 요청당 최대 3초, 초과하면 SERVICE_UNAVAILABLE로 응답하고 ACCESS_DENIED로 바꾸지 않는다.
+- 자동 재접속은 연결 끊김 감지 후 최대 30초다. 기본 간격 1→2→4→최대 5초에 jitter를 적용하고 각 연결 시도는 최대 5초다. 이후 수동 다시 연결 또는 online 이벤트로 재개한다. 네트워크 끊김은 재로그인 사유가 아니다. 재연결 뒤 인증·대상 권한 재검증·REST 재조회가 필요하다.
+- 기존 문서는 Spring 검증 책임만 정했고 구체 내부 API는 없었다. 아래 경로는 서버 담당자가 구현·리뷰할 새 제안이다. 프론트에서 직접 호출하지 않는다.
+- POST /internal/realtime/authenticate: Authorization Bearer에 Node 서비스 토큰, JSON 본문에 `{accessToken: string}`을 전달한다. 성공 200은 `{user: CurrentUser, expiresAt: IsoDateTime}`, 무효 401은 ApiErrorBody다. 사용자/서비스 토큰을 URL/로그에 넣지 않는다.
+- POST /internal/realtime/authorize-subscription: 같은 서비스 인증에 `{accessToken: string, target: SubscriptionTarget}`을 전달한다. 성공 200은 `{target: SubscriptionTarget}`, 거부 403/변경 401·AUTH_CONTEXT_CHANGED/장애 503은 ApiErrorBody다. 클라이언트 userId·룸 이름은 권한 근거로 인정하지 않는다. 실제 서비스 토큰 발급·키 배포는 서버 간 통합 전 확정한다.
+
+### 오류와 화면 행동
+
+- ACCESS_TOKEN_EXPIRED 또는 UNAUTHENTICATED: refresh 후 인증 요청 복구. 저장 소켓 명령은 결과 미확인 상태를 보존하고 자동 재전송하지 않는다.
+- REFRESH_TOKEN_EXPIRED/REVOKED, AUTH_CONTEXT_CHANGED: 재로그인. ACCESS_DENIED: 권한 안내, 자동 갱신 반복 금지.
+- INVALID_INPUT/VALIDATION_ERROR(400): 원문 보존·수정 안내. NOT_FOUND(404): 주소/목록 확인.
+- INQUIRY_VERSION_CONFLICT(409): 저장하지 않고 최신 문의·대화를 조회한다. 최신 원문과 정정 초안을 비교해 사용자가 다시 제출한다. 새 의도는 새 requestId다. 기존 ApiErrorBody를 유지하며 현재 버전은 재조회로 확인한다.
+- IDEMPOTENCY_KEY_REUSED(409): 같은 키·다른 내용, 자동 반복 금지. RATE_LIMITED(429)는 Retry-After 이후 사용자 재시도, SERVICE_UNAVAILABLE/TEMPORARY_UNAVAILABLE(503)는 조회 재시도·저장 결과 재확인을 구분한다. retryable=true만으로 업무 변경을 자동 반복하지 않는다.
+
+### 최신 30개와 스크롤
+
+- GET /api/inquiries/{id}/messages?size=30은 최신 30개다. 추가 조회는 &beforeSequenceNo=<첫 순번>이며 기본 30·최대 100이다. MessageHistoryPage의 nextBeforeSequenceNo가 null이면 끝이다. 순번은 불변이며 items는 오름차순, 화면 맨 아래가 최신이다. 추가 중 수신 메시지는 id와 높은 revision으로 중복 제거한다.
+- 처음 최신 페이지 확보 후에만 전송·정정한다. 이전 페이지 조회/실패는 최신 페이지의 유효성을 없애지 않는다. 최신 재조회 실패는 입력을 보존하고 확인 전 전송을 막는다.
+- 상단 120px 이내에서 이전 페이지를 추가하며 화면 위치를 보정한다. 초기 진입은 맨 아래, 하단 80px 이내를 보던 사용자는 새 답변을 따라가고 나머지는 새 메시지 버튼으로 이동한다. 이전 조회 실패에는 수동 재시도를 제공한다.
+- 분석 중·답변 작성 중은 agent.progress/answer.delta로 표시하고 최종 결과는 Spring 저장 확인으로 확정한다. 임의 퍼센트는 표시하지 않는다.
+
+### 분석 재시도와 업무 저장
+
+- POST /api/runs/{id}/retries에 RunRetryRequest를 보낸다. 소유자만 허용하고 서버가 최신 입력 버전·실패 종류·기존 성공 작업·현재 활성 실행을 검증한다. 시간 초과/일시 장애이며 retryable=true인 실행에만 버튼을 제공한다. 성공 응답은 200 RunSummary로 접수/기존 실행을 알리며 복구 완료가 아니다.
+- 같은 사용자·원본 runId·requestId·같은 본문은 최초 결과를 반환하고 같은 키·다른 본문은 충돌이다. 최신 버전이 다르면 INQUIRY_VERSION_CONFLICT, 허용되지 않는 상태는 RUN_NOT_RETRYABLE이다. 같은 문의/버전의 활성 실행이 있으면 기존 실행을 반환한다. 프론트는 접수 중 중복 클릭을 막고 응답 유실 시 같은 요청을 확인한다.
+- 재시도는 기존 메시지·문제·workItemId·성공 티켓을 보존한다. 유효 결과가 저장된 실패 작업만 재적용할 수 있고, 유효 분석 결과가 없으면 저장 입력으로 다시 분석한다. LLM 생성 중간부터 재개하는 체크포인트는 이번 구현이 아니다. 티켓/배정/재이관 기술 복구는 운영 관리자 기능이며 문의자 버튼으로 권한을 넓히지 않는다.
+- PRD 3.3에 따라 부서 배정 후 부서 구성원이 미담당 티켓을 가져가 개인 담당자가 된다. 부서·담당자·processingStatus·routingStatus는 별개다. 분석/생성 실행 상태를 티켓 처리 상태에 섞지 않는다. 현재 티켓 조회 구현은 담당자 가져오기/재이관을 추가하지 않는다.
+- DATA 4·5의 원칙대로 작업↔티켓 유일성, 티켓/최초 배정 원자 저장, 부분 성공 보존을 적용한다. 요청 결과 최소 24시간 보존을 제안하며 기간 이후에도 작업↔티켓 유일성은 유지한다. 실제 DDL·트랜잭션·이벤트 outbox/유실 복구는 Spring 구현 및 통합 검증이 필요하다. Mock 메모리 중복 방지는 영속 DB 검증이 아니다.

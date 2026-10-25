@@ -2,6 +2,8 @@
 
 상태: `hops-mock-1` · 전부 가상 데이터 · **실제 인증·업무 저장·AI 품질 평가가 아님**
 
+추가 프로필의 `message-history-empty`(MessageHistoryPage)·`run-retry-request`(RunRetryRequest) 예시를 fixtures.json에 포함한다. 최신 30개·이전 커서, 토큰 갱신, 분석 재시도는 WIRE_CONTRACT 10절을 따른다. 기존 messages/MessagePage 예제는 전방 조회 호환용이다. 실행 Mock의 시간 초과·모델 오류는 다시 분석 시 정상 진행을 재현하며 실제 체크포인트 저장이나 서버 쿠키 구현을 뜻하지 않는다.
+
 언어별로 예시를 다시 타이핑하지 않고 같은 JSON을 읽는다. 프론트의 테스트 fixture는 이 파일을 import/복사 변환하는 얇은 어댑터로 작성하고 중복 데이터 원본으로 관리하지 않는다. 서버 코드·실제 Mock HTTP/Socket 서버는 이번 제출물에 포함하지 않는다.
 
 ## 읽는 순서와 실행

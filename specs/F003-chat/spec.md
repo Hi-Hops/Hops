@@ -38,7 +38,7 @@
 **채팅**
 - **F003-AC05 대화 불러오기**
   채팅 화면에 들어가면 `GET /api/inquiries/{id}/messages`로 대화를 순서대로 보여 주고(F002-AC02 구독과 함께), 사용자·AI 말풍선을 구분한다. 페이지를 넘겨도 순서가 바뀌지 않는다. (API 2.1 · ERD `message.sender_type`)
-  현재 개발 프로필은 오름차순 afterSequenceNo 커서를 사용하므로 nextAfterSequenceNo가 null이 될 때까지 후속 페이지를 자동 조회한다. 최신 저장 메시지 확보 전·조회 실패 중에는 전송·정정을 막고 작성 내용을 보존한다. 후속 페이지 실패는 기존 대화를 유지한 채 실패 위치부터 재시도한다. 다음 커서가 진행하지 않으면 오류로 멈춘다. 최신 페이지 우선 조회용 새 API·서버 스냅샷 계약은 이번 변경에 추가하지 않는다.
+  최신 30개를 먼저 조회하고 화면에는 sequenceNo 오름차순으로 표시한다. 최초 진입 위치는 맨 아래 최신 메시지다. 상단 가까이 스크롤하면 beforeSequenceNo로 이전 30개를 추가하며 현재 위치를 유지한다. 이전 대화 조회 실패는 기존 대화와 전송을 막지 않고 해당 커서로 재시도한다. 최초 최신 조회 전·실패 및 최신 재조회 중에는 전송·정정을 막고 초안을 보존한다. 하단을 보는 경우 새 답변을 따라가고 과거를 읽는 경우 새 메시지 이동 버튼을 제공한다. 구체 계약은 WIRE_CONTRACT 10절을 따른다.
 - **F003-AC06 메시지 전송**
   `message.send` `{requestId,inquiryId,expectedInquiryVersion,content}`를 보낸다. 저장 ACK 전에는 "전송 중", `message.stored` 또는 저장 ACK 뒤에 정식 메시지로 표시한다. F003-AC02~AC04 규칙을 똑같이 적용한다. (API 2.4)
 - **F003-AC07 분석 진행 표시**
@@ -49,7 +49,7 @@
   범위 밖 질문에는 안내만 보여 주고 티켓 카드를 만들지 않는다. (PRD 3.1)
 - **F003-AC10 분석 시간 초과**
   실행이 시간 초과로 끝나면 해결 실패나 CS 분류와 다른 문구로 알리고 "다시 분석"을 제공한다(`POST /api/runs/{id}/retries`). 이미 저장된 티켓은 그대로 둔다. (PRD 4.4 · API 2.1)
-  위 문장은 최종 목표다. 현재 Mock·임시 Live Adapter 구현은 시간 초과 안내만 제공하며 재시도 버튼·API 호출은 미구현이다. 전체 AC10 완료로 표시하지 않는다. Q-BE-8 합의 후 재시도 계약을 연결한다.
+  서버가 retryable=true로 판정한 시간 초과·일시 장애에만 버튼을 제공한다. 접수 중 비활성화, 응답 유실 시 같은 요청 ID 재확인, 최신 문의 버전·소유권·활성 실행 검사와 성공 작업 보존을 적용한다. Mock·임시 Live Adapter가 연결하며 실제 서버·체크포인트 재개는 별도 검증한다. WIRE_CONTRACT 10절의 팀 리뷰 후보를 따른다.
 - **F003-AC11 모델·통신 장애**
   모델·통신 장애는 "분류할 수 없음"과 다른 문구로 표시한다. (PRD 3.1 · API 1)
 - **F003-AC12 이관 이후 입력**
@@ -72,12 +72,12 @@
 |---|---|---|---|
 | 문의 생성 | inquiry.create | InquiryCreateCommand → CommandAck | Q-INF-6 |
 | 메시지 전송 | message.send | MessageSendCommand → CommandAck | Q-INF-6, Q-BE-10 |
-| 대화 조회 | GET /api/inquiries/{id}/messages | MessageListQuery → MessagePage(ChatMessage[]) | Q-BE-7 |
+| 대화 조회 | GET /api/inquiries/{id}/messages | MessageHistoryQuery → MessageHistoryPage(ChatMessage[]) | Q-BE-7 |
 | 실행 조회 | GET /api/runs/{id} | RunSummary | Q-BE-8 |
 | 진행·답변 조각 | agent.progress / answer.delta | AgentProgressEvent / AnswerDeltaEvent | Q-AI-1/2 |
 | 문의 결과 | GET /api/inquiries/{id} | InquiryResult | Q-BE-3/4, Q-ALL-2 |
 
-Mock·임시 Live Adapter의 실행 재시도 버튼·API는 이번 범위 밖이다. AC10의 시간 초과 안내까지 재현하며 실제 재시도 연결은 Q-BE-8 합의 후 진행한다. AI 답변 저장은 ChatMessage, 질문 구분은 서버가 저장한 Problem.status/questionCount를 함께 사용한다. 별도 구조화 가이드 payload(Q-AI-3)는 이번 Mock에 추가하지 않는다.
+실행 재시도는 RunRetryRequest → RunSummary로 연결한다. 실제 단계 저장·재개와 DB 중복 방지는 서버 구현 책임이다. AI 답변 저장은 ChatMessage, 질문 구분은 서버가 저장한 Problem.status/questionCount를 함께 사용한다. 별도 구조화 가이드 payload(Q-AI-3)는 이번 Mock에 추가하지 않는다.
 
 ## 6. 메시지 상태
 
@@ -86,7 +86,7 @@ Mock·임시 Live Adapter의 실행 재시도 버튼·API는 이번 범위 밖�
                         → 오류: 입력 보존, 같은 requestId로 재전송
                         → 결과 확인 중(ACK 시간 초과·끊김): 같은 requestId로 확인·재전송
 분석: 진행 중(agent.progress) → 답변 작성 중(answer.delta) → 저장된 답변
-     → 시간 초과: 안내(재시도 연결 미구현) / 장애: 장애 안내
+     → 시간 초과·일시 장애: 안내 → 재시도 접수 → 분석 중(저장된 성공 작업 유지)
 ```
 
 ## 7. 범위 밖

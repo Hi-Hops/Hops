@@ -1978,6 +1978,16 @@
       }
     },
     {
+      "id": "message-history-empty",
+      "type": "MessageHistoryPage",
+      "value": { "items": [], "nextBeforeSequenceNo": null }
+    },
+    {
+      "id": "run-retry-request",
+      "type": "RunRetryRequest",
+      "value": { "requestId": "00000000-0000-4000-8000-000000000901", "expectedInquiryVersion": 1 }
+    },
+    {
       "id": "user-preview",
       "type": "CurrentUser",
       "value": {
