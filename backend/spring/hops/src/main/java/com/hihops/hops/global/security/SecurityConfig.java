@@ -63,6 +63,9 @@ public class SecurityConfig {
     /**
      * CORS 허용 규칙. 허용 주소는 {@link CorsProperties}(설정 파일)에서 읽는다.
      * Authorization 헤더로 토큰을 보내고, 응답의 X-Request-Id를 프론트가 읽을 수 있게 노출한다.
+     *
+     * <p>allowCredentials: 로그인·refresh·로그아웃은 쿠키를 포함해 보낸다(WIRE_CONTRACT 10절).
+     * 이 값이 true면 허용 주소에 "*"를 쓸 수 없고 주소를 하나씩 정확히 적어야 한다(Spring이 막는다).
      */
     @Bean
     CorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {
@@ -70,6 +73,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"));
+        configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(List.of("X-Request-Id"));
         configuration.setMaxAge(3600L); // 브라우저가 사전 확인(preflight) 결과를 1시간 동안 재사용
 

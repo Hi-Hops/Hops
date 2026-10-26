@@ -91,6 +91,20 @@ class SecurityConfigTest {
     }
 
     @Test
+    void 프론트_README_주소에서_쿠키를_포함한_로그인_요청을_허용한다() throws Exception {
+        // 프론트 README는 http://127.0.0.1:5173으로 접속하라고 안내한다. 브라우저는 localhost와 127.0.0.1을 다른 주소로 본다.
+        // 로그인·refresh·로그아웃은 credentials: include(쿠키 포함)로 보내므로 Allow-Credentials가 있어야 브라우저가 응답을 넘겨준다
+        // (WIRE_CONTRACT 9·10절).
+        mockMvc.perform(options("/api/auth/login")
+                        .header(HttpHeaders.ORIGIN, "http://127.0.0.1:5173")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://127.0.0.1:5173"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
+    }
+
+    @Test
     void 허용하지_않은_주소의_CORS_요청은_거부한다() throws Exception {
         mockMvc.perform(options("/api/tickets")
                         .header(HttpHeaders.ORIGIN, "http://evil.example.com")
