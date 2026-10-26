@@ -1,5 +1,8 @@
 package com.hihops.hops.user.domain;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.hihops.hops.department.domain.Department;
 import com.hihops.hops.global.entity.BaseEntity;
 
@@ -8,6 +11,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 /**
@@ -36,6 +40,10 @@ public class Member extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "department_id", nullable = false)
     private Department department;
+
+    // 역할 부여 목록. member_role.member_id로 연결된다(이 쪽은 읽기 전용, 저장은 MemberRole이 한다).
+    @OneToMany(mappedBy = "member")
+    private List<MemberRole> memberRoles = new ArrayList<>();
 
     protected Member() {
     }
@@ -66,5 +74,15 @@ public class Member extends BaseEntity {
 
     public Department getDepartment() {
         return department;
+    }
+
+    /** 현재 유효한 역할. 회수된(deleted_at이 있는) 역할은 빼고, 항상 같은 순서(Role 선언 순)로 돌려준다. */
+    public List<Role> getRoles() {
+        return memberRoles.stream()
+                .filter(memberRole -> !memberRole.isDeleted())
+                .map(MemberRole::getRole)
+                .distinct()
+                .sorted()
+                .toList();
     }
 }

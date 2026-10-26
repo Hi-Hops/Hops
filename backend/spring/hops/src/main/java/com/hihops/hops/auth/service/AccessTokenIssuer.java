@@ -15,6 +15,7 @@ import com.hihops.hops.department.domain.Department;
 import com.hihops.hops.global.security.JwtConfig;
 import com.hihops.hops.global.security.JwtProperties;
 import com.hihops.hops.user.domain.Member;
+import com.hihops.hops.user.domain.Role;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
  *   <tr><td>sub</td><td>회원 UUID (사번·로그인 ID 아님)</td></tr>
  *   <tr><td>employeeNo</td><td>사번</td></tr>
  *   <tr><td>departmentId, departmentCode, departmentName</td><td>사용자 소속 부서. 이름은 표시용이고 권한은 ID로 검사한다</td></tr>
+ *   <tr><td>roles</td><td>역할 이름 목록 (예: ["BIZ_ADMIN"]). 없으면 빈 배열</td></tr>
  *   <tr><td>iss, aud</td><td>hops.jwt.issuer, hops.jwt.audience — 검증 쪽(JwtConfig)과 같은 값</td></tr>
  *   <tr><td>iat, exp</td><td>발급 시각, 발급 후 15분</td></tr>
  * </table>
@@ -54,6 +56,7 @@ public class AccessTokenIssuer {
                 .claim("departmentId", department.getId().toString())
                 .claim("departmentCode", department.getCode())
                 .claim("departmentName", department.getName())
+                .claim("roles", member.getRoles().stream().map(Role::name).toList())
                 .issuer(jwtProperties.issuer())
                 .audience(List.of(jwtProperties.audience()))
                 .issuedAt(issuedAt)

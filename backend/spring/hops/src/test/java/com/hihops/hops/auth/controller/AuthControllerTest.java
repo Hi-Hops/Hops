@@ -37,6 +37,7 @@ import tools.jackson.databind.ObjectMapper;
 class AuthControllerTest {
 
     private static final UUID DEPARTMENT_ID = UUID.fromString("d0000000-0000-7000-8000-000000000099");
+    private static final UUID MEMBER_ID = UUID.fromString("a0000000-0000-7000-8000-000000000099");
 
     @Autowired
     private MockMvc mockMvc;
@@ -57,8 +58,9 @@ class AuthControllerTest {
     void 테스트용_회원을_넣는다() {
         jdbcTemplate.update("INSERT INTO department (id, code, name, is_routable) VALUES (?, 'TEST_SALES', '테스트 영업팀', false)",
                 DEPARTMENT_ID);
-        jdbcTemplate.update("INSERT INTO member (login_id, employee_no, password_hash, name, department_id) "
-                + "VALUES ('requester', '20260001', ?, '테스트 요청자', ?)", passwordEncoder.encode("hops1234!"), DEPARTMENT_ID);
+        jdbcTemplate.update("INSERT INTO member (id, login_id, employee_no, password_hash, name, department_id) "
+                + "VALUES (?, 'requester', '20260001', ?, '테스트 요청자', ?)",
+                MEMBER_ID, passwordEncoder.encode("hops1234!"), DEPARTMENT_ID);
     }
 
     @Test
@@ -68,7 +70,41 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user.id").isNotEmpty())
                 .andExpect(jsonPath("$.user.employeeNo").value("20260001"))
-                .andExpect(jsonPath("$.user.name").value("테스트 요청자"));
+                .andExpect(jsonPath("$.user.name").value("테스트 요청자"))
+                // 역할이 없으면 빈 배열이다. 계약상 키를 생략하지 않는다.
+                .andExpect(jsonPath("$.user.roles").isArray())
+                .andExpect(jsonPath("$.user.roles").isEmpty());
+    }
+
+    @Test
+    void 부여된_역할을_토큰과_사용자_정보에_담는다() throws Exception {
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.roles[0]").value("BIZ_ADMIN"))
+                .andReturn().getResponse().getContentAsString();
+
+        Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
+
+        assertThat(token.getClaimAsStringList("roles")).containsExactly("BIZ_ADMIN");
+    }
+
+    @Test
+    void 회수된_역할은_토큰에_넣지_않는다() throws Exception {
+        // 역할 회수는 행을 지우지 않고 deleted_at만 기록한다(ERD). 회수된 권한이 토큰에 남으면 안 된다.
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role, deleted_at) VALUES (?, 'AGENT_OPS_ADMIN', now())",
+                MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.roles.length()").value(1))
+                .andReturn().getResponse().getContentAsString();
+
+        Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
+
+        assertThat(token.getClaimAsStringList("roles")).containsExactly("BIZ_ADMIN");
     }
 
     @Test
