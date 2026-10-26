@@ -1,9 +1,12 @@
 package com.hihops.hops.auth.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,9 +17,15 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 /**
  * 로그인 API를 실제 테스트 DB(hops_test)의 회원으로 호출한다. 넣은 행은 테스트가 끝나면 되돌려진다.
@@ -38,6 +47,12 @@ class AuthControllerTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private JwtDecoder jwtDecoder;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @BeforeEach
     void 테스트용_회원을_넣는다() {
         jdbcTemplate.update("INSERT INTO department (id, code, name, is_routable) VALUES (?, 'TEST_SALES', '테스트 영업팀', false)",
@@ -48,15 +63,34 @@ class AuthControllerTest {
 
     @Test
     void 로그인ID와_비밀번호가_맞으면_200과_사번을_포함한_회원_정보를_반환한다() throws Exception {
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"loginId": "requester", "password": "hops1234!"}
-                                """))
+        // 응답 모양은 계약(specs/contracts/DATA_TYPES.md LoginResponse·CurrentUser)을 따른다.
+        mockMvc.perform(login("requester", "hops1234!"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").isNotEmpty())
-                .andExpect(jsonPath("$.employeeNo").value("20260001"))
-                .andExpect(jsonPath("$.displayName").value("테스트 요청자"));
+                .andExpect(jsonPath("$.user.id").isNotEmpty())
+                .andExpect(jsonPath("$.user.employeeNo").value("20260001"))
+                .andExpect(jsonPath("$.user.name").value("테스트 요청자"));
+    }
+
+    @Test
+    void 로그인하면_이_서버가_검증할_수_있는_15분짜리_액세스_토큰을_발급한다() throws Exception {
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode response = objectMapper.readTree(body);
+
+        // 서버의 실제 검증기로 연다: 서명·만료·발급자·대상이 하나라도 틀리면 여기서 예외가 난다.
+        Jwt token = jwtDecoder.decode(response.get("accessToken").asText());
+
+        assertThat(token.getSubject()).isEqualTo(response.get("user").get("id").asText());
+        assertThat(token.getClaimAsString("employeeNo")).isEqualTo("20260001");
+        assertThat(Duration.between(token.getIssuedAt(), token.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
+        assertThat(Instant.parse(response.get("expiresAt").asText())).isEqualTo(token.getExpiresAt());
+    }
+
+    private static MockHttpServletRequestBuilder login(String loginId, String password) {
+        return post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"loginId\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password));
     }
 
     @Test
