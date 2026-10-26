@@ -55,7 +55,7 @@ class SecurityConfigTest {
     void 로그인하지_않고_API를_호출하면_401_공통_오류로_응답한다() throws Exception {
         mockMvc.perform(get("/api/tickets"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.requestId").value(matchesPattern(UUID_PATTERN)));
     }
 

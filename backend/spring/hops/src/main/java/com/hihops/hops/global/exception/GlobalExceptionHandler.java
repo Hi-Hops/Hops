@@ -35,7 +35,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception) {
-        return toResponse(exception.errorCode());
+        ErrorCode errorCode = exception.errorCode();
+        return ResponseEntity.status(errorCode.status())
+                .body(ErrorResponse.of(errorCode, exception.getMessage(), RequestIdFilter.currentRequestId()));
     }
 
     // Controller·Service 안에서 난 권한 예외. 아래 Exception 처리기에 걸려 500이 되지 않도록 먼저 잡는다.
@@ -46,7 +48,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ErrorResponse> handleAuthentication(AuthenticationException exception) {
-        return toResponse(ErrorCode.AUTHENTICATION_REQUIRED);
+        return toResponse(ErrorCode.UNAUTHENTICATED);
     }
 
     @ExceptionHandler(Exception.class)

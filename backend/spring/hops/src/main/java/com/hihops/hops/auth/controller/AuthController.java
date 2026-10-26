@@ -9,6 +9,8 @@ import com.hihops.hops.auth.dto.LoginRequest;
 import com.hihops.hops.auth.dto.LoginResponse;
 import com.hihops.hops.auth.service.AuthService;
 
+import jakarta.validation.Valid;
+
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -19,7 +21,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public LoginResponse login(@RequestBody LoginRequest request) {
+    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return LoginResponse.from(authService.login(request.loginId(), request.password()));
     }
 }

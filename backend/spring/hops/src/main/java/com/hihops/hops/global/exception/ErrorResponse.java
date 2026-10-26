@@ -17,6 +17,10 @@ package com.hihops.hops.global.exception;
 public record ErrorResponse(String code, String message, String requestId, boolean retryable) {
 
     public static ErrorResponse of(ErrorCode errorCode, String requestId) {
-        return new ErrorResponse(errorCode.name(), errorCode.message(), requestId, errorCode.retryable());
+        return of(errorCode, errorCode.message(), requestId);
+    }
+
+    public static ErrorResponse of(ErrorCode errorCode, String message, String requestId) {
+        return new ErrorResponse(errorCode.name(), message, requestId, errorCode.retryable());
     }
 }
