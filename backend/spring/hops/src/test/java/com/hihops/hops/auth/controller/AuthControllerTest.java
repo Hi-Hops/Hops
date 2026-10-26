@@ -79,12 +79,30 @@ class AuthControllerTest {
         JsonNode response = objectMapper.readTree(body);
 
         // 서버의 실제 검증기로 연다: 서명·만료·발급자·대상이 하나라도 틀리면 여기서 예외가 난다.
-        Jwt token = jwtDecoder.decode(response.get("accessToken").asText());
+        Jwt token = jwtDecoder.decode(response.get("accessToken").asString());
 
-        assertThat(token.getSubject()).isEqualTo(response.get("user").get("id").asText());
+        assertThat(token.getSubject()).isEqualTo(response.get("user").get("id").asString());
         assertThat(token.getClaimAsString("employeeNo")).isEqualTo("20260001");
         assertThat(Duration.between(token.getIssuedAt(), token.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
-        assertThat(Instant.parse(response.get("expiresAt").asText())).isEqualTo(token.getExpiresAt());
+        assertThat(Instant.parse(response.get("expiresAt").asString())).isEqualTo(token.getExpiresAt());
+    }
+
+    @Test
+    void 토큰과_사용자_정보에_소속_부서를_담는다() throws Exception {
+        // 계약: JWT departmentId·departmentCode·departmentName (docs/API.md §2.5), user.department (DATA_TYPES.md Department)
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.department.id").value(DEPARTMENT_ID.toString()))
+                .andExpect(jsonPath("$.user.department.code").value("TEST_SALES"))
+                .andExpect(jsonPath("$.user.department.name").value("테스트 영업팀"))
+                .andExpect(jsonPath("$.user.department.isRoutable").value(false))
+                .andReturn().getResponse().getContentAsString();
+
+        Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
+
+        assertThat(token.getClaimAsString("departmentId")).isEqualTo(DEPARTMENT_ID.toString());
+        assertThat(token.getClaimAsString("departmentCode")).isEqualTo("TEST_SALES");
+        assertThat(token.getClaimAsString("departmentName")).isEqualTo("테스트 영업팀");
     }
 
     private static MockHttpServletRequestBuilder login(String loginId, String password) {
