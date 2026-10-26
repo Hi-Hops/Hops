@@ -34,7 +34,7 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 @Import(SecurityConfigTest.TestSecurityController.class)
 class SecurityConfigTest {
 
@@ -61,9 +61,9 @@ class SecurityConfigTest {
 
     @Test
     void 로그인_API는_로그인_없이_접근할_수_있다() throws Exception {
-        // 아직 로그인 API가 없어서 404지만, 401로 막히지 않았다는 것이 핵심이다.
+        // 본문이 없어 400(입력 오류)이지만, 401로 막히지 않고 로그인 API까지 도달했다는 것이 핵심이다.
         mockMvc.perform(post("/api/auth/login"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -18,7 +18,7 @@ import tools.jackson.databind.json.JsonMapper;
  * JsonMapper는 Spring이 Controller 응답을 JSON으로 바꿀 때 쓰는 것과 같은 객체다.
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 class UtcTimeConfigTest {
 
     @Autowired

@@ -14,6 +14,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.hihops.hops.HopsApplication;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -23,11 +25,8 @@ import jakarta.persistence.Table;
  *
  * <p>준비: PostgreSQL 18 실행, hops_test DB 생성, application-db.local.properties 작성 (Spring README 참고).
  */
-@SpringBootTest(properties = {
-        "spring.datasource.url=jdbc:postgresql://localhost:5432/hops_test",
-        "spring.flyway.locations=classpath:db/migration,classpath:db/test-migration"
-})
-@ActiveProfiles("db")
+@SpringBootTest
+@ActiveProfiles({"db", "test"})
 class BaseEntityTest {
 
     @Autowired
@@ -110,8 +109,10 @@ class BaseEntityTest {
     interface SampleRepository extends JpaRepository<Sample, java.util.UUID> {
     }
 
+    // 이 설정이 있으면 Repository 자동 검색을 대신하므로, 실제 기능 Repository(MemberRepository 등)도 찾도록
+    // 검색 범위를 프로젝트 전체(HopsApplication 패키지)로 두고, 테스트 안에 선언한 SampleRepository까지 포함한다.
     @TestConfiguration
-    @EnableJpaRepositories(basePackageClasses = BaseEntityTest.class, considerNestedRepositories = true)
+    @EnableJpaRepositories(basePackageClasses = HopsApplication.class, considerNestedRepositories = true)
     static class SampleRepositoryConfig {
     }
 }

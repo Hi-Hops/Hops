@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 class OpenApiConfigTest {
 
     @Autowired

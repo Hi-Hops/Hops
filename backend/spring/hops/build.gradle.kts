@@ -33,6 +33,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-restclient")
     // Swagger UI. Boot가 관리하지 않는 라이브러리라 버전을 직접 적는다 (docs/AGENT_DEVELOPMENT.md 11장: 3.1.1).
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
+    // 생성자 주입 코드를 줄이려고 @RequiredArgsConstructor 등에 쓴다.
+    compileOnly("org.projectlombok:lombok")
+    annotationProcessor("org.projectlombok:lombok")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-starter-security-test")

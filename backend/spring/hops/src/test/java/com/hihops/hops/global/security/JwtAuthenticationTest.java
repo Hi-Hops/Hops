@@ -39,7 +39,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 @Import({JwtAuthenticationTest.TestJwtController.class, JwtAuthenticationTest.MethodSecurity.class})
 class JwtAuthenticationTest {
 

@@ -33,7 +33,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 @WithMockUser // 이 테스트는 오류·로그 형식을 보므로 로그인한 상태로 실행한다 (인증 규칙은 SecurityConfigTest).
 @Import(GlobalExceptionHandlerTest.TestErrorController.class)
 class GlobalExceptionHandlerTest {

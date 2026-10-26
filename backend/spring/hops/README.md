@@ -4,7 +4,7 @@ Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에�
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `inquiry`, `ticket`, `agent`, `investigation`, `global` 패키지를 구성했습니다. 각 패키지의 `package-info.java`에 역할을 기록했으며 실제 기능 클래스는 아직 구현하지 않았습니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `inquiry`, `ticket`, `agent`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 구현된 기능은 아래 [인증 (구현 중)](#인증-구현-중)의 로그인 API입니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -46,15 +46,16 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
    - Windows: `Copy-Item application-db.local.properties.example application-db.local.properties`
    - 만든 파일에 3번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
 5. **실행**
-   - Mac: `SPRING_PROFILES_ACTIVE=db ./gradlew bootRun`
-   - Windows(PowerShell): `$env:SPRING_PROFILES_ACTIVE="db"; .\gradlew.bat bootRun`
+   - Mac: `./gradlew bootRun`
+   - Windows(PowerShell): `.\gradlew.bat bootRun`
+   - 기본 프로필이 `db`라서 프로필을 따로 지정하지 않아도 로컬 PostgreSQL에 연결합니다.
    - 처음 실행하면 테이블과 아래 "가상 데이터"가 자동으로 들어갑니다.
 
 ## 이미 설치한 팀원이 pull 받은 뒤 할 일
 
 "처음 설치"를 이미 마쳤다면 따로 설정할 것은 없습니다.
 
-1. `git pull` 후 위 5번처럼 **db 프로필로 실행**합니다. 프로필 없이 실행하면(`local`) DB에 연결하지 않아 테이블·데이터가 생기지 않습니다.
+1. `git pull` 후 위 5번처럼 실행합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
 2. 로그에 `Successfully applied ... migration`이 보이면 새 테이블·데이터가 적용된 것입니다.
 3. `Port 8080 was already in use`가 나오면 이미 켜진 서버를 끄고 다시 실행합니다.
 4. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
@@ -91,11 +92,11 @@ DROP DATABASE hops;
 CREATE DATABASE hops OWNER hops;
 ```
 
-다시 db 프로필로 실행하면 테이블과 가상 데이터가 새로 들어갑니다.
+다시 실행하면 테이블과 가상 데이터가 새로 들어갑니다.
 
 ## DB 설정
 
-영속성은 Spring Data JPA와 PostgreSQL을 사용합니다. 기본 `local` 프로필은 DataSource 자동 설정을 제외해 DB 없이 서버를 실행합니다. DB를 쓰려면 `SPRING_PROFILES_ACTIVE=db`로 실행합니다. `db` 프로필은 `application-db.local.properties`(git 제외)에서 접속 정보를 읽습니다. 실제 접속 정보는 저장소에 기록하지 않습니다. 아래 표준 Spring 환경변수를 설정하면 파일 값보다 우선합니다.
+영속성은 Spring Data JPA와 PostgreSQL을 사용합니다. 로그인 등 기능이 DB를 쓰므로 DB 없이 서버를 실행하는 모드는 두지 않고, 기본 프로필을 `db`로 둡니다. `db` 프로필은 `application-db.local.properties`(git 제외)에서 접속 정보를 읽습니다. 실제 접속 정보는 저장소에 기록하지 않습니다. 아래 표준 Spring 환경변수를 설정하면 파일 값보다 우선합니다.
 
 | 환경변수 | 값 |
 |---|---|
@@ -133,6 +134,13 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 ./gradlew bootRun
 ```
 
-- 대부분의 테스트는 DB 없이 `local` 프로필로 동작합니다.
-- `BaseEntityTest`는 로컬 PostgreSQL의 `hops_test` DB에 직접 연결합니다. 위 "처음 설치" 2~4번을 마쳐야 통과합니다.
-- `local`과 `db` 프로필을 동시에 활성화하지 않습니다. DB 의존 기능 구현 후에는 해당 기능을 local에서도 사용할 수 있다고 가정하지 않습니다.
+- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~4번을 마쳐야 통과합니다.
+- 테스트 DB에는 가상 데이터(seed)를 넣지 않습니다. 필요한 데이터는 각 테스트가 직접 넣고 `@Transactional`로 끝나면 되돌립니다 (예: `MemberRepositoryTest`).
+- 로그인 판단 규칙처럼 DB가 필요 없는 테스트는 Repository를 mock으로 바꿔 빠르게 확인합니다 (예: `AuthServiceTest`).
+
+## 인증 (구현 중)
+
+현재 구현된 것은 로그인 ID·비밀번호 확인과 로그인 API입니다. JWT 발급은 아직 구현하지 않았습니다. 회원은 DB의 `member` 테이블에서 로그인 ID로 찾습니다 (`user/repository/MemberRepository`). 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD 설명](../../../docs/ERD_설명.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다.
+
+- `POST /api/auth/login` — `{loginId, password}` → 200 `{userId, employeeNo, displayName}`
+- 계정은 위 "가상 데이터"의 표를 참고합니다.
