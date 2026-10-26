@@ -48,6 +48,50 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 5. **실행**
    - Mac: `SPRING_PROFILES_ACTIVE=db ./gradlew bootRun`
    - Windows(PowerShell): `$env:SPRING_PROFILES_ACTIVE="db"; .\gradlew.bat bootRun`
+   - 처음 실행하면 테이블과 아래 "가상 데이터"가 자동으로 들어갑니다.
+
+## 이미 설치한 팀원이 pull 받은 뒤 할 일
+
+"처음 설치"를 이미 마쳤다면 따로 설정할 것은 없습니다.
+
+1. `git pull` 후 위 5번처럼 **db 프로필로 실행**합니다. 프로필 없이 실행하면(`local`) DB에 연결하지 않아 테이블·데이터가 생기지 않습니다.
+2. 로그에 `Successfully applied ... migration`이 보이면 새 테이블·데이터가 적용된 것입니다.
+3. `Port 8080 was already in use`가 나오면 이미 켜진 서버를 끄고 다시 실행합니다.
+4. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
+
+## 가상 데이터 (로컬 개발용)
+
+`src/main/resources/db/seed/R__seed_dev_department_member.sql`에 있습니다. 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
+
+- 부서 11개: IT 처리 부서 8개(`is_routable=true`) + 요청자 소속 부서 3개(영업팀·인사팀·경영지원팀)
+- 회원 20명, **모든 계정 비밀번호 `hops1234!`**
+- ID는 고정값이라 모든 PC에서 같습니다 (예: `requester` 회원 ID `a0000000-0000-7000-8000-000000000001`). 전체 목록은 SQL 파일에 있습니다.
+
+| 로그인 ID | 사번 | 소속 부서 | 역할 | 용도 |
+|---|---|---|---|---|
+| `requester` | 20260001 | 영업팀 | 없음 | 일반 직원(문의자) |
+| `network` | 20260002 | 네트워크 | 없음 | IT 담당자 |
+| `bizadmin` | 20260003 | 경영지원팀 | `BIZ_ADMIN` | 업무 관리자 |
+| `opsadmin` | 20260004 | 경영지원팀 | `AGENT_OPS_ADMIN` | 에이전트 운영 관리자 |
+| `20260020` | 20260020 | 경영지원팀 | `BIZ_ADMIN`, `AGENT_OPS_ADMIN` | 역할 두 개 확인용 |
+| `20260005`~`20260019` (15명) | 로그인 ID와 같음 | 처리 부서별 담당자·일반 직원 | 없음 | 부서별 테스트 |
+
+- 로그인 API는 #20에서 구현 중입니다. 병합 전까지는 DB 조회로만 데이터를 확인할 수 있습니다.
+  ```bash
+  psql -U hops -d hops -c "SELECT login_id, employee_no, name FROM member;"
+  ```
+- seed 파일을 수정하면 다음 실행 때 다시 실행되지만, **이미 있는 행(같은 ID)은 바꾸지 않고 건너뜁니다.** 기존 행의 값을 바꾸려면 아래처럼 DB를 새로 만듭니다.
+
+### 처음 상태로 되돌리기
+
+테스트하며 바꾼 데이터를 지우고 처음 상태로 돌아갑니다. 로컬 `hops` DB의 모든 데이터가 지워집니다. 서버를 끈 뒤 실행합니다 (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속).
+
+```sql
+DROP DATABASE hops;
+CREATE DATABASE hops OWNER hops;
+```
+
+다시 db 프로필로 실행하면 테이블과 가상 데이터가 새로 들어갑니다.
 
 ## DB 설정
 
@@ -60,6 +104,7 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 | `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 |
 
 - 테이블 생성·변경은 **Flyway**로 관리합니다. `src/main/resources/db/migration`에 `V1__설명.sql`처럼 버전 붙은 SQL을 추가하면 서버 시작 시 아직 적용하지 않은 것만 실행합니다. 이미 적용된 파일은 고치지 않고 새 버전 파일을 추가합니다.
+- 로컬 개발용 가상 데이터는 `db/seed`에 둡니다. `db` 프로필은 `db/migration`과 `db/seed`를 함께 실행하고, 테스트는 `db/migration`만 사용합니다. Flyway와 함께 쓰지 않도록 `data.sql`은 사용하지 않습니다.
 - `ddl-auto=validate`로 Entity와 DB 구조가 맞는지만 검사하고 자동 DDL 변경은 하지 않습니다. SQL 초기화도 비활성화합니다.
 - `open-in-view=false`로 요청 렌더링 단계의 지연 로딩을 사용하지 않습니다.
 - Entity는 `global/entity/BaseEntity`를 상속하면 `id`(UUIDv7), `createdAt`, `updatedAt`, `deletedAt`(소프트 삭제)을 공통으로 갖습니다.
