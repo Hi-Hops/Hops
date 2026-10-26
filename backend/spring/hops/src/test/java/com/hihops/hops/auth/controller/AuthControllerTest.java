@@ -12,8 +12,11 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -36,6 +39,7 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 @ActiveProfiles({"db", "test"})
 @Transactional
+@ExtendWith(OutputCaptureExtension.class) // CapturedOutput: 테스트 중 찍힌 로그를 문자열로 받아 검사한다
 class AuthControllerTest {
 
     private static final UUID DEPARTMENT_ID = UUID.fromString("d0000000-0000-7000-8000-000000000099");
@@ -181,6 +185,46 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void 남은_토큰의_회원이_없거나_차단됐으면_회원_ID를_로그로_남긴다(CapturedOutput output) throws Exception {
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+        jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
+
+        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
+
+        assertThat(output).contains("내 정보 조회 실패: 토큰은 유효하지만 회원이 없거나 차단됨 memberId=" + MEMBER_ID);
+        assertThat(output).doesNotContain(accessToken);
+    }
+
+    @Test
+    void 로그인에_성공하면_회원_ID를_로그로_남기고_토큰은_남기지_않는다(CapturedOutput output) throws Exception {
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+
+        assertThat(output).contains("로그인 성공 memberId=" + MEMBER_ID);
+        assertThat(output).doesNotContain(accessToken);
+    }
+
+    @Test
+    void 비밀번호가_틀리면_이유와_회원_ID를_남기고_입력한_비밀번호는_남기지_않는다(CapturedOutput output) throws Exception {
+        mockMvc.perform(login("requester", "typed-wrong-password"));
+
+        assertThat(output).contains("로그인 실패: 비밀번호 불일치 memberId=" + MEMBER_ID);
+        assertThat(output).doesNotContain("typed-wrong-password");
+    }
+
+    @Test
+    void 없는_로그인ID면_이유만_남기고_입력한_아이디는_남기지_않는다(CapturedOutput output) throws Exception {
+        // 사용자가 아이디 칸에 실수로 비밀번호를 넣는 경우가 있어, 찾지 못한 아이디 원문은 로그에 남기지 않는다.
+        mockMvc.perform(login("maybe-a-password!", "hops1234!"));
+
+        assertThat(output).contains("로그인 실패: 등록되지 않았거나 차단된 계정");
+        assertThat(output).doesNotContain("maybe-a-password!");
     }
 
     private static MockHttpServletRequestBuilder login(String loginId, String password) {

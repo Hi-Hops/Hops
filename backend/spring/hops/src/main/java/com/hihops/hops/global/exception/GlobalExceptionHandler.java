@@ -1,5 +1,7 @@
 package com.hihops.hops.global.exception;
 
+import java.util.List;
+
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,6 +10,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -36,6 +40,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException exception) {
         ErrorCode errorCode = exception.errorCode();
+        // 예상한 업무 오류라 스택 트레이스 없이 한 줄만 남긴다. 문구는 사용자에게 보여주는 것과 같아 비밀값이 없다.
+        log.info("업무 오류 {} {}: {}", errorCode.status().value(), errorCode.name(), exception.getMessage());
         return ResponseEntity.status(errorCode.status())
                 .body(ErrorResponse.of(errorCode, exception.getMessage(), RequestIdFilter.currentRequestId()));
     }
@@ -61,9 +67,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(Exception exception, @Nullable Object body,
             HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
+        ErrorCode errorCode = ErrorCode.fromStatus(statusCode);
+        if (exception instanceof MethodArgumentNotValidException invalid) {
+            // 입력한 값은 비밀번호일 수도 있으므로, 어떤 항목이 틀렸는지(이름)만 남긴다.
+            List<String> fields = invalid.getBindingResult().getFieldErrors().stream()
+                    .map(FieldError::getField).distinct().sorted().toList();
+            log.info("입력 오류 {} {} fields={}", statusCode.value(), errorCode.name(), fields);
+        } else {
+            // Spring 예외 메시지에는 요청 본문 일부가 섞일 수 있어 예외 종류 이름만 남긴다.
+            log.info("요청 오류 {} {}: {}", statusCode.value(), errorCode.name(), exception.getClass().getSimpleName());
+        }
         return ResponseEntity.status(statusCode)
                 .headers(headers)
-                .body(errorBody(ErrorCode.fromStatus(statusCode)));
+                .body(errorBody(errorCode));
     }
 
     private static ResponseEntity<ErrorResponse> toResponse(ErrorCode errorCode) {
