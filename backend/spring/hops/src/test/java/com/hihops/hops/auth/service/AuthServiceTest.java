@@ -34,8 +34,8 @@ class AuthServiceTest {
 
     @BeforeEach
     void 저장소에는_requester만_있다() {
-        when(memberRepository.findByLoginId(anyString())).thenReturn(Optional.empty());
-        when(memberRepository.findByLoginId("requester")).thenReturn(Optional.of(requester));
+        when(memberRepository.findByLoginIdAndDeletedAtIsNull(anyString())).thenReturn(Optional.empty());
+        when(memberRepository.findByLoginIdAndDeletedAtIsNull("requester")).thenReturn(Optional.of(requester));
     }
 
     @Test

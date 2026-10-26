@@ -160,6 +160,29 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.roles[0]").value("BIZ_ADMIN"));
     }
 
+    @Test
+    void 삭제된_회원은_비밀번호가_맞아도_로그인할_수_없다() throws Exception {
+        // 회원 삭제는 행을 지우지 않고 deleted_at만 기록한다(ERD). 차단된 계정은 로그인 실패와 같은 401로 응답한다.
+        jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
+
+        mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void 로그인_뒤_삭제된_회원은_남은_토큰으로도_내_정보를_조회할_수_없다() throws Exception {
+        // PRD 2: 계정 차단 시 기존 인증을 회수한다. 토큰 만료(15분)까지 기다리지 않고 바로 막는다.
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+        jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
+
+        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
     private static MockHttpServletRequestBuilder login(String loginId, String password) {
         return post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

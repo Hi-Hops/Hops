@@ -43,7 +43,7 @@ class MemberRepositoryTest {
 
     @Test
     void 로그인ID로_DB의_회원과_소속_부서를_찾는다() {
-        Member member = memberRepository.findByLoginId("test.network").orElseThrow();
+        Member member = memberRepository.findByLoginIdAndDeletedAtIsNull("test.network").orElseThrow();
 
         assertThat(member.getId()).isNotNull();
         assertThat(member.getEmployeeNo()).isEqualTo("29990001");
