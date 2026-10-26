@@ -1,6 +1,7 @@
 package com.hihops.hops.auth.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -139,6 +141,23 @@ class AuthControllerTest {
         assertThat(token.getClaimAsString("departmentId")).isEqualTo(DEPARTMENT_ID.toString());
         assertThat(token.getClaimAsString("departmentCode")).isEqualTo("TEST_SALES");
         assertThat(token.getClaimAsString("departmentName")).isEqualTo("테스트 영업팀");
+    }
+
+    @Test
+    void 받은_토큰으로_내_정보를_조회하면_현재_사용자_정보를_반환한다() throws Exception {
+        // 계약: GET /api/auth/me → 200 CurrentUser (WIRE_CONTRACT 2절). 프론트는 이 응답으로 사용자·부서·역할을 확정한다.
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+
+        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(MEMBER_ID.toString()))
+                .andExpect(jsonPath("$.employeeNo").value("20260001"))
+                .andExpect(jsonPath("$.name").value("테스트 요청자"))
+                .andExpect(jsonPath("$.department.code").value("TEST_SALES"))
+                .andExpect(jsonPath("$.roles[0]").value("BIZ_ADMIN"));
     }
 
     private static MockHttpServletRequestBuilder login(String loginId, String password) {

@@ -18,4 +18,8 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
     // 둘 다 LAZY라서, 이게 없으면 DB 연결이 닫힌 뒤 읽다가 오류가 난다(open-in-view=false).
     @EntityGraph(attributePaths = {"department", "memberRoles"})
     Optional<Member> findByLoginId(String loginId);
+
+    // 토큰의 sub(회원 UUID)로 현재 정보를 다시 읽을 때 쓴다 (GET /api/auth/me). 메서드 이름의 "WithDepartmentAndRoles"는 설명용이다.
+    @EntityGraph(attributePaths = {"department", "memberRoles"})
+    Optional<Member> findWithDepartmentAndRolesById(UUID id);
 }
