@@ -122,7 +122,7 @@ docker build --target build -t hops-realtime-test .
 docker run --rm --init hops-realtime-test npm test
 ```
 
-기본 runtime 이미지 빌드는 TypeScript 컴파일을 수행하며 자동 테스트 실행은 위 명령으로 구분합니다. Docker 이미지 빌드·컨테이너 실행·컨테이너 내 테스트는 Docker 엔진이 없는 현재 작업 환경에서는 검증하지 못했습니다.
+기본 runtime 이미지 빌드는 TypeScript 컴파일을 수행하며 자동 테스트 실행은 위 명령으로 구분합니다. Docker 빌드·기동 검증과 실제 서비스 통합의 검증 범위는 아래 자동 검사 항목을 참고합니다.
 
 ## 4. 환경변수
 
@@ -319,6 +319,17 @@ npm run format:check
 | 명령·ACK  | 입력 경계·원문/버전 보존·추가 메시지/정정·ACK 유실/형식 오류 |
 | 회수·복구 | 토큰 만료·권한 회수·구독 경합·중계 단절/복구                 |
 | 내부 API  | 서비스 Bearer 분리·오류 응답·3초 제한                        |
+
+### 확인한 결과 (2026-10-26)
+
+Docker Engine 29.8.0과 `node:24.22.0-bookworm-slim` 이미지를 사용해 다음 항목을 확인했습니다.
+
+- 타입 검사와 Prettier 검사 통과.
+- `build` 대상 이미지 및 Compose의 runtime 이미지 빌드 성공.
+- 테스트 컨테이너에서 빌드 후 자동 테스트 19개 통과. 테스트는 실제 Spring·DB 없이 수행했습니다.
+- 실행 중인 Compose 컨테이너의 healthy 상태와 `/healthz`의 `{ "status": "UP" }` 응답 확인.
+- runtime 컨테이너의 `node` 사용자(uid 1000) 실행 확인.
+- runtime 이미지에서 개인 `.env`·테스트 코드·TypeScript 컴파일러·Prettier가 제외된 것 확인.
 
 실제 Spring Java 클라이언트·JWT 발급/폐기·DB 저장/24시간 멱등성·Python/LLM·브라우저 전체 E2E·다중 인스턴스·운영 부하·TLS와 자격증명 회전은 아직 검증하지 않았습니다. 테스트용 중계 검증과 구분합니다.
 
