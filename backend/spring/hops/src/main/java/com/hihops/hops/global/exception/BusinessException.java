@@ -18,7 +18,16 @@ public class BusinessException extends RuntimeException {
     private final ErrorCode errorCode;
 
     public BusinessException(ErrorCode errorCode) {
-        super(errorCode.message());
+        this(errorCode, errorCode.message());
+    }
+
+    /**
+     * 같은 오류 코드라도 상황에 맞는 안내 문구를 보여주고 싶을 때 쓴다.
+     * 예: 401 UNAUTHENTICATED의 기본 문구는 "로그인이 필요합니다."지만, 로그인 실패는 "아이디 또는 비밀번호를 확인해 주세요."
+     * 문구는 사용자에게 그대로 보이므로 내부 예외 내용·비밀값을 넣지 않는다.
+     */
+    public BusinessException(ErrorCode errorCode, String message) {
+        super(message);
         this.errorCode = errorCode;
     }
 

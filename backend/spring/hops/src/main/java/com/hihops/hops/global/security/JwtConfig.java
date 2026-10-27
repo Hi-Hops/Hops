@@ -16,14 +16,21 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
 import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+
 /**
- * 요청에 담긴 JWT를 어떻게 검사할지 정한다 (docs/API.md §2.5).
+ * JWT를 어떻게 발급하고 검사할지 정한다 (docs/API.md §2.5).
+ *
+ * <p>발급({@link #jwtEncoder})과 검증({@link #jwtDecoder})은 같은 비밀키·알고리즘을 쓴다.
+ * 도장(비밀키) 하나로 출입증을 찍고, 같은 도장으로 진짜인지 확인한다고 생각하면 된다.
  *
  * <p>검사 순서: 서명(HS256만 허용) → 만료(exp) → 발급자(iss) → 대상(aud).
  * 하나라도 틀리면 401 공통 오류가 된다. 토큰을 단순히 열어 읽는 것(디코딩)은 인증으로 치지 않는다.
@@ -34,7 +41,17 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 @EnableConfigurationProperties(JwtProperties.class)
 public class JwtConfig {
 
-    static final MacAlgorithm ALGORITHM = MacAlgorithm.HS256;
+    /** 발급·검증 모두 이 알고리즘만 쓴다. 발급 쪽(auth)에서도 같은 값을 쓰도록 공개한다. */
+    public static final MacAlgorithm ALGORITHM = MacAlgorithm.HS256;
+
+    /** 역할 목록을 담는 클레임 이름. 발급(AccessTokenIssuer)과 권한 변환(아래 converter)이 같은 이름을 써야 권한 검사가 동작한다. */
+    public static final String ROLES_CLAIM = "roles";
+
+    /** 로그인 성공 시 액세스 토큰을 서명한다. 실제 클레임 구성은 auth/service/AccessTokenIssuer가 한다. */
+    @Bean
+    JwtEncoder jwtEncoder(JwtProperties properties) {
+        return new NimbusJwtEncoder(new ImmutableSecret<>(secretKey(properties)));
+    }
 
     @Bean
     JwtDecoder jwtDecoder(JwtProperties properties) {
@@ -51,11 +68,14 @@ public class JwtConfig {
         return decoder;
     }
 
-    /** 토큰의 {@code roles} 클레임(예: ["AGENT"])을 Spring 권한(ROLE_AGENT)으로 바꾼다. 권한 이름은 사번(sub)이다. */
+    /**
+     * 토큰의 {@code roles} 클레임(예: ["BIZ_ADMIN"])을 Spring 권한(ROLE_BIZ_ADMIN)으로 바꾼다.
+     * 그래서 {@code hasRole("BIZ_ADMIN")}으로 검사할 수 있다. 로그인한 사용자의 이름(principal name)은 sub(회원 UUID)다.
+     */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName("roles");
+        authorities.setAuthoritiesClaimName(ROLES_CLAIM);
         authorities.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -63,7 +83,8 @@ public class JwtConfig {
         return converter;
     }
 
+    // 발급·검증이 같은 키를 쓰도록 한 곳에서 만든다.
     static SecretKey secretKey(JwtProperties properties) {
-        return new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        return new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), ALGORITHM.getName()); // HS256 → "HmacSHA256"
     }
 }

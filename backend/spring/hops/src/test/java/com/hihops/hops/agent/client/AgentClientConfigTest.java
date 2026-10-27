@@ -25,7 +25,7 @@ import com.sun.net.httpserver.HttpServer;
  * 실제 Python 서버 대신 테스트 안에서 작은 가짜 HTTP 서버를 띄운다.
  */
 @SpringBootTest
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 class AgentClientConfigTest {
 
     private static final HttpServer fakeAgentServer = startFakeAgentServer();

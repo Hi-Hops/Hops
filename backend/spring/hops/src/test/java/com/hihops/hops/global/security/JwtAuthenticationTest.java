@@ -39,7 +39,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 @Import({JwtAuthenticationTest.TestJwtController.class, JwtAuthenticationTest.MethodSecurity.class})
 class JwtAuthenticationTest {
 
@@ -94,7 +94,7 @@ class JwtAuthenticationTest {
     private void expectUnauthorized(String token) throws Exception {
         mockMvc.perform(get("/test/jwt/me").header(HttpHeaders.AUTHORIZATION, bearer(token)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
     private static String bearer(String token) {
