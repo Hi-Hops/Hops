@@ -1,0 +1,72 @@
+{
+  "schema_version": "knowledge_policy.v0",
+  "policy_id": "POLICY-KNOWLEDGE-GOVERNANCE",
+  "version_no": 1,
+  "title": "지식 버전·폐기·재임베딩·평가 분리 규칙",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "POLICY",
+  "access": {"access_scope": "STAFF", "exposure_policy": "INTERNAL_ONLY", "ingest_status": "PENDING"},
+  "purpose": "지식 정본·파생 청크·임베딩·평가 데이터를 분리하고 변경 영향과 이전 버전을 재현 가능하게 관리한다.",
+  "rules": [
+    {
+      "rule_id": "RULE-GOV-APPROVAL",
+      "priority": 10,
+      "trigger": "새 지식 문서 또는 내용 변경 문서를 공통 데이터로 채택하려 함",
+      "agent_action": "출처·버전·권한·내용 검수·팀 리뷰 상태를 요약한다.",
+      "final_authority": "DATA_TEAM",
+      "enforcement": "작성자 외 팀원 최소 한 명의 리뷰 전에는 팀 승인과 RAG 적재 승인을 부여하지 않는다.",
+      "required_evidence": ["정본 JSON", "출처·계보", "담당자 내용 검수", "팀 리뷰 기록"],
+      "user_visible_behavior": "검수 전 문서는 서비스 답변에 사용하지 않는다.",
+      "prohibited_outcomes": ["작성자 확인을 팀 승인으로 간주", "AI 초안 자동 적재", "출처 없는 기술 사실 채택"]
+    },
+    {
+      "rule_id": "RULE-GOV-VERSION",
+      "priority": 20,
+      "trigger": "오탈자·표현·기술 사실·절차·권한 중 하나가 변경됨",
+      "agent_action": "변경 유형과 영향 문서·청크·평가 항목을 식별한다.",
+      "final_authority": "DATA_TEAM",
+      "enforcement": "문서 버전을 증가시키고 영향 청크를 재생성하며 필요한 재검수·회귀 평가를 수행한다.",
+      "required_evidence": ["변경 전후 정본", "영향 분석", "재검수 결과"],
+      "user_visible_behavior": "활성 승인 버전만 검색 결과에 사용한다.",
+      "prohibited_outcomes": ["같은 버전 덮어쓰기", "정본과 청크 불일치", "기술 변경의 검수 생략"]
+    },
+    {
+      "rule_id": "RULE-GOV-INDEX",
+      "priority": 30,
+      "trigger": "정본·권한·임베딩 모델·청킹 규칙이 변경됨",
+      "agent_action": "재청킹·재임베딩 범위와 비교 평가 필요성을 제안한다.",
+      "final_authority": "DATA_TEAM",
+      "enforcement": "이전 검색 버전을 비활성화한 뒤 승인 문서만 재인덱싱하고 동일 Eval로 비교한다.",
+      "required_evidence": ["문서·청킹·임베딩·검색 설정 버전", "동일 Eval 결과"],
+      "user_visible_behavior": "인덱스 전환 중 승인되지 않은 혼합 버전을 사용하지 않는다.",
+      "prohibited_outcomes": ["권한 변경 없이 벡터만 갱신", "이전·새 청크 혼합", "평가 없는 임베딩 모델 교체"]
+    },
+    {
+      "rule_id": "RULE-GOV-EVAL",
+      "priority": 40,
+      "trigger": "검색·프롬프트·모델 성능을 평가하거나 튜닝함",
+      "agent_action": "dev와 고정 test를 분리하고 동일 질문·원문·정답 문서의 split 누수를 검사한다.",
+      "final_authority": "DATA_TEAM",
+      "enforcement": "test 질의·정답·숨겨진 원인·정답 CASE를 KB와 프롬프트 예시에서 제외한다.",
+      "required_evidence": ["고정 split manifest", "문서·프롬프트·모델·검색 설정 버전"],
+      "user_visible_behavior": "평가 데이터는 서비스 답변 근거로 사용하지 않는다.",
+      "prohibited_outcomes": ["test 결과를 보고 튜닝", "평가 정답의 RAG 적재", "다른 조건의 단일·멀티 Agent 비교"]
+    },
+    {
+      "rule_id": "RULE-GOV-DEPRECATE",
+      "priority": 50,
+      "trigger": "문서가 레거시·오판·재오픈·새 정책으로 인해 더 이상 유효하지 않음",
+      "agent_action": "검색 비활성화와 대체 문서 연결을 제안한다.",
+      "final_authority": "DATA_TEAM",
+      "enforcement": "이전 버전과 변경 이력은 감사용으로 보존하되 기본 검색 대상에서 제외한다.",
+      "required_evidence": ["폐기 사유", "대체 문서 또는 미지원 결정", "영향 CASE·평가 목록"],
+      "user_visible_behavior": "폐기된 절차를 현재 해결 방법으로 제공하지 않는다.",
+      "prohibited_outcomes": ["감사 이력 삭제", "폐기 문서 계속 검색", "대체 근거 없는 조용한 변경"]
+    }
+  ],
+  "prohibitions": ["원문 전체·임베딩·Vector DB·실행 로그의 Git 정본화", "정본에서 재생성할 수 없는 청크", "평가와 운영 지식 혼합", "권한·노출 변경의 인덱스 ACL 누락"],
+  "related_artifacts": {"guide_ids": [], "runbook_ids": [], "scenario_ids": []},
+  "provenance": {"source_policy_ids": ["PRD-7", "PRD-10", "KNOWLEDGE-LIFECYCLE-3", "KNOWLEDGE-LIFECYCLE-5", "KNOWLEDGE-LIFECYCLE-9", "KNOWLEDGE-LIFECYCLE-10", "KNOWLEDGE-LIFECYCLE-12"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-27", "team_review_status": "PENDING"}
+}
