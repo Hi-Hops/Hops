@@ -12,6 +12,15 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+try:
+    from jsonschema import Draft202012Validator, FormatChecker
+    from jsonschema.exceptions import SchemaError
+except ImportError as exc:
+    raise SystemExit(
+        "ERROR: JSON Schema 검증에 jsonschema 패키지가 필요합니다. "
+        "python3 -m pip install -r datasets/knowledge/v0/requirements.txt 를 먼저 실행하세요."
+    ) from exc
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parents[2]
@@ -25,6 +34,99 @@ GUIDE_DIR = ROOT / "documents" / "employee_guides"
 CATALOG_DIR = ROOT / "catalogs"
 CHUNK_DIR = ROOT / "chunks"
 MANIFEST_DIR = ROOT / "manifests"
+SCHEMA_DIR = ROOT / "schemas"
+
+
+def load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def json_path(parts: Any) -> str:
+    """jsonschema 오류 경로를 사람이 찾기 쉬운 JSONPath 형태로 표시한다."""
+    path = "$"
+    for part in parts:
+        if isinstance(part, int):
+            path += f"[{part}]"
+        elif re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(part)):
+            path += f".{part}"
+        else:
+            path += f"[{json.dumps(str(part), ensure_ascii=False)}]"
+    return path
+
+
+def schema_instance_errors(
+    instance: Any, schema: dict[str, Any], label: str,
+) -> list[str]:
+    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    validation_errors = sorted(
+        validator.iter_errors(instance),
+        key=lambda error: (tuple(str(part) for part in error.absolute_path), error.message),
+    )
+    return [
+        f"JSON Schema 위반: {label} {json_path(error.absolute_path)}: {error.message}"
+        for error in validation_errors
+    ]
+
+
+def validate_canonical_json_schemas() -> list[str]:
+    """스키마 자체와 스키마가 있는 모든 정본 JSON/JSONL을 검증한다."""
+    errors: list[str] = []
+    schemas: dict[str, dict[str, Any]] = {}
+    for path in sorted(SCHEMA_DIR.glob("*.schema.json")):
+        try:
+            schema = load_json(path)
+            Draft202012Validator.check_schema(schema)
+            schemas[path.name] = schema
+        except (json.JSONDecodeError, SchemaError) as exc:
+            errors.append(f"JSON Schema 파일 오류: {path.relative_to(ROOT)}: {exc}")
+
+    if errors:
+        return errors
+
+    canonical_targets = [
+        (RUNBOOK_DIR.glob("*.json"), "staff_runbook.schema.json"),
+        (GUIDE_DIR.glob("*.json"), "employee_guide.schema.json"),
+        (POLICY_DIR.glob("*.json"), "knowledge_policy.schema.json"),
+    ]
+    for paths, schema_name in canonical_targets:
+        schema = schemas[schema_name]
+        for path in sorted(paths):
+            try:
+                instance = load_json(path)
+            except json.JSONDecodeError as exc:
+                errors.append(f"정본 JSON 구문 오류: {path.relative_to(ROOT)}: {exc}")
+                continue
+            errors.extend(schema_instance_errors(instance, schema, path.relative_to(ROOT).as_posix()))
+
+    catalog_targets = {
+        "it_glossary.json": "it_glossary.schema.json",
+        "error_signals.json": "error_signal_catalog.schema.json",
+        "incident_scenarios.json": "incident_scenario_catalog.schema.json",
+    }
+    for file_name, schema_name in catalog_targets.items():
+        path = CATALOG_DIR / file_name
+        try:
+            instance = load_json(path)
+        except json.JSONDecodeError as exc:
+            errors.append(f"정본 JSON 구문 오류: {path.relative_to(ROOT)}: {exc}")
+            continue
+        errors.extend(schema_instance_errors(
+            instance, schemas[schema_name], path.relative_to(ROOT).as_posix(),
+        ))
+
+    section_path = MANIFEST_DIR / "general_section_access.jsonl"
+    section_schema = schemas["general_section_access.schema.json"]
+    for line_no, line in enumerate(section_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line:
+            continue
+        label = f"{section_path.relative_to(ROOT).as_posix()}:{line_no}"
+        try:
+            instance = json.loads(line)
+        except json.JSONDecodeError as exc:
+            errors.append(f"정본 JSONL 구문 오류: {label}: {exc}")
+            continue
+        errors.extend(schema_instance_errors(instance, section_schema, label))
+    return errors
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -578,6 +680,10 @@ def build_runbook_assets(
 
 def validate() -> dict[str, int]:
     errors: list[str] = []
+    schema_errors = validate_canonical_json_schemas()
+    if schema_errors:
+        raise SystemExit("\n".join(f"ERROR: {item}" for item in schema_errors))
+
     with (MANIFEST_DIR / "portal_evidence_review.csv").open(encoding="utf-8-sig", newline="") as file:
         evidence = {row["evidence_id"]: row for row in csv.DictReader(file)}
     with (MANIFEST_DIR / "general_source_review.csv").open(encoding="utf-8", newline="") as file:
@@ -765,7 +871,7 @@ def validate() -> dict[str, int]:
     policies = []
     policy_paths: dict[str, Path] = {}
     allowed_policy_sources = {
-        "PRD-2", "PRD-3.1", "PRD-3.2", "PRD-3.3", "PRD-3.4", "PRD-4.4",
+        "PRD-2", "PRD-3.1", "PRD-3.2", "PRD-3.3", "PRD-3.4", "PRD-3.5", "PRD-4.4",
         "PRD-7", "PRD-10", "DATA-INQUIRY", "DATA-TICKET",
         "KNOWLEDGE-LIFECYCLE-3", "KNOWLEDGE-LIFECYCLE-4", "KNOWLEDGE-LIFECYCLE-5",
         "KNOWLEDGE-LIFECYCLE-6", "KNOWLEDGE-LIFECYCLE-7", "KNOWLEDGE-LIFECYCLE-8",
@@ -1051,10 +1157,26 @@ def validate() -> dict[str, int]:
     dump_jsonl(CHUNK_DIR / "IT-GLOSSARY.v0.chunks.jsonl", glossary_rows)
 
     all_chunks = [*runbook_chunks, *guide_chunk_rows, *policy_chunk_rows, *glossary_rows]
+    chunk_schemas = {
+        "staff_runbook_chunk.v0": load_json(SCHEMA_DIR / "staff_runbook_chunk.schema.json"),
+        "employee_guide_chunk.v0": load_json(SCHEMA_DIR / "employee_guide_chunk.schema.json"),
+        "knowledge_policy_chunk.v0": load_json(SCHEMA_DIR / "knowledge_policy_chunk.schema.json"),
+        "reference_chunk.v0": load_json(SCHEMA_DIR / "reference_chunk.schema.json"),
+    }
     chunk_ids = [item["chunk_id"] for item in all_chunks]
     if len(chunk_ids) != len(set(chunk_ids)):
         errors.append("전체 chunk_id 중복")
     for item in all_chunks:
+        chunk_schema = chunk_schemas.get(item.get("schema_version"))
+        if chunk_schema is None:
+            errors.append(
+                f"청크 JSON Schema 매핑 누락: {item.get('chunk_id', '<unknown>')} -> "
+                f"{item.get('schema_version')}"
+            )
+        else:
+            errors.extend(schema_instance_errors(
+                item, chunk_schema, f"generated chunk {item.get('chunk_id', '<unknown>')}",
+            ))
         if item["content_sha256"] != sha256_bytes(item["content"].encode("utf-8")):
             errors.append(f"청크 hash 오류: {item['chunk_id']}")
         if item["ingest_status"] != "PENDING":
@@ -1117,6 +1239,9 @@ def write_review_summary(counts: dict[str, int]) -> None:
             "status": "PASS",
             "checks": [
                 "expected_counts",
+                "json_schema_meta_validation",
+                "canonical_json_schema_validation",
+                "generated_chunk_json_schema_validation",
                 "unique_document_and_reference_ids",
                 "unique_chunk_ids",
                 "chunk_content_sha256",
