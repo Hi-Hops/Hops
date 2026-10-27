@@ -44,6 +44,9 @@ public class JwtConfig {
     /** 발급·검증 모두 이 알고리즘만 쓴다. 발급 쪽(auth)에서도 같은 값을 쓰도록 공개한다. */
     public static final MacAlgorithm ALGORITHM = MacAlgorithm.HS256;
 
+    /** 역할 목록을 담는 클레임 이름. 발급(AccessTokenIssuer)과 권한 변환(아래 converter)이 같은 이름을 써야 권한 검사가 동작한다. */
+    public static final String ROLES_CLAIM = "roles";
+
     /** 로그인 성공 시 액세스 토큰을 서명한다. 실제 클레임 구성은 auth/service/AccessTokenIssuer가 한다. */
     @Bean
     JwtEncoder jwtEncoder(JwtProperties properties) {
@@ -65,11 +68,14 @@ public class JwtConfig {
         return decoder;
     }
 
-    /** 토큰의 {@code roles} 클레임(예: ["AGENT"])을 Spring 권한(ROLE_AGENT)으로 바꾼다. 권한 이름은 사번(sub)이다. */
+    /**
+     * 토큰의 {@code roles} 클레임(예: ["BIZ_ADMIN"])을 Spring 권한(ROLE_BIZ_ADMIN)으로 바꾼다.
+     * 그래서 {@code hasRole("BIZ_ADMIN")}으로 검사할 수 있다. 로그인한 사용자의 이름(principal name)은 sub(회원 UUID)다.
+     */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName("roles");
+        authorities.setAuthoritiesClaimName(ROLES_CLAIM);
         authorities.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -77,7 +83,8 @@ public class JwtConfig {
         return converter;
     }
 
+    // 발급·검증이 같은 키를 쓰도록 한 곳에서 만든다.
     static SecretKey secretKey(JwtProperties properties) {
-        return new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        return new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), ALGORITHM.getName()); // HS256 → "HmacSHA256"
     }
 }
