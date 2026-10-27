@@ -1,6 +1,6 @@
 # 공통 데이터 계약
 
-상태: `hops-mock-1` 기반 · 2026-10-25 개발 기준 확정 / 팀 리뷰·서비스 구현 검증 별도.
+상태: `hops-mock-1` 기반 · 2026-10-25 개발 기준 확정 / 팀 리뷰·서비스 구현 검증 별도. 2026-10-27 칸반 MVP 추가 프로필은 팀 리뷰 대상 계약 확장안이며 구현·검증 별도다.
 
 인증·상태·오류·재시도·AI 초기 예산·MVP 범위의 확정 개발 기준은 [WIRE_CONTRACT 10절](WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필)에 모은다. [11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)은 담당별 구현 작업과 미검증 항목이다. 정책 선택과 실제 서비스 구현·팀 리뷰/병합을 구분한다. 공통 폴더에서 언어별 코드나 DTO를 생성·배포하지 않는다.
 
@@ -26,7 +26,7 @@
 - F004: MessageReviseCommand, CommandAck, ChatMessage, MessageRevision, InquiryResult.
 - F005: InquiryResult, Problem, TicketCard, CreationFailure, RunSummary.
 - F006 재진입용 최소 목록: InquiryListQuery, InquiryPage, InquirySummary. 독립 목록·상세 모달은 후속이다.
-- F009: TicketListQuery, TicketPage, TicketCard, TicketDetail, AssignmentHistory, Department.
+- F009: TicketListQuery, TicketPage, TicketCard, TicketDetail, AssignmentHistory, Department. 칸반 MVP 추가 프로필은 TicketListItem, TicketRequester, TicketPerson, TicketGroupSummary, TicketPriority, PrioritySource와 다중 상태·검색·빠른 필터 쿼리를 확장한다. 팀 리뷰·서비스 구현 검증 별도이며 기존 문의 결과용 TicketCard 기본 계약은 유지한다.
 - 서비스 AI 연결: AiRequest, AiAccepted, AiProgress, AiDelta, AiResult와 각 하위 타입. 기존 내부 agent-1 계약을 교체하지 않는다.
 
 F007의 읽기 전용 티켓 조회는 MVP다. 별도 관리자 요약·F008 분리 동의·F010 운영 기술 복구 UI는 후속이며 상세 입출력은 해당 기능 착수 전에 설계한다.

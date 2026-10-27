@@ -1,6 +1,6 @@
 # 공통 데이터 필드
 
-상태: 2026-10-25 개발 기준 확정 / 팀 리뷰·서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
+상태: 2026-10-25 개발 기준 확정 / 팀 리뷰·서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 2026-10-27 칸반 MVP 추가 프로필은 팀 리뷰 대상 계약 확장안이며 구현·검증 별도다.
 
 모든 객체 필드는 필수다. nullable은 키를 생략하지 않고 null을 보낸다. 배열은 []를 보낸다.
 
@@ -19,7 +19,7 @@
 - `InquiryStatus`: `IN_PROGRESS`, `WAITING_USER`, `RESOLVED`, `CLOSED_UNCONFIRMED`, `CLOSED`.
 - `ProcessingStatus`: `WAITING`, `IN_PROGRESS`, `WAITING_CONFIRM`, `RESOLVED`, `CLOSED_UNCONFIRMED`.
 - `ProblemStatus`: `ANALYZING`(분석 중), `WAITING_USER`(추가 질문 중), `TICKET_CREATED`(티켓 생성·배정됨), `CREATION_FAILED`(생성 실패), `OUT_OF_SCOPE`(지원 범위 밖). 부분 성공은 tickets/creationFailures와 함께 표시한다. 이 코드만으로 해결을 확정하지 않는다.
-- `RoutingStatus`: `ASSIGNED`(부서 배정됨), `CS_REVIEW`(CS 검토), `REASSIGNING`(재배정 중), `EXCEPTION`(배정 예외), `RECOVERY_PENDING`(복구 대기). 개인 담당자 유무는 이 코드에 섞지 않고 담당자 식별자로 관리한다. 현재 TicketCard/Detail은 담당자 필드를 제공하지 않으며 담당자 기능은 후속이다.
+- `RoutingStatus`: `ASSIGNED`(부서 배정됨), `CS_REVIEW`(CS 검토), `REASSIGNING`(재배정 중), `EXCEPTION`(배정 예외), `RECOVERY_PENDING`(복구 대기). 개인 담당자 유무는 이 코드에 섞지 않고 담당자 식별자로 관리한다. 기본 TicketCard/Detail은 담당자 필드를 제공하지 않는다. 목록의 담당자 조회 표시는 아래 TicketListItem 추가 프로필로 확장하며 담당자 변경 업무는 후속이다.
 - `RunStatus`: `QUEUED`(대기), `RUNNING`(분석 중), `SUCCEEDED`(분석 완료), `FAILED`(실패), `TIMED_OUT`(시간 초과), `SUPERSEDED`(새 입력 버전/실행으로 대체됨). 분석 성공과 티켓 저장 성공은 별개다.
 - `RecoveryStatus`(후속): `PENDING`(복구 대기), `RETRYING`(재시도 중), `RECOVERED`(복구 완료), `FAILED`(복구 실패). 현재 화면/응답 타입에 구현되었다고 가정하지 않는다.
 - `ConsentStatus`(후속): `PENDING`(응답 대기), `ACCEPTED`(동의), `DECLINED`(거절), `EXPIRED`(만료), `INVALIDATED`(대상 내용 변경으로 무효). 만료 시간·후속 payload는 해당 기능 구현 전에 정한다.
@@ -143,6 +143,18 @@
 | `routingStatus` | `RoutingStatus` | 필수 |
 | `createdAt` | `IsoDateTime` | 필수 |
 
+## TicketListItem · 칸반 MVP 추가 프로필 (2026-10-27)
+
+상태: 팀 리뷰 대상 계약 확장안 / 기존 Mock·프론트·서버 구현 완료 아님. 목록 응답만 확장하고 InquiryResult.tickets의 TicketCard 및 TicketDetail 기본 계약은 유지한다. 담당자·우선순위·그룹·해결 신고의 조회 표시는 MVP이며 생성/변경 업무는 후속이다. 아래 키는 모두 필수이고 미지정 값은 명시적으로 null, 신고 없음은 false다. 소비자는 미등록 enum을 안전하게 표시한다.
+
+- `TicketPriority`: `URGENT`(긴급), `HIGH`(높음), `NORMAL`(보통), `LOW`(낮음).
+- `PrioritySource`: `AI`(AI 제안에 대한 서버 확정), `MANUAL`(권한 있는 사람의 조정), `DEFAULT`(기본 설정). 출처만으로 모델 품질이나 해결을 확정하지 않는다.
+- `TicketPerson`: `{id: Uuid, name: string}`. 이름은 비어 있지 않다.
+- `TicketRequester`: `{id: Uuid, name: string, department: Department}`. 문의 원문·사번·연락처를 추가 공개하지 않으며 요청자 소속과 처리 부서를 구분한다.
+- `TicketGroupSummary`: `{id: Uuid, groupNumber: string, title: string, ticketCount: number, affectedUserCount: number, representativeTicketId: Uuid, representativeTicketNumber: string, statusLabel: string, assignee: TicketPerson | null}`. 문자열은 비어 있지 않고 count는 1~2147483647이다. 현재 권한 범위의 저장된 그룹 전체 구성 건수·서로 다른 영향 사용자 수이며 검색 결과/불러온 카드 수와 다르다. statusLabel은 서버가 공개하는 그룹 상태 표시명으로 업무 전이 판단에 사용하지 않는다. 그룹 업무의 상태 enum·전이 계약은 후속이다.
+- `TicketListItem`: TicketCard의 모든 필드 + `requester: TicketRequester`, `category: Category | null`, `priority: TicketPriority | null`, `prioritySource: PrioritySource | null`, `assignee: TicketPerson | null`, `resolutionReported: boolean`, `incidentGroup: TicketGroupSummary | null`. priority가 null이면 prioritySource도 null이고 우선순위가 있으면 출처도 함께 제공한다. 대표 티켓 여부는 id와 representativeTicketId로 판단한다. 그룹 정보는 서버가 현재 부서/권한으로 검사한 값만 제공한다.
+- 저장된 후속 업무 데이터가 없으면 null/false를 반환한다. 가상 fixture의 표시 예시를 실제 업무 생성 완료로 간주하지 않으며 값이 있는 경로와 없는 경로를 모두 검증한다.
+
 ## AssignmentHistory
 
 | 필드 | JSON 표현 | 조건 |
@@ -203,7 +215,7 @@
 
 | 필드 | JSON 표현 | 조건 |
 |---|---|---|
-| `items` | `Array<TicketCard>` | 필수 |
+| `items` | `Array<TicketListItem>` | 칸반 MVP 추가 프로필 · 팀 리뷰·구현 검증 별도 |
 | `page` | `number` | {"minimum": 0, "maximum": 2147483647} |
 | `size` | `number` | {"minimum": 1, "maximum": 100} |
 | `totalElements` | `number` | {"minimum": 0, "maximum": 2147483647} |
@@ -239,6 +251,16 @@
 | `page` | `number` | {"minimum": 0, "maximum": 2147483647} |
 | `size` | `number` | {"minimum": 1, "maximum": 100} |
 | `processingStatus` | `"WAITING" \| "IN_PROGRESS" \| "WAITING_CONFIRM" \| "RESOLVED" \| "CLOSED_UNCONFIRMED" \| null` | {"enum": ["WAITING", "IN_PROGRESS", "WAITING_CONFIRM", "RESOLVED", "CLOSED_UNCONFIRMED", null]} |
+
+### TicketListQuery 칸반 MVP 확장 (팀 리뷰 대상)
+
+기존 page/size/processingStatus에 아래 필드를 추가한다. 요청에서 생략한 선택 조건은 필터 없음이다. 기본값·직렬화·검색 의미는 WIRE_CONTRACT 10절을 따른다.
+
+- `processingStatuses: Array<ProcessingStatus> | null`: null 또는 중복 없는 1~5개 상태. processingStatus와 동시 지정하지 않는다. 종료 컬럼은 `[RESOLVED, CLOSED_UNCONFIRMED]`를 한 조회로 보낸다.
+- `q: string | null`: 정규화 후 1~100 Unicode 코드 포인트, 공백만 있으면 null. 티켓 번호·제목 부분 문자열 검색이다.
+- `quickFilter: "MINE" | "URGENT" | "HIGH" | "RESOLUTION_REPORTED" | null`: 단일 빠른 필터. null은 전체다. MINE의 사용자 ID는 서버 인증 문맥에서 결정한다.
+
+`view` 및 목록에 보존된 비활성 processingStatus는 보드 API에 전달하지 않는다. 이 프로필은 기존 실행 Mock과 타입/fixture가 지원한다고 가정하지 않는다.
 
 ## InquiryListQuery
 

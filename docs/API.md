@@ -1,6 +1,6 @@
 # API 설계 — PRD 전체 흐름
 
-기준: [PRD](PRD.md) v1.42 · 2026-10-25, [데이터 설계](DATA.md), [ERD 설명](ERD_설명.md). 확정한 개발 기준과 후속 계약 후보를 구분한다. MVP/후속 범위는 PRD 8장이다. 문서 반영은 팀 리뷰·서비스 구현·실제 통합 검증 완료가 아니다.
+기준: [PRD](PRD.md) v1.43 · 2026-10-27, [데이터 설계](DATA.md), [ERD 설명](ERD_설명.md). 기존 개발 기준과 칸반 MVP 추가 프로필(팀 리뷰 대상)·후속 계약 후보를 구분한다. MVP/후속 범위는 PRD 8장이다. 문서 반영은 팀 리뷰·서비스 구현·실제 통합 검증 완료가 아니다.
 
 타입·필드·상태·오류는 [DATA_TYPES](../specs/contracts/DATA_TYPES.md), 경로·이벤트·시간·인증 정책은 [WIRE_CONTRACT](../specs/contracts/WIRE_CONTRACT.md) 문서가 원본이다. 10절은 확정 기준, 11절은 담당 구현·미검증 항목이다. 언어별 코드 생성은 제공하지 않으며 추가 OpenAPI/JSON Schema는 MVP 연결 선행 조건이 아니다.
 
@@ -28,7 +28,7 @@
 | `GET /api/inquiries`, `GET /api/inquiries/{id}` | 본인 문의 목록·종합 상태, 상세의 문제별 상태·실제 티켓·생성 실패·현재 실행 | 타인 문의 거부. MVP는 세션 재진입·채팅 결과용 조회. 독립 상세 모달·숨김/복원은 후속 |
 | `GET /api/inquiries/{id}/messages` | 대화순 메시지와 정정 이력 | 문의자는 자신의 대화 조회. 페이지가 바뀌어도 순서 안정적 |
 | `GET /api/runs/{id}`, `POST /api/runs/{id}/retries` | 실행 상태·오류·작업별 생성 결과 조회, 실패/시간 초과 실행 재시도 | 실행 성공과 티켓 저장 성공 분리. 최신 문의 버전과 기존 성공 작업을 재검증 |
-| `GET /api/tickets`, `GET /api/tickets/{id}` | 현재 처리 부서 및 BIZ_ADMIN 범위의 읽기 전용 목록과 상세. 현재 필터 processingStatus, 개인 담당자/routingStatus 필터는 후속 | 목록 필터가 권한을 넓히지 않음. `processingStatus`와 `routingStatus`를 분리. 저장된 티켓만 카드에 표시 |
+| `GET /api/tickets`, `GET /api/tickets/{id}` | 현재 처리 부서 및 BIZ_ADMIN 범위의 읽기 전용 목록과 상세. MVP 칸반 추가 프로필: 종료 두 상태 통합 조회(processingStatuses), 번호·제목 검색(q), 내 담당·긴급·높음·해결 신고(quickFilter), TicketListItem 표시 정보. routingStatus·임의 담당자 선택 필터는 후속 | 목록 필터가 권한을 넓히지 않음. `processingStatus`와 `routingStatus`를 분리. 컬럼별 전체 건수·더 보기, 종료 통합 정렬·페이지를 지원. 계약 확장안의 팀 리뷰·구현 검증은 별도 |
 
 문의 생성·메시지 추가·정정은 MVP, 새 문의 분리 동의는 후속이며 2.4절의 이벤트를 사용한다. 서버가 후보 문맥과 출처를 제시하고 사용자 동의를 확인한 경우에만 새 문의·세션을 한 번 생성한다. 거절·무응답은 생성하지 않는다. 이 동의는 기존 문의의 티켓 자동 생성에 적용되지 않는다. 동의 대상 ID·버전·상태는 구현 전 확정한다.
 
