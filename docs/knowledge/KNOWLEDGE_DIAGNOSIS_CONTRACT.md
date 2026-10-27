@@ -74,7 +74,27 @@ Diagnosis Agent
 - Diagnosis 추가 지식 요청: [`diagnosis_knowledge_request.schema.json`](../../datasets/knowledge/v0/schemas/diagnosis_knowledge_request.schema.json)
 - 진단 신호 정본: [`error_signals.json`](../../datasets/knowledge/v0/catalogs/error_signals.json)
 
-현재 Schema는 데이터·Agent 구현 협의를 위한 v0다. 실제 State 모델과 API DTO에 적용할 때 필드명을 맞추되 책임 경계는 변경하지 않는다.
+`Evidence Bundle`은 다음 정보를 구조적으로 전달한다.
+
+| 필드 | 역할 |
+|---|---|
+| `artifacts` | 검색된 문서·버전·청크 ID와 관련성 요약을 남기는 출처 목록 |
+| `evidence_chunks` | 권한·해시 검증을 통과해 Diagnosis가 실제로 읽을 수 있는 청크 본문 |
+| `diagnostic_steps` | 런북의 읽기 전용 진단 순서, 기대 관측, Tool 필요 상태·호출 계약 |
+| `cause_hypotheses` | 원인 후보와 필요·반대 신호 ID, 담당 후보 부서, 근거 청크 연결 |
+| `diagnostic_signals` | 신호의 매칭 조건·의미·확정 제한과 `runbook_id/step_id`, `runbook_id/cause_id` 연결 |
+| `knowledge_gaps` | 검색 후에도 부족한 지식과 추가 조회·이관 판단 근거 |
+
+- Knowledge Agent는 접근 권한과 `content_sha256` 검증을 통과한 청크만
+  `evidence_chunks`에 넣는다.
+- Tool이 아직 연결되지 않은 단계는 `tool_requirement.status=PENDING`, 읽기 Tool이 필요 없는
+  단계는 `NOT_REQUIRED`, 호출 가능한 단계만 `READY`로 전달한다.
+- Diagnosis Agent는 Bundle 안의 검증된 본문·단계·원인–신호 연결만 사용하며 문서나
+  신호 레지스트리를 다시 검색하지 않는다.
+- Spring은 Bundle 저장 전 접근 범위, 청크·문서 ID, 해시, Tool 허용 목록을 다시 검증한다.
+
+현재 Schema는 데이터·Agent 구현 협의를 위한 v0다. 실제 State 모델과 API DTO에 적용할 때
+필드명을 맞추되 책임 경계와 위 검증 조건은 변경하지 않는다.
 
 ## 7. 구현 전 남은 연결
 

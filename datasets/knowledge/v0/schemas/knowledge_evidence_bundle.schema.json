@@ -6,8 +6,8 @@
   "additionalProperties": false,
   "required": [
     "schema_version", "bundle_id", "inquiry_id", "problem_id", "retrieval_reason",
-    "query", "bundle_status", "artifacts", "diagnostic_signals", "knowledge_gaps",
-    "access", "created_at"
+    "query", "bundle_status", "artifacts", "evidence_chunks", "diagnostic_steps",
+    "cause_hypotheses", "diagnostic_signals", "knowledge_gaps", "access", "created_at"
   ],
   "properties": {
     "schema_version": {"const": "knowledge_evidence_bundle.v0"},
@@ -32,6 +32,126 @@
         }
       }
     },
+    "evidence_chunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "chunk_id", "artifact_id", "artifact_type", "section_id", "title", "content",
+          "content_sha256", "access_scope", "exposure_policy", "relevance_summary"
+        ],
+        "properties": {
+          "chunk_id": {"type": "string", "minLength": 1},
+          "artifact_id": {"type": "string", "minLength": 1},
+          "artifact_type": {"enum": ["EMPLOYEE_GUIDE", "STAFF_RUNBOOK", "VERIFIED_CASE", "POLICY"]},
+          "section_id": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "content": {"type": "string", "minLength": 1},
+          "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "access_scope": {"enum": ["EMPLOYEE", "STAFF"]},
+          "exposure_policy": {"enum": ["QUOTABLE", "INTERNAL_ONLY"]},
+          "relevance_summary": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "diagnostic_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "runbook_id", "runbook_version", "step_id", "order", "goal", "action",
+          "safety_class", "tool_requirement", "expected_observations", "expected_signal_ids",
+          "on_match", "on_mismatch", "evidence_chunk_ids"
+        ],
+        "properties": {
+          "runbook_id": {"type": "string", "pattern": "^RB-[A-Z0-9-]+$"},
+          "runbook_version": {"type": "integer", "minimum": 1},
+          "step_id": {"type": "string", "pattern": "^DIA-[0-9]{2}$"},
+          "order": {"type": "integer", "minimum": 1},
+          "goal": {"type": "string", "minLength": 1},
+          "action": {"type": "string", "minLength": 1},
+          "safety_class": {"const": "READ_ONLY"},
+          "tool_requirement": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "tool_id", "operation", "parameters"],
+            "properties": {
+              "status": {"enum": ["READY", "PENDING", "NOT_REQUIRED"]},
+              "tool_id": {"type": ["string", "null"]},
+              "operation": {"type": ["string", "null"]},
+              "parameters": {"type": "object"}
+            },
+            "allOf": [
+              {
+                "if": {"properties": {"status": {"const": "READY"}}},
+                "then": {
+                  "properties": {
+                    "tool_id": {"type": "string", "minLength": 1},
+                    "operation": {"type": "string", "minLength": 1}
+                  }
+                }
+              },
+              {
+                "if": {"properties": {"status": {"const": "NOT_REQUIRED"}}},
+                "then": {
+                  "properties": {
+                    "tool_id": {"type": "null"},
+                    "operation": {"type": "null"}
+                  }
+                }
+              }
+            ]
+          },
+          "expected_observations": {
+            "type": "array", "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "expected_signal_ids": {
+            "type": "array", "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^SIG-[0-9]{3}$"}
+          },
+          "on_match": {"type": "string", "minLength": 1},
+          "on_mismatch": {"type": "string", "minLength": 1},
+          "evidence_chunk_ids": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "cause_hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "runbook_id", "cause_id", "description", "owner_department",
+          "required_signal_ids", "contradictory_signal_ids", "evidence_chunk_ids"
+        ],
+        "properties": {
+          "runbook_id": {"type": "string", "pattern": "^RB-[A-Z0-9-]+$"},
+          "cause_id": {"type": "string", "pattern": "^CAUSE-[0-9]{2}$"},
+          "description": {"type": "string", "minLength": 1},
+          "owner_department": {
+            "enum": ["ACCOUNT_PERMISSION", "NETWORK", "BACKEND", "FRONTEND", "DB", "INFRA", "SYSTEM", "CS"]
+          },
+          "required_signal_ids": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^SIG-[0-9]{3}$"}
+          },
+          "contradictory_signal_ids": {
+            "type": "array", "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^SIG-[0-9]{3}$"}
+          },
+          "evidence_chunk_ids": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
     "diagnostic_signals": {
       "type": "array",
       "items": {
@@ -39,7 +159,7 @@
         "additionalProperties": false,
         "required": [
           "signal_id", "role", "match", "meaning", "confirmation_limit",
-          "related_artifact_ids"
+          "related_artifact_ids", "related_step_refs", "related_cause_refs"
         ],
         "properties": {
           "signal_id": {"type": "string", "pattern": "^SIG-[0-9]{3}$"},
@@ -50,6 +170,14 @@
           "related_artifact_ids": {
             "type": "array", "minItems": 1, "uniqueItems": true,
             "items": {"type": "string", "minLength": 1}
+          },
+          "related_step_refs": {
+            "type": "array", "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^RB-[A-Z0-9-]+/DIA-[0-9]{2}$"}
+          },
+          "related_cause_refs": {
+            "type": "array", "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^RB-[A-Z0-9-]+/CAUSE-[0-9]{2}$"}
           }
         }
       }
