@@ -1,0 +1,25 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-PORTAL-SERVER-ERROR",
+  "version_no": 1,
+  "title": "사내 포털에서 서버 오류가 표시될 때",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "PORTAL",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["사내 포털 화면에 서버 오류나 500 오류가 표시됨", "포털의 목록 또는 특정 상세 화면을 열 때 오류가 발생함"],
+  "user_phrases": ["포털 목록을 누르면 오류가 나요.", "특정 항목의 상세 화면만 열리지 않아요.", "포털에 500 오류가 떠요."],
+  "steps": [
+    {"order": 1, "instruction": "오류 화면에 요청 추적 번호가 표시되면 복사하거나 화면을 캡처합니다.", "expected_result": "담당자가 해당 요청의 서버 기록을 정확히 찾을 수 있습니다."},
+    {"order": 2, "instruction": "오류가 난 메뉴·기능과 발생 시각을 기록합니다. 비밀번호·토큰·개인정보는 첨부하지 않습니다.", "expected_result": "안전한 장애 범위 정보가 준비됩니다."},
+    {"order": 3, "instruction": "같은 동작을 한 번만 다시 시도합니다.", "expected_result": "일시 오류였다면 정상 화면이 열립니다."},
+    {"order": 4, "instruction": "다시 실패하면 요청 추적 번호와 발생 시각을 포함해 Hops에 문의합니다.", "expected_result": "담당 부서가 근거를 가지고 점검할 수 있습니다."}
+  ],
+  "stop_and_handoff": ["한 번 다시 시도해도 같은 오류가 발생함", "여러 메뉴 또는 여러 사용자가 동시에 오류를 겪음", "업무 제출·저장처럼 중복 실행 위험이 있는 동작에서 오류가 발생함"],
+  "information_to_collect": ["요청 추적 번호", "발생 시각", "오류가 난 메뉴 또는 기능", "전체 포털인지 특정 화면·항목인지", "안전한 오류 화면 캡처"],
+  "do_not_do": ["같은 저장 동작을 계속 반복하지 않기", "비밀번호·인증 토큰·개인정보를 문의에 붙이지 않기", "개발자 도구나 내부 서버 주소를 임의로 변경하지 않기"],
+  "related_runbook_ids": ["RB-PORTAL-API-500", "RB-PORTAL-HIKARI-POOL", "RB-PORTAL-DB-CONNECTION-LIMIT"],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_APPROVED_RUNBOOK_EVIDENCE", "source_evidence_ids": ["PE-001", "PE-003", "PE-005", "PE-009", "PE-014"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}
