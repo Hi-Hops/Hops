@@ -1,0 +1,24 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-COMMON-SCOPE",
+  "version_no": 1,
+  "title": "Hops가 처리하는 IT 문의 범위",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "COMMON",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["문의하려는 내용이 Hops의 IT 지원 범위인지 확인하려 함", "기술 문의인지 일반 업무 문의인지 불명확함"],
+  "user_phrases": ["이 문제도 Hops에 문의하면 되나요?", "어떤 IT 문의를 처리하나요?", "기술 문제가 아닌 문의는 어디로 가나요?"],
+  "steps": [
+    {"order": 1, "instruction": "계정·인증, 네트워크·원격 접속, 공유 드라이브, 사내 포털처럼 IT 서비스 사용과 관련된 문제인지 확인합니다.", "expected_result": "현재 v0 지식 범위와 연결되는지 판단할 수 있습니다."},
+    {"order": 2, "instruction": "서비스 이름을 모르더라도 화면·장치·오류·수행하던 작업을 설명합니다.", "expected_result": "Hops가 IT 문의 유형과 필요한 추가 질문을 판단합니다."},
+    {"order": 3, "instruction": "일반 제도·콘텐츠·업무 승인처럼 기술 장애가 아닌 문의라면 해당 업무 안내 또는 CS 검토 결과를 따릅니다.", "expected_result": "기술 티켓이 불필요한 문의를 잘못 생성하지 않습니다."}
+  ],
+  "stop_and_handoff": ["세 번의 추가 질문 후에도 IT 문제인지 구분할 수 없음", "현재 지식 범위 밖이지만 기술 점검이 필요한 문의", "일반 업무·제도·콘텐츠 문의로 확인됨", "긴급한 안전·보안 사고 신고가 필요한 경우"],
+  "information_to_collect": ["사용 중인 서비스·화면·장치", "원하는 도움의 종류", "오류 또는 불편 증상", "발생 시각과 업무 영향"],
+  "do_not_do": ["원인을 모른다는 이유로 임의 부서를 선택하지 않기", "범위 밖 질문에 기술 티켓 생성을 요구하지 않기", "보안 사고 가능성이 있는 내용을 일반 장애로 축소하지 않기", "개인정보·비밀값을 문의에 입력하지 않기"],
+  "related_runbook_ids": [],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_PROJECT_POLICY", "source_evidence_ids": [], "source_policy_ids": ["PRD-1.2", "PRD-3.1", "PRD-3.2"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}

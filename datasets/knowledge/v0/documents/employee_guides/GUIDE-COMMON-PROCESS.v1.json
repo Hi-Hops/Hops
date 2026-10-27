@@ -1,0 +1,25 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-COMMON-PROCESS",
+  "version_no": 1,
+  "title": "Hops IT 문의 처리와 해결 확인 절차",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "COMMON",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["Hops 문의가 어떻게 분석·안내·이관되는지 알고 싶음", "안내 또는 담당자 처리 후 해결 확인 절차를 알고 싶음"],
+  "user_phrases": ["문의하면 어떤 순서로 처리되나요?", "답변으로 해결되지 않으면 어떻게 되나요?", "티켓은 언제 완료되나요?"],
+  "steps": [
+    {"order": 1, "instruction": "Hops의 추가 질문에는 확인 가능한 사실만 답합니다.", "expected_result": "서비스·증상·오류·영향 범위가 정리됩니다."},
+    {"order": 2, "instruction": "근거가 있는 안전한 안내를 받은 경우 순서대로 수행하고 해결 여부를 알려 줍니다.", "expected_result": "해결되면 티켓 없이 문의를 마칠 수 있고, 미해결이면 같은 문맥으로 진단을 이어갑니다."},
+    {"order": 3, "instruction": "담당자 조치가 필요하면 생성된 티켓과 배정 부서를 확인합니다.", "expected_result": "담당 부서가 대화 맥락과 근거를 이어받아 처리합니다."},
+    {"order": 4, "instruction": "담당자 처리 완료 후 실제 해결 여부를 확인해 응답합니다.", "expected_result": "해결된 티켓만 완료되고, 미해결이면 처리가 이어집니다."}
+  ],
+  "stop_and_handoff": ["가이드 수행 후에도 해결되지 않음", "근거가 부족하거나 설정 변경·재시작·권한 변경이 필요함", "안내와 현재 증상이 일치하지 않음", "서로 다른 문제가 한 문의에 함께 있음"],
+  "information_to_collect": ["추가 질문에 대한 확인 결과", "수행한 안전 조치와 결과", "연결된 티켓 번호", "담당자 처리 후 실제 해결 여부"],
+  "do_not_do": ["Agent 답변만으로 해결 또는 업무 변경이 확정됐다고 가정하지 않기", "설정 변경·재시작·권한 변경을 Agent에게 요구하지 않기", "미해결 상태에서 해결됐다고 응답하지 않기", "별개 문제를 기존 장애의 해결 결과로 섞지 않기"],
+  "related_runbook_ids": [],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_PROJECT_POLICY", "source_evidence_ids": [], "source_policy_ids": ["PRD-3.1", "PRD-3.2", "PRD-3.4", "KNOWLEDGE-LIFECYCLE"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}

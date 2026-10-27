@@ -1,0 +1,25 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-COMMON-INQUIRY-INFO",
+  "version_no": 1,
+  "title": "IT 문의 전에 준비할 정보",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "COMMON",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["Hops에 IT 장애 또는 사용 문의를 처음 등록하려 함", "오류 원인이나 담당 부서를 모르는 상태에서 문의하려 함"],
+  "user_phrases": ["IT 문의할 때 어떤 정보를 적어야 하나요?", "어느 부서 문제인지 모르겠어요.", "오류가 났는데 무엇을 준비해야 하나요?"],
+  "steps": [
+    {"order": 1, "instruction": "문제가 발생한 서비스·화면·장치를 적습니다.", "expected_result": "Hops가 문의 범위를 구분할 수 있습니다."},
+    {"order": 2, "instruction": "발생 시각, 안전한 오류 문구·코드, 수행하던 작업을 적습니다.", "expected_result": "지식 문서와 읽기 전용 관측 결과를 같은 시점에 연결할 수 있습니다."},
+    {"order": 3, "instruction": "본인만 겪는지 다른 사용자도 겪는지, 업무 영향과 가능한 우회 방법을 적습니다.", "expected_result": "영향 범위와 우선순위 판단에 필요한 정보가 준비됩니다."},
+    {"order": 4, "instruction": "여러 문제가 섞였다면 문제별로 구분해 설명합니다.", "expected_result": "Hops가 필요한 경우 문제별 처리 경로와 티켓으로 나눌 수 있습니다."}
+  ],
+  "stop_and_handoff": ["비밀번호·인증 코드·토큰·개인정보를 입력해야만 설명할 수 있다고 생각되는 경우", "업무 전체가 중단되거나 여러 사용자가 동시에 영향을 받는 경우", "어떤 서비스인지 전혀 구분할 수 없는 경우"],
+  "information_to_collect": ["서비스·화면·장치", "발생 시각", "안전한 오류 문구·코드", "재현한 작업", "영향 사용자와 업무 범위", "우회 가능 여부"],
+  "do_not_do": ["비밀번호·인증 코드·토큰·개인정보를 입력하지 않기", "내부 서버 주소나 원시 로그 전체를 붙이지 않기", "같은 저장·제출 작업을 반복하지 않기", "원인을 추측해 담당 부서를 임의로 확정하지 않기"],
+  "related_runbook_ids": [],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_PROJECT_POLICY", "source_evidence_ids": [], "source_policy_ids": ["PRD-3.1", "PRD-3.2", "PRD-3.5"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}
