@@ -1,0 +1,262 @@
+package com.hihops.hops.auth.controller;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.annotation.Transactional;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+/**
+ * 로그인 API를 실제 테스트 DB(hops_test)의 회원으로 호출한다. 넣은 행은 테스트가 끝나면 되돌려진다.
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles({"db", "test"})
+@Transactional
+@ExtendWith(OutputCaptureExtension.class) // CapturedOutput: 테스트 중 찍힌 로그를 문자열로 받아 검사한다
+class AuthControllerTest {
+
+    private static final UUID DEPARTMENT_ID = UUID.fromString("d0000000-0000-7000-8000-000000000099");
+    private static final UUID MEMBER_ID = UUID.fromString("a0000000-0000-7000-8000-000000000099");
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtDecoder jwtDecoder;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void 테스트용_회원을_넣는다() {
+        jdbcTemplate.update("INSERT INTO department (id, code, name, is_routable) VALUES (?, 'TEST_SALES', '테스트 영업팀', false)",
+                DEPARTMENT_ID);
+        jdbcTemplate.update("INSERT INTO member (id, login_id, employee_no, password_hash, name, department_id) "
+                + "VALUES (?, 'requester', '20260001', ?, '테스트 요청자', ?)",
+                MEMBER_ID, passwordEncoder.encode("hops1234!"), DEPARTMENT_ID);
+    }
+
+    @Test
+    void 로그인ID와_비밀번호가_맞으면_200과_사번을_포함한_회원_정보를_반환한다() throws Exception {
+        // 응답 모양은 계약(specs/contracts/DATA_TYPES.md LoginResponse·CurrentUser)을 따른다.
+        mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.id").isNotEmpty())
+                .andExpect(jsonPath("$.user.employeeNo").value("20260001"))
+                .andExpect(jsonPath("$.user.name").value("테스트 요청자"))
+                // 역할이 없으면 빈 배열이다. 계약상 키를 생략하지 않는다.
+                .andExpect(jsonPath("$.user.roles").isArray())
+                .andExpect(jsonPath("$.user.roles").isEmpty());
+    }
+
+    @Test
+    void 부여된_역할을_토큰과_사용자_정보에_담는다() throws Exception {
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.roles[0]").value("BIZ_ADMIN"))
+                .andReturn().getResponse().getContentAsString();
+
+        Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
+
+        assertThat(token.getClaimAsStringList("roles")).containsExactly("BIZ_ADMIN");
+    }
+
+    @Test
+    void 회수된_역할은_토큰에_넣지_않는다() throws Exception {
+        // 역할 회수는 행을 지우지 않고 deleted_at만 기록한다(ERD). 회수된 권한이 토큰에 남으면 안 된다.
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role, deleted_at) VALUES (?, 'AGENT_OPS_ADMIN', now())",
+                MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.roles.length()").value(1))
+                .andReturn().getResponse().getContentAsString();
+
+        Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
+
+        assertThat(token.getClaimAsStringList("roles")).containsExactly("BIZ_ADMIN");
+    }
+
+    @Test
+    void 로그인하면_이_서버가_검증할_수_있는_15분짜리_액세스_토큰을_발급한다() throws Exception {
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        JsonNode response = objectMapper.readTree(body);
+
+        // 서버의 실제 검증기로 연다: 서명·만료·발급자·대상이 하나라도 틀리면 여기서 예외가 난다.
+        Jwt token = jwtDecoder.decode(response.get("accessToken").asString());
+
+        assertThat(token.getSubject()).isEqualTo(response.get("user").get("id").asString());
+        assertThat(token.getClaimAsString("employeeNo")).isEqualTo("20260001");
+        assertThat(Duration.between(token.getIssuedAt(), token.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
+        assertThat(Instant.parse(response.get("expiresAt").asString())).isEqualTo(token.getExpiresAt());
+    }
+
+    @Test
+    void 토큰과_사용자_정보에_소속_부서를_담는다() throws Exception {
+        // 계약: JWT departmentId·departmentCode·departmentName (docs/API.md §2.5), user.department (DATA_TYPES.md Department)
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.department.id").value(DEPARTMENT_ID.toString()))
+                .andExpect(jsonPath("$.user.department.code").value("TEST_SALES"))
+                .andExpect(jsonPath("$.user.department.name").value("테스트 영업팀"))
+                .andExpect(jsonPath("$.user.department.isRoutable").value(false))
+                .andReturn().getResponse().getContentAsString();
+
+        Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
+
+        assertThat(token.getClaimAsString("departmentId")).isEqualTo(DEPARTMENT_ID.toString());
+        assertThat(token.getClaimAsString("departmentCode")).isEqualTo("TEST_SALES");
+        assertThat(token.getClaimAsString("departmentName")).isEqualTo("테스트 영업팀");
+    }
+
+    @Test
+    void 받은_토큰으로_내_정보를_조회하면_현재_사용자_정보를_반환한다() throws Exception {
+        // 계약: GET /api/auth/me → 200 CurrentUser (WIRE_CONTRACT 2절). 프론트는 이 응답으로 사용자·부서·역할을 확정한다.
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+
+        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(MEMBER_ID.toString()))
+                .andExpect(jsonPath("$.employeeNo").value("20260001"))
+                .andExpect(jsonPath("$.name").value("테스트 요청자"))
+                .andExpect(jsonPath("$.department.code").value("TEST_SALES"))
+                .andExpect(jsonPath("$.roles[0]").value("BIZ_ADMIN"));
+    }
+
+    @Test
+    void 삭제된_회원은_비밀번호가_맞아도_로그인할_수_없다() throws Exception {
+        // 회원 삭제는 행을 지우지 않고 deleted_at만 기록한다(ERD). 차단된 계정은 로그인 실패와 같은 401로 응답한다.
+        jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
+
+        mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void 로그인_뒤_삭제된_회원은_남은_토큰으로도_내_정보를_조회할_수_없다() throws Exception {
+        // PRD 2: 계정 차단 시 기존 인증을 회수한다. 토큰 만료(15분)까지 기다리지 않고 바로 막는다.
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+        jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
+
+        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    @Test
+    void 남은_토큰의_회원이_없거나_차단됐으면_회원_ID를_로그로_남긴다(CapturedOutput output) throws Exception {
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+        jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
+
+        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
+
+        assertThat(output).contains("내 정보 조회 실패: 토큰은 유효하지만 회원이 없거나 차단됨 memberId=" + MEMBER_ID);
+        assertThat(output).doesNotContain(accessToken);
+    }
+
+    @Test
+    void 로그인에_성공하면_회원_ID를_로그로_남기고_토큰은_남기지_않는다(CapturedOutput output) throws Exception {
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+
+        assertThat(output).contains("로그인 성공 memberId=" + MEMBER_ID);
+        assertThat(output).doesNotContain(accessToken);
+    }
+
+    @Test
+    void 비밀번호가_틀리면_이유와_회원_ID를_남기고_입력한_비밀번호는_남기지_않는다(CapturedOutput output) throws Exception {
+        mockMvc.perform(login("requester", "typed-wrong-password"));
+
+        assertThat(output).contains("로그인 실패: 비밀번호 불일치 memberId=" + MEMBER_ID);
+        assertThat(output).doesNotContain("typed-wrong-password");
+    }
+
+    @Test
+    void 없는_로그인ID면_이유만_남기고_입력한_아이디는_남기지_않는다(CapturedOutput output) throws Exception {
+        // 사용자가 아이디 칸에 실수로 비밀번호를 넣는 경우가 있어, 찾지 못한 아이디 원문은 로그에 남기지 않는다.
+        mockMvc.perform(login("maybe-a-password!", "hops1234!"));
+
+        assertThat(output).contains("로그인 실패: 등록되지 않았거나 차단된 계정");
+        assertThat(output).doesNotContain("maybe-a-password!");
+    }
+
+    private static MockHttpServletRequestBuilder login(String loginId, String password) {
+        return post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"loginId\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password));
+    }
+
+    @Test
+    void 비밀번호가_틀리면_401과_공통_오류_형식으로_응답한다() throws Exception {
+        // 프론트 계약(specs/contracts): 로그인 실패는 401 UNAUTHENTICATED. 아이디가 없는지 비밀번호가 틀렸는지는 알려주지 않는다.
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loginId": "requester", "password": "wrong-password"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.message").value("아이디 또는 비밀번호를 확인해 주세요."))
+                .andExpect(jsonPath("$.requestId").isNotEmpty())
+                .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    @Test
+    void 로그인ID가_비어_있으면_DB를_조회하지_않고_400으로_응답한다() throws Exception {
+        // 계약(specs/contracts/DATA_TYPES.md LoginRequest): loginId·password는 최소 1글자.
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"loginId": "", "password": "hops1234!"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+}

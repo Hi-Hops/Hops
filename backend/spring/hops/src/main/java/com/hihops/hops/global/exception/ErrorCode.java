@@ -15,8 +15,8 @@ import org.springframework.http.HttpStatusCode;
  * 기능에서 새 오류가 필요하면 여기에 항목을 추가한다 (예: INQUIRY_VERSION_CONFLICT).
  */
 public enum ErrorCode {
-    INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.", false),
-    AUTHENTICATION_REQUIRED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.", false),
+    INVALID_INPUT(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.", false),
+    UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.", false),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.", false),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 대상을 찾을 수 없습니다.", false),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다.", false),
@@ -50,12 +50,12 @@ public enum ErrorCode {
 
     /**
      * Spring이 정한 HTTP 상태(예: 없는 경로 404)를 공통 오류 코드로 바꾼다. {@link GlobalExceptionHandler}에서 사용한다.
-     * 목록에 없는 상태는 400대면 INVALID_REQUEST, 그 외는 INTERNAL_ERROR로 처리한다.
+     * 목록에 없는 상태는 400대면 INVALID_INPUT, 그 외는 INTERNAL_ERROR로 처리한다.
      */
     public static ErrorCode fromStatus(HttpStatusCode statusCode) {
         return Arrays.stream(values())
                 .filter(code -> code.status.value() == statusCode.value())
                 .findFirst()
-                .orElse(statusCode.is4xxClientError() ? INVALID_REQUEST : INTERNAL_ERROR);
+                .orElse(statusCode.is4xxClientError() ? INVALID_INPUT : INTERNAL_ERROR);
     }
 }

@@ -1,0 +1,24 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-IDENTITY-MFA-LIMIT",
+  "version_no": 1,
+  "title": "MFA 인증 앱을 더 등록할 수 없을 때",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "IDENTITY",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["Authenticator 앱 또는 인증 장치를 추가하는 중 등록 한도 오류가 표시됨"],
+  "user_phrases": ["인증 앱을 더 등록할 수 없다고 나와요.", "등록된 기기가 너무 많다는 오류가 보여요."],
+  "steps": [
+    {"order": 1, "instruction": "오류 문구가 인증 앱 또는 장치 등록 한도와 관련된 것인지 확인합니다.", "expected_result": "다른 MFA 장애와 등록 한도 문제를 구분합니다."},
+    {"order": 2, "instruction": "회사에서 안내한 보안 정보 화면에서 본인이 더 이상 사용하지 않는 인증 수단이 보이는지만 확인합니다.", "expected_result": "정리할 수단이 있는지 확인하되 바로 삭제하지 않습니다."},
+    {"order": 3, "instruction": "사용 가능한 인증 수단이 하나뿐이거나 어떤 수단을 지워야 할지 불확실하면 Hops에 문의합니다.", "expected_result": "계정 권한 담당자가 재등록과 안전한 정리 순서를 안내합니다."}
+  ],
+  "stop_and_handoff": ["현재 사용할 수 있는 인증 수단이 하나뿐임", "보안 정보 화면에 접근할 수 없음", "하드웨어 토큰 또는 회사 관리 장치가 포함됨"],
+  "information_to_collect": ["안전한 오류 문구", "발생 시각", "등록된 수단의 종류와 개수", "현재 사용할 수 있는 인증 수단 유무"],
+  "do_not_do": ["사용 가능한 마지막 인증 수단을 삭제하지 않기", "인증 수단 내부 ID나 인증 코드를 공유하지 않기", "Graph 또는 관리자 삭제 절차를 직접 실행하지 않기"],
+  "related_runbook_ids": ["RB-IDENTITY-MFA-RECOVERY"],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_APPROVED_SOURCE_EVIDENCE", "source_evidence_ids": ["GE-001"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}

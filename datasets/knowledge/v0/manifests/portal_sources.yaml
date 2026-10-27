@@ -1,0 +1,364 @@
+version: 1
+created_at: '2026-10-26T05:11:20+00:00'
+purpose: Demo Portal 장애 런북과 재현 시나리오의 공식 근거
+stack:
+  spring_boot: 4.1.1
+  hikaricp: 7.0.2
+  postgresql: '18'
+policy:
+  raw_source_role: SOURCE_EVIDENCE
+  default_visibility: STAFF
+  default_exposure: INTERNAL_ONLY
+  raw_ingest_allowed: false
+  notes: 원문은 자동 인덱싱하지 않는다. 필요한 절을 검수해 한국어 런북으로 재작성한 뒤 별도 승인한다.
+counts:
+  core: 13
+  supplemental: 2
+  licenses: 3
+documents:
+- id: spring_boot_servlet_error_handling
+  component: SPRING_BOOT
+  tier: core
+  version: 4.1.1
+  source_url: https://raw.githubusercontent.com/spring-projects/spring-boot/v4.1.1/documentation/spring-boot-docs/src/docs/antora/modules/reference/pages/web/servlet.adoc
+  local_path: data/raw/portal_sources/spring_boot/web-servlet.adoc
+  planned_use:
+  - PORTAL_API_500
+  relevant_sections:
+  - Error Handling
+  content_sha256: 21b853e705192bbf560554e90f5d7f49dc1833fd389ffb9c2d6353275f5d5fa3
+  bytes: 49466
+  content_type: text/plain
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: spring_boot_logging
+  component: SPRING_BOOT
+  tier: core
+  version: 4.1.1
+  source_url: https://raw.githubusercontent.com/spring-projects/spring-boot/v4.1.1/documentation/spring-boot-docs/src/docs/antora/modules/reference/pages/features/logging.adoc
+  local_path: data/raw/portal_sources/spring_boot/logging.adoc
+  planned_use:
+  - PORTAL_API_500
+  - PORTAL_SLOW_QUERY
+  relevant_sections:
+  - File Output
+  - Log Levels
+  - Structured Logging
+  content_sha256: 29ad818a12e042a013607e76055919c5c2c41a32aec5d806faa478bf378d9050
+  bytes: 38899
+  content_type: text/plain
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: spring_boot_actuator_endpoints
+  component: SPRING_BOOT
+  tier: core
+  version: 4.1.1
+  source_url: https://raw.githubusercontent.com/spring-projects/spring-boot/v4.1.1/documentation/spring-boot-docs/src/docs/antora/modules/reference/pages/actuator/endpoints.adoc
+  local_path: data/raw/portal_sources/spring_boot/actuator-endpoints.adoc
+  planned_use:
+  - PORTAL_API_500
+  - PORTAL_HIKARI_POOL_EXHAUSTION
+  relevant_sections:
+  - Controlling Access to Endpoints
+  - Limiting Access
+  - Exposing Endpoints
+  - Security
+  content_sha256: e05598b0083e3c15f850ac52b3655af90334c041b5b72e75a0548e96a951d23e
+  bytes: 64236
+  content_type: text/plain
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: spring_boot_actuator_metrics
+  component: SPRING_BOOT
+  tier: core
+  version: 4.1.1
+  source_url: https://raw.githubusercontent.com/spring-projects/spring-boot/v4.1.1/documentation/spring-boot-docs/src/docs/antora/modules/reference/pages/actuator/metrics.adoc
+  local_path: data/raw/portal_sources/spring_boot/actuator-metrics.adoc
+  planned_use:
+  - PORTAL_API_500
+  - PORTAL_HIKARI_POOL_EXHAUSTION
+  relevant_sections:
+  - Spring MVC Metrics
+  - DataSource Metrics
+  - Metrics Endpoint
+  content_sha256: eb9c1f639bf23236c947013c7360175f0dc33918fb01d15a57180b05b1a04f67
+  bytes: 51598
+  content_type: text/plain
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: spring_boot_sql_databases
+  component: SPRING_BOOT
+  tier: core
+  version: 4.1.1
+  source_url: https://raw.githubusercontent.com/spring-projects/spring-boot/v4.1.1/documentation/spring-boot-docs/src/docs/antora/modules/reference/pages/data/sql.adoc
+  local_path: data/raw/portal_sources/spring_boot/sql-databases.adoc
+  planned_use:
+  - PORTAL_HIKARI_POOL_EXHAUSTION
+  - PORTAL_DB_CONNECTION_LIMIT
+  relevant_sections:
+  - Configure a DataSource
+  - Supported Connection Pools
+  content_sha256: afbd8573dde00d0518b0a0c397a6fc27c056c432c5eb60b38cdefa194dfe2711
+  bytes: 29136
+  content_type: text/plain
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: hikaricp_configuration
+  component: HIKARICP
+  tier: core
+  version: 7.0.2
+  source_url: https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.0.2/README.md
+  local_path: data/raw/portal_sources/hikaricp/README-7.0.2.md
+  planned_use:
+  - PORTAL_HIKARI_POOL_EXHAUSTION
+  relevant_sections:
+  - connectionTimeout
+  - maximumPoolSize
+  - leakDetectionThreshold
+  - initializationFailTimeout
+  content_sha256: ac2d42a15569810fce2faba9dd087ed691c8d9055695aa446c932ee936c9b764
+  bytes: 36964
+  content_type: text/plain
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_connections
+  component: POSTGRESQL
+  tier: core
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/runtime-config-connection.html
+  local_path: data/raw/portal_sources/postgresql/runtime-config-connection.html
+  planned_use:
+  - PORTAL_DB_CONNECTION_LIMIT
+  relevant_sections:
+  - max_connections
+  - reserved_connections
+  - superuser_reserved_connections
+  content_sha256: 87c0f150e537a268c92caf9c64e1cca1328ff69765f692c8128b22e1a7e68622
+  bytes: 60330
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_monitoring_stats
+  component: POSTGRESQL
+  tier: core
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/monitoring-stats.html
+  local_path: data/raw/portal_sources/postgresql/monitoring-stats.html
+  planned_use:
+  - PORTAL_DB_CONNECTION_LIMIT
+  - PORTAL_DB_LOCK
+  - PORTAL_SLOW_QUERY
+  relevant_sections:
+  - pg_stat_activity
+  - pg_stat_database
+  - wait_event_type
+  - wait_event
+  content_sha256: f3f090064901c5a90e3c47c88c67134029fd51d71c27901f941009d87e9697c9
+  bytes: 290994
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_monitoring_locks
+  component: POSTGRESQL
+  tier: core
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/monitoring-locks.html
+  local_path: data/raw/portal_sources/postgresql/monitoring-locks.html
+  planned_use:
+  - PORTAL_DB_LOCK
+  relevant_sections:
+  - pg_locks
+  - ungranted locks
+  content_sha256: 595bb46cedbb695447b4d492bb1d134fe162506d4908be27d87d7f50f8471398
+  bytes: 15511
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_explicit_locking
+  component: POSTGRESQL
+  tier: core
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/explicit-locking.html
+  local_path: data/raw/portal_sources/postgresql/explicit-locking.html
+  planned_use:
+  - PORTAL_DB_LOCK
+  - PORTAL_DB_DEADLOCK
+  relevant_sections:
+  - Row-Level Locks
+  - Deadlocks
+  content_sha256: 67d777203648ed6081b427a30187dc0e40634aba0fcb2e43b0a24d691315fe98
+  bytes: 46826
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_logging
+  component: POSTGRESQL
+  tier: core
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/runtime-config-logging.html
+  local_path: data/raw/portal_sources/postgresql/runtime-config-logging.html
+  planned_use:
+  - PORTAL_DB_LOCK
+  - PORTAL_DB_DEADLOCK
+  - PORTAL_SLOW_QUERY
+  relevant_sections:
+  - log_min_duration_statement
+  - log_lock_waits
+  - log_error_verbosity
+  - log_line_prefix
+  content_sha256: 687575abe947c5c90e8da08fcfb1a4055814b68bdcafba8a161e7c516fcd64a8
+  bytes: 98437
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_pg_stat_statements
+  component: POSTGRESQL
+  tier: core
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/pgstatstatements.html
+  local_path: data/raw/portal_sources/postgresql/pgstatstatements.html
+  planned_use:
+  - PORTAL_SLOW_QUERY
+  relevant_sections:
+  - Configuration
+  - pg_stat_statements View
+  content_sha256: 084cafa4e162ca27ebe8a324859e9fa7de514f60e8c2fa477e9e0cd5fda97550
+  bytes: 62769
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_using_explain
+  component: POSTGRESQL
+  tier: core
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/using-explain.html
+  local_path: data/raw/portal_sources/postgresql/using-explain.html
+  planned_use:
+  - PORTAL_SLOW_QUERY
+  relevant_sections:
+  - EXPLAIN Basics
+  - EXPLAIN ANALYZE
+  content_sha256: c43249a5393e829323f8480237b94bf0c083cd073b1e659fe7924a662c403f74
+  bytes: 70029
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: hikaricp_jmx_monitoring
+  component: HIKARICP
+  tier: supplemental
+  version: wiki-content-sha
+  source_url: https://raw.githubusercontent.com/wiki/brettwooldridge/HikariCP/MBean-(JMX)-Monitoring-and-Management.md
+  local_path: data/raw/portal_sources/hikaricp/jmx-monitoring.md
+  planned_use:
+  - PORTAL_HIKARI_POOL_EXHAUSTION
+  relevant_sections:
+  - IdleConnections
+  - ActiveConnections
+  - TotalConnections
+  - ThreadsAwaitingConnection
+  content_sha256: 1e7269a5a6eafc50a7bff2ea3833a212e04477189ce11fe20b4ef9122c8a33bb
+  bytes: 2595
+  content_type: text/plain
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_lock_management
+  component: POSTGRESQL
+  tier: supplemental
+  version: '18'
+  source_url: https://www.postgresql.org/docs/18/runtime-config-locks.html
+  local_path: data/raw/portal_sources/postgresql/runtime-config-locks.html
+  planned_use:
+  - PORTAL_DB_LOCK
+  - PORTAL_DB_DEADLOCK
+  relevant_sections:
+  - deadlock_timeout
+  content_sha256: 58888128f5b8930c1b39e169d52df7c8989638c0273f5b96f90f8b0166dd49f0
+  bytes: 19703
+  content_type: text/html
+  source_role: SOURCE_EVIDENCE
+  visibility: STAFF
+  exposure: INTERNAL_ONLY
+  human_review_status: pending
+  ingest_candidate: false
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+licenses:
+- id: spring_boot_license
+  source_url: https://raw.githubusercontent.com/spring-projects/spring-boot/v4.1.1/LICENSE.txt
+  local_path: data/raw/portal_sources/licenses/spring-boot-LICENSE.txt
+  license: Apache-2.0
+  content_sha256: 7200000367e0e8b47822d563a5ddd2dd3a97cc05b32bd7dbcc7b4eeb92b76628
+  bytes: 11359
+  content_type: text/plain
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: hikaricp_license
+  source_url: https://raw.githubusercontent.com/brettwooldridge/HikariCP/HikariCP-7.0.2/LICENSE
+  local_path: data/raw/portal_sources/licenses/hikaricp-LICENSE.txt
+  license: Apache-2.0
+  content_sha256: 73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68
+  bytes: 10273
+  content_type: text/plain
+  retrieved_at: '2026-10-26T05:11:20+00:00'
+- id: postgresql_license
+  source_url: https://www.postgresql.org/about/licence/
+  local_path: data/raw/portal_sources/licenses/postgresql-license.html
+  license: PostgreSQL
+  content_sha256: 9c2243292ca4727d1fd9e64acfa3bc0c11c8f5389fcdc9e87fd37128376d80f0
+  bytes: 8067
+  content_type: text/html
+  retrieved_at: '2026-10-26T05:11:20+00:00'

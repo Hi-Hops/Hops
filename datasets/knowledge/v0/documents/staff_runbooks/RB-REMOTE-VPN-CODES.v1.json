@@ -1,0 +1,171 @@
+{
+  "schema_version": "staff_runbook.v0",
+  "runbook_id": "RB-REMOTE-VPN-CODES",
+  "version_no": 1,
+  "title": "VPN 오류 코드별 진단 및 이관",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "STAFF_RUNBOOK",
+  "data_split": "RAG",
+  "is_synthetic": true,
+  "service": {"service_id": "REMOTE_ACCESS", "component_id": "VPN"},
+  "ownership": {"default_owner_department": "NETWORK", "supporting_departments": ["ACCOUNT_PERMISSION", "SYSTEM"]},
+  "access": {"access_scope": "STAFF", "exposure_policy": "INTERNAL_ONLY", "ingest_status": "PENDING"},
+  "tool_binding": {"status": "PENDING", "bound_step_ids": [], "note": "VPN 클라이언트·NPS·서버 로그를 조회하는 읽기 전용 MCP Tool 계약 확정 후 연결한다."},
+  "scenario_validation": {"status": "NOT_RUN", "validated_at": null, "case_ids": []},
+  "applicability": {
+    "environment": "HOPS_VIRTUAL_COMPANY",
+    "products": [
+      {"name": "Windows", "version": "11"},
+      {"name": "Windows Server Always On VPN", "version": "지원 버전"}
+    ],
+    "assumptions": [
+      "가상 기업은 IKEv2 기반 Always On VPN과 NPS를 사용한다.",
+      "직원 PC의 RasClient 이벤트와 서버의 NPS·RRAS 이벤트는 권한이 적용된 읽기 전용 경로로만 조회한다.",
+      "오류 코드 하나는 원인 확정이 아니라 진단 분기 신호로 사용한다.",
+      "Agent는 방화벽·인증서·NPS 정책·VPN 프로필을 변경하지 않는다."
+    ],
+    "out_of_scope": [
+      "오류 720의 WAN Miniport 상세 조치",
+      "PPTP·GRE 기반 VPN 환경",
+      "사내 Wi-Fi 802.1X 인증 문제",
+      "Agent가 인증서를 설치하거나 방화벽·NPS·VPN 설정을 변경하는 작업"
+    ]
+  },
+  "symptoms": [
+    {
+      "symptom_id": "SYM-01",
+      "user_phrases": ["재택에서 VPN 오류 809가 나요.", "VPN 서버가 응답하지 않는다고 해요."],
+      "observable_signals": ["RasClient 이벤트에 오류 809가 기록된다.", "VPN 서버까지 UDP 500 또는 4500 경로 문제 후보가 존재한다."]
+    },
+    {
+      "symptom_id": "SYM-02",
+      "user_phrases": ["VPN 인증 방식이 맞지 않는다고 연결이 거부돼요.", "VPN에서 인증서 관련 오류가 보여요."],
+      "observable_signals": ["오류 812 또는 이벤트 20276이 인증 정책 불일치를 나타낸다.", "오류 13806·13801·0x80070040·0x800B0109가 인증서 구성·신뢰 문제 후보를 나타낸다."]
+    }
+  ],
+  "diagnostic_steps": [
+    {
+      "step_id": "DIA-01", "order": 1,
+      "goal": "사용자 증상과 정확한 VPN 오류 코드를 연결한다.",
+      "action": "발생 시각, VPN 프로필 이름, 안전한 오류 문구를 확인하고 RasClient 이벤트의 오류 코드를 읽는다. 사용자명·인증서 원문·공인 IP는 Agent 응답에서 마스킹한다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["RasClient 이벤트와 사용자의 발생 시각이 일치한다.", "오류 코드를 800·809·812·인증서 계열 또는 기타로 구분한다."],
+      "on_match": "DIA-02에서 오류 코드별 관측값을 확인한다.",
+      "on_mismatch": "코드와 로그를 확인할 수 없으면 네트워크·클라이언트·계정 원인을 단정하지 않고 이관한다.",
+      "evidence_ids": ["GE-011"]
+    },
+    {
+      "step_id": "DIA-02", "order": 2,
+      "goal": "도달성·인증 정책·인증서 분기를 구분한다.",
+      "action": "오류 809는 승인된 포트 도달성 관측을, 오류 812는 NPS 이벤트와 인증 방식 일치를, 인증서 계열은 만료·EKU·신뢰 체인·서버 이름 일치를 읽기 전용으로 확인한다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["오류 코드에 대응하는 서버 또는 네트워크 신호가 확인된다.", "서로 다른 오류 계열의 반대 신호가 함께 기록된다."],
+      "on_match": "CAUSE-01부터 CAUSE-03 중 근거가 맞는 후보로 이동한다.",
+      "on_mismatch": "코드와 대응 신호가 맞지 않으면 코드만으로 원인을 확정하지 않는다.",
+      "evidence_ids": ["GE-011"]
+    },
+    {
+      "step_id": "DIA-03", "order": 3,
+      "goal": "단일 사용자 문제와 공통 VPN 서비스 문제를 구분한다.",
+      "action": "같은 시간대의 영향 사용자 수, 동일 오류 코드 반복, VPN 서버·NPS 공통 이벤트를 집계한다. 원시 사용자 목록은 Agent에 제공하지 않는다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["한 사용자·한 단말 문제인지 여러 사용자의 공통 장애인지 구분된다.", "기본 담당 부서와 협업 부서 후보가 근거와 함께 정리된다."],
+      "on_match": "영향 범위와 근거를 첨부해 NETWORK로 이관한다.",
+      "on_mismatch": "영향 범위가 불명확하면 단일 사용자 장애로 단정하지 않고 관측 공백을 기록한다.",
+      "evidence_ids": ["GE-011"]
+    }
+  ],
+  "cause_hypotheses": [
+    {
+      "cause_id": "CAUSE-01",
+      "description": "방화벽·NAT·라우터가 IKEv2에 필요한 UDP 500 또는 4500 통신을 차단해 오류 809가 발생한다.",
+      "required_signals": ["RasClient 오류 809", "VPN 서버가 응답하지 않으며 UDP 500·4500 경로 차단 관측"],
+      "required_signal_ids": ["SIG-034", "SIG-035", "SIG-036"],
+      "contradictory_signals": ["UDP 경로가 정상이고 NPS가 인증 요청을 거부함", "오류가 720으로 기록됨"],
+      "contradictory_signal_ids": ["SIG-037", "SIG-040"],
+      "owner_department": "NETWORK",
+      "evidence_ids": ["GE-011"]
+    },
+    {
+      "cause_id": "CAUSE-02",
+      "description": "클라이언트와 NPS의 인증 방법 또는 정책 조건이 일치하지 않아 오류 812가 발생한다.",
+      "required_signals": ["오류 812 또는 이벤트 20276", "NPS 정책 조건과 클라이언트 인증 방식 불일치"],
+      "required_signal_ids": ["SIG-034", "SIG-040"],
+      "contradictory_signals": ["NPS 인증 성공", "서버 도달 전 오류 809 발생"],
+      "contradictory_signal_ids": ["SIG-035"],
+      "owner_department": "NETWORK",
+      "evidence_ids": ["GE-011"]
+    },
+    {
+      "cause_id": "CAUSE-03",
+      "description": "IKEv2 서버 또는 클라이언트 인증서의 만료·EKU·신뢰 체인·서버 이름 불일치가 연결을 차단한다.",
+      "required_signals": ["13806·13801·0x80070040·0x800B0109 중 하나", "오류에 대응하는 인증서 상태 또는 신뢰 문제"],
+      "required_signal_ids": ["SIG-034", "SIG-041"],
+      "contradictory_signals": ["인증서 체인과 이름·EKU가 모두 정상", "UDP 500·4500 경로가 차단됨"],
+      "contradictory_signal_ids": ["SIG-036"],
+      "owner_department": "NETWORK",
+      "evidence_ids": ["GE-011"]
+    }
+  ],
+  "guidance_steps": [
+    {
+      "step_id": "GUID-01", "order": 1,
+      "when": "사용자가 정확한 오류 코드를 확인할 수 있는 경우",
+      "instruction": "오류 코드와 발생 시각을 기록하고, 회사가 허용한 다른 네트워크가 있다면 한 번만 재시도하도록 안내한다. 방화벽 해제·인증서 설치·VPN 프로필 수정은 안내하지 않는다.",
+      "expected_user_result": "환경별 재현 차이를 확인하거나 동일 오류가 반복됨을 확인한다.",
+      "if_not_resolved": "오류 코드와 재시도 결과를 첨부해 NETWORK로 이관한다.",
+      "evidence_ids": ["GE-011"]
+    },
+    {
+      "step_id": "GUID-02", "order": 2,
+      "when": "오류 812 또는 인증서 계열 오류가 확인된 경우",
+      "instruction": "사용자에게 서버 인증 정책 또는 인증서 점검이 필요하다고 안내하고 추가 변경 없이 이관한다.",
+      "expected_user_result": "사용자는 반복 로그인이나 임의 인증서 설치를 중단하고 담당자 점검을 기다린다.",
+      "if_not_resolved": "NPS·인증서 담당이 확인할 수 있도록 NETWORK 티켓을 유지한다.",
+      "evidence_ids": ["GE-011"]
+    }
+  ],
+  "staff_resolution_steps": [
+    {
+      "step_id": "RES-01", "order": 1, "actor": "IT_STAFF",
+      "instruction": "오류 코드에 따라 클라이언트 RasClient, VPN 서버 RRAS, NPS 로그를 같은 시간대로 비교하고 영향 범위를 확정한다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": false,
+      "verification": "사용자 요청과 서버 측 연결·인증 이벤트가 시간과 코드로 연결된다.",
+      "rollback": null,
+      "evidence_ids": ["GE-011"]
+    },
+    {
+      "step_id": "RES-02", "order": 2, "actor": "IT_STAFF",
+      "instruction": "확정 원인에 따라 네트워크 경로, NPS 인증 조건 또는 인증서 배포를 회사 변경 절차와 승인 아래 수정한다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": true,
+      "verification": "같은 클라이언트와 프로필에서 VPN 연결이 성공하고 관련 오류 이벤트가 재발하지 않는다.",
+      "rollback": "변경 후 다른 사용자 연결 실패가 증가하면 승인된 이전 정책·인증서·방화벽 설정으로 되돌린다.",
+      "evidence_ids": ["GE-011"]
+    },
+    {
+      "step_id": "RES-03", "order": 3, "actor": "IT_STAFF",
+      "instruction": "수정 후 단일 사용자와 별도 시험 계정에서 재연결을 확인하고 사용자 해결 여부를 받는다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": false,
+      "verification": "연결·사내 자원 접근이 정상이고 사용자가 해결을 확인한다.",
+      "rollback": "재현되면 티켓을 재개하고 오류 코드 분류부터 다시 확인한다.",
+      "evidence_ids": ["GE-011"]
+    }
+  ],
+  "agent_handling": {"allowed_outcomes": ["GUIDE_USER", "HANDOFF"], "handoff_reasons": ["INSUFFICIENT_EVIDENCE", "GUIDANCE_NOT_RESOLVED"], "prohibited_actions": ["CODE_CHANGE", "CONFIG_CHANGE", "DEPLOY", "RESTART", "DB_WRITE"], "resolution_confirmation_sources": ["USER_CONFIRMATION", "BACKEND_STATE"]},
+  "verification": {
+    "success_signals": ["VPN 연결이 성공한다.", "동일 오류 코드가 재발하지 않는다.", "사용자가 사내 자원 접근과 해결을 확인한다."],
+    "failure_signals": ["동일 오류가 반복된다.", "서버·NPS 관측과 오류 코드가 연결되지 않는다.", "변경 후 다른 사용자에게 새 오류가 발생한다."]
+  },
+  "escalation": {
+    "triggers": ["직원 안전 재시도로 해결되지 않음", "809·812·인증서 계열 오류 확인", "서버·NPS·방화벽·인증서 변경 필요"],
+    "target_department": "NETWORK",
+    "evidence_to_attach": ["발생 시각과 VPN 프로필 이름", "RasClient 오류 코드", "다른 네트워크 재시도 결과", "마스킹된 RRAS·NPS·인증서 상태 요약"]
+  },
+  "user_response": {
+    "safe_summary_template": "VPN 오류 코드 {error_code}를 확인하여 네트워크 담당 부서로 이관했습니다. 임의로 방화벽이나 인증서 설정을 변경하지 마세요.",
+    "prohibited_details": ["공인·사설 IP와 서버 주소 전체", "NPS 정책 원문과 인증서 개인 키", "사용자 계정·인증 로그 원문", "PowerShell·방화벽 변경 명령"]
+  },
+  "provenance": {"source_type": "SYNTHESIZED_FROM_PUBLIC_EVIDENCE", "source_evidence_ids": ["GE-011"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}

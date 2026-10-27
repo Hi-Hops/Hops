@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hops.local/schemas/diagnosis_knowledge_request.v0.json",
+  "title": "Diagnosis Agent additional knowledge request v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "status", "problem_id", "reason", "observed_facts",
+    "requested_topics", "already_considered_artifact_ids"
+  ],
+  "properties": {
+    "schema_version": {"const": "diagnosis_knowledge_request.v0"},
+    "status": {"const": "NEED_MORE_KNOWLEDGE"},
+    "problem_id": {"type": "string", "minLength": 1},
+    "reason": {"type": "string", "minLength": 1},
+    "observed_facts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "field", "value", "observed_at"],
+        "properties": {
+          "source": {"type": "string", "minLength": 1},
+          "field": {"type": "string", "minLength": 1},
+          "value": {"type": ["string", "number", "boolean"]},
+          "observed_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    },
+    "requested_topics": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "already_considered_artifact_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

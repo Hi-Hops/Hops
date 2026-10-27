@@ -1,0 +1,160 @@
+{
+  "schema_version": "staff_runbook.v0",
+  "runbook_id": "RB-FILE-EVENT-1020",
+  "version_no": 1,
+  "title": "SMB 파일 서버 Event ID 1020 지연 진단 및 대응",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "STAFF_RUNBOOK",
+  "data_split": "RAG",
+  "is_synthetic": true,
+  "service": {"service_id": "FILE_SHARE", "component_id": "SMB"},
+  "ownership": {"default_owner_department": "SYSTEM", "supporting_departments": ["INFRA"]},
+  "access": {"access_scope": "STAFF", "exposure_policy": "INTERNAL_ONLY", "ingest_status": "PENDING"},
+  "tool_binding": {"status": "PENDING", "bound_step_ids": [], "note": "SMBServer 이벤트와 저장장치 지연 요약을 조회하는 읽기 전용 MCP Tool 계약 확정 후 연결한다."},
+  "scenario_validation": {"status": "NOT_RUN", "validated_at": null, "case_ids": []},
+  "applicability": {
+    "environment": "HOPS_VIRTUAL_COMPANY",
+    "products": [
+      {"name": "Windows Server SMB", "version": "지원 버전"},
+      {"name": "Windows", "version": "11"}
+    ],
+    "assumptions": [
+      "가상 기업 공유 드라이브는 Windows Server 기반 SMB 파일 서버를 사용한다.",
+      "SMBServer Operational 이벤트와 디스크 지연 집계는 권한이 적용된 읽기 전용 경로로 조회한다.",
+      "Event ID 1020은 파일 시스템 I/O 지연 신호이며 특정 저장장치 원인을 단독 확정하지 않는다.",
+      "Agent는 필터 드라이버 제거, 백업 중지, 저장장치 설정 변경, 서버 재시작을 수행하지 않는다."
+    ],
+    "out_of_scope": [
+      "SMB Access Denied 또는 인증 정책 오류",
+      "DNS·TCP 445·방화벽으로 경로를 찾지 못하는 장애",
+      "Agent가 trace·dump 수집 설정을 변경하거나 저장장치 복구를 수행하는 작업"
+    ]
+  },
+  "symptoms": [
+    {
+      "symptom_id": "SYM-01",
+      "user_phrases": ["공유 파일을 열거나 저장하는 데 너무 오래 걸려요.", "Z 드라이브가 멈춘 것처럼 보여요."],
+      "observable_signals": ["SMBServer Operational 로그에 Event ID 1020이 기록된다.", "이벤트에 15초 이상 지연된 파일 시스템 작업과 SMB command가 기록된다."]
+    },
+    {
+      "symptom_id": "SYM-02",
+      "user_phrases": ["여러 사람이 같은 공유 폴더에서 느려요.", "파일 서버의 다른 프로그램도 함께 멈추는 것 같아요."],
+      "observable_signals": ["여러 SMB 클라이언트와 서버 로컬 작업에서 I/O 지연이 같은 시간대에 발생한다.", "특정 디스크 또는 저장 경로에 지연이 집중될 수 있다."]
+    }
+  ],
+  "diagnostic_steps": [
+    {
+      "step_id": "DIA-01", "order": 1,
+      "goal": "사용자 지연과 SMBServer Event ID 1020을 연결한다.",
+      "action": "발생 시각과 마스킹된 공유·파일 범위를 확인하고 같은 시간대 Event ID 1020의 Duration, Warning Threshold, Command를 읽는다. 사용자명·IP·전체 파일명은 Agent 응답에서 마스킹한다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["사용자 지연 시각에 Event ID 1020이 발생한다.", "파일 시스템 작업 지연 시간이 경고 임계값을 넘는다."],
+      "on_match": "DIA-02에서 영향 범위와 반복 패턴을 확인한다.",
+      "on_mismatch": "Event ID 1020이 없으면 네트워크·권한·클라이언트 지연을 조사한다.",
+      "evidence_ids": ["GE-021"]
+    },
+    {
+      "step_id": "DIA-02", "order": 2,
+      "goal": "특정 파일·디스크와 서버 전체 지연을 구분한다.",
+      "action": "Event ID 1020의 공유·command·duration을 집계하고 같은 시간대 논리 디스크 지연과 다른 서버 작업의 영향을 비교한다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["특정 저장 경로 또는 여러 디스크·공유의 반복 패턴이 확인된다.", "SMB 외 서버 작업에도 I/O 지연이 있는지 구분된다."],
+      "on_match": "DIA-03에서 OS 내부와 외부 저장 계층 후보를 구분한다.",
+      "on_mismatch": "반복 패턴이 없으면 단발 이벤트로 기록하고 원인을 확정하지 않는다.",
+      "evidence_ids": ["GE-021"]
+    },
+    {
+      "step_id": "DIA-03", "order": 3,
+      "goal": "파일 시스템 필터와 물리·가상 저장 계층 원인 후보를 구분한다.",
+      "action": "사람 담당자가 수집한 승인된 Storport·Perfmon·WPR 요약에서 하위 저장 계층 응답시간과 파일 서버 수준 지연을 비교한다. 원시 dump와 파일 경로는 Agent에 전달하지 않는다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["하위 Storport 지연이 높거나 OS 상위 계층에서만 지연되는 패턴이 구분된다.", "백업·필터 드라이버·하이퍼바이저·SAN/NAS 중 추가 확인 대상이 정리된다."],
+      "on_match": "CAUSE-01 또는 CAUSE-02 후보와 협업 부서를 기록한다.",
+      "on_mismatch": "추적 데이터가 없으면 저장장치 원인을 단정하지 않고 SYSTEM으로 이관한다.",
+      "evidence_ids": ["GE-021"]
+    }
+  ],
+  "cause_hypotheses": [
+    {
+      "cause_id": "CAUSE-01",
+      "description": "파일 시스템 필터 드라이버, VSS 또는 백업 작업이 파일 서버 I/O를 장시간 지연시킨다.",
+      "required_signals": ["Event ID 1020 반복", "하위 저장장치 지연보다 파일 서버 상위 계층 지연이 크거나 백업·필터 작업 시간과 일치"],
+      "required_signal_ids": ["SIG-050", "SIG-051"],
+      "contradictory_signals": ["Storport 수준에서 동일한 높은 지연이 확인됨", "Event ID 1020이 사용자 증상 시간과 일치하지 않음"],
+      "contradictory_signal_ids": ["SIG-052"],
+      "owner_department": "SYSTEM",
+      "evidence_ids": ["GE-021"]
+    },
+    {
+      "cause_id": "CAUSE-02",
+      "description": "물리 디스크 과부하, 하이퍼바이저 저장 네트워크 또는 SAN/NAS 장치 문제가 파일 시스템 응답을 지연시킨다.",
+      "required_signals": ["Event ID 1020 반복", "Storport 또는 하위 저장 계층에서 높은 최대 응답시간"],
+      "required_signal_ids": ["SIG-050", "SIG-052"],
+      "contradictory_signals": ["하위 저장 계층 응답은 정상이고 특정 필터 작업에서만 지연", "단일 클라이언트 네트워크에서만 지연"],
+      "contradictory_signal_ids": ["SIG-051"],
+      "owner_department": "INFRA",
+      "evidence_ids": ["GE-021"]
+    }
+  ],
+  "guidance_steps": [
+    {
+      "step_id": "GUID-01", "order": 1,
+      "when": "공유 파일 지연이 발생하지만 서버 원인이 아직 확정되지 않은 경우",
+      "instruction": "사용자에게 반복 저장을 중단하고 발생 시각·공유 드라이브·작업 종류만 기록하도록 안내한다. 파일 내용이나 민감한 전체 경로는 받지 않는다.",
+      "expected_user_result": "중복 저장이나 파일 충돌 위험을 줄이고 이벤트와 연결할 최소 정보를 확보한다.",
+      "if_not_resolved": "같은 증상이 지속되면 SYSTEM으로 이관한다.",
+      "evidence_ids": ["GE-021"]
+    },
+    {
+      "step_id": "GUID-02", "order": 2,
+      "when": "Event ID 1020 또는 여러 사용자 영향이 확인된 경우",
+      "instruction": "사용자에게 파일 서버 저장 처리 지연이 확인되어 담당 부서가 점검 중이라고 안내한다. 서버·저장장치·사용자 세부정보는 노출하지 않는다.",
+      "expected_user_result": "사용자가 공통 장애임을 이해하고 불필요한 재시도를 멈춘다.",
+      "if_not_resolved": "담당자 재시험과 사용자 해결 확인 전까지 티켓을 유지한다.",
+      "evidence_ids": ["GE-021"]
+    }
+  ],
+  "staff_resolution_steps": [
+    {
+      "step_id": "RES-01", "order": 1, "actor": "IT_STAFF",
+      "instruction": "Event ID 1020의 시간·duration·command·마스킹된 저장 경로를 집계하고 같은 시간대 백업·필터·디스크 작업을 대조한다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": false,
+      "verification": "재현 또는 반복 이벤트와 영향 저장 계층이 시간상 연결된다.",
+      "rollback": null,
+      "evidence_ids": ["GE-021"]
+    },
+    {
+      "step_id": "RES-02", "order": 2, "actor": "IT_STAFF",
+      "instruction": "필요하면 승인된 유지보수 창에서 Storport·Perfmon·WPR 추적을 수집해 OS 내부와 외부 저장 계층을 구분한다. 라이브 kernel dump는 별도 보안 절차로만 취급한다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": true,
+      "verification": "상위·하위 계층 지연 차이를 설명할 수 있는 추적 결과가 확보된다.",
+      "rollback": "추적이 성능에 영향을 주면 즉시 수집을 중단하고 생성 파일을 보안 위치로 이동한다.",
+      "evidence_ids": ["GE-021"]
+    },
+    {
+      "step_id": "RES-03", "order": 3, "actor": "IT_STAFF",
+      "instruction": "확정 원인에 따라 필터·백업 일정은 SYSTEM이, 하이퍼바이저·디스크·SAN/NAS는 INFRA가 승인된 변경으로 조치한다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": true,
+      "verification": "같은 업무 부하에서 Event ID 1020과 사용자 지연이 재발하지 않는다.",
+      "rollback": "새 I/O 오류 또는 서비스 장애가 발생하면 변경을 되돌리고 티켓을 재개한다.",
+      "evidence_ids": ["GE-021"]
+    }
+  ],
+  "agent_handling": {"allowed_outcomes": ["GUIDE_USER", "HANDOFF"], "handoff_reasons": ["INSUFFICIENT_EVIDENCE", "GUIDANCE_NOT_RESOLVED"], "prohibited_actions": ["CODE_CHANGE", "CONFIG_CHANGE", "DEPLOY", "RESTART", "DB_WRITE"], "resolution_confirmation_sources": ["USER_CONFIRMATION", "BACKEND_STATE"]},
+  "verification": {
+    "success_signals": ["같은 부하에서 Event ID 1020이 재발하지 않는다.", "파일 열기·저장 시간이 정상 범위로 회복된다.", "사용자와 서버 상태가 해결을 확인한다."],
+    "failure_signals": ["Event ID 1020이 계속 발생한다.", "저장 계층 지연이 유지된다.", "사용자가 계속 긴 파일 작업 지연을 경험한다."]
+  },
+  "escalation": {
+    "triggers": ["Event ID 1020과 사용자 지연 일치", "여러 사용자 또는 서버 로컬 작업 영향", "추적 수집·저장장치·필터 변경 필요"],
+    "target_department": "SYSTEM",
+    "evidence_to_attach": ["이벤트 발생 시각·duration·SMB command", "마스킹된 공유·파일 범위", "영향 사용자·디스크 범위", "Storport·Perfmon·WPR 요약과 백업 시간"]
+  },
+  "user_response": {
+    "safe_summary_template": "공유 파일 서버의 저장 처리 지연 신호를 확인하여 시스템 담당 부서에서 점검 중입니다. 반복 저장은 잠시 중단해 주세요.",
+    "prohibited_details": ["사용자명·IP·전체 파일 경로", "원시 kernel dump·trace 내용", "저장장치 관리 주소와 내부 구성", "백업·필터 중지 명령"]
+  },
+  "provenance": {"source_type": "SYNTHESIZED_FROM_PUBLIC_EVIDENCE", "source_evidence_ids": ["GE-021"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}

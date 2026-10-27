@@ -34,7 +34,7 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("local")
+@ActiveProfiles({"db", "test"})
 @Import(SecurityConfigTest.TestSecurityController.class)
 class SecurityConfigTest {
 
@@ -55,15 +55,15 @@ class SecurityConfigTest {
     void 로그인하지_않고_API를_호출하면_401_공통_오류로_응답한다() throws Exception {
         mockMvc.perform(get("/api/tickets"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.requestId").value(matchesPattern(UUID_PATTERN)));
     }
 
     @Test
     void 로그인_API는_로그인_없이_접근할_수_있다() throws Exception {
-        // 아직 로그인 API가 없어서 404지만, 401로 막히지 않았다는 것이 핵심이다.
+        // 본문이 없어 400(입력 오류)이지만, 401로 막히지 않고 로그인 API까지 도달했다는 것이 핵심이다.
         mockMvc.perform(post("/api/auth/login"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -88,6 +88,20 @@ class SecurityConfigTest {
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"));
+    }
+
+    @Test
+    void 프론트_README_주소에서_쿠키를_포함한_로그인_요청을_허용한다() throws Exception {
+        // 프론트 README는 http://127.0.0.1:5173으로 접속하라고 안내한다. 브라우저는 localhost와 127.0.0.1을 다른 주소로 본다.
+        // 로그인·refresh·로그아웃은 credentials: include(쿠키 포함)로 보내므로 Allow-Credentials가 있어야 브라우저가 응답을 넘겨준다
+        // (WIRE_CONTRACT 9·10절).
+        mockMvc.perform(options("/api/auth/login")
+                        .header(HttpHeaders.ORIGIN, "http://127.0.0.1:5173")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://127.0.0.1:5173"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
     }
 
     @Test
