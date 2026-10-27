@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hops.local/schemas/it_glossary.v0.json",
+  "title": "Hops IT glossary catalog v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "language", "status", "review", "terms"],
+  "properties": {
+    "schema_version": {"const": "it_glossary.v0"},
+    "language": {"const": "ko"},
+    "status": {"const": "OWNER_CONFIRMED_TEAM_REVIEW_PENDING"},
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["content_status", "reviewer", "reviewed_at", "team_review_status"],
+      "properties": {
+        "content_status": {"const": "OWNER_CONFIRMED"},
+        "reviewer": {"type": "string", "minLength": 1},
+        "reviewed_at": {"type": "string", "format": "date"},
+        "team_review_status": {"const": "PENDING"}
+      }
+    },
+    "terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "term_id", "term", "aliases", "definition", "category", "related_components"
+        ],
+        "properties": {
+          "term_id": {"type": "string", "pattern": "^TERM-[0-9]{3}$"},
+          "term": {"type": "string", "minLength": 1},
+          "aliases": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "definition": {"type": "string", "minLength": 1},
+          "category": {
+            "enum": [
+              "WEB", "OBSERVABILITY", "DATABASE", "AI", "IDENTITY", "NETWORK", "FILE_SHARE"
+            ]
+          },
+          "related_components": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "PASSWORD_RESET", "MFA", "SSO", "VPN", "WIFI_802_1X",
+                "SMB", "PORTAL_API", "PORTAL_DB"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
