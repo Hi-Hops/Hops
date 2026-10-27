@@ -1,0 +1,65 @@
+{
+  "schema_version": "knowledge_policy.v0",
+  "policy_id": "POLICY-CASE-LIFECYCLE",
+  "version_no": 1,
+  "title": "해결 확인·재오픈·CASE 생성과 재사용 규칙",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "POLICY",
+  "access": {"access_scope": "STAFF", "exposure_policy": "INTERNAL_ONLY", "ingest_status": "PENDING"},
+  "purpose": "안내·담당자 조치·도구 성공과 실제 해결을 구분하고, 검증된 해결 기록만 CASE로 승격해 조건부 근거로 재사용한다.",
+  "rules": [
+    {
+      "rule_id": "RULE-CASE-CONFIRM",
+      "priority": 10,
+      "trigger": "직원 안내 또는 담당자 조치가 완료됨",
+      "agent_action": "해결을 단정하지 않고 사용자 확인 또는 백엔드 상태 근거를 요청·요약한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 티켓 상태·사용자 응답·백엔드 상태를 검증해 완료 여부를 저장한다.",
+      "required_evidence": ["사용자 해결 확인 또는 신뢰 가능한 백엔드 상태", "대상 문제·티켓 식별자"],
+      "user_visible_behavior": "실제로 해결됐는지 확인하고 미해결이면 처리를 이어간다.",
+      "prohibited_outcomes": ["가이드 제공만으로 완료", "Tool 성공만으로 완료", "여러 티켓의 일괄 완료"]
+    },
+    {
+      "rule_id": "RULE-CASE-PROMOTE",
+      "priority": 20,
+      "trigger": "재현·담당자 조치·동일 조건 재시험·해결 확인이 모두 완료됨",
+      "agent_action": "증상·관측·원인·반대 신호·조치·재시험·계보를 구조화한 CASE 후보를 제안한다.",
+      "final_authority": "HUMAN",
+      "enforcement": "데이터 담당자와 서비스 담당자가 비식별·검증 체크리스트를 확인한 뒤 VERIFIED로 승격한다.",
+      "required_evidence": ["재현 시각·요청 ID", "마스킹된 관측값", "원인과 반대 신호", "사람 조치와 승인", "동일 조건 재시험", "해결 확인", "런북·Tool 버전"],
+      "user_visible_behavior": "CASE 생성 여부는 직원 답변에 노출하지 않는다.",
+      "prohibited_outcomes": ["추정 원인의 CASE 승격", "공개 문서의 티켓 형식 변환", "트리거 동작만 확인한 기록의 승격"]
+    },
+    {
+      "rule_id": "RULE-CASE-RETRIEVE",
+      "priority": 30,
+      "trigger": "현재 문의와 유사한 VERIFIED CASE가 검색됨",
+      "agent_action": "현재 Tool 관측과 CASE 필수·반대 신호를 비교하고 일치할 때만 후보 우선순위 보조 근거로 사용한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 CASE 접근·활성 상태와 현재 관측 스냅샷 버전을 검증한다.",
+      "required_evidence": ["VERIFIED·활성 CASE", "현재 Tool 관측", "연결 런북"],
+      "user_visible_behavior": "유사 사례가 있더라도 현재 근거에 맞는 안내와 이관 이유만 제공한다.",
+      "prohibited_outcomes": ["유사도만으로 원인 확정", "CASE와 충돌하는 현재 관측 무시", "다른 사용자의 식별 정보 노출"]
+    },
+    {
+      "rule_id": "RULE-CASE-REOPEN",
+      "priority": 40,
+      "trigger": "완료된 문제가 해결되지 않았다고 재문의하거나 CASE 해결 검증이 취소됨",
+      "agent_action": "기존 문제·티켓·CASE 연결을 유지한 재오픈 또는 검증 취소를 제안한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 대상 티켓만 재오픈하고 관련 CASE를 검색 비활성화하며 이력을 보존한다.",
+      "required_evidence": ["미해결 재문의", "기존 티켓·CASE 식별자"],
+      "user_visible_behavior": "기존 처리 이력을 유지한 채 다시 점검한다고 안내한다.",
+      "prohibited_outcomes": ["기존 이력 삭제", "그룹 전체 재오픈", "검증 취소 CASE의 계속 검색"]
+    }
+  ],
+  "prohibitions": ["실제 해결되지 않은 합성 CASE 생성", "원시 SQL·내부 IP·개인정보·비밀값 보존", "단일 CASE를 보편 정답으로 사용", "pg_sleep 평가 트리거를 해결 CASE로 승격"],
+  "related_artifacts": {
+    "guide_ids": ["GUIDE-COMMON-PROCESS"],
+    "runbook_ids": [],
+    "scenario_ids": ["FLOW-ANSWER-SOLVED", "FLOW-CASE-MATCH", "FLOW-CASE-CONFLICT"]
+  },
+  "provenance": {"source_policy_ids": ["PRD-3.4", "KNOWLEDGE-LIFECYCLE-6", "KNOWLEDGE-LIFECYCLE-7", "KNOWLEDGE-LIFECYCLE-8"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-27", "team_review_status": "PENDING"}
+}
