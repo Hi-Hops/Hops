@@ -1,0 +1,28 @@
+version: 1
+created_at: '2026-10-26'
+purpose: 계정·인증, 원격 접속, 공유 드라이브 Knowledge 파생 문서의 공개 근거 추적
+policy:
+  raw_source_role: SOURCE_EVIDENCE
+  default_visibility: STAFF
+  default_exposure: INTERNAL_ONLY
+  raw_ingest_allowed: false
+  notes: 원문은 RAG에 직접 적재하지 않고, include 절을 근거로 한국어 직원 가이드와 담당자 런북을 작성한 뒤 별도 검수한다.
+counts:
+  reviewed_documents: 62
+  include: 12
+  hold: 4
+  reject: 46
+  included_document_sections: 82
+  employee_section_candidates: 12
+  never_expose_sections: 4
+sources:
+  - id: support_articles
+    repo_url: https://github.com/MicrosoftDocs/SupportArticles-docs
+    revision: 78adffab326a32205b6dac1fafd951a1ca6831bf
+    license: CC-BY-4.0
+    license_url: https://github.com/MicrosoftDocs/SupportArticles-docs/blob/78adffab326a32205b6dac1fafd951a1ca6831bf/LICENSE
+    attribution: Microsoft Corporation, SupportArticles-docs (CC BY 4.0)
+    language: en
+    source_role: SOURCE_EVIDENCE
+    reviewed_documents: 62
+    raw_files_in_git: false
