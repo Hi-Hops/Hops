@@ -3,7 +3,7 @@
 상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP · 담당: frontend(화면) · 협의: backend(버전·이력), ai(재분석)
 근거: PRD 4.4, 8.2 · API 2.1, 2.4 · DATA 3, 5 · ERD `message`, `message_revision`, `agent_run.input_version`
 
-## 확정 범위와 남은 작업 (2026-10-25)
+## 확정 범위와 남은 작업 (2026-10-27)
 
 본인 사용자 메시지는 기간·횟수 제한 없이 정정한다. 종료/이관 완료 뒤에는 보완 저장만 하며 자동 재오픈·재배정·새 티켓 생성 없음. 버전 충돌 시 최신 내용을 조회해 초안과 비교하고 새 의도로 재제출한다. 실제 DB 동시성·종료 상태 연동은 미검증이다.
 
@@ -27,7 +27,7 @@
 ## 4. 인수 조건
 
 - **F004-AC01 정정 요청**
-  When 자기 메시지를 고쳐 저장하면 · Then `message.revise` `{requestId,inquiryId,expectedInquiryVersion,messageId,content}`를 보내고, 저장 ACK 전에는 "정정 중"을 표시한다. 입력 검증은 F003-AC02와 같다. (API 2.4)
+  When 자기 메시지를 고쳐 저장하면 · Then `POST /api/inquiries/{id}/messages/{messageId}/revisions`에 `Idempotency-Key`와 `{expectedInquiryVersion,content}`를 보내고, 저장 응답 전에는 "정정 중"을 표시한다. 입력 검증은 F003-AC02와 같다. (API 2.4)
 - **F004-AC02 수정 이력 표시**
   저장되면 "정정됨"을 표시하고 이전 내용을 볼 수 있게 한다. 원문은 지워지지 않는다. (PRD 4.4 · API 2.1 "대화순 메시지와 정정 이력" · ERD `message_revision`)
 - **F004-AC03 분석 중 문제의 재분석**
@@ -37,7 +37,7 @@
 - **F004-AC05 충돌**
   다른 탭이나 새 메시지로 버전이 바뀌어 충돌하면 최신 대화를 다시 불러오고, 고치려던 내용은 편집 상태로 남긴다. (API 1)
 - **F004-AC06 결과 미확인**
-  ACK 시간 초과·끊김은 F003-AC04와 같이 처리한다. 다시 보낼 때는 같은 `requestId`를 쓰고, 화면에 같은 정정 이력을 두 번 그리지 않는다(중복 저장 방지는 서버 책임). (API 2.4 · DATA 5)
+  HTTP 시간 초과·끊김은 F003-AC04와 같이 처리한다. 다시 보낼 때는 같은 `Idempotency-Key`와 본문을 쓰고, 화면에 같은 정정 이력을 두 번 그리지 않는다(중복 저장 방지는 서버 책임). (API 2.4 · DATA 5)
 - **F004-AC07 정정할 수 있는 메시지**
   사용자 본인 메시지만 정정할 수 있다. AI 메시지에는 정정 버튼이 없다. (PRD 2 "문의자: 내용 정정" · 횟수·기간 제한 없음, 종료 뒤에는 보완 저장만 허용(Q-BE-11))
 
@@ -47,9 +47,9 @@
 
 | 용도 | 경로·이벤트 | 공통 계약 타입 | 구현·검증 추적 |
 |---|---|---|---|
-| 정정 | message.revise | MessageReviseCommand → CommandAck(StoredAck/ErrorAck) | Q-INF-6, Q-BE-10 |
+| 정정 | POST /api/inquiries/{id}/messages/{messageId}/revisions | MessageReviseCommand → MutationResult / ApiErrorBody | Q-INF-6, Q-BE-10 |
 | 현재 내용·이력 | GET /api/inquiries/{id}/messages | ChatMessage.revision / revisions(MessageRevision[]) | Q-BE-7 |
-| 문의 버전 | 명령/ACK | expectedInquiryVersion / inquiryVersion | 물리 저장 Q-BE-3 |
+| 문의 버전 | REST 요청/응답 | expectedInquiryVersion / inquiryVersion | 물리 저장 Q-BE-3 |
 
 메시지 revision과 문의 version은 다른 값이다. 동일 정정의 재전송에는 같은 requestId를 쓰지만 충돌 후 내용·문의 버전을 고쳐 새로 제출하면 새 키를 쓴다. 원문·기존 티켓은 유지한다.
 
