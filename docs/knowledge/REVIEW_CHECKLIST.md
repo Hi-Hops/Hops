@@ -1,6 +1,6 @@
 # Knowledge dataset v0 팀 검수 체크리스트
 
-현재 자동 검증은 구조·ID·hash·근거 참조·권한 상태를 확인한다. 내용의 업무 적합성은 팀 사람이 검수해야 한다.
+현재 자동 검증은 JSON Schema·ID·hash·근거 참조·권한 상태를 확인한다. 내용의 업무 적합성은 팀 사람이 검수해야 한다.
 
 검수 범위와 목표 수량은 [데이터셋 범위](DATASETS.md), 장애 정답과 문서 연결은 [장애·문의 시나리오](INCIDENT_SCENARIOS.md), 승인 이후 변경 규칙은 [지식 수명주기](KNOWLEDGE_LIFECYCLE.md)를 기준으로 한다.
 
@@ -88,6 +88,7 @@
 2. 청크와 manifest를 다시 생성한다.
 3. 승인 문서의 `team_review_status`를 `APPROVED`로 변경한다.
 4. RAG에 넣을 문서만 `ingest_status=APPROVED`로 변경한다.
-5. `python3 datasets/knowledge/v0/scripts/build_and_validate.py`를 실행한다.
+5. 최초 1회 `python3 -m pip install -r datasets/knowledge/v0/requirements.txt`로 검증 의존성을 설치한다.
+6. `python3 datasets/knowledge/v0/scripts/build_and_validate.py`를 실행한다.
 
 Tool과 시나리오 상태는 이 리뷰에서 억지로 `READY/PASSED`로 바꾸지 않는다. 각각 실제 연결·재현 후 별도 갱신한다.

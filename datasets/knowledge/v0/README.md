@@ -43,12 +43,16 @@ Vector DB 적재가 완료됐다는 뜻이 아니다.
 저장소 루트에서 실행한다.
 
 ```bash
+python3 -m pip install -r datasets/knowledge/v0/requirements.txt
 python3 datasets/knowledge/v0/scripts/build_and_validate.py
 ```
 
 성공하면 Git에서 제외된 파생 청크, `manifests/chunk_review_summary.json`,
 `manifest.json`이 로컬에서 갱신되고
 `KNOWLEDGE DATASET V0 OK`가 출력된다.
+
+검증기는 JSON Schema 파일 자체, Schema가 정의된 정본 JSON·JSONL, 정본에서 생성한
+청크를 모두 검사한다. Schema 위반이 하나라도 있으면 생성 성공 문구 없이 실패한다.
 
 팀 공유 범위와 리뷰 순서는
 [`docs/knowledge/TEAM_HANDOFF.md`](../../../docs/knowledge/TEAM_HANDOFF.md)를 따른다.

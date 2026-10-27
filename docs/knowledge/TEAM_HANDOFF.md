@@ -111,6 +111,7 @@ v0의 범위, 사용 가능 상태, 리뷰 순서와 개발 경계를 확인하�
 저장소 루트에서 실행한다.
 
 ```bash
+python3 -m pip install -r datasets/knowledge/v0/requirements.txt
 python3 datasets/knowledge/v0/scripts/build_and_validate.py
 ```
 
