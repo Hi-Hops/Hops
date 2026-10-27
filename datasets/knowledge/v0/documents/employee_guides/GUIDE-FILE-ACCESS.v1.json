@@ -1,0 +1,25 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-FILE-ACCESS",
+  "version_no": 1,
+  "title": "공유 폴더 액세스가 거부될 때",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "FILE_SHARE",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["회사 공유 폴더에서 Access Denied 또는 권한 없음 오류가 표시됨", "Windows 보안 정책이 인증되지 않은 게스트 접근을 차단했다는 문구가 표시됨"],
+  "user_phrases": ["공유 폴더에 액세스할 권한이 없다고 나와요.", "어제까지 열리던 폴더가 거부돼요.", "회사 보안 정책 때문에 공유 폴더를 열 수 없다고 해요."],
+  "steps": [
+    {"order": 1, "instruction": "사내망 또는 승인된 VPN에 연결되어 있는지 확인합니다.", "expected_result": "회사 파일 서버에 접근할 네트워크 조건을 확인합니다."},
+    {"order": 2, "instruction": "IP 주소 대신 회사에서 안내한 서버 이름과 공유 경로를 사용했는지 확인합니다.", "expected_result": "회사 인증이 가능한 경로로 접속했는지 확인합니다."},
+    {"order": 3, "instruction": "본인에게 원래 허용된 다른 공유 폴더가 열리는지 한 번만 확인합니다.", "expected_result": "특정 폴더 권한 문제인지 공유 서비스 전체 문제인지 구분할 수 있습니다."},
+    {"order": 4, "instruction": "오류가 계속되면 권한 변경을 시도하지 말고 오류 문구와 공유 이름을 기록해 Hops에 문의합니다.", "expected_result": "시스템 담당자가 인증 정책과 최소 권한을 확인합니다."}
+  ],
+  "stop_and_handoff": ["Access Denied 또는 System error 5가 반복됨", "보안 정책 또는 게스트 접근 차단 문구가 표시됨", "다른 사용자는 되지만 본인만 접근할 수 없음", "원래 허용된 여러 공유 폴더가 함께 거부됨"],
+  "information_to_collect": ["안전한 오류 문구와 코드", "발생 시각", "마스킹한 서버·공유 이름", "다른 허용 공유 폴더의 결과", "최근 Windows 업데이트 또는 장치 변경 여부"],
+  "do_not_do": ["Everyone 전체 제어를 부여하지 않기", "SMB1 또는 insecure guest logon을 활성화하지 않기", "레지스트리·그룹 정책·NTFS 권한을 직접 변경하지 않기", "비밀번호나 다른 사용자의 권한 정보를 공유하지 않기"],
+  "related_runbook_ids": ["RB-FILE-SMB-ACCESS"],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_APPROVED_SOURCE_EVIDENCE", "source_evidence_ids": ["GE-022", "GE-060"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}
