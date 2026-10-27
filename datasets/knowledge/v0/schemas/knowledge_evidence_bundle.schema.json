@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hops.local/schemas/knowledge_evidence_bundle.v0.json",
+  "title": "Knowledge Agent Evidence Bundle v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "bundle_id", "inquiry_id", "problem_id", "retrieval_reason",
+    "query", "bundle_status", "artifacts", "diagnostic_signals", "knowledge_gaps",
+    "access", "created_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "knowledge_evidence_bundle.v0"},
+    "bundle_id": {"type": "string", "minLength": 1},
+    "inquiry_id": {"type": "string", "minLength": 1},
+    "problem_id": {"type": "string", "minLength": 1},
+    "retrieval_reason": {"enum": ["INITIAL", "DIAGNOSIS_FOLLOWUP"]},
+    "query": {"type": "string", "minLength": 1},
+    "bundle_status": {"enum": ["SUFFICIENT", "PARTIAL", "EMPTY"]},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifact_id", "artifact_type", "version_no", "chunk_ids", "relevance_summary"],
+        "properties": {
+          "artifact_id": {"type": "string", "minLength": 1},
+          "artifact_type": {"enum": ["EMPLOYEE_GUIDE", "STAFF_RUNBOOK", "VERIFIED_CASE", "POLICY"]},
+          "version_no": {"type": "integer", "minimum": 1},
+          "chunk_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "relevance_summary": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "diagnostic_signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "signal_id", "role", "match", "meaning", "confirmation_limit",
+          "related_artifact_ids"
+        ],
+        "properties": {
+          "signal_id": {"type": "string", "pattern": "^SIG-[0-9]{3}$"},
+          "role": {"enum": ["REQUIRED", "CONTRADICTORY", "CONTEXT"]},
+          "match": {"type": "string", "minLength": 1},
+          "meaning": {"type": "string", "minLength": 1},
+          "confirmation_limit": {"type": "string", "minLength": 1},
+          "related_artifact_ids": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "knowledge_gaps": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "access": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requester_role", "effective_scopes", "validated_by"],
+      "properties": {
+        "requester_role": {"type": "string", "minLength": 1},
+        "effective_scopes": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": ["EMPLOYEE", "STAFF"]}
+        },
+        "validated_by": {"const": "SPRING"}
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}
