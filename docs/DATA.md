@@ -66,6 +66,8 @@
 
 ## 8. 확정 계약과 담당 경계
 
+Knowledge Agent가 사용할 가상 기업 환경, 전체 데이터셋 범위, 장애 시나리오와 수명주기는 [Knowledge 설계](knowledge/README.md)를 참조한다. 현재 기계 판독 데이터에는 일반 공개 근거 62건과 PORTAL core 후보가 포함되어 있으며, 팀 리뷰·파생 문서 완성·임베딩·Tool 연결·Demo Portal 재현 완료를 뜻하지 않는다.
+
 [DATA_TYPES](../specs/contracts/DATA_TYPES.md)의 enum·타입, [WIRE_CONTRACT 10절](../specs/contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필)의 시간·목록·정정·예산·관계가 개발 기준이다. DB의 문제당 티켓 1개 제약은 사용하지 않고 작업별 유일성을 적용한다. 백엔드가 실제 FK/인덱스/DDL/마이그레이션을 구현한다. 문서의 관계 수정은 DB 적용이나 ERD 그림 동기화를 의미하지 않는다.
 
 Node는 서비스 인증·내부 권한 검증·구독 회수·중계 이벤트를, AI는 실행 예산/유효 단계 재사용·식별자/버전 보존을 구현하고 Spring은 결과를 재검증한다. 실제 서비스·동시성·쿠키 회전·중복 방지·AI 비용/품질은 미검증이며 상세 담당/검증은 WIRE_CONTRACT 11절이다.
