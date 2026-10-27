@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hops.local/schemas/staff_runbook_chunk_v0.schema.json",
+  "title": "Hops STAFF_RUNBOOK chunk v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "chunk_id", "runbook_id", "document_type", "version_no", "chunk_no",
+    "section_id", "title", "content", "content_sha256", "source_content_sha256",
+    "signal_catalog_sha256", "signal_ids", "signal_definitions",
+    "service_id", "component_id", "owner_department", "access_scope",
+    "exposure_policy", "ingest_status", "content_review_status", "team_review_status",
+    "tool_binding_status", "scenario_validation_status", "step_ids", "cause_ids",
+    "guidance_ids", "staff_resolution_ids", "evidence_ids", "risk_flags", "source_path"
+  ],
+  "properties": {
+    "schema_version": {"const": "staff_runbook_chunk.v0"},
+    "chunk_id": {"type": "string", "pattern": "^RB-[A-Z0-9-]+:v[0-9]+:c[0-9]{2}$"},
+    "runbook_id": {"type": "string", "pattern": "^RB-[A-Z0-9-]+$"},
+    "document_type": {"const": "STAFF_RUNBOOK"},
+    "version_no": {"type": "integer", "minimum": 1},
+    "chunk_no": {"type": "integer", "minimum": 1},
+    "section_id": {
+      "enum": ["overview", "diagnosis_1", "diagnosis_2", "causes", "guidance", "staff_resolution", "user_response"]
+    },
+    "title": {"type": "string", "minLength": 1},
+    "content": {"type": "string", "minLength": 1},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "signal_catalog_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "signal_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^SIG-[0-9]{3}$"}
+    },
+    "signal_definitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cause_id", "role", "signal_id", "name", "kind", "match",
+          "meaning", "confirmation_limit", "component_candidates"
+        ],
+        "properties": {
+          "cause_id": {"type": "string", "pattern": "^CAUSE-[0-9]{2}$"},
+          "role": {"enum": ["REQUIRED", "CONTRADICTORY"]},
+          "signal_id": {"type": "string", "pattern": "^SIG-[0-9]{3}$"},
+          "name": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+          "match": {"type": "string", "minLength": 1},
+          "meaning": {"type": "string", "minLength": 1},
+          "confirmation_limit": {"type": "string", "minLength": 1},
+          "component_candidates": {
+            "type": "array", "minItems": 1, "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "service_id": {"type": "string", "minLength": 1},
+    "component_id": {"type": "string", "minLength": 1},
+    "owner_department": {"type": "string", "minLength": 1},
+    "access_scope": {"const": "STAFF"},
+    "exposure_policy": {"const": "INTERNAL_ONLY"},
+    "ingest_status": {"enum": ["PENDING", "APPROVED", "BLOCKED"]},
+    "content_review_status": {"enum": ["PENDING", "OWNER_CONFIRMED", "REJECTED"]},
+    "team_review_status": {"enum": ["PENDING", "APPROVED", "CHANGES_REQUESTED"]},
+    "tool_binding_status": {"enum": ["PENDING", "READY", "NOT_REQUIRED"]},
+    "scenario_validation_status": {"enum": ["NOT_RUN", "PASSED", "FAILED"]},
+    "step_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "cause_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "guidance_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "staff_resolution_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "evidence_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^(PE-[0-9]{3}[A-D]?|GE-[0-9]{3})$"}
+    },
+    "risk_flags": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "source_path": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"section_id": {"const": "causes"}}, "required": ["section_id"]},
+      "then": {
+        "properties": {
+          "signal_catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "signal_ids": {"minItems": 1},
+          "signal_definitions": {"minItems": 1}
+        }
+      },
+      "else": {
+        "properties": {
+          "signal_catalog_sha256": {"const": null},
+          "signal_ids": {"maxItems": 0},
+          "signal_definitions": {"maxItems": 0}
+        }
+      }
+    }
+  ]
+}

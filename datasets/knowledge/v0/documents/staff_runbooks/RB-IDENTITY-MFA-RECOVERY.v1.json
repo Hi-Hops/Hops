@@ -1,0 +1,166 @@
+{
+  "schema_version": "staff_runbook.v0",
+  "runbook_id": "RB-IDENTITY-MFA-RECOVERY",
+  "version_no": 1,
+  "title": "MFA 인증 수단 복구 및 재등록 대응",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "STAFF_RUNBOOK",
+  "data_split": "RAG",
+  "is_synthetic": true,
+  "service": {"service_id": "IDENTITY", "component_id": "MFA"},
+  "ownership": {"default_owner_department": "ACCOUNT_PERMISSION", "supporting_departments": []},
+  "access": {"access_scope": "STAFF", "exposure_policy": "INTERNAL_ONLY", "ingest_status": "PENDING"},
+  "tool_binding": {"status": "PENDING", "bound_step_ids": [], "note": "계정·MFA 상태를 조회하는 읽기 전용 MCP Tool 계약 확정 후 연결한다."},
+  "scenario_validation": {"status": "NOT_RUN", "validated_at": null, "case_ids": []},
+  "applicability": {
+    "environment": "HOPS_VIRTUAL_COMPANY",
+    "products": [
+      {"name": "Windows", "version": "11"},
+      {"name": "Microsoft Entra ID", "version": "가상 기업 테넌트 정책"}
+    ],
+    "assumptions": [
+      "가상 기업은 Microsoft Entra ID 기반 MFA를 사용한다.",
+      "신원 확인과 인증 수단 변경은 계정 권한 담당자가 회사 승인 절차에 따라 수행한다.",
+      "Agent는 인증 수단의 존재·상태를 읽기 전용으로만 확인하며 삭제·초기화·재등록을 실행하지 않는다.",
+      "직원 답변에는 관리자 화면, 사용자 식별자, Graph 요청, 인증 수단 내부 ID를 노출하지 않는다."
+    ],
+    "out_of_scope": [
+      "비밀번호 자체를 분실한 문의",
+      "SSO 애플리케이션 설정 오류",
+      "Agent가 MFA 방법 삭제, 초기화 또는 계정 차단 해제를 실행하는 작업",
+      "지원 부서가 아닌 사람이 사용자의 인증 코드나 복구 비밀을 수집하는 작업"
+    ]
+  },
+  "symptoms": [
+    {
+      "symptom_id": "SYM-01",
+      "user_phrases": ["휴대폰을 잃어버려서 인증할 수 없어요.", "번호를 바꾼 뒤 인증 문자가 오지 않아요."],
+      "observable_signals": ["사용자가 기존 휴대폰 또는 전화번호에 접근할 수 없다.", "다른 등록 인증 수단의 사용 가능 여부가 확인된다."]
+    },
+    {
+      "symptom_id": "SYM-02",
+      "user_phrases": ["인증 앱을 더 등록할 수 없다고 나와요.", "등록된 기기가 너무 많다는 오류가 보여요."],
+      "observable_signals": ["오류 문구가 인증 앱·하드웨어 토큰 등록 한도와 일치한다.", "기존 로그인 방법을 정리하거나 재등록해야 하는 상태다."]
+    }
+  ],
+  "diagnostic_steps": [
+    {
+      "step_id": "DIA-01", "order": 1,
+      "goal": "비밀번호 문제와 MFA 인증 수단 문제를 구분한다.",
+      "action": "사용자에게 비밀번호 입력 단계 통과 여부, 안전한 오류 문구, 휴대폰 분실·번호 변경·코드 미수신·등록 한도 중 해당 증상을 확인한다. 인증 코드와 비밀번호는 수집하지 않는다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["비밀번호 검증 뒤 MFA 단계에서 실패한다.", "MFA 관련 오류 유형과 발생 시각이 확인된다."],
+      "on_match": "DIA-02에서 사용 가능한 다른 인증 수단을 확인한다.",
+      "on_mismatch": "비밀번호 또는 SSO 오류이면 해당 경로로 전환한다.",
+      "evidence_ids": ["GE-001", "GE-052", "GE-053"]
+    },
+    {
+      "step_id": "DIA-02", "order": 2,
+      "goal": "직원이 안전하게 사용할 수 있는 대체 인증 수단이 있는지 확인한다.",
+      "action": "사용자 화면에 회사가 허용한 다른 인증 옵션이 표시되는지와 본인이 보안 정보 화면에 접근할 수 있는지만 확인한다. Agent는 인증 수단 목록의 민감값을 요청하지 않는다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["사용 가능한 다른 인증 옵션이 있거나 없다.", "사용자가 본인 보안 정보에 접근 가능한지 구분된다."],
+      "on_match": "대체 수단이 있으면 GUID-01을 안내하고, 없으면 DIA-03으로 이동한다.",
+      "on_mismatch": "정보를 확인할 수 없으면 신원 확인이 필요한 계정 권한 문의로 이관한다.",
+      "evidence_ids": ["GE-001", "GE-053"]
+    },
+    {
+      "step_id": "DIA-03", "order": 3,
+      "goal": "담당자 복구가 필요한 조건을 구분한다.",
+      "action": "읽기 전용 계정 상태가 제공되면 등록 방법 수, 재등록 필요 상태, 로그인 차단 여부를 확인한다. Tool이 없거나 권한이 없으면 상태를 추정하지 않는다.",
+      "safety_class": "READ_ONLY", "tool_query": null,
+      "expected_signals": ["등록 한도 도달, 기존 수단 접근 불가, 연락처 불일치 또는 로그인 차단 후보 중 하나가 확인된다.", "사람의 신원 확인과 관리자 조치 필요 여부가 구분된다."],
+      "on_match": "확인된 후보와 필요한 사람 조치를 기록해 계정 권한 담당자에게 이관한다.",
+      "on_mismatch": "필수 상태를 확인하지 못하면 원인을 단정하지 않고 근거 부족으로 이관한다.",
+      "evidence_ids": ["GE-001", "GE-052", "GE-053"]
+    }
+  ],
+  "cause_hypotheses": [
+    {
+      "cause_id": "CAUSE-01",
+      "description": "사용자가 등록 한도만큼 인증 앱 또는 장치를 보유해 새 인증 앱을 추가할 수 없다.",
+      "required_signals": ["등록 한도 오류 문구", "기존 인증 수단이 이미 등록되어 있음"],
+      "required_signal_ids": ["SIG-028"],
+      "contradictory_signals": ["등록 수에 여유가 있음", "새 등록이 아니라 기존 휴대폰 분실이 유일한 증상"],
+      "contradictory_signal_ids": ["SIG-030"],
+      "owner_department": "ACCOUNT_PERMISSION",
+      "evidence_ids": ["GE-001"]
+    },
+    {
+      "cause_id": "CAUSE-02",
+      "description": "휴대폰 분실·번호 변경·코드 미수신 또는 계정 차단으로 기존 MFA 방법을 사용할 수 없다.",
+      "required_signals": ["기존 전화 또는 번호에 접근할 수 없음이나 코드 미수신", "다른 인증 방법으로도 로그인할 수 없거나 계정 상태 확인이 필요함"],
+      "required_signal_ids": ["SIG-027", "SIG-030"],
+      "contradictory_signals": ["다른 인증 옵션으로 정상 로그인됨", "등록 한도 오류만 발생함"],
+      "contradictory_signal_ids": ["SIG-028"],
+      "owner_department": "ACCOUNT_PERMISSION",
+      "evidence_ids": ["GE-052", "GE-053"]
+    }
+  ],
+  "guidance_steps": [
+    {
+      "step_id": "GUID-01", "order": 1,
+      "when": "사용자 화면에 회사가 허용한 다른 인증 옵션이 표시되는 경우",
+      "instruction": "다른 인증 옵션을 한 번 선택하고, 본인이 확인할 수 있는 전화번호가 올바른지만 확인하도록 안내한다. 인증 코드·비밀번호·전체 전화번호는 Hops에 입력하지 않도록 알린다.",
+      "expected_user_result": "대체 인증 수단으로 로그인하거나 잘못된 연락처·접근 불가 상태를 구분한다.",
+      "if_not_resolved": "반복 시도를 중단하고 발생 시각과 안전한 오류 문구를 첨부해 계정 권한 부서로 이관한다.",
+      "evidence_ids": ["GE-053"]
+    },
+    {
+      "step_id": "GUID-02", "order": 2,
+      "when": "휴대폰 분실, 등록 한도, 대체 수단 부재 또는 계정 상태 확인이 필요한 경우",
+      "instruction": "사용자에게 신원 확인 후 MFA 재등록 또는 복구가 필요하다고 안내하고 계정 권한 부서로 이관한다. 관리자 화면과 삭제 절차는 제공하지 않는다.",
+      "expected_user_result": "사용자는 추가 비밀정보를 제출하지 않고 담당자 신원 확인 절차로 이동한다.",
+      "if_not_resolved": "담당자 확인 전 해결 완료로 표시하지 않는다.",
+      "evidence_ids": ["GE-001", "GE-052", "GE-053"]
+    }
+  ],
+  "staff_resolution_steps": [
+    {
+      "step_id": "RES-01", "order": 1, "actor": "IT_STAFF",
+      "instruction": "회사 계정 복구 정책에 따라 사용자의 신원을 확인하고, 등록 한도·기존 수단 접근 가능성·연락처·로그인 차단 상태를 관리자 화면에서 확인한다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": true,
+      "verification": "사용자와 대상 계정이 일치하고 필요한 복구 유형이 기록된다.",
+      "rollback": null,
+      "evidence_ids": ["GE-001", "GE-052", "GE-053"]
+    },
+    {
+      "step_id": "RES-02", "order": 2, "actor": "IT_STAFF",
+      "instruction": "확정된 원인에 따라 승인된 관리자 기능으로 재등록 요구, 잘못된 연락처 수정 또는 불필요한 인증 수단 정리를 수행한다. Graph 직접 삭제는 기본 절차로 사용하지 않는다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": true,
+      "verification": "사용자가 새 인증 수단을 등록할 수 있고 회사 정책의 최소 인증 수단을 충족한다.",
+      "rollback": "잘못된 계정을 변경했거나 사용자가 로그인할 수 없으면 즉시 변경을 중단하고 계정 보안 관리자에게 승격한다.",
+      "evidence_ids": ["GE-001", "GE-052", "GE-053"]
+    },
+    {
+      "step_id": "RES-03", "order": 3, "actor": "IT_STAFF",
+      "instruction": "사용자와 함께 로그인·MFA 등록을 재시험하고 기존 분실 장치가 더 이상 사용되지 않는지 확인한다.",
+      "execution_mode": "HUMAN_ONLY", "approval_required": false,
+      "verification": "사용자가 승인된 인증 수단으로 로그인에 성공하고 해결을 확인한다.",
+      "rollback": "재시험에 실패하면 티켓을 닫지 않고 RES-01의 계정 상태를 다시 확인한다.",
+      "evidence_ids": ["GE-001", "GE-052", "GE-053"]
+    }
+  ],
+  "agent_handling": {
+    "allowed_outcomes": ["GUIDE_USER", "HANDOFF"],
+    "handoff_reasons": ["INSUFFICIENT_EVIDENCE", "GUIDANCE_NOT_RESOLVED"],
+    "prohibited_actions": ["CODE_CHANGE", "CONFIG_CHANGE", "DEPLOY", "RESTART", "DB_WRITE"],
+    "resolution_confirmation_sources": ["USER_CONFIRMATION", "BACKEND_STATE"]
+  },
+  "verification": {
+    "success_signals": ["사용자가 승인된 인증 수단으로 로그인한다.", "새 인증 수단 등록 또는 기존 수단 사용이 정상이다.", "사용자가 해결을 확인한다."],
+    "failure_signals": ["대체 인증 수단을 사용할 수 없다.", "재등록 후에도 같은 오류가 발생한다.", "신원 또는 계정 상태를 확인할 수 없다."]
+  },
+  "escalation": {
+    "triggers": ["다른 인증 옵션으로 해결되지 않음", "휴대폰 분실·번호 변경으로 기존 수단 접근 불가", "등록 한도 또는 로그인 차단 상태 확인 필요"],
+    "target_department": "ACCOUNT_PERMISSION",
+    "evidence_to_attach": ["발생 시각", "안전한 오류 문구와 증상 유형", "대체 인증 옵션 사용 가능 여부", "사용자가 제공한 비민감 계정 식별 정보"]
+  },
+  "user_response": {
+    "safe_summary_template": "MFA 인증 수단 확인이 필요하여 계정 권한 담당 부서로 이관했습니다. 비밀번호나 인증 코드는 Hops에 입력하지 마세요.",
+    "prohibited_details": ["인증 코드·비밀번호·복구 비밀", "전체 전화번호와 인증 수단 내부 ID", "관리자 화면 경로와 Graph 삭제 요청", "다른 사용자의 계정·인증 정보"]
+  },
+  "provenance": {"source_type": "SYNTHESIZED_FROM_PUBLIC_EVIDENCE", "source_evidence_ids": ["GE-001", "GE-052", "GE-053"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}
