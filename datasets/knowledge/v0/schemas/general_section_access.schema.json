@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hops.local/schemas/general_section_access.v0.json",
+  "title": "Hops general source section access v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "section_id", "evidence_id", "doc_id", "heading", "level",
+    "start_line", "end_line", "char_count", "access_scope", "exposure_policy",
+    "safety_reason", "risk_flags", "source_locator", "employee_candidate",
+    "employee_candidate_note", "derivation_eligible", "rag_ingest_allowed",
+    "source_revision", "content_sha256", "document_decision", "document_reviewer",
+    "document_reviewed_at", "section_access_status", "section_human_confirmed",
+    "section_reviewer", "section_reviewed_at"
+  ],
+  "properties": {
+    "schema_version": {"const": "general_section_access.v0"},
+    "section_id": {"type": "string", "minLength": 1},
+    "evidence_id": {"type": "string", "pattern": "^GE-[0-9]{3}$"},
+    "doc_id": {"type": "string", "minLength": 1},
+    "heading": {"type": "string"},
+    "level": {"type": "integer", "minimum": 0},
+    "start_line": {"type": "integer", "minimum": 1},
+    "end_line": {"type": "integer", "minimum": 1},
+    "char_count": {"type": "integer", "minimum": 0},
+    "access_scope": {"enum": ["EMPLOYEE", "STAFF"]},
+    "exposure_policy": {"enum": ["QUOTABLE", "INTERNAL_ONLY", "NEVER_EXPOSE"]},
+    "safety_reason": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "risk_flags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["registry_edit", "execution_policy", "graph_delete", "config_file_edit"]}
+    },
+    "source_locator": {"type": "string", "minLength": 1},
+    "employee_candidate": {"type": "boolean"},
+    "employee_candidate_note": {"type": "string"},
+    "derivation_eligible": {"type": "boolean"},
+    "rag_ingest_allowed": {"const": false},
+    "source_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "document_decision": {"const": "include"},
+    "document_reviewer": {"type": "string", "minLength": 1},
+    "document_reviewed_at": {"type": "string", "format": "date"},
+    "section_access_status": {"enum": ["DRAFT_DEFAULT_DENY", "REVIEWED"]},
+    "section_human_confirmed": {"type": "boolean"},
+    "section_reviewer": {"type": ["string", "null"]},
+    "section_reviewed_at": {
+      "anyOf": [{"type": "string", "format": "date"}, {"type": "null"}]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"access_scope": {"const": "EMPLOYEE"}}, "required": ["access_scope"]},
+      "then": {
+        "properties": {
+          "exposure_policy": {"const": "QUOTABLE"},
+          "section_access_status": {"const": "REVIEWED"},
+          "section_human_confirmed": {"const": true},
+          "section_reviewer": {"type": "string", "minLength": 1},
+          "section_reviewed_at": {"type": "string", "format": "date"},
+          "risk_flags": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"exposure_policy": {"const": "NEVER_EXPOSE"}}, "required": ["exposure_policy"]},
+      "then": {"properties": {"access_scope": {"const": "STAFF"}}}
+    },
+    {
+      "if": {"properties": {"section_access_status": {"const": "DRAFT_DEFAULT_DENY"}}, "required": ["section_access_status"]},
+      "then": {
+        "properties": {
+          "access_scope": {"const": "STAFF"},
+          "section_human_confirmed": {"const": false},
+          "section_reviewer": {"type": "null"},
+          "section_reviewed_at": {"type": "null"}
+        }
+      }
+    }
+  ]
+}

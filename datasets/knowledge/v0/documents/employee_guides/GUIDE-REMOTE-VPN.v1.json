@@ -1,0 +1,25 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-REMOTE-VPN",
+  "version_no": 1,
+  "title": "회사 VPN이 연결되지 않을 때",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "REMOTE_ACCESS",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["승인된 회사 VPN 프로필로 연결할 때 오류 코드가 표시됨", "회사 VPN이 연결 중 멈추거나 연결되지 않음"],
+  "user_phrases": ["VPN이 연결되지 않아요.", "VPN 오류 809가 떠요.", "VPN 오류 720이 표시돼요."],
+  "steps": [
+    {"order": 1, "instruction": "오류 코드, 발생 시각, 사용한 회사 VPN 프로필 이름을 기록합니다.", "expected_result": "담당자가 같은 시간대의 VPN 기록을 찾을 수 있습니다."},
+    {"order": 2, "instruction": "인터넷 연결이 정상인지 확인하고 VPN 연결을 한 번만 다시 시도합니다.", "expected_result": "일시적인 연결 실패인지 확인할 수 있습니다."},
+    {"order": 3, "instruction": "회사에서 허용한 다른 네트워크를 사용할 수 있다면 한 번만 비교합니다.", "expected_result": "현재 네트워크에 한정된 문제인지 구분할 정보가 생깁니다."},
+    {"order": 4, "instruction": "같은 오류가 반복되면 설정을 바꾸지 말고 기록한 정보로 Hops에 문의합니다.", "expected_result": "네트워크 담당자가 서버·인증·단말 상태를 확인합니다."}
+  ],
+  "stop_and_handoff": ["오류 720·809·812 또는 인증서 관련 오류가 반복됨", "다른 네트워크에서도 같은 오류가 발생함", "VPN 연결 뒤에도 회사 자원에 접근할 수 없음"],
+  "information_to_collect": ["오류 코드와 안전한 오류 문구", "발생 시각", "회사 VPN 프로필 이름", "인터넷 연결 여부", "다른 승인 네트워크에서의 결과"],
+  "do_not_do": ["방화벽이나 보안 프로그램을 끄지 않기", "VPN 프로필·인증서·네트워크 드라이버를 임의로 변경하거나 삭제하지 않기", "관리자 PowerShell 명령을 실행하지 않기", "비밀번호·인증 코드를 문의에 입력하지 않기"],
+  "related_runbook_ids": ["RB-REMOTE-VPN-CODES", "RB-REMOTE-VPN-720"],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_APPROVED_SOURCE_EVIDENCE", "source_evidence_ids": ["GE-011", "GE-012"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}

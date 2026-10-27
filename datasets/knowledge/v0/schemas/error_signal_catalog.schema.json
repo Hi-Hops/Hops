@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hops.local/schemas/error_signal_catalog.v0.json",
+  "title": "Hops error and observation signal catalog v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "language", "status", "knowledge_ingest_allowed", "review", "signals"
+  ],
+  "properties": {
+    "schema_version": {"const": "error_signal_catalog.v0"},
+    "language": {"const": "ko"},
+    "status": {"const": "OWNER_CONFIRMED_TEAM_REVIEW_PENDING"},
+    "knowledge_ingest_allowed": {"const": false},
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ai_review_status", "ai_reviewed_at", "decision_required_signal_ids",
+        "owner_review_status", "owner_reviewer", "owner_reviewed_at"
+      ],
+      "properties": {
+        "ai_review_status": {"const": "COMPLETED"},
+        "ai_reviewed_at": {"type": "string", "format": "date"},
+        "decision_required_signal_ids": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^SIG-[0-9]{3}$"}
+        },
+        "owner_review_status": {"enum": ["PENDING", "CONFIRMED", "CHANGES_REQUESTED"]},
+        "owner_reviewer": {"type": ["string", "null"]},
+        "owner_reviewed_at": {"type": ["string", "null"], "format": "date"}
+      }
+    },
+    "signals": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "signal_id", "name", "kind", "match", "meaning",
+          "confirmation_limit", "component_candidates", "source_refs"
+        ],
+        "properties": {
+          "signal_id": {"type": "string", "pattern": "^SIG-[0-9]{3}$"},
+          "name": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "pattern": "^[A-Z0-9_]+$"},
+          "match": {"type": "string", "minLength": 1},
+          "meaning": {"type": "string", "minLength": 1},
+          "confirmation_limit": {"type": "string", "minLength": 1},
+          "component_candidates": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "PASSWORD_RESET", "MFA", "SSO", "VPN", "WIFI_802_1X",
+                "SMB", "PORTAL_API", "PORTAL_DB"
+              ]
+            }
+          },
+          "source_refs": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(RB|SCN)-[A-Z0-9-]+$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

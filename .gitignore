@@ -131,3 +131,8 @@ wandb/
 # 검수한 fixture, 마이그레이션 SQL, OpenAPI/JSON Schema, 모델 설정은 공유 가능하다.
 # package-lock.json, pnpm-lock.yaml, yarn.lock, uv.lock 및 빌드 설정은 제외하지 않는다.
 # 이미 추적 중인 파일은 ignore 추가만으로 제외되지 않는다.
+
+# Knowledge v0의 청크·통합 manifest는 정본에서 재생성한다.
+/datasets/knowledge/v0/chunks/
+/datasets/knowledge/v0/manifest.json
+/datasets/knowledge/v0/manifests/chunk_review_summary.json

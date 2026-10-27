@@ -1,0 +1,24 @@
+{
+  "schema_version": "employee_guide.v0",
+  "guide_id": "GUIDE-IDENTITY-MFA-RECOVERY",
+  "version_no": 1,
+  "title": "휴대폰 분실·번호 변경·MFA 코드 미수신 시",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "EMPLOYEE_GUIDE",
+  "service_id": "IDENTITY",
+  "access": {"access_scope": "EMPLOYEE", "exposure_policy": "QUOTABLE", "ingest_status": "PENDING"},
+  "applies_when": ["휴대폰 분실 또는 번호 변경으로 기존 MFA를 사용할 수 없음", "문자 또는 음성 인증 코드가 도착하지 않음"],
+  "user_phrases": ["휴대폰을 잃어버려서 인증할 수 없어요.", "번호를 바꾼 뒤 인증 문자가 오지 않아요.", "MFA 코드가 오지 않아요."],
+  "steps": [
+    {"order": 1, "instruction": "로그인 화면의 다른 인증 옵션에서 본인이 이미 등록한 다른 수단을 사용할 수 있는지 확인합니다.", "expected_result": "다른 승인된 수단으로 로그인할 수 있는지 확인합니다."},
+    {"order": 2, "instruction": "본인 화면에 표시된 전화번호 끝자리가 현재 번호와 일치하는지만 확인합니다.", "expected_result": "코드 미수신이 등록 연락처 불일치인지 구분할 단서가 생깁니다."},
+    {"order": 3, "instruction": "다른 수단이 없거나 휴대폰을 분실했다면 추가 시도를 중단하고 Hops에 문의합니다.", "expected_result": "계정 권한 담당자가 신원 확인 후 복구 절차를 진행합니다."}
+  ],
+  "stop_and_handoff": ["휴대폰 분실로 기존 수단에 접근할 수 없음", "다른 인증 옵션이 없음", "표시된 전화번호가 현재 번호와 다름", "계정 차단 문구가 표시됨"],
+  "information_to_collect": ["증상 유형: 분실·번호 변경·코드 미수신", "발생 시각", "다른 인증 옵션 유무", "표시된 번호가 현재 번호와 일치하는지 여부"],
+  "do_not_do": ["인증 코드·비밀번호·복구 비밀을 입력하지 않기", "분실한 장치를 되찾기 전까지 안전하다고 가정하지 않기", "관리자 초기화나 인증 수단 삭제를 직접 시도하지 않기"],
+  "related_runbook_ids": ["RB-IDENTITY-MFA-RECOVERY"],
+  "provenance": {"source_type": "SYNTHESIZED_FROM_APPROVED_SOURCE_EVIDENCE", "source_evidence_ids": ["GE-052", "GE-053"], "created_at": "2026-10-26"},
+  "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-26", "team_review_status": "PENDING"}
+}
