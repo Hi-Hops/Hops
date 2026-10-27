@@ -1,9 +1,9 @@
 # F003 문의 시작과 채팅
 
-상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP · 담당: frontend(화면) · 협의: infra(이벤트 중계), backend(저장·검증), ai(분석·답변)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP · 담당: frontend(화면) · 협의: backend(REST 저장·SSE), ai(분석·답변)
 근거: PRD 3.1, 4.3, 4.4, 8.2 · API 1, 2.1, 2.4 · DATA 3 · ERD `inquiry`, `message`, `inquiry_problem`, `agent_run`, `agent_step`
 
-## 확정 범위와 남은 작업 (2026-10-25)
+## 확정 범위와 남은 작업 (2026-10-27)
 
 초기 단일 AI의 시간/LLM 시도/출력 제한은 공통 계약 10절을 따른다. 답변 텍스트·문제 상태·저장 티켓 카드를 표시하며 예시 질문·구조화 가이드는 후속이다. 실제 AI 예산 강제·SSE·평가는 담당자 구현/검증이 남았다.
 
@@ -32,21 +32,21 @@
 
 **문의 시작 (메인)**
 - **F003-AC01 문의 생성**
-  When 메인에서 전송하면 · Then `inquiry.create` `{requestId,content}`를 보내고, ACK로 저장이 확인될 때까지 "전송 중"을 표시한다. 저장이 확인되면 받은 `inquiryId`의 채팅 화면으로 이동한다. Node.js가 받은 것만으로 성공을 표시하지 않는다. (PRD 4.3 · API 2.4)
-  저장 성공 ACK 자체로 개인 문의 목록 캐시를 갱신 대상으로 표시한다. 저장 이벤트·분석 이벤트·다음 화면의 구독 성공을 기다리지 않는다. 같은 계정의 늦은 성공 ACK도 목록은 갱신하되 이미 떠난 화면으로 이동시키지 않는다. 오류·결과 미확인 ACK는 성공으로 간주하지 않는다.
+  When 메인에서 전송하면 · Then `POST /api/inquiries`에 `Idempotency-Key`와 `{content}`를 보내고, HTTP 저장 결과가 확인될 때까지 "전송 중"을 표시한다. 저장이 확인되면 받은 `inquiryId`의 채팅 화면으로 이동한다. 요청 접수나 SSE 수신만으로 성공을 표시하지 않는다. (PRD 4.3 · API 2.4)
+  저장 성공 응답으로 개인 문의 목록 캐시를 갱신 대상으로 표시한다. 저장 이벤트·분석 이벤트·다음 화면의 SSE 연결 성공을 기다리지 않는다. 같은 계정의 늦은 성공 응답도 목록은 갱신하되 이미 떠난 화면으로 이동시키지 않는다. 오류·결과 미확인 응답은 성공으로 간주하지 않는다.
 - **F003-AC02 입력 검증**
   공백 포함 1~4,000 코드 포인트만 보낸다. 공백만 있으면 전송 버튼을 막고, 4,000을 넘으면 넘은 양을 알리고 원문을 그대로 둔다. (API 1 · PRD 4.4)
 - **F003-AC03 전송 실패**
-  ACK가 오류면 입력을 보존하고 오류 종류에 맞게 안내한다. 동일 요청의 재전송은 같은 `requestId`, 내용·대상 버전을 고친 새 요청은 새 `requestId`를 쓴다. (PRD 4.3)
+  HTTP 오류면 입력을 보존하고 오류 종류에 맞게 안내한다. 동일 요청의 재전송은 같은 `Idempotency-Key`, 내용·대상 버전을 고친 새 요청은 새 키를 쓴다. (PRD 4.3)
 - **F003-AC04 결과 미확인**
-  ACK 시간 초과나 연결 끊김이면 "실패"가 아니라 "결과 확인 중"으로 표시하고, 같은 `requestId`로 결과를 확인하거나 다시 보낸다. 새 `requestId`를 만들지 않고, 서버가 돌려준 문의 하나로만 이동한다(중복 생성 방지는 서버 책임). (API 2.4 · ACK 시간 기준 Q-INF-5)
+  HTTP 시간 초과나 연결 끊김이면 "실패"가 아니라 "결과 확인 중"으로 표시하고, 같은 `Idempotency-Key`와 같은 본문으로 결과를 확인하거나 다시 보낸다. 새 키를 만들지 않고, 서버가 돌려준 문의 하나로만 이동한다(중복 생성 방지는 서버 책임). (API 2.4 · 응답 대기 기준 Q-INF-5)
 
 **채팅**
 - **F003-AC05 대화 불러오기**
-  채팅 화면에 들어가면 `GET /api/inquiries/{id}/messages`로 대화를 순서대로 보여 주고(F002-AC02 구독과 함께), 사용자·AI 말풍선을 구분한다. 페이지를 넘겨도 순서가 바뀌지 않는다. (API 2.1 · ERD `message.sender_type`)
+  채팅 화면에 들어가면 `GET /api/inquiries/{id}/messages`로 대화를 순서대로 보여 주고(F002-AC02 SSE 연결과 함께), 사용자·AI 말풍선을 구분한다. 페이지를 넘겨도 순서가 바뀌지 않는다. (API 2.1 · ERD `message.sender_type`)
   최신 30개를 먼저 조회하고 화면에는 sequenceNo 오름차순으로 표시한다. 최초 진입 위치는 맨 아래 최신 메시지다. 상단 가까이 스크롤하면 beforeSequenceNo로 이전 30개를 추가하며 현재 위치를 유지한다. 이전 대화 조회 실패는 기존 대화와 전송을 막지 않고 해당 커서로 재시도한다. 최초 최신 조회 전·실패 및 최신 재조회 중에는 전송·정정을 막고 초안을 보존한다. 하단을 보는 경우 새 답변을 따라가고 과거를 읽는 경우 새 메시지 이동 버튼을 제공한다. 구체 계약은 WIRE_CONTRACT 10절을 따른다.
 - **F003-AC06 메시지 전송**
-  `message.send` `{requestId,inquiryId,expectedInquiryVersion,content}`를 보낸다. 저장 ACK 전에는 "전송 중", `message.stored` 또는 저장 ACK 뒤에 정식 메시지로 표시한다. F003-AC02~AC04 규칙을 똑같이 적용한다. (API 2.4)
+  `POST /api/inquiries/{id}/messages`에 `Idempotency-Key`와 `{expectedInquiryVersion,content}`를 보낸다. 저장 응답 전에는 "전송 중", `message.stored` 또는 저장 응답 뒤에 정식 메시지로 표시한다. F003-AC02~AC04 규칙을 똑같이 적용한다. (API 2.4)
 - **F003-AC07 분석 진행 표시**
   `agent.progress`로 단계 문구를 보여 주고, `answer.delta`로 답변을 이어 붙여 임시로 보여 준다. 최종 답변은 저장된 메시지로 바꿔 표시한다. 내부 사고 과정은 보여 주지 않는다. (PRD 4.4, 5.1 · 표시 내용 Q-AI-1, Q-AI-2)
 - **F003-AC08 추가 질문**
@@ -66,7 +66,7 @@
   분석 결과로 문제·티켓이 바뀌면(`state.changed`) `GET /api/inquiries/{id}`로 다시 조회해 F005 카드를 갱신한다. (API 2.4)
 
 - **F003-AC15 사이드바 새 문의**
-  로그인 사용자는 왼쪽 사이드바 상단의 `+ 새 문의`로 `/`의 문의 입력창을 연다. 입력창에 포커스를 두며, 버튼 선택만으로 `inquiry.create`를 보내거나 빈 문의·소켓 룸을 생성하지 않는다. 첫 메시지 저장 ACK 후 받은 문의만 채팅 세션 목록에 반영한다. 기존 문의 및 새 문의의 미전송 입력·결과 미확인 요청은 화면 이동으로 삭제하지 않는다. 이미 `/`에 있어도 입력창으로 포커스를 옮긴다. 화면 이동 후 늦게 도착한 저장 ACK가 현재 화면을 이전 문의로 되돌리지 않는다.
+  로그인 사용자는 왼쪽 사이드바 상단의 `+ 새 문의`로 `/`의 문의 입력창을 연다. 입력창에 포커스를 두며, 버튼 선택만으로 REST 요청을 보내거나 빈 문의·SSE 연결을 생성하지 않는다. 첫 메시지 저장 응답 후 받은 문의만 채팅 세션 목록에 반영한다. 기존 문의 및 새 문의의 미전송 입력·결과 미확인 요청은 화면 이동으로 삭제하지 않는다. 이미 `/`에 있어도 입력창으로 포커스를 옮긴다. 화면 이동 후 늦게 도착한 저장 응답이 현재 화면을 이전 문의로 되돌리지 않는다.
 
 사이드바 상단은 `+ 새 문의`와 권한이 있는 업무 메뉴로 구성한다. 처리 부서 구성원 또는 BIZ_ADMIN은 `부서 티켓 현황`(`/tickets`), BIZ_ADMIN은 추가로 `관리자 페이지`(`/admin/tickets`)를 사용한다. 메뉴 표시는 기존 접근 권한을 확대하지 않는다. 하단 개인 채팅 세션은 [F006-AC10~AC12](../F006-my-inquiries/spec.md)를 따른다.
 
@@ -76,8 +76,8 @@
 
 | 용도 | 경로·이벤트 | 공통 계약 타입 | 구현·검증 추적 |
 |---|---|---|---|
-| 문의 생성 | inquiry.create | InquiryCreateCommand → CommandAck | Q-INF-6 |
-| 메시지 전송 | message.send | MessageSendCommand → CommandAck | Q-INF-6, Q-BE-10 |
+| 문의 생성 | POST /api/inquiries | InquiryCreateCommand → MutationResult | Q-INF-6 |
+| 메시지 전송 | POST /api/inquiries/{id}/messages | MessageSendCommand → MutationResult | Q-INF-6, Q-BE-10 |
 | 대화 조회 | GET /api/inquiries/{id}/messages | MessageHistoryQuery → MessageHistoryPage(ChatMessage[]) | Q-BE-7 |
 | 실행 조회 | GET /api/runs/{id} | RunSummary | Q-BE-8 |
 | 진행·답변 조각 | agent.progress / answer.delta | AgentProgressEvent / AnswerDeltaEvent | Q-AI-1/2 |
@@ -88,9 +88,9 @@
 ## 6. 메시지 상태
 
 ```text
-작성 → 전송 중(ACK 대기) → 저장됨
-                        → 오류: 입력 보존, 같은 requestId로 재전송
-                        → 결과 확인 중(ACK 시간 초과·끊김): 같은 requestId로 확인·재전송
+작성 → 전송 중(HTTP 응답 대기) → 저장됨
+                              → 오류: 입력 보존, 같은 Idempotency-Key로 재전송
+                              → 결과 확인 중(시간 초과·끊김): 같은 키·본문으로 확인·재전송
 분석: 진행 중(agent.progress) → 답변 작성 중(answer.delta) → 저장된 답변
      → 시간 초과·일시 장애: 안내 → 재시도 접수 → 분석 중(저장된 성공 작업 유지)
 ```

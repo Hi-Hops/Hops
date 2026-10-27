@@ -18,14 +18,14 @@ Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에�
 
 업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에서 관련 담당자와 합의한 뒤 구현합니다.
 
-## JWT 인증과 Socket.IO 연동 설계
+## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/auth/me`는 구현했고(아래 [인증](#인증) 참고), refresh·로그아웃과 Socket.IO 연동은 아직 구현하지 않았습니다. JWT는 Spring만 발급·검증하기로 팀에서 정했습니다(문서 수정 예정).
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/auth/me`는 구현했고(아래 [인증](#인증) 참고), refresh·로그아웃과 문의 변경 REST·브라우저 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
-- Spring은 Java용 Socket.IO 클라이언트로 Node.js 채팅 서버에 연결해 채팅 명령을 수신하고 진행·저장 결과를 발행합니다. React도 같은 서버의 클라이언트로 연결합니다. Socket.IO 연결 모듈의 패키지 위치와 클라이언트 호환 버전은 구현 전에 정합니다.
-- 연결 모듈은 인증된 요청 문맥·요청 식별자·문의 버전을 업무 서비스에 전달합니다. `inquiry`·`ticket`이 권한·중복 요청을 검증하고 DB 저장을 확정한 뒤 결과를 발행합니다. Node.js 수신 확인과 실제 저장 성공을 구분하고, 재연결·ACK 유실 시에도 같은 업무를 중복 반영하지 않습니다.
-- `agent`는 Python HTTP 실행 요청과 SSE 진행·결과 수신을 담당합니다. 공개 가능한 진행·답변 조각은 Spring의 검증 후 Node.js를 통해 React에 전달하고 최종 메시지·업무 변경은 저장 결과로 확정합니다. 로그인·목록·상세 조회와 티켓 업무 REST는 Spring이 제공합니다. 구독 권한·토큰 만료·부서 변경·재접속 복구의 상세 계약은 API 설계를 따릅니다.
+- Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
+- React는 `GET /api/realtime/events?targetType={type}&targetId={id}`로 Spring SSE에 직접 연결합니다. Spring은 연결마다 JWT와 현재 소유자·부서·역할을 검사하고 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`를 허용된 대상에만 전달합니다.
+- `agent`는 Python HTTP 실행 요청과 내부 SSE 진행·결과 수신을 담당합니다. 공개 가능한 진행·답변 조각은 Spring이 검증해 React SSE로 전달하고 최종 메시지·업무 변경은 DB 저장 결과로 확정합니다. heartbeat·`Last-Event-ID`·`resync.required`·REST 복구의 상세 계약은 API 설계를 따릅니다.
 
 ## 처음 설치 (Mac · Windows)
 

@@ -1,9 +1,9 @@
 # F009 부서 티켓 목록·상세와 관련 대화
 
-상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP 부서 티켓 읽기 전용 목록·상세 / 관련 대화·담당 업무는 후속 · 담당: frontend(화면) · 협의: backend(조회·권한), infra(구독)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: MVP 부서 티켓 읽기 전용 목록·상세 / 관련 대화·담당 업무는 후속 · 담당: frontend(화면) · 협의: backend(조회·권한·SSE)
 근거: PRD 4.6, 4.11, 8.3 · API 2.1 `GET /api/tickets`, 2.2 `GET /api/tickets/{id}/messages`, 2.4 · DATA 3, 4 · ERD `ticket`, `ticket_assignment`, `member`
 
-## 확정 범위와 남은 작업 (2026-10-25)
+## 확정 범위와 남은 작업 (2026-10-27)
 
 MVP는 현재 처리 부서 또는 BIZ_ADMIN 범위의 읽기 전용 목록·상세다. AC07~AC09의 관련 대화는 후속이다. 목록 기본 20·최대 100, processingStatus 필터만 사용한다. routingStatus/개인 담당자 필터·가져오기/처리는 후속이다.
 
@@ -56,7 +56,7 @@ API 2.1이 목록·상세를 MVP에 두므로 F009-AC01~AC06은 MVP로 쓴다. �
   `GET /api/tickets/{id}`로 문의 요약, AI 진단, 현재 처리 부서, 처리 상태·배정 상태, 배정 이력을 보여 준다. MVP에서는 가져오기·처리 완료·재이관·AI 내용 정정 버튼을 두지 않는다. (PRD 4.6 · API 2.1 · 응답 필드 Q-BE-6)
 - **F009-AC06 다른 부서 티켓**
   Given 현재 처리 부서 구성원도 업무 관리자도 아닌 사용자 · When 티켓 주소로 들어가면 · Then 내용을 보여 주지 않고 권한 없음 화면에서 부서 티켓 목록으로 돌아가도록 안내한다. 재이관으로 부서가 바뀐 뒤 다시 열어도 같다. (PRD 4.11 · DATA 4 "현재 처리 부서 구성원만 티켓과 관련 대화를 조회")
-  프론트가 현재 사용자에게 티켓 화면 접근 자격이 없음을 아는 경우 상세 모달·상세 조회·TICKET 구독을 시작하지 않는다. 상세 훅에서도 같은 조건을 적용한다. 처리 부서 구성원 등 화면 접근 자격은 있으나 특정 티켓에 접근 가능한지는 서버가 최종 검사한다.
+  프론트가 현재 사용자에게 티켓 화면 접근 자격이 없음을 아는 경우 상세 모달·상세 조회·TICKET SSE를 시작하지 않는다. 상세 훅에서도 같은 조건을 적용한다. 처리 부서 구성원 등 화면 접근 자격은 있으나 특정 티켓에 접근 가능한지는 서버가 최종 검사한다.
 
 **관련 대화 (이슈 #31 · API 2.2 후속, Q-ALL-7)**
 - **F009-AC07 관련 대화 조회**
@@ -79,7 +79,7 @@ API 2.1이 목록·상세를 MVP에 두므로 F009-AC01~AC06은 MVP로 쓴다. �
 | 부서/관리자 목록 | GET /api/tickets | TicketListQuery → TicketPage(TicketCard[]) | Q-BE-5/6 |
 | 읽기 전용 상세 | GET /api/tickets/{id} | TicketDetail, AssignmentHistory[] | Q-BE-6/12 |
 | 부서 메뉴 판단 | GET /api/auth/me | CurrentUser.department.isRoutable | Q-ALL-5 |
-| 목록/상세 구독 | subscription.request | DepartmentTicketsTarget / TicketTarget | Q-INF-3 |
+| 목록/상세 실시간 연결 | GET /api/realtime/events?targetType={type}&targetId={id} | DepartmentTicketsTarget / TicketTarget | Q-INF-3 |
 | 변경 재조회 | state.changed | StateChangedEvent | Q-INF-6 |
 | 관련 대화 | GET /api/tickets/{id}/messages | 이번 공통 Mock 제외 | Q-BE-14, Q-ALL-7 |
 
