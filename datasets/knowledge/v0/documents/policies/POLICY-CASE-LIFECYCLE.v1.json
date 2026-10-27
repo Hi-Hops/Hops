@@ -12,13 +12,24 @@
     {
       "rule_id": "RULE-CASE-CONFIRM",
       "priority": 10,
-      "trigger": "직원 안내 또는 담당자 조치가 완료됨",
-      "agent_action": "해결을 단정하지 않고 사용자 확인 또는 백엔드 상태 근거를 요청·요약한다.",
+      "trigger": "개별 티켓의 담당자 처리가 완료되었거나 처리 중 사용자가 먼저 해결을 알림",
+      "agent_action": "개별 티켓의 해결을 단정하지 않고 사용자 해결 확인을 요청한다. 사용자가 먼저 해결을 알린 경우에는 담당자의 진행 작업 확인 결과를 함께 요약한다.",
       "final_authority": "SPRING",
-      "enforcement": "Spring은 티켓 상태·사용자 응답·백엔드 상태를 검증해 완료 여부를 저장한다.",
-      "required_evidence": ["사용자 해결 확인 또는 신뢰 가능한 백엔드 상태", "대상 문제·티켓 식별자"],
-      "user_visible_behavior": "실제로 해결됐는지 확인하고 미해결이면 처리를 이어간다.",
-      "prohibited_outcomes": ["가이드 제공만으로 완료", "Tool 성공만으로 완료", "여러 티켓의 일괄 완료"]
+      "enforcement": "Spring은 대상 문제·티켓, 담당자 처리 상태와 사용자 해결 확인을 검증해 개별 티켓 완료를 저장한다. 확인 대기 후 24시간 무응답이면 알림을 보내고 48시간 추가 무응답이면 미확인 종료하되 해결 완료나 AI 해결 실적으로 집계하지 않는다.",
+      "required_evidence": ["대상 문제·티켓 식별자", "담당자 처리 완료 또는 사용자 선해결 신고에 대한 담당자 확인", "사용자 해결 확인"],
+      "user_visible_behavior": "담당자 처리 후 실제로 해결됐는지 확인하고 미해결이면 해당 티켓 처리를 이어간다. 무응답 종료는 해결 완료와 구분해 표시한다.",
+      "prohibited_outcomes": ["가이드 제공만으로 개별 티켓 완료", "Tool 성공이나 백엔드 정상 상태만으로 개별 티켓 완료", "사용자 확인 없는 개별 티켓 해결 완료", "검증된 동일 장애 그룹 밖 티켓의 일괄 완료"]
+    },
+    {
+      "rule_id": "RULE-CASE-GROUP-COMPLETE",
+      "priority": 15,
+      "trigger": "Spring이 동일 장애 그룹으로 확정한 미완료 티켓들의 공통 장애를 그룹 담당자가 해결함",
+      "agent_action": "공통 장애 근거, 그룹 담당자의 해결 기록과 대상 티켓 목록을 요약해 그룹 완료를 제안한다. 개별 사용자 사전 확인을 완료 조건으로 요구하지 않는다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 같은 처리 부서, 미완료 상태, 확정된 그룹 소속과 공통 조치로 함께 해결된다는 근거를 검증한 뒤 구성 티켓별 완료를 저장한다. 일부 반영 실패는 성공·실패 티켓을 구분하며 전체 성공으로 표시하지 않는다.",
+      "required_evidence": ["확정된 장애 그룹 식별자와 구성 티켓 목록", "공통 장애와 공통 조치 근거", "그룹 담당자의 해결 기록"],
+      "user_visible_behavior": "공통 장애가 해결되면 그룹 티켓을 완료하고, 이후 미해결을 알린 사용자의 티켓만 그룹에서 분리해 재오픈한다.",
+      "prohibited_outcomes": ["문장 유사도만으로 그룹 완료", "그룹 밖 티켓 완료", "부분 실패를 전체 성공으로 표시", "한 사용자의 미해결 신고로 그룹 전체 재오픈"]
     },
     {
       "rule_id": "RULE-CASE-PROMOTE",
@@ -60,6 +71,6 @@
     "runbook_ids": [],
     "scenario_ids": ["FLOW-ANSWER-SOLVED", "FLOW-CASE-MATCH", "FLOW-CASE-CONFLICT"]
   },
-  "provenance": {"source_policy_ids": ["PRD-3.4", "KNOWLEDGE-LIFECYCLE-6", "KNOWLEDGE-LIFECYCLE-7", "KNOWLEDGE-LIFECYCLE-8"], "created_at": "2026-10-26"},
+  "provenance": {"source_policy_ids": ["PRD-3.4", "PRD-3.5", "KNOWLEDGE-LIFECYCLE-6", "KNOWLEDGE-LIFECYCLE-7", "KNOWLEDGE-LIFECYCLE-8"], "created_at": "2026-10-26"},
   "review": {"content_status": "OWNER_CONFIRMED", "reviewer": "DATA_OWNER", "reviewed_at": "2026-10-27", "team_review_status": "PENDING"}
 }
