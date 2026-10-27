@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hops.local/schemas/incident_scenario_catalog.v0.json",
+  "title": "Hops incident scenario catalog v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "catalog_id", "language", "status",
+    "contains_hidden_ground_truth", "ingestion_policy", "review", "scenarios"
+  ],
+  "properties": {
+    "schema_version": {"const": "incident_scenario_catalog.v0"},
+    "catalog_id": {"const": "HOPS-INCIDENT-SCENARIOS-V0"},
+    "language": {"const": "ko"},
+    "status": {"enum": ["OWNER_CONFIRMED_TEAM_REVIEW_PENDING", "TEAM_APPROVED"]},
+    "contains_hidden_ground_truth": {"const": true},
+    "ingestion_policy": {"const": "NEVER_INGEST"},
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner_reviewer", "owner_reviewed_at", "team_review_status"],
+      "properties": {
+        "owner_reviewer": {"type": "string", "minLength": 1},
+        "owner_reviewed_at": {"type": "string", "format": "date"},
+        "team_review_status": {"enum": ["PENDING", "APPROVED", "CHANGES_REQUESTED"]}
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/scenario"}
+    }
+  },
+  "$defs": {
+    "artifact_status": {
+      "enum": ["NOT_REQUIRED", "MISSING", "AI_DRAFT", "OWNER_CONFIRMED", "TEAM_APPROVED", "HOLD", "PARTIAL"]
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["guide_ids", "guide_status", "runbook_ids", "runbook_status", "policy_ids", "policy_status"],
+      "properties": {
+        "guide_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "guide_status": {"$ref": "#/$defs/artifact_status"},
+        "runbook_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "runbook_status": {"$ref": "#/$defs/artifact_status"},
+        "policy_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "policy_status": {"$ref": "#/$defs/artifact_status"}
+      }
+    },
+    "observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "contradictory"],
+      "properties": {
+        "required": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "contradictory": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["route", "departments", "behavior", "allowed_uncertainty"],
+      "properties": {
+        "route": {
+          "enum": [
+            "ANSWER", "ANSWER_OR_HANDOFF", "SUPPORT_DIAGNOSIS", "HANDOFF",
+            "MULTI_PROBLEM", "CS_REVIEW", "SECURITY_DENY", "NO_WRITE_ACTION"
+          ]
+        },
+        "departments": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"enum": ["ACCOUNT_PERMISSION", "NETWORK", "BACKEND", "FRONTEND", "DB", "INFRA", "SYSTEM", "CS"]}
+        },
+        "behavior": {"type": "string", "minLength": 1},
+        "allowed_uncertainty": {"type": "string", "minLength": 1}
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "trigger_id", "status"],
+      "properties": {
+        "type": {"enum": ["NONE", "FIXTURE", "DEMO_PORTAL"]},
+        "trigger_id": {"type": ["string", "null"]},
+        "status": {"enum": ["NOT_REQUIRED", "NOT_DESIGNED", "DESIGNED", "IMPLEMENTED", "VERIFIED"]}
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_id", "title", "scenario_type", "service_id", "component_candidates",
+        "user_symptoms", "hidden_cause", "difficulty", "artifacts", "evidence_refs",
+        "evidence_status", "observations", "expected", "trigger", "reproduction_status",
+        "case_eligible", "eval_split", "knowledge_ingest_allowed", "notes"
+      ],
+      "properties": {
+        "scenario_id": {"type": "string", "pattern": "^(SCN|FLOW)-[A-Z0-9-]+$"},
+        "title": {"type": "string", "minLength": 1},
+        "scenario_type": {"enum": ["KNOWLEDGE_ONLY", "DEMO_REPRODUCIBLE", "WORKFLOW_EVAL"]},
+        "service_id": {"type": ["string", "null"]},
+        "component_candidates": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "user_symptoms": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "hidden_cause": {"type": ["string", "null"]},
+        "difficulty": {"enum": ["BASIC", "INTERMEDIATE", "ADVANCED"]},
+        "artifacts": {"$ref": "#/$defs/artifacts"},
+        "evidence_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "evidence_status": {"enum": ["INCLUDE_CONFIRMED", "MIXED", "HOLD", "NOT_REQUIRED"]},
+        "observations": {"$ref": "#/$defs/observations"},
+        "expected": {"$ref": "#/$defs/expected"},
+        "trigger": {"$ref": "#/$defs/trigger"},
+        "reproduction_status": {"enum": ["NOT_REQUIRED", "NOT_RUN", "PASSED", "FAILED"]},
+        "case_eligible": {"type": "boolean"},
+        "eval_split": {"enum": ["NONE", "DEV", "TEST"]},
+        "knowledge_ingest_allowed": {"const": false},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}
