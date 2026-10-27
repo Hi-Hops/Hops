@@ -2,7 +2,7 @@
 
 테이블 22개 · PostgreSQL 컬럼 후보. 기존 참조 파일명: `ERD_postgresql.sql`, `ERD_ERDCloud_import.sql`, `erd.dbml`. 이 문서의 설명 수정은 해당 DDL·DB의 적용이나 갱신을 뜻하지 않는다.
 
-PRD v1.41의 Node.js + Socket.IO 중계와 JWT 인증에 맞춰 회원 사번 컬럼 후보와 저장 책임을 갱신했다. 전체 테이블·제약이 최신 제품 정책과 모두 일치하는 것은 아니며, [DATA](DATA.md)의 관계·저장 불변식과 [API](API.md)의 인증·이벤트 계약을 대조해 구현 전에 물리 모델을 확정한다.
+PRD v1.43의 React–Spring REST·SSE와 JWT 인증에 맞춰 회원 사번 컬럼 후보와 저장 책임을 갱신했다. 전체 테이블·제약이 최신 제품 정책과 모두 일치하는 것은 아니며, [DATA](DATA.md)의 관계·저장 불변식과 [API](API.md)의 인증·이벤트 계약을 대조해 구현 전에 물리 모델을 확정한다.
 
 ## 1. 한눈에 보기
 
@@ -39,9 +39,9 @@ PRD v1.41의 Node.js + Socket.IO 중계와 JWT 인증에 맞춰 회원 사번 �
 | 시간 컬럼 | 바뀌는 테이블: 생성일시·수정일시·삭제일시 / 추가만 하는 이력 테이블(7개): 생성일시만 |
 | 이력 테이블 | 메시지 수정 이력, 티켓 변경 이력, 그룹 이력, 티켓 임베딩, AI 실행 단계, 문서 버전, 검색 조각 |
 | 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약 |
-| 업무 데이터 쓰기 | Spring이 저장·상태를 확정. Node.js는 Socket.IO 중계, AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
+| 업무 데이터 쓰기 | Spring이 REST 변경 요청을 저장·확정하고 권한별 SSE를 전달. AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
 | 관계선 | 실제 DB는 FK 전부 적용. ERDCloud에는 핵심 23개만 선으로 그림 (누가·근거·부서 참조 FK는 선 생략) |
-| 중복 방지 | REST는 Idempotency-Key, Socket.IO 명령은 requestId로 중복 반영을 차단. 문의 1:N 문제 → 문제 1:N 작업 → 작업당 최대 티켓 1개. 문제 ID 단독 UNIQUE 대신 작업 ID UNIQUE 적용. 실제 DDL은 백엔드 구현/검증 필요 |
+| 중복 방지 | REST `Idempotency-Key`와 요청 해시로 중복 반영을 차단. 문의 1:N 문제 → 문제 1:N 작업 → 작업당 최대 티켓 1개. 문제 ID 단독 UNIQUE 대신 작업 ID UNIQUE 적용. 실제 DDL은 백엔드 구현/검증 필요 |
 
 ## 3. 테이블별 컬럼
 
@@ -91,9 +91,9 @@ PRD v1.41의 Node.js + Socket.IO 중계와 JWT 인증에 맞춰 회원 사번 �
 
 중복 불가 조합: (회원 ID, 역할)
 
-JWT 매핑: `sub`는 회원 ID, `employeeNo`는 사번, `departmentId/departmentCode/departmentName`은 현재 소속 부서의 ID·코드·이름, `roles`는 역할 부여에서 가져온다. 부서명으로 권한을 비교하거나 사용자 소속을 티켓의 처리 부서로 자동 지정하지 않는다. 부서·역할 변경 시 토큰과 실시간 구독 권한을 함께 갱신하는 계약이 필요하다.
+JWT 매핑: `sub`는 회원 ID, `employeeNo`는 사번, `departmentId/departmentCode/departmentName`은 현재 소속 부서의 ID·코드·이름, `roles`는 역할 부여에서 가져온다. 부서명으로 권한을 비교하거나 사용자 소속을 티켓의 처리 부서로 자동 지정하지 않는다. 부서·역할 변경 시 토큰을 무효화하고 열린 SSE를 종료하는 계약이 필요하다.
 
-JWT 사용만으로 인증 테이블을 추가하지 않는다. Refresh 회전·폐기는 공통 계약 10절의 개발 기준이다. 필요한 보조 인증 저장 모델의 실제 테이블/인덱스는 백엔드가 설계한다. Socket.IO 연결 ID·room은 업무 문의와 별개이며, 채팅 원본은 `inquiry/message/message_revision`에 보존한다. 요청 멱등·이벤트 수신·재전송 기록의 물리 모델과 보존 방식은 DATA 문서의 구현 전 합의 항목을 따른다.
+JWT 사용만으로 인증 테이블을 추가하지 않는다. Refresh 회전·폐기는 공통 계약 10절의 개발 기준이다. 필요한 보조 인증 저장 모델의 실제 테이블/인덱스는 백엔드가 설계한다. SSE 연결과 eventId는 업무 문의와 별개이며, 채팅 원본은 `inquiry/message/message_revision`에 보존한다. 요청 멱등·이벤트 replay·재동기화 기록의 물리 모델과 보존 방식은 DATA 문서의 구현 전 합의 항목을 따른다.
 
 ### 문의 · 대화 · 문제
 
