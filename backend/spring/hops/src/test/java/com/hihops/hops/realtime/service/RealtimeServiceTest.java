@@ -74,7 +74,15 @@ class RealtimeServiceTest {
         service.stateChanged(event(UUID.randomUUID()));
         assertThat(result.getResponse().getContentAsString()).doesNotContain("state.changed");
         service.stateChanged(event(departmentId));
-        assertThat(result.getResponse().getContentAsString()).contains("event:state.changed", "departmentId");
+        String wire = result.getResponse().getContentAsString();
+        assertThat(wire).contains("event:state.changed");
+        String data = wire.lines().filter(line -> line.startsWith("data:"))
+                .findFirst().orElseThrow().substring(5).trim();
+        var json = new tools.jackson.databind.ObjectMapper().readTree(data);
+        assertThat(json.get("target").get("type").asString()).isEqualTo("DEPARTMENT_TICKETS");
+        assertThat(json.get("target").get("id").asString()).isEqualTo(departmentId.toString());
+        assertThat(json.get("target").get("departmentId")).isNull();
+        assertThat(json.get("inquiryVersion").isNull()).isTrue();
         service.shutdown();
     }
 
@@ -90,7 +98,14 @@ class RealtimeServiceTest {
     @Test
     void 재생_요청은_가짜_재생_없이_종료한다() throws Exception {
         MvcResult result = connect(UUID.randomUUID().toString());
-        assertThat(result.getResponse().getContentAsString()).contains("REST resync required");
+        String wire = result.getResponse().getContentAsString();
+        assertThat(wire).contains("event:resync.required");
+        String id = wire.lines().filter(line -> line.startsWith("id:")).findFirst().orElseThrow().substring(3);
+        String data = wire.lines().filter(line -> line.startsWith("data:")).findFirst().orElseThrow().substring(5);
+        var json = new tools.jackson.databind.ObjectMapper().readTree(data);
+        assertThat(json.get("eventId").asString()).isEqualTo(id);
+        assertThat(UUID.fromString(id).toString()).isEqualTo(id);
+        assertThat(json.size()).isEqualTo(1);
         assertThat(result.getAsyncResult()).isNull();
         service.stateChanged(event(departmentId));
         assertThat(result.getResponse().getContentAsString()).doesNotContain("state.changed");
@@ -185,6 +200,25 @@ class RealtimeServiceTest {
         heartbeat.getValue().run();
         assertThat(result.getAsyncResult()).isNull();
         assertThat(result.getResponse().getContentAsString()).doesNotContain(":heartbeat");
+    }
+
+    @Test
+    void 부서_이벤트에_문의_버전을_넣으면_거부한다() {
+        assertThatThrownBy(() -> new StateChangedEvent(UUID.randomUUID(),
+                new StateChangedEvent.Target(RealtimeTarget.Type.DEPARTMENT_TICKETS, departmentId), 1))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 연결_전_DB_일시_장애는_503_JSON으로_반환한다() throws Exception {
+        doThrow(new org.springframework.dao.DataAccessResourceFailureException("test database unavailable"))
+                .when(authorization).check(any(), any());
+        mvc.perform(get("/api/realtime/events").param("targetType", "DEPARTMENT_TICKETS")
+                        .param("targetId", departmentId.toString()).header("Accept", "text/event-stream"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code")
+                        .value("SERVICE_UNAVAILABLE"))
+                .andExpect(request().asyncNotStarted());
     }
 
     @Configuration

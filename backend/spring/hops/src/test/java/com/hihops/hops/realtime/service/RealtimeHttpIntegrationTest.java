@@ -100,7 +100,13 @@ class RealtimeHttpIntegrationTest {
             assertThat(block(stream)).isEqualTo(":heartbeat\n\n");
         }
         try (InputStream stream = connect(token, UUID.randomUUID().toString())) {
-            assertThat(block(stream)).isEqualTo(":REST resync required\n\n");
+            String wire = block(stream);
+            assertThat(wire).contains("event:resync.required");
+            String id = wire.lines().filter(line -> line.startsWith("id:")).findFirst().orElseThrow().substring(3);
+            String data = wire.lines().filter(line -> line.startsWith("data:")).findFirst().orElseThrow().substring(5);
+            var json = new tools.jackson.databind.ObjectMapper().readTree(data);
+            assertThat(json.get("eventId").asString()).isEqualTo(id);
+            assertThat(UUID.fromString(id).toString()).isEqualTo(id);
             assertThat(block(stream)).isEmpty();
         }
         try (InputStream stream = connect(token, null)) {
@@ -124,6 +130,28 @@ class RealtimeHttpIntegrationTest {
             jdbc.update("UPDATE member SET deleted_at = now() WHERE id = ?", memberId);
             assertThat(rest(stream)).doesNotContain("event:state.changed");
         }
+    }
+
+    @Test
+    void 부서가_바뀐_토큰의_연결은_401_문맥_변경으로_거부한다() throws Exception {
+        String token = token(30);
+        jdbc.update("UPDATE member SET department_id = ? WHERE id = ?", otherDepartmentId, memberId);
+        assertContextChanged(token);
+    }
+
+    @Test
+    void 역할이_바뀐_토큰의_연결은_401_문맥_변경으로_거부한다() throws Exception {
+        String token = token(30);
+        jdbc.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", memberId);
+        assertContextChanged(token);
+    }
+
+    private void assertContextChanged(String token) throws Exception {
+        HttpResponse<String> response = client.send(request(departmentId, token, null),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.headers().firstValue("Content-Type").orElse("")).startsWith("application/json");
+        assertThat(response.body()).contains("AUTH_CONTEXT_CHANGED");
     }
 
     private HttpRequest request(UUID target, String token, String cursor) {

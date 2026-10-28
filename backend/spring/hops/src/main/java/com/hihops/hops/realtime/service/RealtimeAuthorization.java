@@ -39,12 +39,15 @@ public class RealtimeAuthorization {
         }
         Member member = members.findWithDepartmentAndRolesByIdAndDeletedAtIsNull(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHENTICATED));
+        if (jwt.getClaimAsString("departmentId") == null || jwt.getClaimAsStringList("roles") == null) {
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
+        }
+        // 유효한 JWT라도 발급 이후 소속·역할이 바뀌면 갱신 반복 대신 재로그인이 필요하다.
         if (member.getDepartment().isDeleted()
                 || !member.getDepartment().getId().toString().equals(jwt.getClaimAsString("departmentId"))
-                || jwt.getClaimAsStringList("roles") == null
                 || !new HashSet<>(member.getRoles().stream().map(Role::name).toList())
                         .equals(new HashSet<>(jwt.getClaimAsStringList("roles")))) {
-            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
+            throw new BusinessException(ErrorCode.AUTH_CONTEXT_CHANGED);
         }
         // 해당 도메인의 소유권 조회가 구현되기 전에는 ID만으로 연결을 허용하지 않는다.
         if (target.type() != RealtimeTarget.Type.DEPARTMENT_TICKETS) {

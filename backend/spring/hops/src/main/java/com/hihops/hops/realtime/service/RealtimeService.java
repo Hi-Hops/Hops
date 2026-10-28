@@ -10,6 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.TransientDataAccessException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
@@ -19,6 +22,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
+import com.hihops.hops.realtime.dto.ResyncRequiredEvent;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
 
 import jakarta.annotation.PreDestroy;
@@ -39,15 +43,24 @@ public class RealtimeService {
     }
 
     public SseEmitter connect(Jwt jwt, RealtimeTarget target, String lastEventId) {
-        authorization.check(jwt, target);
+        try {
+            authorization.check(jwt, target);
+        } catch (DataAccessResourceFailureException | TransientDataAccessException
+                | CannotCreateTransactionException exception) {
+            // 일시적 DB 연결·조회 장애를 인증 실패와 구분한다. SQL·접속 정보는 응답/로그에 싣지 않는다.
+            log.warn("SSE 연결 전 권한 조회 일시 장애: {}", exception.getClass().getSimpleName());
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
         SseEmitter emitter = new SseEmitter(properties.timeout().toMillis());
         Connection connection = new Connection(UUID.randomUUID(), jwt, target, emitter);
         emitter.onCompletion(connection::remove);
         emitter.onTimeout(connection::close);
         emitter.onError(error -> connection.remove());
-        // 이벤트 보존소가 없으므로 재생을 가장하지 않고 종료한다. 소비자는 REST 복구 후 새 연결을 연다.
+        // 이벤트 보존소가 없으므로 재생 불가를 명시하고 종료한다. 제어 이벤트의 ID도 재연결 커서로 재사용하지 않는다.
         if (lastEventId != null && !lastEventId.isBlank()) {
-            connection.send(SseEmitter.event().comment("REST resync required"));
+            ResyncRequiredEvent event = new ResyncRequiredEvent(UUID.randomUUID());
+            connection.send(SseEmitter.event().id(event.eventId().toString())
+                    .name("resync.required").data(event));
             connection.close();
             return emitter;
         }
@@ -69,7 +82,7 @@ public class RealtimeService {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void stateChanged(StateChangedEvent event) {
-        RealtimeTarget target = new RealtimeTarget(event.target().type(), event.target().departmentId());
+        RealtimeTarget target = new RealtimeTarget(event.target().type(), event.target().id());
         connections.values().stream().filter(connection -> connection.target.equals(target))
                 .forEach(connection -> {
                     if (connection.authorized()) {

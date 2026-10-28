@@ -69,7 +69,7 @@ class RealtimeAuthorizationTest {
     @Test
     void 토큰_발급_뒤_역할이_바뀌면_연결을_거부한다() {
         when(member.getRoles()).thenReturn(List.of(Role.BIZ_ADMIN));
-        denied(token(List.of()), target(departmentId), ErrorCode.UNAUTHENTICATED);
+        denied(token(List.of()), target(departmentId), ErrorCode.AUTH_CONTEXT_CHANGED);
     }
 
     @Test
