@@ -47,7 +47,7 @@ React의 문의·메시지·정정은 Spring REST로 보내고, 분석 진행·�
 - **F002-AC11 부서·역할 변경과 접근 회수**
   Spring은 사용자의 소속·역할 변경이나 계정 차단을 확인하면 기존 스트림을 종료하고 이후 REST·SSE 요청을 차단한다. 전송 가능한 경우 `auth.invalidated`를 보낸 뒤 종료하며, 통지 유실이 있어도 서버 권한 검사가 접근을 막는다.
 - **F002-AC12 재생 불가 복구**
-  Spring이 `Last-Event-ID` 이후 이벤트를 재생할 수 없으면 `resync.required`를 전달하거나 스트림을 종료한다. React는 실시간 내용을 임의로 채우지 않고 REST 원본으로 복구한다.
+  Spring이 `Last-Event-ID` 이후 이벤트를 재생할 수 없으면 `resync.required`를 전달한 뒤 스트림을 종료한다. React는 실시간 내용을 임의로 채우지 않고 REST 원본으로 복구한 후 기존 커서와 제어 이벤트 ID를 비워 `Last-Event-ID` 없이 새로 연결한다.
 
 ## 4. 전송 계약
 
@@ -59,7 +59,7 @@ React의 문의·메시지·정정은 Spring REST로 보내고, 분석 진행·�
 | 메시지 저장 | `message.stored` | MessageStoredEvent |
 | 업무 변경 | `state.changed` | StateChangedEvent |
 | 인증 회수 | `auth.invalidated` | AuthInvalidatedEvent |
-| REST 동기화 요구 | `resync.required` | ResyncRequiredEvent(추가 필요) |
+| REST 동기화 요구 | `resync.required` | ResyncRequiredEvent |
 
 SSE 블록은 `id: <eventId>`, `event: <name>`, `data: <JSON>` 뒤 빈 줄로 종료한다. 유휴 시에는 주석 heartbeat를 보낸다. 브라우저는 마지막 `eventId`를 보존하고 재연결에 `Last-Event-ID`로 전달한다. 정확한 heartbeat 간격·SSE timeout·이벤트 보존 시간과 개수는 실제 프록시·부하 검증 후 고정한다.
 

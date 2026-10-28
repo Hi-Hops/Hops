@@ -347,6 +347,18 @@
 | code | string | 예 | ACCESS_TOKEN_EXPIRED / AUTH_CONTEXT_CHANGED / REFRESH_TOKEN_REVOKED 중 하나 |
 | message | string | 예 | 공개 가능한 안내. 토큰·비밀값 제외 |
 
+## ResyncRequiredEvent
+
+`resync.required`는 해당 SSE 연결의 이벤트를 재생할 수 없을 때 보내는 제어 이벤트다.
+SSE `id`와 JSON `eventId`는 같은 UUID다. 문의 이벤트 외피를 사용하지 않으며 대상은 현재 연결의 target이다.
+서버는 이 이벤트를 보낸 뒤 스트림을 종료한다. 클라이언트는 해당 대상의 영속 상태를 REST로 다시 조회하고,
+기존 커서와 이 제어 이벤트의 ID를 비운 뒤 `Last-Event-ID` 없이 새 연결을 연다.
+이 알림은 저장 실패나 인증 실패를 뜻하지 않는다. 알림 유실에 대비해 일반 재접속 시 REST 복구도 유지한다.
+
+| 필드 | JSON 표현 | 조건 |
+|---|---|---|
+| `eventId` | `Uuid` | 필수. 제어 이벤트 중복 구분용이며 복구 후 재연결 커서로 재사용하지 않음 |
+
 ## RelayStatusEvent
 
 `relay.status`는 Node↔Spring 중계 상태가 바뀔 때 연결된 클라이언트에 보내는 제어 이벤트다. 업무 저장 성공·인증 만료를 뜻하지 않는다.

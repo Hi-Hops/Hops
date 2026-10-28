@@ -106,7 +106,7 @@
 | Q-INF-3 | SSE 대상 형식과 권한 | 현재 대상은 INQUIRY·TICKET·DEPARTMENT_TICKETS이며 `targetType`·`targetId`가 필수다. | F002, F007, F009, F010 | 1 | **개발 기준 확정** | 한 연결에 한 대상을 요청하고 Spring이 현재 권한을 검사한다. 임의 채널명·userId를 신뢰하지 않으며 ADMIN_DASHBOARD 등 미구현 대상을 미리 추가하지 않는다. | — |
 | Q-INF-4 | 연결 중 토큰 만료와 권한 변경 시 SSE 회수 처리 | `auth.invalidated`와 서버 측 열린 스트림 종료를 WIRE_CONTRACT로 확정했다. | F002 | 2 | **기준 확정·담당 설계 필요** | 만료는 refresh 후 새 Bearer로 재연결, 권한 문맥 변경/폐기는 재로그인한다. 통지가 유실돼도 REST·SSE 권한 검사가 차단해야 한다. | 겹침 #22-6(JWT 상세 정책) |
 | Q-INF-5 | REST 저장 응답 대기와 재전송 정책 (backend와 함께) | 저장 응답 대기는 10초이며 요청 접수나 AI 완료가 아닌 Spring DB 저장 결과다. | F003, F004, F008 | 2 | **개발 기준 확정** | 시간 초과·단절은 결과 미확인, 원문과 `Idempotency-Key` 보존, 사용자 확인 뒤 같은 키/본문 재확인. 자동 저장 재전송 없음. 새 의도는 새 키다. | 겹침 #22-6(REST 저장 결과) |
-| Q-INF-6 | REST 경로·SSE 이벤트·결과 타입과 스키마 위치 | 변경 REST 3개, 업무 이벤트 4개와 제어 이벤트 `auth.invalidated`·`resync.required`를 사용한다. | F002~F005, F008 | 1 | **개발 기준 확정** | 타입은 DATA_TYPES, 전송은 WIRE_CONTRACT가 원본이다. `MutationResult`·`ResyncRequiredEvent` 추가와 기존 Command/Subscription 타입 제거가 남아 있다. | 겹침 #22-6(저장 결과·SSE) |
+| Q-INF-6 | REST 경로·SSE 이벤트·결과 타입과 스키마 위치 | 변경 REST 3개, 업무 이벤트 4개와 제어 이벤트 `auth.invalidated`·`resync.required`를 사용한다. | F002~F005, F008 | 1 | **개발 기준 확정** | 타입은 DATA_TYPES, 전송은 WIRE_CONTRACT가 원본이다. `ResyncRequiredEvent` 형식은 DATA_TYPES에 정의했다. `MutationResult` 추가와 기존 Command/Subscription 타입 제거는 남아 있다. | 겹침 #22-6(저장 결과·SSE) |
 | Q-INF-7 | SSE 단절·이벤트 재생 불가를 React에 알리는 방법 | 연결 오류와 `resync.required`를 구분한다. | F002 | 3 | **개발 기준 확정** | `Last-Event-ID` replay가 불가능하면 REST로 동기화하고 새 기준점으로 연결한다. 인증 만료나 저장 실패로 추정하거나 REST 변경을 자동 재전송하지 않는다. | — |
 
 ## 4. ai (Python 에이전트)

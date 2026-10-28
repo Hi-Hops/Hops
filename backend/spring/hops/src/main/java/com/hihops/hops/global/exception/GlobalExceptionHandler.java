@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -42,7 +43,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ErrorCode errorCode = exception.errorCode();
         // 예상한 업무 오류라 스택 트레이스 없이 한 줄만 남긴다. 문구는 사용자에게 보여주는 것과 같아 비밀값이 없다.
         log.info("업무 오류 {} {}: {}", errorCode.status().value(), errorCode.name(), exception.getMessage());
+        // SSE 연결 전 오류도 JSON 계약을 따른다. Accept가 text/event-stream이어도 오류 직렬화가 실패하지 않게 한다.
         return ResponseEntity.status(errorCode.status())
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(ErrorResponse.of(errorCode, exception.getMessage(), RequestIdFilter.currentRequestId()));
     }
 
@@ -79,11 +82,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         }
         return ResponseEntity.status(statusCode)
                 .headers(headers)
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(errorBody(errorCode));
     }
 
     private static ResponseEntity<ErrorResponse> toResponse(ErrorCode errorCode) {
-        return ResponseEntity.status(errorCode.status()).body(errorBody(errorCode));
+        return ResponseEntity.status(errorCode.status())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(errorBody(errorCode));
     }
 
     private static ErrorResponse errorBody(ErrorCode errorCode) {

@@ -105,7 +105,7 @@ Last-Event-ID: {lastEventId}
 
 eventId 중복은 한 번만 반영한다. `answer.delta`는 `(runId,messageId,seq)`로도 중복을 제거하고 순서가 뒤바뀐 조각을 버퍼링한다. 누락·충돌이 남으면 임시 답변을 확정하지 않고 REST 저장 메시지로 복구한다.
 
-재연결 시 마지막으로 처리한 `id`를 `Last-Event-ID`로 보낸다. 서버가 보존 구간 안의 이벤트를 재생할 수 있으면 이후 이벤트를 순서대로 보낸다. 재생할 수 없으면 `resync.required`를 보내며 클라이언트는 현재 권한으로 문의·메시지·티켓·실행을 REST 재조회하고 새 기준점으로 연결한다. SSE 재연결만으로 누락 복구를 완료했다고 보지 않는다.
+재연결 시 마지막으로 처리한 `id`를 `Last-Event-ID`로 보낸다. 서버가 보존 구간 안의 이벤트를 재생할 수 있으면 이후 이벤트를 순서대로 보낸다. 재생할 수 없으면 `ResyncRequiredEvent` 형식의 `resync.required`를 보낸 뒤 스트림을 종료한다. SSE id와 JSON eventId는 동일하다. 클라이언트는 현재 권한으로 해당 대상의 문의·메시지·티켓·실행을 REST 재조회하고 기존 커서와 제어 이벤트 ID를 비운 뒤 `Last-Event-ID` 없이 새 연결을 연다. SSE 재연결만으로 누락 복구를 완료했다고 보지 않는다.
 
 Access Token이 만료되면 현재 refresh 정책으로 갱신한 뒤 새 Bearer 토큰으로 연결을 다시 연다. `AUTH_CONTEXT_CHANGED`·Refresh 폐기는 재로그인한다. 로그아웃·계정 전환·권한 회수 때 기존 SSE를 닫으며, 서버 측 권한 검사가 이벤트 전달을 차단해야 한다.
 
@@ -235,7 +235,7 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 
 ### 공통 계약 후속
 
-- DATA_TYPES의 `CommandAck`를 `MutationResult`로 정리하고 Socket 전용 `SubscriptionCommand`·`SubscriptionAck`·`RelayStatusEvent`를 제거하며 `ResyncRequiredEvent`를 추가한다.
+- DATA_TYPES의 `CommandAck`를 `MutationResult`로 정리하고 Socket 전용 `SubscriptionCommand`·`SubscriptionAck`·`RelayStatusEvent`를 제거한다. `ResyncRequiredEvent`는 DATA_TYPES에 정의한 형식을 사용한다.
 - Mock fixture와 기능 스펙의 명령명·ACK·구독 표를 REST 경로·HTTP 결과·SSE 대상 연결로 바꾼다.
 
 ### 아직 검증하지 않은 항목
