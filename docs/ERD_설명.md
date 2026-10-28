@@ -41,7 +41,7 @@ PRD v1.43의 React–Spring REST·SSE와 JWT 인증에 맞춰 회원 사번 컬�
 | 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약 |
 | 업무 데이터 쓰기 | Spring이 REST 변경 요청을 저장·확정하고 권한별 SSE를 전달. AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
 | 관계선 | 실제 DB는 FK 전부 적용. ERDCloud에는 핵심 23개만 선으로 그림 (누가·근거·부서 참조 FK는 선 생략) |
-| 중복 방지 | REST `Idempotency-Key`와 요청 해시로 중복 반영을 차단. 문의 1:N 문제 → 문제 1:N 작업 → 작업당 최대 티켓 1개. 문제 ID 단독 UNIQUE 대신 작업 ID UNIQUE 적용. 실제 DDL은 백엔드 구현/검증 필요 |
+| 중복 방지 | REST `Idempotency-Key`와 요청 해시로 중복 반영을 차단. 문의 1:N 문제 → 문제 1:N 작업 → 작업당 최대 티켓 1개. 문제 ID 단독 UNIQUE 대신 작업 ID UNIQUE 적용. 멱등 키는 PostgreSQL 테이블에 저장(팀 합의 2026-10-28). 실제 DDL은 백엔드 구현/검증 필요 |
 
 ## 3. 테이블별 컬럼
 
@@ -93,7 +93,7 @@ PRD v1.43의 React–Spring REST·SSE와 JWT 인증에 맞춰 회원 사번 컬�
 
 JWT 매핑: `sub`는 회원 ID, `employeeNo`는 사번, `departmentId/departmentCode/departmentName`은 현재 소속 부서의 ID·코드·이름, `roles`는 역할 부여에서 가져온다. 부서명으로 권한을 비교하거나 사용자 소속을 티켓의 처리 부서로 자동 지정하지 않는다. 부서·역할 변경 시 토큰을 무효화하고 열린 SSE를 종료하는 계약이 필요하다.
 
-JWT 사용만으로 인증 테이블을 추가하지 않는다. Refresh 회전·폐기는 공통 계약 10절의 개발 기준이다. 필요한 보조 인증 저장 모델의 실제 테이블/인덱스는 백엔드가 설계한다. SSE 연결과 eventId는 업무 문의와 별개이며, 채팅 원본은 `inquiry/message/message_revision`에 보존한다. 요청 멱등·이벤트 replay·재동기화 기록의 물리 모델과 보존 방식은 DATA 문서의 구현 전 합의 항목을 따른다.
+JWT 사용만으로 인증 테이블을 추가하지 않는다. Refresh 회전·폐기는 공통 계약 10절의 개발 기준이다. 보조 인증 저장(로그인 세션·Refresh 검증값)은 테이블 없이 Redis 키로 둔다(팀 합의 2026-10-28). SSE 연결과 eventId는 업무 문의와 별개이며, 채팅 원본은 `inquiry/message/message_revision`에 보존한다. 요청 멱등 기록은 PostgreSQL 테이블, SSE 이벤트 replay 이력은 Redis에 둔다(팀 합의 2026-10-28). 상세 컬럼·키와 보존 기간은 DATA 문서 5절을 따른다.
 
 ### 문의 · 대화 · 문제
 
