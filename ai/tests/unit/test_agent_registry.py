@@ -114,3 +114,24 @@ async def test_follow_up_turn_also_matches_between_modes(
     assert isinstance(single, AnalysisOutcome)
     assert [item.departmentCode for item in single.ticket_proposals] == ["NETWORK"]
     assert single == multi
+
+
+def test_single_mode_hands_run_events_to_a_tool_using_agent(make_settings) -> None:
+    from dataclasses import replace
+
+    from hops_ai.agents.baseline.agent import BaselineAgent
+
+    baseline = BaselineAgent(system_prompt="테스트용", prompt_version="test-v1")
+    registry = replace(build_fake_registry(), baseline=baseline)
+    events = RunEvents(
+        run_id="00000000-0000-4000-8000-000000000001",
+        inquiry_id="00000000-0000-4000-8000-000000000003",
+        inquiry_version=1,
+    )
+
+    analyzer = select_analyzer(make_settings(agent_mode="single"), registry, events=events)
+
+    assert isinstance(analyzer, BaselineAgent)
+    assert analyzer is not baseline  # 같은 설정으로 이벤트만 붙인 새 에이전트다
+    assert analyzer._events is events
+    assert select_analyzer(make_settings(agent_mode="single"), registry) is baseline

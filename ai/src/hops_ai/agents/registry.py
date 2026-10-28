@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from hops_ai.agents.base import Agent, Analyzer
+from hops_ai.agents.baseline.agent import BaselineAgent
 from hops_ai.contracts.agent_1 import AgentRole
 from hops_ai.fakes.agents import (
     FakeBaselineAgent,
@@ -51,5 +52,8 @@ def select_analyzer(
 ) -> Analyzer:
     """단일 구성이면 baseline, 멀티 구성이면 Supervisor. 이벤트는 실행마다 달라 인자로 받는다."""
     if settings.agent_mode is AgentMode.SINGLE:
-        return registry.baseline
+        baseline = registry.baseline
+        if events is not None and isinstance(baseline, BaselineAgent):
+            return baseline.with_events(events)
+        return baseline
     return Supervisor(registry.roles, events=events)
