@@ -43,4 +43,8 @@
 
 ## 확정 정책과 예시의 차이 (2026-10-25)
 
-계약 정책은 WIRE_CONTRACT 10절, 실제 담당 구현·미검증은 11절을 따른다. fixtures는 모든 상태/오류·제어 이벤트를 포괄하지 않는다. 기존 실행 Mock의 Access 30분·메모리 Refresh는 확정한 실제 Access 15분·7일 절대 만료/회전 쿠키를 검증하지 않는다. `auth.invalidated`·`resync.required`, 429 대기 UI, 실제 DB 유일성/트랜잭션·AI 예산 강제·품질/비용은 별도 구현/검증 대상이다. 현재 fixtures의 CommandAck·Subscription 타입은 REST/SSE 타입으로 교체해야 한다.
+계약 정책은 WIRE_CONTRACT 10절, 실제 담당 구현·미검증은 11절을 따른다. fixtures는 모든 상태/오류·제어 이벤트를 포괄하지 않는다. 기존 실행 Mock의 Access 15분·메모리 Refresh는 확정한 실제 Access 15분·7일 절대 만료/회전 쿠키를 검증하지 않는다.
+
+프론트의 `auth.invalidated`·`resync.required` 수신·복구 분기와 429 대기 안내는 구현하고 Mock/HTTP·SSE 대역 테스트로 검사했다. 실제 Spring의 부서 SSE와 eventId 단일 필드 `resync.required` 수신도 검사했다. 이는 업무 REST 복구·서버 auth.invalidated 발행·쿠키 회전, 실제 업무 DB 유일성/트랜잭션·AI 예산 강제·품질/비용 검증을 대신하지 않는다.
+
+fixtures의 저장 응답은 MutationResult, 오류는 ApiErrorBody, 연결 대상은 SubscriptionTarget이다. 응답 객체 자체를 사용하며 별도 성공 외피나 구독 응답은 요구하지 않는다. MutationResult는 프론트에서 구현한 REST 연동 프로필이며 백엔드의 동일 DTO·저장 API 구현은 Q-INF-6으로 추적한다. 스냅샷 커서·replay는 미구현이다.

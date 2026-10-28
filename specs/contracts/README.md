@@ -22,8 +22,8 @@
 
 - F001: LoginRequest, LoginResponse, CurrentUser, Department, Role, ApiErrorBody.
 - F002: SubscriptionTarget(후속 이름 변경 대상), AgentProgressEvent, AnswerDeltaEvent, MessageStoredEvent, StateChangedEvent, AuthInvalidatedEvent, ResyncRequiredEvent.
-- F003: InquiryCreateCommand, MessageSendCommand, MutationResult(추가 필요), ChatMessage, MessageHistoryQuery, MessageHistoryPage, InquiryResult, RunSummary, RunRetryRequest. 기존 MessagePage는 전방 조회 호환 예제다.
-- F004: MessageReviseCommand, MutationResult(추가 필요), ChatMessage, MessageRevision, InquiryResult.
+- F003: InquiryCreateCommand, MessageSendCommand, MutationResult(프론트 구현·백엔드 저장 API 구현 별도), ChatMessage, MessageHistoryQuery, MessageHistoryPage, InquiryResult, RunSummary, RunRetryRequest. 기존 MessagePage는 전방 조회 호환 예제다.
+- F004: MessageReviseCommand, MutationResult(프론트 구현·백엔드 저장 API 구현 별도), ChatMessage, MessageRevision, InquiryResult.
 - F005: InquiryResult, Problem, TicketCard, CreationFailure, RunSummary.
 - F006 재진입용 최소 목록: InquiryListQuery, InquiryPage, InquirySummary. 독립 목록·상세 모달은 후속이다.
 - F009: TicketListQuery, TicketPage, TicketCard, TicketDetail, AssignmentHistory, Department.
@@ -32,6 +32,12 @@
 F007의 읽기 전용 티켓 조회는 MVP다. 별도 관리자 요약·F008 분리 동의·F010 운영 기술 복구 UI는 후속이며 상세 입출력은 해당 기능 착수 전에 설계한다.
 
 각 타입의 정확한 필드와 상태값은 데이터 타입 문서의 같은 제목에서 확인한다. 각 스펙에서도 사용하는 타입을 연결한다. 조회된 티켓은 서버 저장 결과이고 AI 제안은 업무 저장 성공이 아니다.
+
+## SSE 타입 전환 상태 (2026-10-28)
+
+프론트는 MutationResult 연동 프로필을 공용 타입에 구현했다. AuthInvalidatedEvent와 develop에 확정된 ResyncRequiredEvent를 수신하며, 재생 불가 시 REST 복구 후 커서를 비워 재연결한다. 정확한 필드·동작은 [DATA_TYPES](DATA_TYPES.md#mutationresult--rest-저장-결과의-프론트-연동-프로필)와 WIRE_CONTRACT 9절을 따른다. 백엔드는 같은 저장 결과 DTO를 구현해야 하며 프론트 타입 존재만으로 서버 구현 완료를 뜻하지 않는다.
+
+PR #59는 develop에 병합됐다(dc44f2c). 서버는 state.changed.target.id를 사용하며, replay 불가 시 eventId만 포함한 resync.required를 보낸 뒤 종료한다. 문의·티켓 대상과 채팅/AI 생산자·실제 전체 통합은 미완료다. 스냅샷 커서·Redis 도입은 이번 갱신으로 구현되거나 확정되지 않았다.
 
 ## 관리 원칙
 
