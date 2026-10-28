@@ -181,7 +181,7 @@ Swagger에서는 `POST /api/auth/login` 응답의 `accessToken`을 따옴표 없
 | 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
 | 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
 | 확정 이벤트 | 트랜잭션 안에서 `StateChangedEvent`를 발행하면 커밋 후 해당 부서 연결에 `state.changed`를 전달합니다. 롤백·트랜잭션 없는 발행은 전달하지 않습니다. |
-| 재접속 | 이벤트 보존소가 없습니다. `Last-Event-ID`가 있으면 comment 후 연결을 종료합니다. 소비자는 REST 복구 후 커서를 비워 새 연결을 열어야 합니다. SSE 재생을 제공하지 않습니다. |
+| 재접속 | 이벤트 보존소가 없습니다. `Last-Event-ID`가 있으면 `resync.required` 제어 이벤트를 보낸 뒤 연결을 종료합니다. 소비자는 REST 복구 후 커서를 비워 새 연결을 열어야 합니다. SSE 재생을 제공하지 않습니다. |
 
 업무 서비스는 `ApplicationEventPublisher.publishEvent(...)`로 `realtime/dto/StateChangedEvent`를
 자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
@@ -201,7 +201,7 @@ DB 없이 SSE 기반 테스트만 실행할 수 있습니다.
 ./gradlew test --tests '*RealtimeAuthorizationTest' --tests '*RealtimeServiceTest' --tests '*RealtimeSecurityTest'
 ```
 
-SSE 테스트 19개는 연결·대상별 전달·권한 회수·만료·재생 불가 종료·커밋/롤백·Security/CORS와
+DB 없는 SSE 테스트 21개는 연결·대상별 전달·권한 회수·만료·재생 불가 종료·커밋/롤백·Security/CORS와
 예약 작업 취소·스케줄러 거부 시 정리를 검증합니다.
 Mock 권한·MVC 테스트는 실제 JWT/DB·브라우저·운영 프록시 E2E 검증을 대신하지 않습니다.
 
@@ -214,10 +214,11 @@ Mock 권한·MVC 테스트는 실제 JWT/DB·브라우저·운영 프록시 E2E 
 | #27 Spring–Python | AI 이벤트 수신·실행/문의 버전 검증 | 공개 가능한 진행·답변 이벤트를 SSE 전송 계층에 연결 |
 | #56 프론트 SSE | 파싱·연결 공유·재접속·REST 동기화 | 초기 서버의 커서 요청 종료를 처리하고 REST 복구 후 커서 없이 재연결 |
 
-이번 #57에서는 위 업무 서비스·공통 타입 문서·프론트 구현을 변경하지 않습니다.
+이번 #57에서는 위 업무 서비스·프론트 구현을 변경하지 않습니다. 공개 제어 이벤트 형식과 복구 절차는 공통 계약 문서에 반영합니다.
 현재 RealtimeAuthorization은 SSE 대상 검사이며, 전체 REST API 권한 회수를 대신하지 않습니다.
-초기 replay 미지원 처리의 comment는 진단용입니다. 소비자는 comment 문구에 의존하지 않고
-스트림 종료와 현재 서버의 replay 지원 여부를 바탕으로 복구해야 합니다.
+초기 replay 미지원 시 DATA_TYPES의 `ResyncRequiredEvent`를 사용합니다. SSE id와 JSON eventId는 같고,
+소비자는 해당 대상의 REST 복구 후 기존 커서와 제어 이벤트 ID를 모두 비워 새로 연결해야 합니다.
+comment는 heartbeat 용도이며 복구 판단에 사용하지 않습니다.
 
 ### 실제 HTTP·DB 통합 검증
 
@@ -234,3 +235,13 @@ Mock 권한·MVC 테스트는 실제 JWT/DB·브라우저·운영 프록시 E2E 
 오류는 HTTP 상태와 JSON 오류 본문으로 반환합니다.
 
 이 검사는 프론트 fetch parser·REST 복구·실제 업무 이벤트 생산자·운영 프록시 E2E까지 포함하지 않습니다.
+
+### 공개 이벤트와 연결 전 오류
+
+- 부서 `state.changed`의 `target`은 `{type: "DEPARTMENT_TICKETS", id: 부서 UUID}`입니다.
+  공통 계약에 따라 필드명은 `id`이고 값은 부서 ID이며, `inquiryVersion`은 반드시 `null`입니다.
+- 유효한 JWT의 소속 부서·역할이 현재 DB와 다르면 401 `AUTH_CONTEXT_CHANGED`로 응답합니다.
+  프론트는 일반 인증 갱신과 구분해 재로그인을 안내합니다. 누락된 필수 인증 문맥은 기존 401입니다.
+- 연결 전 DB 연결 실패·일시적 조회 장애·트랜잭션 시작 실패는 503 `SERVICE_UNAVAILABLE`입니다.
+  다른 종류의 예상하지 못한 DB 오류를 일괄 503으로 바꾸지는 않습니다.
+- HTTP 통합 테스트는 부서 변경·역할 변경의 응답 검증을 포함해 6개입니다.
