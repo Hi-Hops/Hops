@@ -63,7 +63,8 @@ Version = Annotated[StrictInt, Field(ge=1, le=MAX_INT)]
 # 0부터 시작하는 정수
 Count = Annotated[StrictInt, Field(ge=0, le=MAX_INT)]
 # 같은 문제에 대한 추가 질문 횟수. 제품 정책상 최대 3회다.
-QuestionCount = Annotated[StrictInt, Field(ge=0, le=3)]
+QUESTION_LIMIT = 3
+QuestionCount = Annotated[StrictInt, Field(ge=0, le=QUESTION_LIMIT)]
 
 Category = Literal[
     "ACCOUNT_AUTH",
