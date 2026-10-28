@@ -64,6 +64,22 @@
     }
   },
   {
+    "id": "budget-exceeded",
+    "result": {
+      "contractVersion": "agent-1",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "invocationId": "00000000-0000-4000-8000-000000000004",
+      "inquiryId": "00000000-0000-4000-8000-000000000003",
+      "inquiryVersion": 1,
+      "role": "KNOWLEDGE",
+      "status": "ERROR",
+      "data": null,
+      "error": {"code": "BUDGET_EXCEEDED", "message": "모델 호출 허용 횟수를 초과했다", "retryable": false},
+      "evidence": [],
+      "meta": {"durationMs": 7000, "modelId": null, "promptVersion": null}
+    }
+  },
+  {
     "id": "superseded",
     "result": {
       "contractVersion": "agent-1",

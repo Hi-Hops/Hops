@@ -39,6 +39,7 @@ AgentErrorCode = Literal[
     "TOOL_FAILURE",
     "ACCESS_DENIED",
     "DEADLINE_EXCEEDED",
+    "BUDGET_EXCEEDED",
     "SUPERSEDED",
     "INTERNAL_ERROR",
 ]

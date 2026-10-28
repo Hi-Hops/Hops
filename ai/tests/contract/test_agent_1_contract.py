@@ -68,6 +68,7 @@ def test_only_transient_failures_are_marked_retryable() -> None:
         "model-unavailable": True,
         "retrieval-unavailable": True,
         "tool-denied": False,
+        "budget-exceeded": False,
         "superseded": False,
     }
 
