@@ -5,7 +5,24 @@ from typing import Any
 
 import pytest
 
+from hops_ai.contracts.agent_1 import Actor, Department, Evidence, Message, Problem
+from hops_ai.contracts.analysis import AnalysisInput
+from hops_ai.fakes.llm import FakeLLMClient
+from hops_ai.fakes.retrieval import FakeRetriever
+from hops_ai.fakes.tools import FakeToolGateway
+from hops_ai.harness.context import RunContext
+from hops_ai.services.llm.budgeted import BudgetedLLMClient
+from hops_ai.services.llm.usage import UsageRecorder
+from hops_ai.services.shared import SharedServices
 from hops_ai.settings import Settings
+
+RUN_ID = "00000000-0000-4000-8000-000000000001"
+INQUIRY_ID = "00000000-0000-4000-8000-000000000003"
+ACTOR = Actor(
+    userId="00000000-0000-4000-8000-000000000100",
+    departmentId="00000000-0000-4000-8000-000000000018",
+    roles=[],
+)
 
 
 @pytest.fixture(autouse=True)
@@ -44,5 +61,107 @@ def make_settings() -> Callable[..., Settings]:
 
     def factory(**overrides: Any) -> Settings:
         return Settings(_env_file=None, **overrides)
+
+    return factory
+
+
+@pytest.fixture
+def make_services(clock, make_settings) -> Callable[..., SharedServices]:
+    """한 번의 실행에 쓰는 서비스 묶음. 기본은 모두 가짜이고 LLM은 예산 안에서 호출한다."""
+
+    def factory(
+        *,
+        llm=None,
+        retriever=None,
+        tools=None,
+        tool_policy=None,
+        deadline_at: datetime | None = None,
+        **settings_overrides: Any,
+    ) -> SharedServices:
+        runtime = RunContext.create(
+            run_id=RUN_ID,
+            inquiry_id=INQUIRY_ID,
+            inquiry_version=1,
+            actor=ACTOR,
+            access_scope_ref="mock:owner:inquiry-3",
+            settings=make_settings(**settings_overrides),
+            deadline_at=deadline_at,
+            tool_policy=tool_policy,
+            clock=clock,
+        )
+        usage = UsageRecorder()
+
+        async def sleep(seconds: float) -> None:
+            clock.advance(seconds)
+
+        return SharedServices(
+            llm=BudgetedLLMClient(
+                llm or FakeLLMClient(), runtime.budget, usage, sleep=sleep, rng=lambda: 1.0
+            ),
+            retriever=retriever or FakeRetriever(),
+            tools=tools or FakeToolGateway(),
+            runtime=runtime,
+            usage=usage,
+        )
+
+    return factory
+
+
+DEPARTMENTS = [
+    Department(
+        id=f"00000000-0000-4000-8000-0000000000{number}",
+        code=code,
+        name=name,
+        responsibilities=[f"가상 {name} 처리"],
+    )
+    for number, code, name in [
+        ("10", "ACCOUNT_PERMISSION", "계정 권한"),
+        ("11", "NETWORK", "네트워크"),
+        ("12", "CS", "CS"),
+        ("14", "BACKEND", "backend"),
+        ("17", "SYSTEM", "시스템"),
+    ]
+]
+
+
+def user_message(content: str, number: int = 601, revision: int = 1) -> Message:
+    return Message(
+        messageId=f"00000000-0000-4000-8000-000000000{number}",
+        revision=revision,
+        sender="USER",
+        content=content,
+    )
+
+
+@pytest.fixture
+def departments() -> list[Department]:
+    return list(DEPARTMENTS)
+
+
+@pytest.fixture
+def make_message() -> Callable[..., Message]:
+    return user_message
+
+
+@pytest.fixture
+def make_input() -> Callable[..., AnalysisInput]:
+    """분석 입력. 기본은 VPN 오류를 처음 문의한 상태다."""
+
+    def factory(
+        messages: list[Message] | None = None,
+        existing_problems: list[Problem] | None = None,
+        evidence: list[Evidence] | None = None,
+    ) -> AnalysisInput:
+        return AnalysisInput(
+            run_id=RUN_ID,
+            inquiry_id=INQUIRY_ID,
+            inquiry_version=1,
+            messages=messages or [user_message("VPN 접속 오류가 나요.")],
+            existing_problems=existing_problems or [],
+            existing_work_items=[],
+            departments=list(DEPARTMENTS),
+            evidence=evidence or [],
+            resolution_targets=[],
+        )
 
     return factory

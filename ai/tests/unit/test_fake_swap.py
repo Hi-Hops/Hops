@@ -1,11 +1,11 @@
 """Fake와 다른 구현체를 바꿔 끼워도 호출하는 코드가 그대로 동작하는지 확인한다."""
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from pydantic import BaseModel
 
 from hops_ai.fakes.llm import FakeLLMClient
-from hops_ai.fakes.retrieval import FakeRetriever
 from hops_ai.fakes.tools import FakeToolGateway, fake_tool_ok
 from hops_ai.services.llm.client import LLMMessage, LLMRequest, LLMResponse, LLMUsage
 from hops_ai.services.retrieval.base import RetrievalFilter, RetrievalQuery, RetrievedChunk
@@ -36,10 +36,9 @@ async def summarize_vpn_case(services: SharedServices) -> tuple[str, int, str]:
     return reply.parsed.text, len(found), tool.status
 
 
-def fake_services() -> SharedServices:
-    return SharedServices(
+def fake_services(make_services) -> SharedServices:
+    return make_services(
         llm=FakeLLMClient(Summary(text="가짜 요약")),
-        retriever=FakeRetriever(),
         tools=FakeToolGateway(
             {
                 "read_service_status": fake_tool_ok(
@@ -72,14 +71,14 @@ class HandWrittenTools:
         return ToolResult.timeout(request.tool_name, "직접 만든 도구가 시간 초과를 돌려준다")
 
 
-async def test_calling_code_works_with_fake_services() -> None:
-    text, documents, tool_status = await summarize_vpn_case(fake_services())
+async def test_calling_code_works_with_fake_services(make_services) -> None:
+    text, documents, tool_status = await summarize_vpn_case(fake_services(make_services))
 
     assert (text, documents, tool_status) == ("가짜 요약", 2, "OK")
 
 
-async def test_the_same_calling_code_works_with_other_implementations() -> None:
-    services = SharedServices(
+async def test_the_same_calling_code_works_with_other_implementations(make_services) -> None:
+    services = make_services(
         llm=HandWrittenLLM(), retriever=HandWrittenRetriever(), tools=HandWrittenTools()
     )
 
@@ -88,9 +87,9 @@ async def test_the_same_calling_code_works_with_other_implementations() -> None:
     assert (text, documents, tool_status) == ("직접 만든 요약", 0, "TIMEOUT")
 
 
-async def test_services_can_be_replaced_one_at_a_time() -> None:
-    base = fake_services()
-    swapped = SharedServices(llm=base.llm, retriever=HandWrittenRetriever(), tools=base.tools)
+async def test_services_can_be_replaced_one_at_a_time(make_services) -> None:
+    base = fake_services(make_services)
+    swapped = replace(base, retriever=HandWrittenRetriever())
 
     _, documents, tool_status = await summarize_vpn_case(swapped)
 
