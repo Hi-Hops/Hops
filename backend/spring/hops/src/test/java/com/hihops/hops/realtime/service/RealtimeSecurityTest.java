@@ -44,7 +44,7 @@ class RealtimeSecurityTest {
     @Test
     void 대상_권한_거부는_SSE_연결_전_JSON으로_반환한다() throws Exception {
         doThrow(new BusinessException(ErrorCode.ACCESS_DENIED)).when(realtime).connect(any(), any(), any());
-        mvc.perform(get("/api/realtime/events").with(jwt()).param("targetType", "DEPARTMENT_TICKETS")
+        mvc.perform(get("/api/realtime/events").with(jwt()).header(HttpHeaders.ACCEPT, "text/event-stream").param("targetType", "DEPARTMENT_TICKETS")
                         .param("targetId", UUID.randomUUID().toString()))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
