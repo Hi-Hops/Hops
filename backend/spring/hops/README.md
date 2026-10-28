@@ -166,3 +166,55 @@ curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhos
 ```
 
 Swagger에서는 `POST /api/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
+
+## Spring SSE 공통 기반
+
+[전송 계약](../../../specs/contracts/WIRE_CONTRACT.md#5-sse-연결이벤트복구)에 따라
+`GET /api/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
+`Authorization: Bearer <accessToken>`과 `Accept: text/event-stream`을 전달합니다.
+프론트는 Bearer 헤더를 지정할 수 있는 fetch 기반 SSE 소비자가 필요합니다.
+
+| 구현 항목 | 현재 동작 |
+|---|---|
+| 대상 권한 | 현재 DB 회원·부서·역할과 토큰 문맥을 비교합니다. 현재 처리 부서 구성원 또는 BIZ_ADMIN만 허용합니다. 없는 부서는 404입니다. |
+| 문의·개별 티켓 대상 | 소유권 저장소가 아직 없으므로 `INQUIRY`·`TICKET`은 503입니다. 도메인 구현 후 연결해야 합니다. |
+| 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
+| 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
+| 확정 이벤트 | 트랜잭션 안에서 `StateChangedEvent`를 발행하면 커밋 후 해당 부서 연결에 `state.changed`를 전달합니다. 롤백·트랜잭션 없는 발행은 전달하지 않습니다. |
+| 재접속 | 이벤트 보존소가 없습니다. `Last-Event-ID`가 있으면 comment 후 연결을 종료합니다. 소비자는 REST 복구 후 커서를 비워 새 연결을 열어야 합니다. SSE 재생을 제공하지 않습니다. |
+
+업무 서비스는 `ApplicationEventPublisher.publishEvent(...)`로 `realtime/dto/StateChangedEvent`를
+자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
+외부 이벤트 발행용 HTTP API는 제공하지 않습니다. 문의·답변 이벤트 생산자와 업무 저장 API는 아직 연결하지 않았습니다.
+
+현재는 단일 Spring 프로세스의 연결만 관리합니다. DB 재검사로 전송을 막지만, 부서·역할 변경을
+즉시 모든 연결에 통지하는 `auth.invalidated`와 현재 세션 로그아웃 연계는 아직 없습니다.
+유휴 연결은 다음 heartbeat에서 회수를 확인하며, 업무 이벤트는 전송 전 재검사합니다.
+권한 변경 트랜잭션과 전송 간 경합을 완전히 직렬화하지는 않습니다.
+다중 인스턴스 전달·이벤트 보존/replay·프록시 buffering·최대 연결 수·느린 소비자에 대한
+전송 격리와 부하 테스트는 후속 작업입니다. 현재 공유 scheduler에서 SSE 전송이 수행되므로
+느린 연결의 영향도 운영 전 검증해야 합니다.
+
+DB 없이 SSE 기반 테스트만 실행할 수 있습니다.
+
+```bash
+./gradlew test --tests '*realtime*'
+```
+
+SSE 테스트 19개는 연결·대상별 전달·권한 회수·만료·재생 불가 종료·커밋/롤백·Security/CORS와
+예약 작업 취소·스케줄러 거부 시 정리를 검증합니다.
+Mock 권한·MVC 테스트는 실제 JWT/DB·브라우저·운영 프록시 E2E 검증을 대신하지 않습니다.
+
+### 다른 작업과의 연결 경계
+
+| 작업 | 책임 | SSE 기반과 연결할 부분 |
+|---|---|---|
+| #26 채팅 저장 | 문의 소유권·메시지 저장·버전·멱등성 | 도메인의 권한 검사를 연결하고 커밋 후 저장 이벤트를 제공 |
+| #28 티켓 저장·조회 | 티켓 권한·배정·실제 상태 변경 | 트랜잭션 안에서 부서별 StateChangedEvent 발행. 공통 권한 서비스가 생기면 SSE도 재사용 |
+| #27 Spring–Python | AI 이벤트 수신·실행/문의 버전 검증 | 공개 가능한 진행·답변 이벤트를 SSE 전송 계층에 연결 |
+| #56 프론트 SSE | 파싱·연결 공유·재접속·REST 동기화 | 초기 서버의 커서 요청 종료를 처리하고 REST 복구 후 커서 없이 재연결 |
+
+이번 #57에서는 위 업무 서비스·공통 타입 문서·프론트 구현을 변경하지 않습니다.
+현재 RealtimeAuthorization은 SSE 대상 검사이며, 전체 REST API 권한 회수를 대신하지 않습니다.
+초기 replay 미지원 처리의 comment는 진단용입니다. 소비자는 comment 문구에 의존하지 않고
+스트림 종료와 현재 서버의 replay 지원 여부를 바탕으로 복구해야 합니다.
