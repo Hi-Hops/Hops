@@ -85,6 +85,14 @@ class CallTimeoutError(TransientError):
     safe_message = "모델 응답이 제한 시간을 넘었다"
 
 
+class RetrievalUnavailable(HarnessError):
+    """검색 시스템 장애. '검색 결과 없음'과 구분하며 모델 호출 상한과는 무관하다."""
+
+    code = "RETRIEVAL_UNAVAILABLE"
+    retryable = True
+    safe_message = "검색 시스템에 일시적으로 연결하지 못했다"
+
+
 @dataclass(frozen=True)
 class Failure:
     status: ResultStatus

@@ -10,6 +10,7 @@ from hops_ai.harness.errors import (
     LlmCallLimitExceeded,
     OutputRejected,
     PolicyDenied,
+    RetrievalUnavailable,
     RunCancelled,
     TransientError,
     describe_failure,
@@ -27,6 +28,7 @@ from hops_ai.harness.errors import (
         (OutputRejected(), "ERROR", "INVALID_OUTPUT", False),
         (TransientError(), "ERROR", "MODEL_UNAVAILABLE", True),
         (CallTimeoutError(), "ERROR", "MODEL_TIMEOUT", True),
+        (RetrievalUnavailable(), "ERROR", "RETRIEVAL_UNAVAILABLE", True),
     ],
 )
 def test_harness_error_maps_to_contract_failure(
@@ -50,11 +52,12 @@ def test_only_transient_errors_are_retryable() -> None:
         OutputRejected(),
         TransientError(),
         CallTimeoutError(),
+        RetrievalUnavailable(),
     ]
 
     retryable = {type(error).__name__ for error in all_errors if error.retryable}
 
-    assert retryable == {"TransientError", "CallTimeoutError"}
+    assert retryable == {"TransientError", "CallTimeoutError", "RetrievalUnavailable"}
 
 
 def test_budget_errors_share_a_base_class() -> None:
