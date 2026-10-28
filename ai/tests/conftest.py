@@ -1,10 +1,14 @@
+import copy
+import json
 import os
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from hops_ai.api.schemas import AiRequest
 from hops_ai.contracts.agent_1 import Actor, Department, Evidence, Message, Problem
 from hops_ai.contracts.analysis import AnalysisInput
 from hops_ai.fakes.llm import FakeLLMClient
@@ -163,5 +167,39 @@ def make_input() -> Callable[..., AnalysisInput]:
             evidence=evidence or [],
             resolution_targets=[],
         )
+
+    return factory
+
+
+MOCK_FIXTURES = Path(__file__).resolve().parents[2] / "specs" / "mocks" / "fixtures.json"
+
+
+def future_deadline(seconds: int = 60) -> str:
+    return (datetime.now(UTC) + timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@pytest.fixture
+def mock_cases() -> dict[str, Any]:
+    """팀 공용 Mock 예시를 id로 찾는다."""
+    return {item["id"]: item["value"] for item in json.loads(MOCK_FIXTURES.read_text())["cases"]}
+
+
+@pytest.fixture
+def make_request_json(mock_cases) -> Callable[..., dict[str, Any]]:
+    """팀 공용 Mock의 AiRequest 예시. 마감은 미래로 바꾸고 바꿀 필드만 넘긴다."""
+
+    def factory(case: str = "ai-request", *, deadline_seconds: int = 60, **overrides: Any):
+        value = copy.deepcopy(mock_cases[case])
+        value["deadlineAt"] = future_deadline(deadline_seconds)
+        value.update(overrides)
+        return value
+
+    return factory
+
+
+@pytest.fixture
+def make_wire_request(make_request_json) -> Callable[..., AiRequest]:
+    def factory(case: str = "ai-request", **overrides: Any) -> AiRequest:
+        return AiRequest.model_validate(make_request_json(case, **overrides))
 
     return factory
