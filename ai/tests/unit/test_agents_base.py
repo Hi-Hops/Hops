@@ -215,3 +215,26 @@ def test_protocols_are_runtime_checkable() -> None:
     assert isinstance(Returns(None), Agent)
     assert isinstance(Analyzes(None), Analyzer)
     assert not isinstance(object(), Agent)
+
+
+# ------------------------------------------------------------------ 취소 전달
+
+
+async def test_cancellation_inside_a_langgraph_node_is_surfaced_not_reported_as_a_failure(
+    make_services, make_input
+) -> None:
+    from langgraph.errors import NodeCancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_analysis(
+            AnalyzeRaises(NodeCancelledError("decide")), make_input(), make_services()
+        )
+
+
+async def test_role_cancellation_inside_a_langgraph_node_is_surfaced_too(make_services) -> None:
+    from langgraph.errors import NodeCancelledError
+
+    request, _ = case("intake")
+
+    with pytest.raises(asyncio.CancelledError):
+        await execute_safely(Raises(NodeCancelledError("decide")), request, make_services())

@@ -6,8 +6,11 @@
   그대로 전달한다.
 """
 
+import asyncio
 import logging
 from typing import Protocol, runtime_checkable
+
+from langgraph.errors import NodeCancelledError
 
 from hops_ai.contracts.agent_1 import (
     CONTRACT_VERSION,
@@ -29,6 +32,14 @@ from hops_ai.harness.errors import HarnessError, OutputRejected, describe_failur
 from hops_ai.services.shared import SharedServices
 
 logger = logging.getLogger(__name__)
+
+
+def _surface_cancellation(error: Exception) -> None:
+    """LangGraph는 노드 안의 취소(CancelledError)를 일반 예외(NodeCancelledError)로 바꾼다.
+    그대로 두면 취소가 실패 결과로 삼켜져 실행이 멈추지 않으므로 취소로 되돌려 전달한다."""
+    if isinstance(error, NodeCancelledError):
+        raise asyncio.CancelledError from error
+
 
 RESULT_CLASSES = {
     "INTAKE": IntakeResult,
@@ -101,6 +112,7 @@ async def execute_safely(
     try:
         result = await agent.execute(request, services)
     except Exception as error:  # CancelledError는 BaseException이라 여기서 잡히지 않는다
+        _surface_cancellation(error)
         _log_failure(request.role, error)
         return failure_result(request, services, started, error)
     problem = _mismatch(request, result)
@@ -117,6 +129,7 @@ async def run_analysis(
     try:
         return await analyzer.analyze(data, services)
     except Exception as error:
+        _surface_cancellation(error)
         if isinstance(error, HarnessError):
             logger.info("분석 실패: %s (%s)", error.code, error.detail or "상세 없음")
         else:
