@@ -31,21 +31,43 @@ Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에�
 
 pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 
+**직접 할 일과 자동으로 되는 일**
+
+git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각자 PC에 만듭니다. 설명서(SQL 파일)는 공유하고, 방(DB)은 각자 준비하는 구조입니다.
+
+| 무엇 | 누가 | 언제 |
+|---|---|---|
+| PostgreSQL·Redis 설치와 실행 | 직접 (아래 2·3번) | 처음 한 번 |
+| `hops` 계정과 빈 DB `hops`·`hops_test` | 직접 (아래 4번) | 처음 한 번 |
+| 접속 정보 파일 `application-db.local.properties` | 직접 (아래 5번) | 처음 한 번 |
+| DB 안의 테이블 (`db/migration/V*.sql`) | Flyway 자동 | 서버·테스트 시작할 때 |
+| 가상 데이터 (`db/seed`, `hops` DB만) | Flyway 자동 | 서버 시작할 때 |
+| 나중에 추가된 `V2`·`V3`… | Flyway 자동 (아직 안 한 것만) | pull 뒤 서버 시작할 때 |
+
+- Flyway는 **빈 DB 안에 테이블을 채울 뿐, DB 자체는 만들지 않습니다.** 4번을 건너뛰면 `database "hops" does not exist` 오류가 납니다.
+- Flyway는 어디까지 실행했는지 DB의 `flyway_schema_history` 표에 적어 두고, 다음 시작 때 그 뒤의 파일만 실행합니다.
+- 테이블을 바꿀 때는 이미 실행된 `V*.sql`을 고치지 않고 새 번호 파일을 추가합니다. 고치면 `checksum mismatch` 오류가 납니다.
+- Redis는 테이블이 없어 설치·실행만 하면 됩니다.
+
 1. **JDK 17 이상** 설치 (Gradle을 실행하는 용도). 프로젝트가 쓰는 JDK 21은 Gradle이 없으면 자동으로 내려받습니다 (`settings.gradle.kts`의 foojay 플러그인).
 2. **PostgreSQL 18** 설치 (`uuidv7()` 사용을 위해 18 이상이 필요합니다).
    - Mac: `brew install postgresql@18` 후 `brew services start postgresql@18`
    - Windows: [PostgreSQL 공식 설치 파일](https://www.postgresql.org/download/windows/)로 18 버전을 설치합니다. 설치 중 정한 `postgres` 비밀번호를 기억해 둡니다.
-3. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
+3. **Redis 설치·실행** (로그인 세션·Refresh 토큰 저장소). 기본 주소 `localhost:6379`를 그대로 쓰므로 설정 파일은 필요 없습니다.
+   - Mac: `brew install redis` 후 `brew services start redis`
+   - Windows: Redis는 공식 Windows 버전이 없어 WSL(Ubuntu)에서 `sudo apt install redis-server` 후 `sudo service redis-server start`로 실행합니다. Docker Desktop을 쓴다면 `docker run -d --name hops-redis -p 6379:6379 redis:8`도 됩니다.
+   - 확인: `redis-cli ping` → `PONG`. 개발은 0번 DB, 테스트는 15번 DB를 써서 서로 섞이지 않습니다.
+4. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
    ```sql
    CREATE ROLE hops WITH LOGIN PASSWORD '내_비밀번호';
    CREATE DATABASE hops OWNER hops;
    CREATE DATABASE hops_test OWNER hops; -- 테스트 전용
    ```
-4. **접속 정보 파일 만들기** (`src/main/resources`에서)
+5. **접속 정보 파일 만들기** (`src/main/resources`에서)
    - Mac: `cp application-db.local.properties.example application-db.local.properties`
    - Windows: `Copy-Item application-db.local.properties.example application-db.local.properties`
-   - 만든 파일에 3번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
-5. **실행**
+   - 만든 파일에 4번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
+6. **실행**
    - Mac: `./gradlew bootRun`
    - Windows(PowerShell): `.\gradlew.bat bootRun`
    - 기본 프로필이 `db`라서 프로필을 따로 지정하지 않아도 로컬 PostgreSQL에 연결합니다.
@@ -55,7 +77,7 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 
 "처음 설치"를 이미 마쳤다면 따로 설정할 것은 없습니다.
 
-1. `git pull` 후 위 5번처럼 실행합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
+1. `git pull` 후 위 6번처럼 실행합니다. Redis를 아직 설치하지 않았다면 3번을 먼저 합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
 2. 로그에 `Successfully applied ... migration`이 보이면 새 테이블·데이터가 적용된 것입니다.
 3. `Port 8080 was already in use`가 나오면 이미 켜진 서버를 끄고 다시 실행합니다.
 4. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
@@ -134,7 +156,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 ./gradlew bootRun
 ```
 
-- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~4번을 마쳐야 통과합니다.
+- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~5번(PostgreSQL·Redis·접속 정보)을 마쳐야 통과합니다.
 - 테스트 DB에는 가상 데이터(seed)를 넣지 않습니다. 필요한 데이터는 각 테스트가 직접 넣고 `@Transactional`로 끝나면 되돌립니다 (예: `MemberRepositoryTest`).
 - 로그인 판단 규칙처럼 DB가 필요 없는 테스트는 Repository를 mock으로 바꿔 빠르게 확인합니다 (예: `AuthServiceTest`).
 
