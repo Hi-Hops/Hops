@@ -63,6 +63,7 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-pill: 999px;
+  --shadow-raised: 0 2px 4px -2px #1118270f, 0 6px 16px -4px #1118271a;
   --font-sans: 'IBM Plex Sans KR', sans-serif;
   --font-size-sm: 12px;
   --font-size-label: 13px;

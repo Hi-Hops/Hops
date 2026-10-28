@@ -32,7 +32,7 @@ function Location() {
     </output>
   );
 }
-function view(path = '/tickets') {
+function view(path = '/tickets?view=list') {
   return renderWithProviders(
     <>
       <Location />
@@ -172,7 +172,7 @@ describe('F009 부서 티켓 조회', () => {
   it('F009-AC03 다음·이전 페이지 이동을 주소에 반영한다', async () => {
     useSession.getState().logout();
     await login(TEST_LOGINS.admin);
-    view('/tickets?size=1');
+    view('/tickets?size=1&view=list');
     await screen.findByRole('table');
     await userEvent.click(screen.getByRole('button', { name: '다음' }));
     await waitFor(() => {
