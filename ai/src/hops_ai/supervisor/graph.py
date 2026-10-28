@@ -26,9 +26,10 @@ from hops_ai.contracts.agent_1 import (
 from hops_ai.contracts.analysis import AnalysisInput, AnalysisOutcome
 from hops_ai.harness.errors import OutputRejected, RoleFailed
 from hops_ai.harness.events import RunEvents
+from hops_ai.harness.guardrails.outcome import validate_outcome
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.merge import dedupe_evidence, merge_outcome
-from hops_ai.supervisor.router import next_after_intake, problems_for_ticket
+from hops_ai.supervisor.router import Router, RuleRouter, problems_for_ticket
 from hops_ai.supervisor.state import SupervisorState
 
 # 그래프 단계 수 안전장치다. 모델 호출 비용은 실행 예산(RunBudget)이 막으며 이 값이 대신하지 않는다.
@@ -45,10 +46,12 @@ class Supervisor:
         self,
         agents: Mapping[AgentRole, Agent],
         *,
+        router: Router | None = None,
         events: RunEvents | None = None,
         new_id: Callable[[], str] = lambda: str(uuid.uuid4()),
     ) -> None:
         self._agents = dict(agents)
+        self._router = router or RuleRouter()
         self._events = events
         self._new_id = new_id
         self._graph = self._build()
@@ -72,9 +75,7 @@ class Supervisor:
         graph.add_node("merge", self._merge)
         graph.add_edge(START, "intake")
         graph.add_conditional_edges(
-            "intake",
-            lambda state: next_after_intake(state["intake"]),
-            {"ticket": "ticket", "merge": "merge"},
+            "intake", lambda state: state["route"], {"ticket": "ticket", "merge": "merge"}
         )
         graph.add_edge("ticket", "merge")
         graph.add_edge("merge", END)
@@ -101,7 +102,8 @@ class Supervisor:
         )
         result = await self._run_role("INTAKE", request, services)
         assert isinstance(result, IntakeResult)
-        return {"intake": result}
+        route = await self._router.next_after_intake(result, services)
+        return {"intake": result, "route": route}
 
     async def _ticket(self, state: SupervisorState, config: RunnableConfig) -> SupervisorState:
         services = self._services(config)
@@ -129,7 +131,9 @@ class Supervisor:
 
     async def _merge(self, state: SupervisorState, config: RunnableConfig) -> SupervisorState:
         self._services(config).runtime.ensure_active()
-        return {"outcome": merge_outcome(state["intake"], state.get("ticket"))}
+        outcome = merge_outcome(state["intake"], state.get("ticket"))
+        validate_outcome(state["data"], outcome)  # 단일 에이전트와 같은 검증 규칙을 쓴다
+        return {"outcome": outcome}
 
     # ------------------------------------------------------------ 보조
 

@@ -338,3 +338,57 @@ async def test_graph_step_limit_is_applied(monkeypatch, make_services, make_inpu
 
     assert isinstance(result, AnalysisFailure)  # 한 단계만 허용하면 그래프가 끝까지 가지 못한다
     assert not isinstance(result, AnalysisOutcome)
+
+
+async def test_outcome_is_checked_against_the_servers_facts(make_services, make_input) -> None:
+    def invent_a_department(result, services):
+        problems = [
+            problem.model_copy(update={"nextAction": "PROPOSE_TICKETS", "question": None})
+            for problem in result.data.problems
+        ]
+        return result.model_copy(
+            update={"data": result.data.model_copy(update={"problems": problems})}
+        )
+
+    def mars_department(result, services):
+        proposals = [
+            proposal.model_copy(update={"departmentCode": "MARS"})
+            for proposal in result.data.ticketProposals
+        ]
+        return result.model_copy(
+            update={"data": result.data.model_copy(update={"ticketProposals": proposals})}
+        )
+
+    roles = fake_roles(
+        INTAKE=Transforms(FakeIntakeAgent(), invent_a_department),
+        TICKET=Transforms(FakeTicketAgent(), mars_department),
+    )
+
+    result = await run_analysis(Supervisor(roles), make_input(), make_services())
+
+    assert isinstance(result, AnalysisFailure)
+    assert result.error.code == "INVALID_OUTPUT"
+
+
+async def test_cancelling_the_task_while_a_role_is_running_stops_the_run(
+    make_services, make_input
+) -> None:
+    import asyncio
+
+    started = asyncio.Event()
+
+    class Hangs:
+        async def execute(self, request, services):
+            started.set()
+            await asyncio.Event().wait()
+
+    task = asyncio.create_task(
+        run_analysis(Supervisor(fake_roles(INTAKE=Hangs())), make_input(), make_services())
+    )
+    await started.wait()
+
+    task.cancel()
+
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert task.cancelled()

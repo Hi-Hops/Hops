@@ -4,10 +4,12 @@ from typing import TypedDict
 
 from hops_ai.contracts.agent_1 import IntakeResult, TicketResult
 from hops_ai.contracts.analysis import AnalysisInput, AnalysisOutcome
+from hops_ai.supervisor.router import Route
 
 
 class SupervisorState(TypedDict, total=False):
     data: AnalysisInput
     intake: IntakeResult
+    route: Route
     ticket: TicketResult
     outcome: AnalysisOutcome
