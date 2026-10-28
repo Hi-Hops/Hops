@@ -21,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -130,6 +131,24 @@ class AuthControllerTest {
     }
 
     @Test
+    void 로그인하면_HttpOnly_Refresh_쿠키를_함께_내려주고_원문은_JSON에_넣지_않는다() throws Exception {
+        // F001-AC05·WIRE_CONTRACT 10절: Refresh는 HttpOnly 쿠키, 최초 로그인부터 7일. DATA_TYPES: 원문은 JSON에 없음.
+        MockHttpServletResponse response = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse();
+
+        String cookie = refreshCookie(response);
+        String value = cookie.substring("hops_refresh=".length(), cookie.indexOf(';'));
+        assertThat(value).isNotBlank();
+        assertThat(cookie)
+                .contains("HttpOnly") // 프론트 JS가 읽지 못한다 (XSS로 훔칠 수 없음)
+                .contains("SameSite=Lax")
+                .contains("Path=/api/auth") // 로그인·refresh·로그아웃 요청에만 따라간다
+                .contains("Max-Age=" + Duration.ofDays(7).toSeconds());
+        assertThat(response.getContentAsString()).doesNotContain(value);
+    }
+
+    @Test
     void 토큰과_사용자_정보에_소속_부서를_담는다() throws Exception {
         // 계약: JWT departmentId·departmentCode·departmentName (docs/API.md §2.5), user.department (DATA_TYPES.md Department)
         String body = mockMvc.perform(login("requester", "hops1234!"))
@@ -231,6 +250,14 @@ class AuthControllerTest {
         return post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"loginId\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password));
+    }
+
+    // Set-Cookie 헤더 중 Refresh 쿠키 한 줄을 찾는다. 예: "hops_refresh=값; Path=/api/auth; Max-Age=604800; HttpOnly; SameSite=Lax"
+    private static String refreshCookie(MockHttpServletResponse response) {
+        return response.getHeaders(HttpHeaders.SET_COOKIE).stream()
+                .filter(value -> value.startsWith("hops_refresh="))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("hops_refresh 쿠키가 없다"));
     }
 
     @Test
