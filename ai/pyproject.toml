@@ -1,0 +1,35 @@
+[project]
+name = "hops-ai"
+version = "0.1.0"
+description = "Hops AI 서버. Spring이 요청한 문의 분석을 에이전트로 실행하고 진행과 결과를 SSE로 전달한다"
+requires-python = ">=3.13,<3.14"
+# 초기 직접 의존성은 docs/AGENT_DEVELOPMENT.md 9장의 고정 버전을 따른다.
+dependencies = [
+    "fastapi==0.143.5",
+    "langgraph==1.2.16",
+    "uvicorn==0.53.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8.3",
+    "pytest-asyncio>=1.0",
+    "ruff>=0.9",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
