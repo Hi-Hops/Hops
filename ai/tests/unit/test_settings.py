@@ -32,8 +32,7 @@ def test_defaults_are_safe_and_match_agreed_budget() -> None:
     assert settings.llm_call_timeout_seconds == 30
     assert settings.max_auto_retries == 2
     assert settings.max_output_tokens == 1500
-    assert settings.max_llm_calls_single == 3
-    assert settings.max_llm_calls_multi == 8
+    assert settings.max_llm_calls == 8
 
 
 def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -48,16 +47,19 @@ def test_environment_variables_override_defaults(monkeypatch: pytest.MonkeyPatch
     assert settings.run_deadline_seconds == 45
 
 
-@pytest.mark.parametrize(
-    ("agent_mode", "expected"),
-    [("single", 3), ("multi", 8)],
-)
-def test_max_llm_calls_follows_agent_mode(
-    monkeypatch: pytest.MonkeyPatch, agent_mode: str, expected: int
+@pytest.mark.parametrize("agent_mode", ["single", "multi"])
+def test_single_and_multi_agent_share_the_same_call_limit(
+    monkeypatch: pytest.MonkeyPatch, agent_mode: str
 ) -> None:
     monkeypatch.setenv("HOPS_AI_AGENT_MODE", agent_mode)
 
-    assert make_settings().max_llm_calls == expected
+    assert make_settings().max_llm_calls == 8
+
+
+def test_call_limit_can_be_changed_with_one_variable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HOPS_AI_MAX_LLM_CALLS", "5")
+
+    assert make_settings().max_llm_calls == 5
 
 
 @pytest.mark.parametrize(
@@ -66,7 +68,7 @@ def test_max_llm_calls_follows_agent_mode(
         ("HOPS_AI_MODE", "production"),
         ("HOPS_AI_AGENT_MODE", "triple"),
         ("HOPS_AI_RUN_DEADLINE_SECONDS", "0"),
-        ("HOPS_AI_MAX_LLM_CALLS_SINGLE", "0"),
+        ("HOPS_AI_MAX_LLM_CALLS", "0"),
         ("HOPS_AI_MAX_AUTO_RETRIES", "-1"),
         ("HOPS_AI_MAX_OUTPUT_TOKENS", "0"),
     ],

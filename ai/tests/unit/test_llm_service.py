@@ -144,7 +144,7 @@ async def test_transient_error_is_retried_and_only_the_success_is_recorded(
 
 async def test_call_limit_stops_further_calls(clock, make_settings) -> None:
     fake = FakeLLMClient(Reply(text="x"), repeat_last=True)
-    client, _, _ = budgeted(fake, clock, make_settings, max_llm_calls_single=2)
+    client, _, _ = budgeted(fake, clock, make_settings, max_llm_calls=2)
 
     await client.generate(make_request())
     await client.generate(make_request())

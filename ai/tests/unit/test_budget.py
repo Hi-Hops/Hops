@@ -10,7 +10,7 @@ def test_budget_uses_settings_window_when_spring_gives_no_deadline(clock, make_s
     budget = RunBudget.start(make_settings(), clock=clock)
 
     assert budget.remaining_seconds() == 60
-    assert budget.max_llm_calls == 3
+    assert budget.max_llm_calls == 8
     assert budget.max_auto_retries == 2
     assert budget.max_output_tokens == 1500
 
@@ -48,15 +48,15 @@ def test_remaining_time_decreases_as_time_passes(clock, make_settings) -> None:
     assert budget.remaining_seconds() == 35
 
 
-def test_agent_mode_selects_the_call_limit(clock, make_settings) -> None:
+def test_single_and_multi_agent_get_the_same_call_limit(clock, make_settings) -> None:
     single = RunBudget.start(make_settings(agent_mode="single"), clock=clock)
     multi = RunBudget.start(make_settings(agent_mode="multi"), clock=clock)
 
-    assert (single.max_llm_calls, multi.max_llm_calls) == (3, 8)
+    assert single.max_llm_calls == multi.max_llm_calls == 8
 
 
 def test_calls_beyond_the_limit_are_refused(clock, make_settings) -> None:
-    budget = RunBudget.start(make_settings(agent_mode="single"), clock=clock)
+    budget = RunBudget.start(make_settings(max_llm_calls=3), clock=clock)
 
     for _ in range(3):
         budget.start_llm_call()
@@ -66,8 +66,8 @@ def test_calls_beyond_the_limit_are_refused(clock, make_settings) -> None:
     assert budget.llm_calls_used == 3
 
 
-def test_multi_agent_limit_is_eight(clock, make_settings) -> None:
-    budget = RunBudget.start(make_settings(agent_mode="multi"), clock=clock)
+def test_default_call_limit_is_eight(clock, make_settings) -> None:
+    budget = RunBudget.start(make_settings(), clock=clock)
 
     for _ in range(8):
         budget.start_llm_call()
@@ -97,7 +97,7 @@ def test_no_call_starts_after_the_deadline(clock, make_settings) -> None:
 
 
 def test_deadline_is_checked_before_the_call_limit(clock, make_settings) -> None:
-    budget = RunBudget.start(make_settings(max_llm_calls_single=1), clock=clock)
+    budget = RunBudget.start(make_settings(max_llm_calls=1), clock=clock)
     budget.start_llm_call()
 
     clock.advance(60)

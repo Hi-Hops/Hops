@@ -77,7 +77,7 @@ async def test_transient_error_is_retried_until_success(clock, make_settings, sl
 async def test_gives_up_after_the_configured_number_of_retries(
     clock, make_settings, sleeper
 ) -> None:
-    budget = budget_for(clock, make_settings, agent_mode="multi", max_auto_retries=2)
+    budget = budget_for(clock, make_settings, max_auto_retries=2)
     operation = Script(TransientError("1"), TransientError("2"), TransientError("3"), "ok")
 
     with pytest.raises(TransientError, match="3"):
@@ -100,7 +100,7 @@ async def test_zero_retries_means_no_retry(clock, make_settings, sleeper) -> Non
 
 
 async def test_retries_count_toward_the_call_limit(clock, make_settings, sleeper) -> None:
-    budget = budget_for(clock, make_settings, max_llm_calls_single=2, max_auto_retries=2)
+    budget = budget_for(clock, make_settings, max_llm_calls=2, max_auto_retries=2)
     operation = Script(TransientError(), TransientError(), "ok")
 
     with pytest.raises(LlmCallLimitExceeded):
