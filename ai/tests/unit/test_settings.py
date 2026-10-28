@@ -56,6 +56,16 @@ def test_single_and_multi_agent_share_the_same_call_limit(
     assert make_settings().max_llm_calls == 8
 
 
+def test_api_prefix_defaults_to_the_mock_contract_path_and_can_be_changed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert make_settings().api_prefix == "/internal/mock/v1"
+
+    monkeypatch.setenv("HOPS_AI_API_PREFIX", "/internal/v1")
+
+    assert make_settings().api_prefix == "/internal/v1"
+
+
 def test_call_limit_can_be_changed_with_one_variable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOPS_AI_MAX_LLM_CALLS", "5")
 
@@ -70,6 +80,9 @@ def test_call_limit_can_be_changed_with_one_variable(monkeypatch: pytest.MonkeyP
         ("HOPS_AI_RUN_DEADLINE_SECONDS", "0"),
         ("HOPS_AI_MAX_LLM_CALLS", "0"),
         ("HOPS_AI_MAX_AUTO_RETRIES", "-1"),
+        ("HOPS_AI_API_PREFIX", "internal/v1"),
+        ("HOPS_AI_API_PREFIX", "/internal/v1/"),
+        ("HOPS_AI_API_PREFIX", "/"),
         ("HOPS_AI_MAX_OUTPUT_TOKENS", "0"),
     ],
 )

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     mode: RunMode = RunMode.FAKE
     agent_mode: AgentMode = AgentMode.SINGLE
 
+    # Spring이 호출하는 경로의 접두사. 운영 경로가 합의되기 전까지는 Mock 계약의 경로를 쓴다.
+    api_prefix: str = Field(default="/internal/mock/v1", pattern=r"^/[A-Za-z0-9/_.-]*[A-Za-z0-9]$")
+
     # 실행 예산. 초기 기준값이며 실제 모델 측정 후 조정한다.
     run_deadline_seconds: int = Field(default=60, gt=0)
     llm_call_timeout_seconds: int = Field(default=30, gt=0)
