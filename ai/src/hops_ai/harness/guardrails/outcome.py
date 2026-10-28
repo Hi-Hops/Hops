@@ -8,6 +8,9 @@ from hops_ai.contracts.analysis import AnalysisInput, AnalysisOutcome
 from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.harness.errors import OutputRejected
 
+# 분석이 끝난 결과에 남을 수 있는 처리 경로. SEARCH·DIAGNOSE는 진행 중에만 쓰는 내부 경로다.
+FINAL_ACTIONS = {"ASK_USER", "PROPOSE_TICKETS", "OUT_OF_SCOPE"}
+
 
 def validate_outcome(data: AnalysisInput, outcome: AnalysisOutcome) -> None:
     refs = [problem.ref for problem in outcome.problems]
@@ -16,6 +19,8 @@ def validate_outcome(data: AnalysisInput, outcome: AnalysisOutcome) -> None:
 
     existing = {problem.ref: problem for problem in data.existing_problems}
     for problem in outcome.problems:
+        if problem.nextAction not in FINAL_ACTIONS:
+            raise OutputRejected(f"끝나지 않은 처리 경로가 결과에 남았다: {problem.nextAction}")
         if problem.ref.startswith("new:"):
             if problem.questionCount != 0:
                 raise OutputRejected(f"새 문제의 질문 횟수는 0이어야 한다: {problem.ref}")

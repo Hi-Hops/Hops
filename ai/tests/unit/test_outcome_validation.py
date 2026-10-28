@@ -179,3 +179,9 @@ def test_proposal_evidence_ids_are_checked_too(data) -> None:
 
 def test_out_of_scope_problem_needs_no_proposal(make_input) -> None:
     validate_outcome(make_input(), outcome([problem(action="OUT_OF_SCOPE")]))
+
+
+@pytest.mark.parametrize("action", ["SEARCH", "DIAGNOSE"])
+def test_an_unfinished_internal_route_cannot_remain_in_the_result(make_input, action) -> None:
+    with pytest.raises(OutputRejected):
+        validate_outcome(make_input(), outcome([problem(action=action)]))
