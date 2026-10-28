@@ -854,10 +854,9 @@
       }
     },
     {
-      "id": "create-ack",
-      "type": "CommandAck",
+      "id": "create-result",
+      "type": "MutationResult",
       "value": {
-        "ok": true,
         "requestId": "00000000-0000-4000-8000-000000000701",
         "inquiryId": "00000000-0000-4000-8000-000000000200",
         "inquiryVersion": 1,
@@ -868,10 +867,9 @@
       }
     },
     {
-      "id": "send-ack",
-      "type": "CommandAck",
+      "id": "send-result",
+      "type": "MutationResult",
       "value": {
-        "ok": true,
         "requestId": "00000000-0000-4000-8000-000000000702",
         "inquiryId": "00000000-0000-4000-8000-000000000200",
         "inquiryVersion": 2,
@@ -882,10 +880,9 @@
       }
     },
     {
-      "id": "revise-ack",
-      "type": "CommandAck",
+      "id": "revise-result",
+      "type": "MutationResult",
       "value": {
-        "ok": true,
         "requestId": "00000000-0000-4000-8000-000000000703",
         "inquiryId": "00000000-0000-4000-8000-000000000200",
         "inquiryVersion": 3,
@@ -906,10 +903,9 @@
       }
     },
     {
-      "id": "supplement-ack",
-      "type": "CommandAck",
+      "id": "supplement-result",
+      "type": "MutationResult",
       "value": {
-        "ok": true,
         "requestId": "00000000-0000-4000-8000-000000000704",
         "inquiryId": "00000000-0000-4000-8000-000000000200",
         "inquiryVersion": 4,
@@ -930,17 +926,13 @@
       }
     },
     {
-      "id": "ack-INVALID_INPUT",
-      "type": "CommandAck",
+      "id": "error-INVALID_INPUT",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "INVALID_INPUT",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "INVALID_INPUT",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": false
-        }
+        "retryable": false
       }
     },
     {
@@ -954,17 +946,13 @@
       }
     },
     {
-      "id": "ack-UNAUTHENTICATED",
-      "type": "CommandAck",
+      "id": "error-UNAUTHENTICATED",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "UNAUTHENTICATED",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "UNAUTHENTICATED",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": false
-        }
+        "retryable": false
       }
     },
     {
@@ -978,17 +966,13 @@
       }
     },
     {
-      "id": "ack-ACCESS_DENIED",
-      "type": "CommandAck",
+      "id": "error-ACCESS_DENIED",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "ACCESS_DENIED",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "ACCESS_DENIED",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": false
-        }
+        "retryable": false
       }
     },
     {
@@ -1002,17 +986,13 @@
       }
     },
     {
-      "id": "ack-NOT_FOUND",
-      "type": "CommandAck",
+      "id": "error-NOT_FOUND",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "NOT_FOUND",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "NOT_FOUND",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": false
-        }
+        "retryable": false
       }
     },
     {
@@ -1026,17 +1006,13 @@
       }
     },
     {
-      "id": "ack-INQUIRY_VERSION_CONFLICT",
-      "type": "CommandAck",
+      "id": "error-INQUIRY_VERSION_CONFLICT",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "INQUIRY_VERSION_CONFLICT",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "INQUIRY_VERSION_CONFLICT",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": false
-        }
+        "retryable": false
       }
     },
     {
@@ -1050,17 +1026,13 @@
       }
     },
     {
-      "id": "ack-IDEMPOTENCY_KEY_REUSED",
-      "type": "CommandAck",
+      "id": "error-IDEMPOTENCY_KEY_REUSED",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "IDEMPOTENCY_KEY_REUSED",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "IDEMPOTENCY_KEY_REUSED",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": false
-        }
+        "retryable": false
       }
     },
     {
@@ -1074,17 +1046,13 @@
       }
     },
     {
-      "id": "ack-RATE_LIMITED",
-      "type": "CommandAck",
+      "id": "error-RATE_LIMITED",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "RATE_LIMITED",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "RATE_LIMITED",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": true
-        }
+        "retryable": true
       }
     },
     {
@@ -1098,86 +1066,37 @@
       }
     },
     {
-      "id": "ack-SERVICE_UNAVAILABLE",
-      "type": "CommandAck",
+      "id": "error-SERVICE_UNAVAILABLE",
+      "type": "ApiErrorBody",
       "value": {
-        "ok": false,
+        "code": "SERVICE_UNAVAILABLE",
+        "message": "가상 테스트 오류입니다.",
         "requestId": "00000000-0000-4000-8000-000000000702",
-        "error": {
-          "code": "SERVICE_UNAVAILABLE",
-          "message": "가상 테스트 오류입니다.",
-          "requestId": "00000000-0000-4000-8000-000000000702",
-          "retryable": true
-        }
+        "retryable": true
       }
     },
     {
       "id": "subscribe-0",
-      "type": "SubscriptionCommand",
+      "type": "SubscriptionTarget",
       "value": {
-        "requestId": "00000000-0000-4000-8000-000000000710",
-        "target": {
-          "type": "INQUIRY",
-          "id": "00000000-0000-4000-8000-000000000200"
-        }
-      }
-    },
-    {
-      "id": "subscribe-ack-0",
-      "type": "SubscriptionAck",
-      "value": {
-        "ok": true,
-        "requestId": "00000000-0000-4000-8000-000000000710",
-        "target": {
-          "type": "INQUIRY",
-          "id": "00000000-0000-4000-8000-000000000200"
-        }
+        "type": "INQUIRY",
+        "id": "00000000-0000-4000-8000-000000000200"
       }
     },
     {
       "id": "subscribe-1",
-      "type": "SubscriptionCommand",
+      "type": "SubscriptionTarget",
       "value": {
-        "requestId": "00000000-0000-4000-8000-000000000711",
-        "target": {
-          "type": "DEPARTMENT_TICKETS",
-          "id": "00000000-0000-4000-8000-000000000011"
-        }
-      }
-    },
-    {
-      "id": "subscribe-ack-1",
-      "type": "SubscriptionAck",
-      "value": {
-        "ok": true,
-        "requestId": "00000000-0000-4000-8000-000000000711",
-        "target": {
-          "type": "DEPARTMENT_TICKETS",
-          "id": "00000000-0000-4000-8000-000000000011"
-        }
+        "type": "DEPARTMENT_TICKETS",
+        "id": "00000000-0000-4000-8000-000000000011"
       }
     },
     {
       "id": "subscribe-2",
-      "type": "SubscriptionCommand",
+      "type": "SubscriptionTarget",
       "value": {
-        "requestId": "00000000-0000-4000-8000-000000000712",
-        "target": {
-          "type": "TICKET",
-          "id": "00000000-0000-4000-8000-000000000401"
-        }
-      }
-    },
-    {
-      "id": "subscribe-ack-2",
-      "type": "SubscriptionAck",
-      "value": {
-        "ok": true,
-        "requestId": "00000000-0000-4000-8000-000000000712",
-        "target": {
-          "type": "TICKET",
-          "id": "00000000-0000-4000-8000-000000000401"
-        }
+        "type": "TICKET",
+        "id": "00000000-0000-4000-8000-000000000401"
       }
     },
     {
@@ -1980,12 +1899,18 @@
     {
       "id": "message-history-empty",
       "type": "MessageHistoryPage",
-      "value": { "items": [], "nextBeforeSequenceNo": null }
+      "value": {
+        "items": [],
+        "nextBeforeSequenceNo": null
+      }
     },
     {
       "id": "run-retry-request",
       "type": "RunRetryRequest",
-      "value": { "requestId": "00000000-0000-4000-8000-000000000901", "expectedInquiryVersion": 1 }
+      "value": {
+        "requestId": "00000000-0000-4000-8000-000000000901",
+        "expectedInquiryVersion": 1
+      }
     },
     {
       "id": "user-preview",

@@ -11,7 +11,8 @@ export function useChat(id: string) {
   const inquiry = useQuery({
     queryKey: chatKeys.inquiry(id),
     queryFn: () => getInquiry(id),
-    refetchInterval: (query) => (query.state.data?.currentRun?.status === 'RUNNING' ? 1000 : false),
+    refetchInterval: (query) =>
+      ['RUNNING', 'QUEUED'].includes(query.state.data?.currentRun?.status ?? '') ? 1000 : false,
   });
   const messages = useInfiniteQuery({
     queryKey: chatKeys.messages(id),
@@ -57,11 +58,30 @@ export function useChat(id: string) {
         text: buffer.text(event.payload.messageId),
       }));
     });
+    const offResync = realtime.on('stream.reset', (event) => {
+      if (event.target.type !== 'INQUIRY' || event.target.id !== id) return;
+      buffer.clear();
+      setTransient({ runId: '', messageId: '', text: '', progress: '' });
+    });
     return () => {
       offProgress();
       offDelta();
+      offResync();
     };
   }, [buffer, client, id, runId, version]);
+  useEffect(() => {
+    if (!buffer.hasGaps) return;
+    const timer = setTimeout(() => {
+      if (buffer.hasGaps) {
+        buffer.clear();
+        setTransient({ runId: '', messageId: '', text: '', progress: '' });
+        void client.invalidateQueries({ queryKey: chatKeys.messages(id) });
+      }
+    }, 2000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [buffer, client, id, transient]);
   const items = useMemo(() => {
     const unique = new Map<string, ChatMessage>();
     for (const message of messages.data?.pages.flatMap((page) => page.items) ?? []) {
@@ -70,7 +90,7 @@ export function useChat(id: string) {
     }
     return [...unique.values()].sort((a, b) => a.sequenceNo - b.sequenceNo);
   }, [messages.data]);
-  const pending = inquiry.data?.currentRun?.status === 'RUNNING';
+  const pending = ['RUNNING', 'QUEUED'].includes(inquiry.data?.currentRun?.status ?? '');
   const live =
     pending &&
     transient.runId === runId &&

@@ -44,7 +44,13 @@ describe('F001 로그인', () => {
   it('F001-AC03 토큰 디코딩 대신 /auth/me를 조회한다', async () => {
     const spy = vi.spyOn(mockBackend, 'request');
     const current = await login(TEST_LOGINS.network);
-    expect(spy).toHaveBeenCalledWith('/api/auth/me', 'GET', undefined, expect.any(String));
+    expect(spy).toHaveBeenCalledWith(
+      '/api/auth/me',
+      'GET',
+      undefined,
+      expect.any(String),
+      undefined,
+    );
     expect(current.department.code).toBe('NETWORK');
   });
   it('F001-AC05 인증 만료는 재로그인 안내로 표시한다', () => {

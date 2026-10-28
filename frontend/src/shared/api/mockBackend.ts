@@ -9,12 +9,22 @@ import type {
 } from './types';
 import { fixture } from './mockData';
 import { MockHttpError } from './mockError';
+import { isRecord } from './wire';
 import { mockWorkspace } from './mockWorkspace';
-import type { StoredCommand, StoredCommandName } from '@/shared/realtime/types';
+import type { StoredCommand, StoredCommandName } from './mutations';
 export { MockHttpError } from './mockError';
 
 export class MockBackend {
   private sessions = new Map<string, { user: CurrentUser; expiresAt: number }>();
+  private loseResponse = false;
+  loseNextResponse() {
+    this.loseResponse = true;
+  }
+  takeLostResponse() {
+    const lost = this.loseResponse;
+    this.loseResponse = false;
+    return lost;
+  }
   private nextFailure: number | null = null;
   private refresh: { user: CurrentUser; expiresAt: number } | null = null;
 
@@ -60,7 +70,13 @@ export class MockBackend {
     return mockWorkspace.command(this.currentUser(token), name, command);
   }
 
-  request(path: string, method: string, body: unknown, token: string | null): unknown {
+  request(
+    path: string,
+    method: string,
+    body: unknown,
+    token: string | null,
+    idempotencyKey?: string,
+  ): unknown {
     if (this.nextFailure !== null) {
       const status = this.nextFailure;
       this.nextFailure = null;
@@ -80,7 +96,7 @@ export class MockBackend {
       if (!account || credentials.password !== config.password)
         this.error(401, 'UNAUTHENTICATED', '아이디 또는 비밀번호를 확인해 주세요.');
       const user = fixture(account.userFixture, 'CurrentUser');
-      const expiresAt = Date.now() + 1_800_000;
+      const expiresAt = Date.now() + 900_000;
       const accessToken = `mock:${crypto.randomUUID()}`;
       this.sessions.set(accessToken, { user, expiresAt });
       this.refresh = { user, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 };
@@ -94,7 +110,7 @@ export class MockBackend {
       if (!this.refresh || this.refresh.expiresAt <= Date.now())
         this.error(401, 'REFRESH_TOKEN_EXPIRED', '인증이 만료됐어요. 다시 로그인해 주세요.');
       const user = structuredClone(this.refresh.user);
-      const expiresAt = Date.now() + 1_800_000;
+      const expiresAt = Date.now() + 900_000;
       const accessToken = `mock:${crypto.randomUUID()}`;
       this.sessions.set(accessToken, { user, expiresAt });
       return {
@@ -110,6 +126,38 @@ export class MockBackend {
     }
     const user = this.currentUser(token);
     if (path === '/api/auth/me') return user;
+    if (
+      method === 'POST' &&
+      /^\/api\/inquiries(?:\/[^/]+\/messages(?:\/[^/]+\/revisions)?)?$/u.test(path)
+    ) {
+      if (!isRecord(body) || typeof body.content !== 'string')
+        this.error(400, 'INVALID_INPUT', '요청 본문을 확인해 주세요.');
+      const command = body as StoredCommand;
+      if (
+        typeof command.requestId !== 'string' ||
+        !idempotencyKey ||
+        command.requestId !== idempotencyKey
+      )
+        this.error(400, 'INVALID_INPUT', '멱등 키를 확인해 주세요.');
+      const parts = path.split('/');
+      const name =
+        parts.length === 3
+          ? 'inquiry.create'
+          : parts.length === 5
+            ? 'message.send'
+            : 'message.revise';
+      if (
+        name !== 'inquiry.create' &&
+        (!('inquiryId' in command) || command.inquiryId !== parts[3])
+      )
+        this.error(400, 'INVALID_INPUT', '문의 경로가 일치하지 않아요.');
+      if (
+        name === 'message.revise' &&
+        (!('messageId' in command) || command.messageId !== parts[5])
+      )
+        this.error(400, 'INVALID_INPUT', '메시지 경로가 일치하지 않아요.');
+      return mockWorkspace.command(user, name, command);
+    }
     const url = new URL(path, 'http://mock.invalid');
     const readNumber = (key: string, fallback: number, max: number) => {
       const raw = url.searchParams.get(key);

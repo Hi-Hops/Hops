@@ -36,5 +36,26 @@ export const retryRun = (id: string, request: RunRetryRequest) =>
   apiRequest<RunSummary>(`/api/runs/${encodeURIComponent(id)}/retries`, {
     method: 'POST',
     body: request,
+    idempotencyKey: request.requestId,
   });
 export const getRun = (id: string) => apiRequest<RunSummary>(`/api/runs/${encodeURIComponent(id)}`);
+
+import { postMutation } from '@/shared/api/mutations';
+import type {
+  InquiryCreateCommand,
+  MessageSendCommand,
+  MessageReviseCommand,
+} from '@/shared/api/types';
+export const createInquiry = (command: InquiryCreateCommand) =>
+  postMutation('/api/inquiries', command);
+export const sendMessage = (command: MessageSendCommand) =>
+  postMutation('/api/inquiries/' + encodeURIComponent(command.inquiryId) + '/messages', command);
+export const reviseMessage = (command: MessageReviseCommand) =>
+  postMutation(
+    '/api/inquiries/' +
+      encodeURIComponent(command.inquiryId) +
+      '/messages/' +
+      encodeURIComponent(command.messageId) +
+      '/revisions',
+    command,
+  );

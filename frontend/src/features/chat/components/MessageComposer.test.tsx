@@ -1,7 +1,7 @@
 import { TEST_LOGINS } from '@/test/mockCredentials';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { login, useSession } from '@/features/auth';
 import { useConnection } from '@/features/realtime';
 import { mockBackend } from '@/shared/api/mockBackend';
@@ -13,6 +13,10 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import { MessageComposer } from './MessageComposer';
 import { RecentInquiries } from '@/features/inquiry';
 import '../api/chatApi';
+import * as chatApi from '../api/chatApi';
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 import { useDrafts } from '../model/draftStore';
 
 beforeEach(async () => {
@@ -33,6 +37,49 @@ async function compose(content: string) {
 }
 
 describe('F003 메시지 전송', () => {
+  it('F003-AC03 429 대기 중 전송·같은 요청 재확인을 막고 초안을 보존한다', async () => {
+    const request = vi
+      .spyOn(chatApi, 'createInquiry')
+      .mockResolvedValueOnce({
+        ok: false,
+        error: {
+          code: 'RATE_LIMITED',
+          message: '잠시 후 재시도해 주세요.',
+          requestId: crypto.randomUUID(),
+          retryable: true,
+        },
+        retryAfterSeconds: 1,
+      })
+      .mockResolvedValue({ ok: 'unknown' });
+    renderWithProviders(<MessageComposer isHome onStored={vi.fn()} />);
+    await compose('보존할 문의 원문');
+    expect(await screen.findByText('1초 후 다시 전송할 수 있어요. 입력은 유지돼요.')).toBeVisible();
+    expect(screen.getByRole('button', { name: '질문하기 ↑' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '같은 요청으로 다시 확인' })).toBeDisabled();
+    expect(screen.getByLabelText('문의 내용')).toHaveValue('보존할 문의 원문');
+    await waitFor(
+      () => {
+        expect(screen.getByRole('button', { name: '질문하기 ↑' })).toBeEnabled();
+      },
+      { timeout: 2000 },
+    );
+    expect(request).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: '같은 요청으로 다시 확인' }));
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[0]).toEqual(request.mock.calls[1]);
+    request.mockRestore();
+  });
+  it('F003-AC01 실시간 연결이 끊겨도 REST로 문의를 저장한다', async () => {
+    realtime.interrupt();
+    useConnection.getState().setState('disconnected');
+    const stored = vi.fn();
+    renderWithProviders(<MessageComposer isHome onStored={stored} />);
+    await compose('실시간 연결 없이 저장');
+    await waitFor(() => {
+      expect(stored).toHaveBeenCalledOnce();
+    });
+    expect(screen.getByLabelText('문의 내용')).toHaveValue('');
+  });
   it('F003-AC01 F006-AC10 이벤트·구독 없이 저장 ACK만으로 세션 목록을 갱신한다', async () => {
     const stored = vi.fn();
     renderWithProviders(
@@ -56,7 +103,7 @@ describe('F003 메시지 전송', () => {
       const rendered = renderWithProviders(<MessageComposer isHome onStored={stored} />);
       const invalidate = vi.spyOn(rendered.client, 'invalidateQueries');
       if (kind === 'error') mockWorkspace.failNextCommand();
-      else realtime.loseNextAck();
+      else mockBackend.loseNextResponse();
       await compose('ACK 확인 전 보존');
       await screen.findByRole('button', { name: '같은 요청으로 다시 확인' });
       expect(invalidate).not.toHaveBeenCalled();
@@ -115,7 +162,7 @@ describe('F003 메시지 전송', () => {
   it('F003-AC04 ACK 유실은 결과 미확인이며 재전송해도 문의가 하나만 생긴다', async () => {
     const stored = vi.fn();
     renderWithProviders(<MessageComposer isHome onStored={stored} />);
-    realtime.loseNextAck();
+    mockBackend.loseNextResponse();
     await compose('VPN 오류');
     expect(await screen.findByText(/결과 확인 중이에요/u)).toBeVisible();
     expect(stored).not.toHaveBeenCalled();
@@ -158,7 +205,7 @@ describe('F003 메시지 전송', () => {
   it('F001-AC06 인증 만료 후 미확인 요청을 같은 키로 복원한다', async () => {
     const stored = vi.fn();
     const rendered = renderWithProviders(<MessageComposer isHome onStored={stored} />);
-    realtime.loseNextAck();
+    mockBackend.loseNextResponse();
     await compose('VPN 오류');
     await screen.findByText(/결과 확인 중이에요/u);
     useSession.getState().expire();

@@ -8,7 +8,7 @@ import { mockWorkspace } from '@/shared/api/mockWorkspace';
 import { fixture } from '@/shared/api/mockData';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { ChatView } from './ChatView';
-import type { StoredAck } from '@/shared/api/types';
+import type { MutationResult } from '@/shared/api/types';
 
 beforeEach(async () => {
   mockBackend.reset();
@@ -22,7 +22,6 @@ function start(content: string) {
     requestId: crypto.randomUUID(),
     content,
   });
-  if (!ack.ok) throw new Error('문의 생성 실패');
   return ack;
 }
 
@@ -117,10 +116,10 @@ describe('F003 대화 조회·분석', () => {
       expectedInquiryVersion: 2,
       content: '추가 발생 시각이에요',
     });
-    expect(supplement).toMatchObject({ ok: true, runId: null, effect: 'SUPPLEMENT_SAVED' });
+    expect(supplement).toMatchObject({ runId: null, effect: 'SUPPLEMENT_SAVED' });
   });
   it('F003-AC14 F005-AC08 저장 변경 신호 뒤 문의 결과를 다시 조회한다', async () => {
-    const ack: StoredAck = start('CS 검토 예시');
+    const ack: MutationResult = start('CS 검토 예시');
     renderWithProviders(
       <RealtimeBoundary>
         <ChatView inquiryId={ack.inquiryId} />

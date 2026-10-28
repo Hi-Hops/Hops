@@ -9,7 +9,7 @@ import type {
   LoginResponse,
   MessagePage,
   MessageStoredEvent,
-  SubscriptionCommand,
+  SubscriptionTarget,
   TicketCard,
   TicketDetail,
 } from './types';
@@ -24,7 +24,7 @@ type MockFixtureTypes = {
   LoginResponse: LoginResponse;
   MessagePage: MessagePage;
   MessageStoredEvent: MessageStoredEvent;
-  SubscriptionCommand: SubscriptionCommand;
+  SubscriptionTarget: SubscriptionTarget;
   TicketCard: TicketCard;
   TicketDetail: TicketDetail;
 };
