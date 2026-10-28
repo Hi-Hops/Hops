@@ -198,7 +198,7 @@ Swagger에서는 `POST /api/auth/login` 응답의 `accessToken`을 따옴표 없
 DB 없이 SSE 기반 테스트만 실행할 수 있습니다.
 
 ```bash
-./gradlew test --tests '*realtime*'
+./gradlew test --tests '*RealtimeAuthorizationTest' --tests '*RealtimeServiceTest' --tests '*RealtimeSecurityTest'
 ```
 
 SSE 테스트 19개는 연결·대상별 전달·권한 회수·만료·재생 불가 종료·커밋/롤백·Security/CORS와
@@ -218,3 +218,19 @@ Mock 권한·MVC 테스트는 실제 JWT/DB·브라우저·운영 프록시 E2E 
 현재 RealtimeAuthorization은 SSE 대상 검사이며, 전체 REST API 권한 회수를 대신하지 않습니다.
 초기 replay 미지원 처리의 comment는 진단용입니다. 소비자는 comment 문구에 의존하지 않고
 스트림 종료와 현재 서버의 replay 지원 여부를 바탕으로 복구해야 합니다.
+
+### 실제 HTTP·DB 통합 검증
+
+테스트 DB 설정 후 다음 명령으로 실제 Tomcat·JWT 필터·PostgreSQL을 사용하는 SSE 테스트를 실행합니다.
+
+```bash
+./gradlew test --tests '*RealtimeHttpIntegrationTest'
+```
+
+고유한 테스트 회원·부서를 `hops_test`에 만들고 종료 시 해당 fixture만 삭제합니다.
+실제 HTTP 스트림에서 미인증·타 부서 접근 거부, 연결·heartbeat, 커서 요청 종료 후 재연결,
+토큰 만료·테스트 회원 차단 후 종료를 확인합니다. 짧은 heartbeat·수명의 JWT는 테스트 전용이며
+실제 Access Token 15분 정책을 변경하지 않습니다. `Accept: text/event-stream` 요청의 연결 전
+오류는 HTTP 상태와 JSON 오류 본문으로 반환합니다.
+
+이 검사는 프론트 fetch parser·REST 복구·실제 업무 이벤트 생산자·운영 프록시 E2E까지 포함하지 않습니다.
