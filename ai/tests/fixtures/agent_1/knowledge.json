@@ -1,0 +1,59 @@
+{
+  "request": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000004",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 1,
+    "role": "KNOWLEDGE",
+    "context": {
+      "actor": {
+        "userId": "00000000-0000-4000-8000-000000000100",
+        "departmentId": "00000000-0000-4000-8000-000000000018",
+        "roles": []
+      },
+      "accessScopeRef": "mock:owner:inquiry-3",
+      "deadlineAt": "2026-10-23T00:01:00Z",
+      "allowedTools": []
+    },
+    "payload": {
+      "problem": {
+        "ref": "new:p1",
+        "summary": "VPN 접속 오류",
+        "category": "NETWORK_ACCESS",
+        "questionCount": 0
+      },
+      "query": "VPN 접속 오류",
+      "messages": [
+        {
+          "messageId": "00000000-0000-4000-8000-000000000601",
+          "revision": 1,
+          "sender": "USER",
+          "content": "VPN 접속 오류가 나요."
+        }
+      ],
+      "knownEvidence": [],
+      "mode": "ANSWER"
+    }
+  },
+  "result": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000004",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 1,
+    "role": "KNOWLEDGE",
+    "status": "OK",
+    "data": {
+      "problemRef": "new:p1",
+      "answerDraft": null,
+      "sufficiency": "INSUFFICIENT",
+      "evidenceIds": [],
+      "missingInformation": ["오류가 발생한 메뉴와 오류 메시지"],
+      "suggestedNext": "ASK_USER"
+    },
+    "error": null,
+    "evidence": [],
+    "meta": {"durationMs": 120, "modelId": null, "promptVersion": null}
+  }
+}

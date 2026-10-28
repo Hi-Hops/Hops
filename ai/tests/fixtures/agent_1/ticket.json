@@ -1,0 +1,117 @@
+{
+  "request": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000006",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 2,
+    "role": "TICKET",
+    "context": {
+      "actor": {
+        "userId": "00000000-0000-4000-8000-000000000100",
+        "departmentId": "00000000-0000-4000-8000-000000000018",
+        "roles": []
+      },
+      "accessScopeRef": "mock:owner:inquiry-3",
+      "deadlineAt": "2026-10-23T00:01:00Z",
+      "allowedTools": []
+    },
+    "payload": {
+      "problems": [
+        {
+          "ref": "00000000-0000-4000-8000-000000000201",
+          "summary": "VPN 접속 오류",
+          "category": "NETWORK_ACCESS",
+          "questionCount": 1
+        },
+        {
+          "ref": "00000000-0000-4000-8000-000000000202",
+          "summary": "확인되지 않는 IT 증상",
+          "category": "OTHER",
+          "questionCount": 3
+        }
+      ],
+      "evidence": [
+        {
+          "id": "msg-601-r1",
+          "kind": "MESSAGE",
+          "sourceId": "00000000-0000-4000-8000-000000000601",
+          "sourceVersion": "1",
+          "summary": "가상 VPN 오류 문의",
+          "observedAt": null
+        }
+      ],
+      "diagnoses": [],
+      "departments": [
+        {
+          "id": "00000000-0000-4000-8000-000000000011",
+          "code": "NETWORK",
+          "name": "네트워크",
+          "responsibilities": ["가상 네트워크 처리"]
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000012",
+          "code": "CS",
+          "name": "CS",
+          "responsibilities": ["가상 CS 처리"]
+        }
+      ],
+      "existingWorkItems": [],
+      "csReviewProblemRefs": ["00000000-0000-4000-8000-000000000202"]
+    }
+  },
+  "result": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000006",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 2,
+    "role": "TICKET",
+    "status": "OK",
+    "data": {
+      "ticketProposals": [
+        {
+          "ref": "new:work-vpn",
+          "problemRef": "00000000-0000-4000-8000-000000000201",
+          "workScope": "VPN 연결 확인",
+          "title": "VPN 접속 오류",
+          "description": "가상 VPN 연결 시 오류가 발생합니다.",
+          "category": "NETWORK_ACCESS",
+          "departmentCode": "NETWORK",
+          "purpose": "INCIDENT",
+          "diagnosisSummary": "가상 접속 오류 관측. 실제 진단 결과가 아닙니다.",
+          "handoffReason": "가상 네트워크 부서 관할",
+          "uncertainty": null,
+          "evidenceIds": ["msg-601-r1"]
+        },
+        {
+          "ref": "new:cs-review",
+          "problemRef": "00000000-0000-4000-8000-000000000202",
+          "workScope": "원인 확인",
+          "title": "확인되지 않는 IT 증상",
+          "description": "추가 질문 3회 후에도 분류할 수 없는 IT 증상이다.",
+          "category": "OTHER",
+          "departmentCode": "CS",
+          "purpose": "CS_REVIEW",
+          "diagnosisSummary": "정보 부족으로 분류하지 못했다.",
+          "handoffReason": "추가 질문 한도 소진",
+          "uncertainty": "원인 분류 불가",
+          "evidenceIds": ["msg-601-r1"]
+        }
+      ],
+      "unresolvedProblemRefs": []
+    },
+    "error": null,
+    "evidence": [
+      {
+        "id": "msg-601-r1",
+        "kind": "MESSAGE",
+        "sourceId": "00000000-0000-4000-8000-000000000601",
+        "sourceVersion": "1",
+        "summary": "가상 VPN 오류 문의",
+        "observedAt": null
+      }
+    ],
+    "meta": {"durationMs": 1300, "modelId": null, "promptVersion": null}
+  }
+}
