@@ -21,7 +21,7 @@
 ## 스펙별 사용 타입
 
 - F001: LoginRequest, LoginResponse, CurrentUser, Department, Role, ApiErrorBody.
-- F002: SubscriptionTarget(후속 이름 변경 대상), AgentProgressEvent, AnswerDeltaEvent, MessageStoredEvent, StateChangedEvent, AuthInvalidatedEvent, ResyncRequiredEvent(추가 필요).
+- F002: SubscriptionTarget(후속 이름 변경 대상), AgentProgressEvent, AnswerDeltaEvent, MessageStoredEvent, StateChangedEvent, AuthInvalidatedEvent, ResyncRequiredEvent.
 - F003: InquiryCreateCommand, MessageSendCommand, MutationResult(추가 필요), ChatMessage, MessageHistoryQuery, MessageHistoryPage, InquiryResult, RunSummary, RunRetryRequest. 기존 MessagePage는 전방 조회 호환 예제다.
 - F004: MessageReviseCommand, MutationResult(추가 필요), ChatMessage, MessageRevision, InquiryResult.
 - F005: InquiryResult, Problem, TicketCard, CreationFailure, RunSummary.

@@ -72,7 +72,8 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(corsProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id"));
+        configuration.setAllowedHeaders(List.of(
+                "Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id", "Last-Event-ID"));
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(List.of("X-Request-Id"));
         configuration.setMaxAge(3600L); // 브라우저가 사전 확인(preflight) 결과를 1시간 동안 재사용
