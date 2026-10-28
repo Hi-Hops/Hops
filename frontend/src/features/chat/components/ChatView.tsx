@@ -155,10 +155,15 @@ export function ChatView({ inquiryId }: { inquiryId: string }) {
         {chat.pending && (
           <div role="status" className={styles.aiRow}>
             <div className={styles.author}>
-              <span>H</span>Hops · {chat.live?.text ? '답변 작성 중' : '분석 중'}
+              <span>H</span>Hops ·{' '}
+              {runStatus === 'QUEUED' ? '분석 대기' : chat.live?.text ? '답변 작성 중' : '분석 중'}
             </div>
             <p className={styles.progress}>
-              {chat.live?.progress ?? '문의 내용을 확인하고 있어요.'}
+              {chat.live?.progress.length
+                ? chat.live.progress
+                : runStatus === 'QUEUED'
+                  ? '분석 순서를 기다리고 있어요.'
+                  : '문의 내용을 확인하고 있어요.'}
             </p>
             {chat.live?.text && (
               <p className={styles.aiBubble}>

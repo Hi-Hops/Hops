@@ -3,6 +3,24 @@ import { describe, expect, it } from 'vitest';
 import { fixture } from '@/shared/api/mockData';
 import { ResultPanel } from './ResultPanel';
 describe('F005 결과 카드', () => {
+  it.each([
+    ['QUEUED', '분석 대기'],
+    ['SUPERSEDED', '최신 입력으로 대체됨'],
+    ['FUTURE_RUN', '확인되지 않은 실행 상태 (FUTURE_RUN)'],
+  ])('F005-AC09 문제 생성 전에도 %s 실행 상태를 성공으로 추정하지 않는다', (status, label) => {
+    const result = fixture('inquiry-result', 'InquiryResult');
+    result.problems = [];
+    result.tickets = [];
+    result.currentRun = {
+      id: crypto.randomUUID(),
+      inquiryVersion: result.version,
+      status,
+      error: null,
+    };
+    render(<ResultPanel result={result} />);
+    expect(screen.getByText(label)).toBeVisible();
+    expect(screen.queryByText('분석 완료')).not.toBeInTheDocument();
+  });
   it('F005-AC01 문제별 상태와 추가 질문 횟수를 구분한다', () => {
     render(<ResultPanel result={fixture('inquiry-result', 'InquiryResult')} />);
     expect(screen.getByText('티켓 생성·배정됨')).toBeVisible();

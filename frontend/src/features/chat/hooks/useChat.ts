@@ -41,7 +41,12 @@ export function useChat(id: string) {
       )
         return;
       seen.add(event.eventId);
-      setTransient((current) => ({ ...current, runId, progress: event.payload.displaySummary }));
+      setTransient((current) => ({
+        runId,
+        messageId: current.runId === runId ? current.messageId : '',
+        text: current.runId === runId ? current.text : '',
+        progress: event.payload.displaySummary,
+      }));
     });
     const offDelta = realtime.on('answer.delta', (event) => {
       if (event.inquiryId !== id) return;
@@ -52,10 +57,10 @@ export function useChat(id: string) {
       }
       if (!accepted) return;
       setTransient((current) => ({
-        ...current,
         runId,
         messageId: event.payload.messageId,
         text: buffer.text(event.payload.messageId),
+        progress: current.runId === runId ? current.progress : '',
       }));
     });
     const offResync = realtime.on('stream.reset', (event) => {
