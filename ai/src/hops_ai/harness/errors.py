@@ -93,6 +93,21 @@ class RetrievalUnavailable(HarnessError):
     safe_message = "검색 시스템에 일시적으로 연결하지 못했다"
 
 
+class UnsupportedRoute(HarnessError):
+    """아직 연결하지 않은 처리 경로(예: Knowledge·Diagnosis 호출)가 필요한 입력이다."""
+
+    safe_message = "아직 지원하지 않는 처리 경로다"
+
+
+class RoleFailed(HarnessError):
+    """역할이 실패 결과를 돌려줬다. 그 역할의 상태와 오류를 그대로 전달한다."""
+
+    def __init__(self, status: ResultStatus, error: AgentError) -> None:
+        super().__init__(error.code)
+        self.role_status = status
+        self.role_error = error
+
+
 @dataclass(frozen=True)
 class Failure:
     status: ResultStatus
@@ -101,6 +116,8 @@ class Failure:
 
 def describe_failure(error: BaseException) -> Failure:
     """예외를 결과의 status와 안전한 오류로 바꾼다. 알 수 없는 예외는 내부 오류로만 알린다."""
+    if isinstance(error, RoleFailed):
+        return Failure(status=error.role_status, error=error.role_error)
     if isinstance(error, HarnessError):
         return Failure(
             status=error.status,
