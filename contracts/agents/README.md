@@ -61,7 +61,7 @@ async def execute(request: AgentRequest, services: SharedServices) -> AgentResul
 - `role: AgentRole`.
 - `context.actor: {userId: UUID, departmentId: UUID, roles: string[]}`: Spring이 검증한 정보.
 - `context.accessScopeRef: string`: 서버가 검증 가능한 접근 범위 참조. 임의 역할 문자열을 권한 증명으로 사용하지 않는다.
-- `context.deadlineAt: timestamp`: 전체 실행 종료 시각. 에이전트 호출마다 90초를 새로 부여하지 않는다.
+- `context.deadlineAt: timestamp`: 전체 실행 종료 시각. 에이전트 호출마다 60초를 새로 부여하지 않는다.
 - `context.allowedTools: string[]`: 해당 역할이 요청할 수 있는 도구 이름. 최종 실행 시 서버 권한 검사를 다시 거친다.
 - `payload`: 4절의 role별 입력 객체.
 
@@ -186,9 +186,9 @@ SharedServices는 LLM 호출, 지식 검색, 읽기 도구, 실행 추적, 남�
 - 도구: 요청한 도구·대상·입력을 검사하고 Spring 권한 검사 후 실행한다. `OK|DENIED|TIMEOUT|ERROR`와 조회 시각·근거 ID를 반환한다. DENIED를 다른 도구로 우회하지 않는다.
 - 추적: runId·invocationId·역할·단계·소요 시간·근거 ID·오류를 기록한다. 원시 내부 사고 과정은 기록하지 않는다.
 
-공통 오류 코드는 `INVALID_INPUT`, `INVALID_OUTPUT`, `MODEL_UNAVAILABLE`, `MODEL_TIMEOUT`, `RETRIEVAL_UNAVAILABLE`, `TOOL_FAILURE`, `ACCESS_DENIED`, `DEADLINE_EXCEEDED`, `SUPERSEDED`, `INTERNAL_ERROR`를 제안한다. 모델 연결 장애·검색 연결 장애 등 일시 오류만 retryable=true로 표시한다. 권한 거부·기한 소진·이전 버전·취소는 같은 요청을 자동 반복하지 않는다. 재시도 여부는 Runtime이 남은 예산과 원인을 함께 보고 결정한다.
+공통 오류 코드는 `INVALID_INPUT`, `INVALID_OUTPUT`, `MODEL_UNAVAILABLE`, `MODEL_TIMEOUT`, `RETRIEVAL_UNAVAILABLE`, `TOOL_FAILURE`, `ACCESS_DENIED`, `DEADLINE_EXCEEDED`, `BUDGET_EXCEEDED`, `SUPERSEDED`, `INTERNAL_ERROR`를 제안한다. 모델 연결 장애·검색 연결 장애 등 일시 오류만 retryable=true로 표시한다. 권한 거부·기한 소진·이전 버전·취소는 같은 요청을 자동 반복하지 않는다. 재시도 여부는 Runtime이 남은 예산과 원인을 함께 보고 결정한다.
 
-전체 90초, 모델 호출 30초, 모델 오류 재시도 1회·형식 복구 1회는 기존 MVP 설정을 입력으로 받는다. 역할 전환 시 실행 시간을 초기화하지 않는다. 병렬 역할은 읽기 스냅샷을 받아 독립 실행하고 Supervisor만 결과를 병합한다. 새 문의 버전 또는 취소 이후의 늦은 결과는 사용하지 않는다.
+전체 60초, 모델 호출 30초, 호출당 모델 오류 재시도 2회, 한 실행의 모델 호출 상한 8회(재시도 포함), 형식 복구 1회(구현 예정)는 단일·멀티 공통 설정을 입력으로 받는다. 역할 전환 시 실행 시간을 초기화하지 않는다. 병렬 역할은 읽기 스냅샷을 받아 독립 실행하고 Supervisor만 결과를 병합한다. 새 문의 버전 또는 취소 이후의 늦은 결과는 사용하지 않는다.
 
 ## 7. 기존 MVP API와 연결하는 규칙
 
