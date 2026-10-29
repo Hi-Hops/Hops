@@ -1,0 +1,95 @@
+{
+  "request": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000005",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 2,
+    "role": "DIAGNOSIS",
+    "context": {
+      "actor": {
+        "userId": "00000000-0000-4000-8000-000000000100",
+        "departmentId": "00000000-0000-4000-8000-000000000018",
+        "roles": []
+      },
+      "accessScopeRef": "mock:owner:inquiry-3",
+      "deadlineAt": "2026-10-23T00:01:00Z",
+      "allowedTools": ["read_service_status"]
+    },
+    "payload": {
+      "problem": {
+        "ref": "00000000-0000-4000-8000-000000000201",
+        "summary": "VPN 접속 오류",
+        "category": "NETWORK_ACCESS",
+        "questionCount": 1
+      },
+      "messages": [
+        {
+          "messageId": "00000000-0000-4000-8000-000000000603",
+          "revision": 1,
+          "sender": "USER",
+          "content": "오류 코드는 809예요."
+        }
+      ],
+      "knownEvidence": [
+        {
+          "id": "doc-rb-vpn-720-v1",
+          "kind": "DOCUMENT",
+          "sourceId": "RB-REMOTE-VPN-720",
+          "sourceVersion": "v1",
+          "summary": "VPN 연결 오류 점검 절차",
+          "observedAt": null
+        }
+      ],
+      "targetServiceIds": ["vpn-gateway"]
+    }
+  },
+  "result": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000005",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 2,
+    "role": "DIAGNOSIS",
+    "status": "OK",
+    "data": {
+      "problemRef": "00000000-0000-4000-8000-000000000201",
+      "findings": [
+        {
+          "summary": "VPN 게이트웨이 상태가 비정상으로 조회됐다",
+          "evidenceIds": ["tool-vpn-status-1"]
+        }
+      ],
+      "causeCandidates": [
+        {
+          "summary": "게이트웨이 장애 가능성",
+          "evidenceIds": ["tool-vpn-status-1", "doc-rb-vpn-720-v1"]
+        }
+      ],
+      "uncertainties": ["조회 시점 이후 상태가 바뀌었을 수 있다"],
+      "disposition": "HANDOFF",
+      "guidanceDraft": null,
+      "question": null
+    },
+    "error": null,
+    "evidence": [
+      {
+        "id": "tool-vpn-status-1",
+        "kind": "TOOL",
+        "sourceId": "vpn-gateway-status-0001",
+        "sourceVersion": "snapshot-1",
+        "summary": "가상 VPN 게이트웨이 상태 조회 결과",
+        "observedAt": "2026-10-23T00:00:30Z"
+      },
+      {
+        "id": "doc-rb-vpn-720-v1",
+        "kind": "DOCUMENT",
+        "sourceId": "RB-REMOTE-VPN-720",
+        "sourceVersion": "v1",
+        "summary": "VPN 연결 오류 점검 절차",
+        "observedAt": null
+      }
+    ],
+    "meta": {"durationMs": 2400, "modelId": null, "promptVersion": null}
+  }
+}

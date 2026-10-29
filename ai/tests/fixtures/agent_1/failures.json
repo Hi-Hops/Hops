@@ -1,0 +1,98 @@
+[
+  {
+    "id": "timed-out",
+    "result": {
+      "contractVersion": "agent-1",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "invocationId": "00000000-0000-4000-8000-000000000002",
+      "inquiryId": "00000000-0000-4000-8000-000000000003",
+      "inquiryVersion": 1,
+      "role": "INTAKE",
+      "status": "TIMED_OUT",
+      "data": null,
+      "error": {"code": "DEADLINE_EXCEEDED", "message": "실행 제한 시간을 초과했다", "retryable": false},
+      "evidence": [],
+      "meta": {"durationMs": 60000, "modelId": null, "promptVersion": null}
+    }
+  },
+  {
+    "id": "model-unavailable",
+    "result": {
+      "contractVersion": "agent-1",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "invocationId": "00000000-0000-4000-8000-000000000004",
+      "inquiryId": "00000000-0000-4000-8000-000000000003",
+      "inquiryVersion": 1,
+      "role": "KNOWLEDGE",
+      "status": "ERROR",
+      "data": null,
+      "error": {"code": "MODEL_UNAVAILABLE", "message": "모델에 연결하지 못했다", "retryable": true},
+      "evidence": [],
+      "meta": {"durationMs": 400, "modelId": null, "promptVersion": null}
+    }
+  },
+  {
+    "id": "retrieval-unavailable",
+    "result": {
+      "contractVersion": "agent-1",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "invocationId": "00000000-0000-4000-8000-000000000004",
+      "inquiryId": "00000000-0000-4000-8000-000000000003",
+      "inquiryVersion": 1,
+      "role": "KNOWLEDGE",
+      "status": "ERROR",
+      "data": null,
+      "error": {"code": "RETRIEVAL_UNAVAILABLE", "message": "검색 시스템에 연결하지 못했다", "retryable": true},
+      "evidence": [],
+      "meta": {"durationMs": 300, "modelId": null, "promptVersion": null}
+    }
+  },
+  {
+    "id": "tool-denied",
+    "result": {
+      "contractVersion": "agent-1",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "invocationId": "00000000-0000-4000-8000-000000000005",
+      "inquiryId": "00000000-0000-4000-8000-000000000003",
+      "inquiryVersion": 2,
+      "role": "DIAGNOSIS",
+      "status": "ERROR",
+      "data": null,
+      "error": {"code": "ACCESS_DENIED", "message": "허용되지 않은 도구 조회다", "retryable": false},
+      "evidence": [],
+      "meta": {"durationMs": 90, "modelId": null, "promptVersion": null}
+    }
+  },
+  {
+    "id": "budget-exceeded",
+    "result": {
+      "contractVersion": "agent-1",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "invocationId": "00000000-0000-4000-8000-000000000004",
+      "inquiryId": "00000000-0000-4000-8000-000000000003",
+      "inquiryVersion": 1,
+      "role": "KNOWLEDGE",
+      "status": "ERROR",
+      "data": null,
+      "error": {"code": "BUDGET_EXCEEDED", "message": "모델 호출 허용 횟수를 초과했다", "retryable": false},
+      "evidence": [],
+      "meta": {"durationMs": 7000, "modelId": null, "promptVersion": null}
+    }
+  },
+  {
+    "id": "superseded",
+    "result": {
+      "contractVersion": "agent-1",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "invocationId": "00000000-0000-4000-8000-000000000006",
+      "inquiryId": "00000000-0000-4000-8000-000000000003",
+      "inquiryVersion": 1,
+      "role": "TICKET",
+      "status": "CANCELLED",
+      "data": null,
+      "error": {"code": "SUPERSEDED", "message": "새 문의 버전으로 대체됐다", "retryable": false},
+      "evidence": [],
+      "meta": {"durationMs": 20, "modelId": null, "promptVersion": null}
+    }
+  }
+]

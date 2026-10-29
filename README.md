@@ -25,6 +25,7 @@ Claude Code의 진입점은 [CLAUDE.md](CLAUDE.md)이며 AGENTS.md를 먼저 읽
 ## 구성별 개발 안내
 
 - [Spring 백엔드](backend/spring/hops/README.md): 패키지 구성, DB 설정, 테스트·빌드·실행 방법.
+- [AI 서버](ai/README.md): 구성, 환경변수, 실행·동작 확인·테스트 방법, 현재 구현 범위와 제한.
 
 ## 개인 자료와 공통 변경
 

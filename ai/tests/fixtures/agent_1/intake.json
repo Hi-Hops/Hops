@@ -1,0 +1,68 @@
+{
+  "request": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000002",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 1,
+    "role": "INTAKE",
+    "context": {
+      "actor": {
+        "userId": "00000000-0000-4000-8000-000000000100",
+        "departmentId": "00000000-0000-4000-8000-000000000018",
+        "roles": []
+      },
+      "accessScopeRef": "mock:owner:inquiry-3",
+      "deadlineAt": "2026-10-23T00:01:00Z",
+      "allowedTools": []
+    },
+    "payload": {
+      "messages": [
+        {
+          "messageId": "00000000-0000-4000-8000-000000000601",
+          "revision": 1,
+          "sender": "USER",
+          "content": "VPN 접속 오류가 나요."
+        }
+      ],
+      "existingProblems": [],
+      "resolutionTargets": []
+    }
+  },
+  "result": {
+    "contractVersion": "agent-1",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "invocationId": "00000000-0000-4000-8000-000000000002",
+    "inquiryId": "00000000-0000-4000-8000-000000000003",
+    "inquiryVersion": 1,
+    "role": "INTAKE",
+    "status": "OK",
+    "data": {
+      "replyDraft": "오류 코드를 알려 주세요.",
+      "problems": [
+        {
+          "ref": "new:p1",
+          "summary": "VPN 접속 오류",
+          "category": "NETWORK_ACCESS",
+          "questionCount": 0,
+          "nextAction": "ASK_USER",
+          "question": "오류 코드를 알려 주세요.",
+          "evidenceIds": ["msg-601-r1"]
+        }
+      ],
+      "resolutionSignals": []
+    },
+    "error": null,
+    "evidence": [
+      {
+        "id": "msg-601-r1",
+        "kind": "MESSAGE",
+        "sourceId": "00000000-0000-4000-8000-000000000601",
+        "sourceVersion": "1",
+        "summary": "가상 VPN 오류 문의",
+        "observedAt": null
+      }
+    ],
+    "meta": {"durationMs": 850, "modelId": null, "promptVersion": null}
+  }
+}
