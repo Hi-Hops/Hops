@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { ChatMessage, MessageReviseCommand } from '@/shared/api/types';
-import { realtime } from '@/shared/realtime';
+import { reviseMessage } from '../api/chatApi';
 import { useSession } from '@/features/auth';
 import { contentError } from '@/shared/lib/content';
 import { useDrafts } from '../model/draftStore';
+import { useRetryAfter } from '@/shared/lib/useRetryAfter';
 export function useRevision(message: ChatMessage, version: number, onStored: () => void) {
   const key = `revise:${message.id}`;
   const draft = useDrafts((state) => state.drafts[key]);
@@ -11,6 +12,7 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [conflict, setConflict] = useState(false);
+  const { remaining, wait } = useRetryAfter();
   const content = draft?.content ?? message.content;
   function change(value: string) {
     useDrafts.getState().set(key, { content: value, pending: null });
@@ -23,7 +25,7 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
     setNotice('');
   }
   async function save() {
-    if (busy || contentError(content)) return;
+    if (busy || remaining > 0 || contentError(content)) return;
     const pending = draft?.pending;
     const actor = useSession.getState().user?.id;
     const command: MessageReviseCommand =
@@ -41,7 +43,7 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
     useDrafts.getState().set(key, { content, pending: { event: 'message.revise', command } });
     setBusy(true);
     setNotice('');
-    const reply = await realtime.send('message.revise', command);
+    const reply = await reviseMessage(command);
     if (useSession.getState().user?.id !== actor) return;
     setBusy(false);
     if (reply.ok === 'unknown') {
@@ -49,6 +51,7 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
       return;
     }
     if (!reply.ok) {
+      wait(reply.retryAfterSeconds ?? 0);
       setNotice(reply.error.message);
       if (reply.error.code === 'INQUIRY_VERSION_CONFLICT') {
         setConflict(true);
@@ -79,6 +82,7 @@ export function useRevision(message: ChatMessage, version: number, onStored: () 
     change,
     save,
     busy,
+    remaining,
     notice,
     conflict,
     invalid: contentError(content),

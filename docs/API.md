@@ -70,7 +70,7 @@
 | Spring → React SSE: `message.stored`, `state.changed` | Spring DB 커밋 뒤 발행. 메시지·버전·업무 대상 식별자로 임시 화면을 갱신하거나 REST 재조회 |
 | Spring → React SSE: `auth.invalidated`, `resync.required` | 인증/권한 회수 또는 이벤트 재생 불가를 알림. 연결을 종료하고 refresh·재로그인 또는 REST 재조회로 복구 |
 
-저장 REST는 Spring이 DB 커밋을 확인한 뒤 `inquiryId, inquiryVersion, messageId, revision, runId, effect`를 포함한 결과를 반환한다. `runId`가 있는 실행 접수는 티켓 저장 완료를 뜻하지 않는다. 응답 시간 초과·연결 종료는 실패 확정 대신 결과 미확인으로 표시하고 같은 `Idempotency-Key`와 같은 본문으로 결과를 확인·재전송한다. 저장 결과는 최소 24시간 보존하며 작업↔티켓 유일성은 이후에도 유지한다.
+저장 REST는 Spring이 DB 커밋을 확인한 뒤 `requestId, inquiryId, inquiryVersion, messageId, revision, runId, effect`를 포함한 `MutationResult`를 반환한다. 필드·nullable·응답 예시와 프론트 검증 기준은 [MutationResult](../specs/contracts/DATA_TYPES.md#mutationresult--rest-저장-결과의-프론트-연동-프로필)를 따른다. `runId`가 있는 실행 접수는 티켓 저장 완료를 뜻하지 않는다. 응답 시간 초과·연결 종료는 실패 확정 대신 결과 미확인으로 표시하고 같은 `Idempotency-Key`와 같은 본문으로 결과를 확인·재전송한다. 저장 결과는 최소 24시간 보존하며 작업↔티켓 유일성은 이후에도 유지한다.
 
 SSE는 `text/event-stream; charset=UTF-8`로 응답하고 `id`, `event`, `data`를 사용한다. 서버는 유휴 시 주기적 주석 heartbeat를 보내 프록시 유휴 종료와 끊긴 클라이언트 감지를 돕는다. 클라이언트는 마지막 `id`를 보존하고 재연결 시 `Last-Event-ID`를 전달한다. Spring이 요청한 이벤트를 재생할 수 없으면 `resync.required`를 보낸 뒤 스트림을 종료하고, React는 REST로 해당 대상의 메시지·문의·티켓·실행 상태를 다시 조회한다. 복구 후 기존 커서와 제어 이벤트 ID를 비우고 `Last-Event-ID` 없이 새 연결을 연다. 보존 시간·개수는 부하 검증 후 고정한다.
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { StoredCommand, StoredCommandName } from '@/shared/realtime/types';
+import type { StoredCommand, StoredCommandName } from '@/shared/api/mutations';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
 
 export type PendingCommand = { event: StoredCommandName; command: StoredCommand };

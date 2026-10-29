@@ -22,13 +22,5 @@ function serverUrl(value: string | undefined, name: string) {
 }
 
 export function liveConnection() {
-  const configuredPath = import.meta.env.VITE_SOCKET_PATH?.trim() ?? '';
-  const socketPath = configuredPath === '' ? '/socket.io' : configuredPath;
-  if (!/^\/[a-zA-Z0-9/_.-]+$/u.test(socketPath))
-    throw new Error('VITE_SOCKET_PATH에 /socket.io 같은 접속 경로를 입력해 주세요.');
-  return {
-    apiBaseUrl: serverUrl(import.meta.env.VITE_API_BASE_URL, 'VITE_API_BASE_URL'),
-    socketUrl: serverUrl(import.meta.env.VITE_SOCKET_URL, 'VITE_SOCKET_URL'),
-    socketPath,
-  };
+  return { apiBaseUrl: serverUrl(import.meta.env.VITE_API_BASE_URL, 'VITE_API_BASE_URL') };
 }

@@ -179,9 +179,9 @@ Python 3.13.15 환경에서 위 패키지의 설치·로딩, Fake 그래프 실�
 - Vite `8.3.4`
 - @vitejs/plugin-react `6.1.2`
 
-Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕션 빌드를 검증했다. npm ls에서 직접 의존성 오류가 없음을 확인했다. 실제 프로젝트의 브라우저 화면·JWT 로그인·Spring SSE 연결까지 검증한 것은 아니다. UI·라우팅 라이브러리는 선정 시 추가 호환성 검사를 수행한다.
+Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕션 빌드를 검증했고 npm ls에서 직접 의존성 오류가 없음을 확인했다. 이후 프론트의 화면·HTTP/SSE 어댑터 테스트와 실제 Spring·PostgreSQL의 로그인·내 정보·부서 SSE 연결 검사를 추가했다. 브라우저의 사용자·부서 표시와 정상 SSE 유지도 확인했다. 이는 업무 REST·AI 전체 통합이나 전체 UI·반응형 검증 완료를 뜻하지 않는다. 현재 범위는 [공통 계약 11절](../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
 
-별도 실시간 Node.js 서버나 전용 클라이언트 의존성은 추가하지 않는다. React는 fetch 기반 SSE 어댑터로 Bearer 토큰과 `Last-Event-ID`를 전달하고 `text/event-stream`을 파싱한다. 실행·환경 설정·잠금 파일·배포 방법은 구현 시 기록한다. 재연결·대상 권한·heartbeat·이벤트 누락·전달 실패를 Spring과 함께 검증한다.
+별도 실시간 Node.js 서버나 전용 클라이언트 의존성은 추가하지 않는다. React는 구현된 fetch 기반 SSE 어댑터로 Bearer 토큰과 `Last-Event-ID`를 전달하고 `text/event-stream`을 파싱한다. 실행·환경 설정·잠금 파일과 검사 방법은 [프론트 실행 안내](../frontend/README.md)를 따른다. 부서 연결과 재생 불가 알림은 실제 서버로 검사했으며 업무 원본 복구·AI 이벤트·운영 배포와 부하 검증은 남아 있다.
 
 팀 개발 PC와 CI는 위 버전을 맞춘다. 패키지 관리 도구 버전과 잠금 파일도 초기 구현 시 함께 고정한다. 버전 선택은 기존 PC의 전역 설치를 자동 변경하지 않는다.
 
@@ -191,7 +191,7 @@ Node.js 24.22.0에서 최소 React 화면의 의존성 설치와 Vite 프로덕�
 
 Java 21 + Spring Boot 4.1.1을 사용한다. Spring Framework·Security·Data JPA 등의 의존성은 Spring Boot가 관리하는 버전을 따른다. Spring 내 Swagger UI를 사용하는 경우 springdoc-openapi-starter-webmvc-ui 3.1.1을 연동 후보로 유지한다. 직접 작성한 OpenAPI YAML이 계약 원본이며 코드에서 생성한 문서가 이를 자동 대체하지 않는다.
 
-Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. 빌드는 Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용한다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞추고, 저장소의 Wrapper로 실행한다. 현재 Spring 초기 실행 기반과 실제 업무·DB·AI 연동은 구분하며, 구성과 테스트·빌드·실행 방법은 [Spring 개발 안내](../backend/spring/hops/README.md)를 따른다. JWT 인증, DB 저장, FastAPI SSE 수신, Spring MVC SSE 송신과 React 수신은 별도 통합 검증 대상이다. 현재 WebMVC 스택에서 `SseEmitter`와 비동기 지원 설정을 사용하며 연결 수·timeout·heartbeat·완료 처리를 부하 테스트한다.
+Java 21은 Boot 4.1.1의 공식 지원 범위에 포함된다. 빌드는 Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용한다. IDE·JAVA_HOME·빌드 도구가 모두 Java 21을 사용하도록 맞추고, 저장소의 Wrapper로 실행한다. 구성과 테스트·빌드·실행 방법은 [Spring 개발 안내](../backend/spring/hops/README.md)를 따른다. PostgreSQL 계정·부서 저장 기반과 JWT 인증, Spring MVC 부서 SSE 송신과 React 수신은 구현했으며 프론트의 실제 서버 연결 검사도 제공한다. 업무 DB 저장·FastAPI SSE 수신·업무 이벤트 전달과 전체 AI 통합은 미완료다. 현재 WebMVC 스택에서 `SseEmitter`와 비동기 지원 설정을 사용하며 운영 연결 수·timeout·heartbeat·느린 소비자 영향은 부하 검증 대상으로 남긴다.
 
 출처: [Spring Boot 요구사항](https://docs.spring.io/spring-boot/system-requirements.html), [springdoc](https://springdoc.org/).
 

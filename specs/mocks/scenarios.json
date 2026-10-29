@@ -14,13 +14,13 @@
         "login-request",
         "login-0",
         "create",
-        "create-ack",
+        "create-result",
         "ai-request",
         "ai-accepted",
         "ai-ask",
         "inquiry-after-question",
         "send",
-        "send-ack",
+        "send-result",
         "ai-request-tickets",
         "ai-tickets",
         "stored",
@@ -53,7 +53,7 @@
       ],
       "fixtureSequence": [
         "revise",
-        "revise-ack",
+        "revise-result",
         "message-revised",
         "stale-delta"
       ],
@@ -67,22 +67,22 @@
       ],
       "fixtureSequence": [
         "supplement-send",
-        "supplement-ack"
+        "supplement-result"
       ],
       "expected": "모든 문제의 이관 완료를 사전 조건으로 둔다. runId null·SUPPLEMENT_SAVED이며 재분석하지 않는다."
     },
     {
-      "id": "ack-loss",
+      "id": "http-response-loss",
       "acceptanceCriteria": [
         "F003-AC04"
       ],
       "fixtureSequence": [
         "create",
-        "create-ack",
+        "create-result",
         "create",
-        "create-ack"
+        "create-result"
       ],
-      "expected": "첫 ACK를 전송 계층에서 누락시킨다. 동일 행위자·명령·키·본문 재전송은 같은 문의·메시지를 반환한다."
+      "expected": "첫 HTTP 저장 응답을 누락시킨다. 동일 행위자·메소드·경로·키·본문 재전송은 같은 문의·메시지를 반환한다."
     },
     {
       "id": "conflict",
@@ -92,7 +92,7 @@
       ],
       "fixtureSequence": [
         "send",
-        "ack-INQUIRY_VERSION_CONFLICT"
+        "error-INQUIRY_VERSION_CONFLICT"
       ],
       "expected": "최신 버전을 재조회하고 입력을 보존한다. 변경된 버전·본문으로 다시 보내는 새 의도에는 새 requestId를 쓴다."
     },
@@ -128,7 +128,6 @@
       ],
       "fixtureSequence": [
         "subscribe-0",
-        "subscribe-ack-0",
         "messages",
         "inquiry-result",
         "run"

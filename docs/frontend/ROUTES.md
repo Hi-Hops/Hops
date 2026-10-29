@@ -24,6 +24,7 @@
 - 문의·티켓 경로에는 표시 번호가 아닌 서버 UUID를 사용한다.
 - `/inquiries`: `page`.
 - `/tickets`, `/admin/tickets`: `page`, `size`, `processingStatus`. 페이지는 0부터, 화면 표시는 1부터다. 값·범위와 권한은 [전송 계약](../../specs/contracts/WIRE_CONTRACT.md)을 따른다.
+- 두 티켓 경로의 `view=board|list`는 프론트 표시 상태다. 부서는 기본 보드, 관리자는 기본 목록이며 보기 전환으로 필터·페이지를 초기화하지 않는다. REST에는 page/size/processingStatus만 보낸다. 보드는 현재 페이지를 4개 처리 상태 컬럼으로 나누며 컬럼 건수를 전체 서버 집계로 표시하지 않는다.
 - 티켓 상세는 optional param으로 목록과 같은 컴포넌트를 사용한다. 열고 닫아도 쿼리를 유지하고, 닫을 때 해당 목록 링크 또는 페이지 제목으로 포커스를 돌린다.
 
 역할별 메뉴는 `AppLayout`에서 조립한다. 화면 가드는 내용 노출을 막는 보조 수단이며 서버 권한 검사를 대신하지 않는다.
