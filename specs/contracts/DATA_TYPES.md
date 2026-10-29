@@ -1,6 +1,6 @@
 # 공통 데이터 필드
 
-상태: 2026-10-25 개발 기준 확정 / 팀 리뷰·서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
+상태: 2026-10-28 REST·SSE 타입 정리 / 기존 개발 기준 유지, ResyncRequiredEvent는 develop 확정 계약, 저장 결과는 프론트 연동 프로필 / 팀 리뷰·서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
 
 모든 객체 필드는 필수다. nullable은 키를 생략하지 않고 null을 보낸다. 배열은 []를 보낸다.
 
@@ -41,8 +41,7 @@
 ## 합성 타입
 
 - `SubscriptionTarget`: `InquiryTarget` 또는 `DepartmentTicketsTarget` 또는 `TicketTarget`. 각 형태의 필드를 서로 섞지 않는다.
-- `CommandAck`: `StoredAck` 또는 `ErrorAck`. 각 형태의 필드를 서로 섞지 않는다.
-- `SubscriptionAck`: `SubscriptionAccepted` 또는 `ErrorAck`. 각 형태의 필드를 서로 섞지 않는다.
+- `MutationResult`: 아래 프론트 REST 연동 프로필. 백엔드 DTO 최종 확인은 Q-INF-6으로 추적한다.
 - `AiResult`: `AiSuccess` 또는 `AiFailure`. 각 형태의 필드를 서로 섞지 않는다.
 
 ## Department
@@ -301,41 +300,41 @@
 | `type` | `"TICKET"` | {"const": "TICKET"} |
 | `id` | `Uuid` | 필수 |
 
-## SubscriptionCommand
+## MutationResult · REST 저장 결과의 프론트 연동 프로필
 
-| 필드 | JSON 표현 | 조건 |
+Q-INF-6: 기존 docs/API.md 2.4절의 저장 필드에 requestId를 포함한 프론트 REST 연동 프로필이다. Mock·REST 소비 타입에 구현했으며 백엔드는 동일 필드·필수/null 조건과 HTTP 상태를 맞춰 저장 API/DTO를 구현해야 한다. 프론트 구현과 팀 리뷰/병합·백엔드 구현·실제 서버 연결 완료는 구분한다. 변경 시 문서·fixture·각 서비스 타입을 함께 검토한다.
+
+프론트 구현 대상은 `POST /api/inquiries`·`POST /api/inquiries/{id}/messages`·`POST /api/inquiries/{id}/messages/{messageId}/revisions`의 공통 HTTP 200 응답이다. 성공 본문은 아래 객체 자체이며 `{data: ...}` wrapper나 `ok` 필드를 요구하지 않는다. 오류는 HTTP 오류 상태와 `ApiErrorBody`를 사용한다. `POST /api/runs/{id}/retries`의 응답은 `RunSummary`이며 이 타입을 사용하지 않는다.
+
+| 필드 | 타입·필수/null | 저장 결과의 의미 |
 |---|---|---|
-| `requestId` | `Uuid` | 필수 |
-| `target` | `SubscriptionTarget` | 필수 |
+| `requestId` | `Uuid`, 필수·null 불가 | 요청의 `Idempotency-Key`와 동일. 요청·응답·사용자 저장 이벤트를 연결 |
+| `inquiryId` | `Uuid`, 필수·null 불가 | 저장된 문의. 기존 문의의 전송·정정이면 요청 경로와 동일 |
+| `inquiryVersion` | 정수 1~2147483647, 필수 | 이번 입력 저장 직후의 문의 버전. 최초 생성 1, 사용자 메시지·정정마다 증가 |
+| `messageId` | `Uuid`, 필수·null 불가 | 이번에 저장·정정한 사용자 메시지. 정정이면 기존 ID 유지 |
+| `revision` | 정수 1~2147483647, 필수 | 해당 메시지의 저장 직후 revision. 새 메시지는 1, 정정 시 증가 |
+| `runId` | `Uuid` 또는 null, 필수 키 | `ANALYSIS_STARTED`면 이번 분석 실행 ID, `SUPPLEMENT_SAVED`면 null |
+| `effect` | `ANALYSIS_STARTED` 또는 `SUPPLEMENT_SAVED`, 필수 | 분석 접수 또는 정보 보완 저장. 분석·티켓 생성·해결 완료를 뜻하지 않음 |
 
-## StoredAck
+아래는 가상 UUID로 작성한 분석 접수 성공 예시다.
 
-| 필드 | JSON 표현 | 조건 |
-|---|---|---|
-| `ok` | `true` | {"const": true} |
-| `requestId` | `Uuid` | 필수 |
-| `inquiryId` | `Uuid` | 필수 |
-| `inquiryVersion` | `number` | {"minimum": 1, "maximum": 2147483647} |
-| `messageId` | `Uuid` | 필수 |
-| `revision` | `number` | {"minimum": 1, "maximum": 2147483647} |
-| `runId` | `string \| null` | {"format": "uuid", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"} |
-| `effect` | `Effect` | 필수 |
+```json
+{
+  "requestId": "00000000-0000-4000-8000-000000000701",
+  "inquiryId": "00000000-0000-4000-8000-000000000200",
+  "inquiryVersion": 2,
+  "messageId": "00000000-0000-4000-8000-000000000603",
+  "revision": 1,
+  "runId": "00000000-0000-4000-8000-000000000301",
+  "effect": "ANALYSIS_STARTED"
+}
+```
 
-## ErrorAck
+정보 보완 저장 예시는 공용 fixture `supplement-result`를 따른다. 동일한 필드가 모두 있고 `runId`는 null, `effect`는 `SUPPLEMENT_SAVED`다. 같은 요청을 다시 확인하면 최초 저장 결과를 반환하며, 현재 버전·새 실행 ID로 결과를 재작성하지 않는다.
 
-| 필드 | JSON 표현 | 조건 |
-|---|---|---|
-| `ok` | `false` | {"const": false} |
-| `requestId` | `Uuid` | 필수 |
-| `error` | `ApiErrorBody` | 필수 |
-
-## SubscriptionAccepted
-
-| 필드 | JSON 표현 | 조건 |
-|---|---|---|
-| `ok` | `true` | {"const": true} |
-| `requestId` | `Uuid` | 필수 |
-| `target` | `SubscriptionTarget` | 필수 |
+프론트 수신 처리는 `shared/api/mutations.ts`에 구현했다. UUID·정수 범위·effect/runId 조합과 요청의 requestId·문의/메시지 ID 일치를 검사한다. 응답이 잘못됐거나 HTTP timeout·네트워크 장애로 결과를 모르면 성공 처리하지 않고 입력·키·본문을 보존한다. 미등록 effect도 성공으로 추정하지 않는다. 화면 내부 `MutationOutcome.ok`는 성공/오류/결과 미확인 분기용이며 HTTP 응답 필드가 아니다. 재전송·버전 충돌·인증 갱신 정책은 WIRE_CONTRACT 4·10절을 따른다.
+- 요청 본문의 requestId·inquiryId·messageId는 기존 Command 타입에 유지하며 현재 Idempotency-Key/경로와 같아야 한다. 중복 필드 제거 시점은 백엔드와 확인한다.
+- `SubscriptionTarget`은 SSE 연결 대상 표현으로 사용한다. 이벤트 대상의 필드는 `type`과 `id`다.
 
 ## AuthInvalidatedEvent
 
@@ -358,16 +357,6 @@ SSE `id`와 JSON `eventId`는 같은 UUID다. 문의 이벤트 외피를 사용�
 | 필드 | JSON 표현 | 조건 |
 |---|---|---|
 | `eventId` | `Uuid` | 필수. 제어 이벤트 중복 구분용이며 복구 후 재연결 커서로 재사용하지 않음 |
-
-## RelayStatusEvent
-
-`relay.status`는 Node↔Spring 중계 상태가 바뀔 때 연결된 클라이언트에 보내는 제어 이벤트다. 업무 저장 성공·인증 만료를 뜻하지 않는다.
-
-| 필드 | 타입 | 필수 | 의미 |
-|---|---|---|---|
-| eventId | Uuid | 예 | 중복 통지 제거 |
-| status | string | 예 | AVAILABLE / UNAVAILABLE |
-| occurredAt | IsoDateTime | 예 | 상태 확인 시각 |
 
 ## AgentProgressPayload
 

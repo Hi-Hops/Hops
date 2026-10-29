@@ -5,6 +5,7 @@ import { ApiError } from '@/shared/api/client';
 import type { RunRetryRequest, RunSummary } from '@/shared/api/types';
 import { Button } from '@/shared/ui/Button';
 import { chatKeys, retryRun } from '../api/chatApi';
+import { useRetryAfter } from '@/shared/lib/useRetryAfter';
 
 export function RunRetry({
   inquiryId,
@@ -20,9 +21,10 @@ export function RunRetry({
   const locked = useRef(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const { remaining, wait } = useRetryAfter();
   if (!run.error?.retryable || !['TIMED_OUT', 'FAILED'].includes(run.status)) return null;
   async function retry() {
-    if (locked.current) return;
+    if (locked.current || remaining > 0) return;
     locked.current = true;
     setBusy(true);
     setNotice('');
@@ -36,6 +38,7 @@ export function RunRetry({
       await client.invalidateQueries({ queryKey: chatKeys.inquiry(inquiryId) });
     } catch (error) {
       if (useSession.getState().user?.id !== actor) return;
+      if (error instanceof ApiError) wait(error.retryAfterSeconds);
       if (error instanceof ApiError && error.status === 409) {
         pending.current = null;
         void client.invalidateQueries({ queryKey: chatKeys.all });
@@ -53,7 +56,7 @@ export function RunRetry({
   return (
     <div>
       <Button
-        disabled={busy}
+        disabled={busy || remaining > 0}
         onClick={() => {
           void retry();
         }}
@@ -61,6 +64,7 @@ export function RunRetry({
         {busy ? '재시도 요청 중' : '다시 분석'}
       </Button>
       {notice && <p role="status">{notice}</p>}
+      {remaining > 0 && <p role="status">{remaining}초 후 다시 분석을 요청할 수 있어요.</p>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Hops 프론트엔드 실행·서버 연동
 
-로그인·문의 채팅·메시지 정정·결과 카드·부서 티켓 조회의 프론트엔드 기반과 Mock·임시 Live Adapter를 제공한다. 목표 live 구성은 React→Spring REST와 Spring→React SSE다. 현재 코드의 Socket.IO 어댑터는 이전 계약이므로 새 계약 구현으로 보지 않으며, 교체 작업은 [확정 기준과 남은 담당 작업](../specs/contracts/README.md#확정-기준과-남은-담당-작업)을 따른다. 개발 기준 확정은 팀 리뷰·병합이나 실제 팀원 서버 통합 완료를 뜻하지 않는다.
+로그인·문의 채팅·메시지 정정·결과 카드·부서 티켓 조회의 프론트엔드와 Mock·fetch SSE Live Adapter를 제공한다. React→Spring REST로 변경 요청을 보내고 Spring→React SSE를 소비한다. 실제 팀원 서버의 업무/AI 연결 완료와는 구분하며 [연동 프로필](../specs/contracts/WIRE_CONTRACT.md#9-프론트-live-연동-프로필)을 따른다.
 
 ## 1. 실행 환경
 
@@ -87,6 +87,12 @@ npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 
 SSE가 연결되지 않아도 로그인·조회와 채팅 REST 저장은 수행할 수 있다. 재연결 때 현재 토큰과 대상 권한을 다시 확인하고 저장 데이터는 REST로 재조회한다. 변경 REST가 10초 안에 응답하지 않거나 연결이 끊기면 결과 미확인으로 표시하고 같은 멱등 키·본문으로 다시 확인할 수 있다. 변경 요청은 자동 반복하지 않는다.
 
+문의 생성·추가 메시지·메시지 정정의 성공 응답은 [MutationResult](../specs/contracts/DATA_TYPES.md#mutationresult--rest-저장-결과의-프론트-연동-프로필)다. 프론트는 UUID·버전 범위·요청 대상 일치와 `effect`/`runId` 조합을 검사한다. `ANALYSIS_STARTED`는 실행 접수, `SUPPLEMENT_SAVED`는 실행 없는 보완 저장으로 구분한다. 잘못된 성공 응답도 저장 결과 미확인으로 처리하며 입력과 재확인 키를 보존한다. 분석 재시도 응답은 별도 `RunSummary`다.
+
+### PR #59와 연결할 때
+
+PR #59는 develop에 병합됐다(dc44f2c). 현재 replay·Redis·스냅샷 커서는 제공하지 않는다. Last-Event-ID를 재생할 수 없으면 eventId만 포함한 resync.required를 보낸 뒤 종료하며 프론트는 REST 복구 후 커서를 비워 새 연결을 연다. 새 스트림 수신을 시작한 뒤 다시 조회하고 comment 문구에는 의존하지 않는다. state.changed.target은 type·id 형식이다. INQUIRY·TICKET의 현재 503은 서버 도메인 권한·생산자 연결 전 상태이며 프론트의 Mock 성공으로 대체하지 않는다.
+
 ## 5. 연동 확인 순서
 
 1. Spring을 실행하고 live 설정으로 프론트를 재시작한다.
@@ -108,24 +114,32 @@ docker compose run --rm --no-deps frontend npm run check
 docker compose run --rm --no-deps frontend npm run build
 ```
 
-`check`는 타입·린트·포맷·Vitest 검사다. 목표 테스트는 Mock·화면 테스트와 임시 HTTP/SSE 서버를 실제로 띄우는 어댑터 통신 테스트를 포함한다. 현재 Socket.IO 통신 테스트는 교체 대상이며 새 SSE 테스트가 완료되기 전에는 새 계약 검증으로 보지 않는다. 개인 `.env`나 팀원 서버·실제 계정 없이 실행한다.
+`check`는 타입·린트·포맷·Vitest 검사다. 목표 테스트는 Mock·화면 테스트와 임시 HTTP/SSE 서버를 실제로 띄우는 어댑터 통신 테스트를 포함한다. HTTP/SSE 대역 서버 테스트는 Bearer·대상별 연결·중복·Last-Event-ID·PR #59의 replay 미지원 종료·REST 복구·제어 이벤트를 검사한다. 개인 `.env`나 팀원 서버·실제 계정 없이 실행한다.
 
 통신 테스트는 계약용 대역 서버와의 연결 검사다. 팀원 Spring·DB·AI 통합, 실제 JWT 검증, 브라우저 CORS, 자동 E2E·모델 품질 평가를 대신하지 않는다. `build` 산출물은 임시 컨테이너 종료 시 제거된다.
+
+실제 Spring 연결 검사는 `src/test/springBackend.integration.test.ts`로 별도 실행한다. `HOPS_TEST_SPRING_URL`·`HOPS_TEST_LOGIN_ID`·`HOPS_TEST_PASSWORD` 환경변수를 개발 서버 주소와 개발용 처리 부서 계정으로 설정한 뒤 `npx vitest run src/test/springBackend.integration.test.ts`를 실행한다. 값이 없으면 이 검사는 생략하며 운영 계정을 사용하지 않는다. 로그인·Bearer 내 정보 조회·현재 부서 SSE 연결/해제·resync.required의 실제 응답을 검사한다. 화면 조작·브라우저 CORS·미구현 업무 API 성공 검증은 포함하지 않는다.
+
+현재 Spring 공개 구현은 `POST /api/auth/login`, `GET /api/auth/me`, `GET /api/realtime/events`다. SSE는 `DEPARTMENT_TICKETS`만 허용하고 `INQUIRY`·`TICKET`은 503을 반환한다. 문의 저장·티켓 조회·refresh·로그아웃의 프론트 호출이 있어도 해당 백엔드 기능의 연결 완료로 보지 않는다.
 
 ## 7. 지원 범위
 
 - F001 로그인, F002 SSE 연결·권한·재접속, F003 채팅, F004 정정, F005 문제별 결과·복수 티켓·부분 실패, F009 부서 티켓 목록·읽기 전용 상세를 Mock/live 공통 화면으로 제공한다.
 - 내 문의는 재진입용 최소 목록, 관리자는 같은 티켓 화면의 전체 조회다. F006·F007 전체 완료를 뜻하지 않는다. live의 AI 동작·저장·배정·권한은 서버 구현에 달려 있다.
+- 부서 티켓의 읽기 전용 MVP 화면은 목록(번호·제목·부서·처리/배정 상태·생성 시각), 처리 상태 필터·페이지 이동, 상세의 문의 요약·AI 진단·배정 이력과 조회/권한 오류를 제공하며 Mock/대역 테스트로 검사한다. 현재 live 서버에서는 로그인 사용자·소속 부서와 부서 SSE를 연결할 수 있지만 티켓 목록·상세 REST가 없어 실제 티켓 데이터를 표시하지 못한다. 조회 실패는 해당 영역에 표시하고 정상 SSE는 유지한다. 관련 대화·가져오기·처리 완료·재이관은 후속이다.
+- 부서 화면은 기본 칸반이며 `view=board|list`로 목록과 전환한다. 카드는 처리 대기·처리 중·사용자 확인 대기·종료 컬럼으로 나누고 종료의 해결 완료/미확인 종료를 구분한다. 컬럼 건수는 현재 페이지 기준이며 필터·페이지·상세 복귀를 유지한다. view는 서버 요청에 보내지 않는다. Figma의 그룹·우선순위·요청자/개인 담당자·검색·컬럼별 전체 집계는 기존 계약에 없어 후속 검토로 둔다.
+- 관리자 페이지는 소속 부서와 무관한 서버 허용 전체 목록·상세를 표시하며 기본은 목록이다. 부서 필터로 응답을 줄이지 않는다. 기존 부서 SSE와 5초 전체 REST 재조회·수동 새로고침을 유지하며 관리자 전용 SSE 대상은 추가하지 않는다.
+- 채팅·정정·분석 재시도는 429의 Retry-After 동안 재전송 버튼과 제출을 막고 입력·요청 키를 보존한다. 대기 종료 후 자동 전송하지 않는다. 분석 대기/최신 입력 대체/미등록 상태를 구분하며 실행이 바뀌면 이전 임시 답변·진행 문구를 새 실행에 섞지 않는다.
 - F003-AC10은 retryable=true인 실패/시간 초과에 다시 분석 버튼과 `POST /api/runs/{id}/retries`를 연결한다. 본문은 requestId·expectedInquiryVersion이며 응답은 RunSummary다. 접수 중 중복 클릭 차단, 통신 오류 시 같은 키 재확인, 충돌 시 최신 조회를 적용한다. 실제 서버의 소유권·중복 방지·기존 성공 작업 보존이 필요하며 LLM 중간 체크포인트 재개는 미구현이다.
 - 티켓 가져오기·처리·재이관·관련 대화·장애 그룹·통계, F008 새 문의 분리 동의, F010 기술 복구는 제공하지 않는다. 실제 Refresh 쿠키/회전·실행 중 열린 SSE 회수·replay·DB 제약은 서버 담당자의 구현 및 통합 검증이 필요하다. REST 응답 대기 10초·SSE 자동 재접속 30초 기준은 추가 계약을 따른다.
-- [Figma 작업본](https://www.figma.com/design/5W6UYTaYAuLnQNt2jRiqgc/Hops?node-id=6-2)을 참고했다. 홈은 확보한 이미지와 공통 스타일로 구성했고 전체 픽셀·반응형 검증은 미완료다.
+- [Figma 작업본](https://www.figma.com/design/5W6UYTaYAuLnQNt2jRiqgc/Hops?node-id=6-2)과 [칸반 v1.41](https://www.figma.com/design/5W6UYTaYAuLnQNt2jRiqgc/Hops?node-id=247-2855)을 참고했다. 칸반은 기존 데이터 계약의 조회 전용 범위에 맞춰 구현하며 전체 Figma 기능·픽셀·반응형 검증 완료를 뜻하지 않는다.
 
 개발 기준은 [docs/frontend](../docs/frontend/README.md)를 참고한다. 검사 결과·미실행 항목은 변경 PR에 기록한다.
 
 ## 확정 계약과 아직 구현·검증하지 않은 부분 (2026-10-27)
 
-정책 원본은 [WIRE_CONTRACT 10절](../specs/contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당별 작업/미검증은 [11절](../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)이다. 문서 확정만으로 런타임을 변경하지 않았다.
+정책 원본은 [WIRE_CONTRACT 10절](../specs/contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당별 작업/미검증은 [11절](../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)이다. 프론트 구현 상태와 실제 서비스 통합 상태를 구분한다.
 
-- 실제 인증 기준은 Access 15분·Refresh 최초 로그인부터 절대 7일·매 갱신 회전이다. 기존 실행 Mock은 Access 30분·메모리 Refresh를 사용하므로 서버 쿠키/회전/폐기 검증을 대신하지 않는다.
-- 기존 Socket.IO 의존성·환경 설정·transport·명령/구독 타입을 제거하고 REST mutation·fetch SSE·`resync.required` 처리로 교체해야 한다. QUEUED/SUPERSEDED의 전체 화면 처리와 429 대기시간의 일관된 안내도 추가 구현이 필요하다.
-- 실제 Spring/DB/AI의 토큰 회전·권한 회수·SSE replay·DDL/중복 방지·AI 실행 예산·종료 후 정정·E2E·품질/비용은 아직 검증하지 않았다. 기존 Mock/Socket.IO 대역 서버 테스트와 구분한다.
+- 실제 인증 기준은 Access 15분·Refresh 최초 로그인부터 절대 7일·매 갱신 회전이다. 기존 실행 Mock은 Access 15분·메모리 Refresh를 사용하므로 서버 쿠키/회전/폐기 검증을 대신하지 않는다.
+- Socket.IO 의존성·환경 설정·transport·명령/구독 타입을 제거하고 REST mutation·fetch SSE·제어 이벤트·대상별 연결 공유로 전환했다. ResyncRequiredEvent는 develop 확정 형식을 사용하고 MutationResult에 맞춘 백엔드 저장 DTO·API 구현은 Q-INF-6으로 추적한다.
+- 실제 Spring/DB/AI의 토큰 회전·권한 회수·SSE replay·DDL/중복 방지·AI 실행 예산·종료 후 정정·E2E·품질/비용은 아직 검증하지 않았다. Mock/HTTP·SSE 대역 서버 테스트와 구분한다.

@@ -30,6 +30,37 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('F003 분석 재시도', () => {
+  it('F003-AC10 429 대기 중 재분석 요청을 막고 이후 같은 요청 ID로 확인한다', async () => {
+    const request = vi
+      .spyOn(chatApi, 'retryRun')
+      .mockRejectedValueOnce(
+        new ApiError(
+          429,
+          {
+            code: 'RATE_LIMITED',
+            message: '잠시 후 재시도',
+            requestId: crypto.randomUUID(),
+            retryable: true,
+          },
+          1,
+        ),
+      )
+      .mockResolvedValue({ ...failed, id: crypto.randomUUID(), status: 'RUNNING', error: null });
+    renderWithProviders(<RunRetry inquiryId="inquiry" version={2} run={failed} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '다시 분석' }));
+    expect(await screen.findByText('1초 후 다시 분석을 요청할 수 있어요.')).toBeVisible();
+    expect(screen.getByRole('button', { name: '다시 분석' })).toBeDisabled();
+    await waitFor(
+      () => {
+        expect(screen.getByRole('button', { name: '다시 분석' })).toBeEnabled();
+      },
+      { timeout: 2000 },
+    );
+    expect(request).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('button', { name: '다시 분석' }));
+    expect(request.mock.calls[0]).toEqual(request.mock.calls[1]);
+  });
   it('F003-AC10 응답 유실 뒤 같은 요청 ID로 재확인하고 중복 클릭을 막는다', async () => {
     let complete: ((run: RunSummary) => void) | undefined;
     const request = vi
@@ -76,7 +107,7 @@ describe('F003 분석 재시도', () => {
       requestId: crypto.randomUUID(),
       content: '시간 초과',
     });
-    if (!ack.ok || !ack.runId) throw new Error('문의 필요');
+    if (!ack.runId) throw new Error('문의 필요');
     const runId = ack.runId;
     mockWorkspace.flushPending();
     const request = { requestId: crypto.randomUUID(), expectedInquiryVersion: 1 };

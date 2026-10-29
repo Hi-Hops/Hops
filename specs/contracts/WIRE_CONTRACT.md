@@ -43,7 +43,9 @@ SSE 연결을 열기 전의 인증·권한·입력 오류도 HTTP 상태와 `Api
 | `GET /api/tickets` | page, size, processingStatus | 200 TicketPage |
 | `GET /api/tickets/{id}` | 티켓 UUID | 200 TicketDetail |
 
-`MutationResult`는 기존 `CommandAck`의 저장 결과 의미를 REST에 맞게 이름을 바꾼 타입이다. `requestId`, 저장된 식별자, 현재 inquiryVersion, effect, nullable runId를 포함한다. 정확한 필드명과 기존 타입 제거는 DATA_TYPES 후속 수정에서 함께 확정한다.
+`MutationResult`는 DATA_TYPES의 프론트 REST 연동 프로필을 사용한다. requestId·inquiryId·inquiryVersion·messageId·revision·nullable runId·effect를 반환하며 wire의 ok 외피는 없다. 기존 API 설계에 기반한 프론트 연동 프로필이며 백엔드의 동일 DTO·저장 API 구현은 Q-INF-6으로 추적한다.
+
+프론트는 성공 응답의 필수 필드·UUID·정수 범위·effect/runId 조합과 요청 식별자의 일치를 검사한다. HTTP 성공이어도 형식·식별자가 맞지 않으면 결과 미확인으로 취급하고 서버 저장 상태를 임의로 확정하지 않는다. 정확한 필드 의미와 가상 응답 예시는 DATA_TYPES의 MutationResult 절이 원본이다.
 
 page 기본 0, size 기본 20·최대 100이다. 음수·범위 초과·소수·알 수 없는 필터는 400이다. query의 null 필터는 URL에서 생략하며 문자열 `"null"`을 보내지 않는다.
 
@@ -156,7 +158,18 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 - 재연결은 1→2→4→최대 5초 backoff와 jitter를 사용하고 전체 자동 시도는 30초를 기본으로 한다. 이후 수동 다시 연결 또는 online 이벤트로 재개한다. 연결 뒤 권한 재검증과 REST 복구가 필요하며 저장 요청을 자동 반복하지 않는다.
 - 브라우저 origin을 Spring CORS에 정확히 허용한다. 업무 REST·SSE는 Authorization을 허용하고 로그인·refresh·로그아웃 쿠키는 11절의 CORS·Origin·CSRF 정책을 함께 적용한다. HTTPS 화면에서 혼합 콘텐츠를 사용하지 않는다.
 
-현재 프론트의 Socket.IO Live Adapter는 이전 계약의 구현이며 이 계약을 만족하지 않는다. fetch 기반 SSE 어댑터와 REST 변경 명령으로 교체하기 전에는 실제 연동 완료로 표시하지 않는다. AI 내부 `/internal/mock/...` 경로는 프론트가 호출하지 않는다.
+프론트는 REST 변경 명령과 fetch SSE 어댑터를 제공한다. AI 내부 `/internal/mock/...` 경로는 호출하지 않는다. 대역 서버 테스트와 실제 Spring·DB·AI 전체 연결 완료를 구분한다.
+
+### PR #59 병합 후 Spring 연동
+
+PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 INQUIRY·TICKET은 도메인 권한 연결 전 503이다. 프론트는 503을 인증 실패로 처리하지 않고 제한된 재접속 후 수동 재시도를 제공한다.
+
+- Last-Event-ID 이후 이벤트를 재생할 수 없으면 ResyncRequiredEvent(eventId만 필수)를 보내고 종료한다. SSE id와 JSON eventId는 동일하다.
+- 프론트는 현재 연결 대상의 REST 상태를 복구한 뒤 기존 커서와 제어 이벤트 ID를 비우고 Last-Event-ID 없이 재연결한다. 제어 알림 유실·일반 종료에도 REST 복구를 유지하며 comment 문구에는 의존하지 않는다.
+- 새 연결은 스트림을 읽기 시작한 뒤 REST 조회를 다시 수행한다. 진행 중 변경은 대상별 조회를 갱신한다. 서버 스냅샷/재개 커서 API는 가정하지 않는다.
+- 초기 연결·업무 이벤트에 따른 REST 조회 실패는 조회 영역에서 안내하고 정상 SSE를 종료하거나 연결 끊김으로 표시하지 않는다. `resync.required` 이후의 필수 REST 복구가 실패하면 재연결을 중단하고 재시도를 안내한다. SSE 연결 유지와 데이터 복구 완료는 별개다.
+- state.changed.target은 공통 형식인 type·id를 사용한다.
+- 커서는 대상 연결 메모리에 보관한다. 마지막 소비자가 나가거나 로그아웃·계정 전환하면 정리한다. 새로고침 후에는 새 연결과 REST 조회로 복구한다.
 
 ## 10. 인증·재접속·최신 대화·분석 재시도 추가 프로필
 
@@ -212,20 +225,28 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 
 정책을 확정한 것과 실제 구현·테스트 통과를 구분한다. 이 문서 수정은 런타임 코드·DB·인프라를 변경하지 않는다.
 
-### 백엔드 구현 대상
+### 백엔드 구현과 남은 작업
+
+- 구현: PostgreSQL 계정·부서 마이그레이션과 개발 seed, JWT 로그인 `POST /api/auth/login`, Bearer 내 정보 `GET /api/auth/me`, 부서 SSE `GET /api/realtime/events`와 대상 권한 검사.
+- 부서 SSE는 comment heartbeat, timeout·완료·오류 정리, 토큰 만료 종료와 전송 전 DB 권한 재검사, 커밋 후 `state.changed` 전달 기반을 제공한다. `Last-Event-ID` 요청은 `resync.required`를 보낸 뒤 종료한다. 이벤트 보존/replay는 제공하지 않는다.
+- 문의·개별 티켓 SSE는 권한 저장소 연결 전 503이다. 문의·티켓 조회/변경, 분석 재시도, Refresh·서버 로그아웃 API와 업무/AI 이벤트 생산자 연결은 미완료다. `auth.invalidated`의 서버 발행과 권한 변경 즉시 통지도 남아 있다.
+
+남은 구현·운영 검증:
 
 - Access 15분·Refresh 최대 7일, 회전·재사용 검출·로그아웃·권한 변경 시 기존 인증 무효화, HttpOnly 쿠키·CSRF·CORS와 안전한 검증값 저장.
 - 문의 생성·메시지 전송·정정 REST, `Idempotency-Key`, 현재 소유자·부서·역할·실행 권한 검사, 메시지·목록·재시도 계약.
 - inquiry.version, 작업과 티켓 FK·유일성, 최소 24시간 멱등 결과, 부분 실패·원자 저장·정정 이력·오래된 실행 차단과 마이그레이션.
-- 대상별 SSE 연결, heartbeat, eventId·replay·`resync.required`, timeout·완료·오류 정리, 권한 회수 중 열린 연결 차단, DB commit 뒤 이벤트 생성.
+- 문의·개별 티켓 SSE의 소유권 연결, 실제 업무 저장 트랜잭션의 이벤트 발행, replay, 권한 변경 즉시 통지와 회수 경합 처리.
 - 정확한 이벤트 보존소와 기간, 다중 Spring 인스턴스 전달·순서·중복, 프록시 buffering/timeout과 최대 연결 수는 구현·부하 검증으로 확정한다.
 
-### 프론트 구현 대상
+### 프론트 구현과 검증 범위
 
-- 기존 Socket.IO 의존성·환경 설정·adapter와 명령/구독 타입을 제거한다. 문의 생성·메시지 전송·정정은 REST API 함수로 옮기고 결과 미확인·초안 보존·동일 멱등 키 재확인을 유지한다.
-- Bearer 헤더와 `Last-Event-ID`를 지원하는 fetch 기반 SSE parser, 대상별 연결 참조 수, AbortSignal 종료, heartbeat 무시, 재연결·`resync.required`·REST 복구를 구현한다.
-- eventId와 `(runId,messageId,seq)` 중복 제거, 임시 답변과 저장 메시지 병합, `auth.invalidated` 처리, 429 대기시간과 QUEUED/SUPERSEDED 상태를 화면에 일관되게 반영한다.
-- 현재 Mock Access 30분·메모리 Refresh 7일은 실제 15분·회전 쿠키·CSRF·폐기를 검증하지 않는다. 기존 Socket.IO 어댑터 테스트 통과도 새 SSE 계약의 통과가 아니다.
+- Socket.IO 의존성·환경 설정·adapter와 명령/구독 타입을 제거하고 문의 생성·메시지 전송·정정을 REST로 전환했다. 결과 미확인·초안 보존·동일 멱등 키 재확인을 유지하며 실제 Spring DTO·업무 연결은 별도 검증한다.
+- Bearer 헤더와 `Last-Event-ID`를 지원하는 fetch 기반 SSE parser, 대상별 연결 참조 수, AbortSignal 종료, heartbeat 무시, 재연결·`resync.required`·REST 복구를 구현했다. 초기 REST 조회 실패가 정상 SSE를 끊지 않도록 처리했다.
+- eventId와 `(runId,messageId,seq)` 중복 제거, 임시 답변과 저장 메시지 병합, `auth.invalidated` 처리, 429 대기 안내와 QUEUED/SUPERSEDED 표시를 구현했다. Mock·화면·HTTP/SSE 대역 서버 테스트로 검증하며 서버 생산자 구현 완료와 구분한다.
+- 실제 Spring·PostgreSQL 연결 검사에서 로그인 성공/실패, Bearer 내 정보와 프론트 세션 반영, 현재 부서 SSE 연결/해제, 미구현 티켓 REST의 404에도 SSE 유지, `resync.required`의 id/eventId와 EOF, 타 부서 403·미구현 문의 SSE 503을 확인했다. 브라우저에서는 로그인·사용자/부서 표시와 티켓 조회 실패 중 SSE 유지를 확인했다. 실행 방법은 frontend/README와 `springBackend.integration.test.ts`를 따른다.
+- 부서·관리자 티켓의 읽기 전용 목록·필터·페이지·상세·요약·AI 진단·배정 이력과 오류/권한 화면은 Mock·대역 테스트 범위다. 실제 티켓 데이터 조회와 변경 이벤트 후 원본 갱신은 백엔드 조회 API·생산자 연결 후 통합 검증해야 한다.
+- 현재 Mock Access 15분·메모리 Refresh 7일은 실제 15분·회전 쿠키·CSRF·폐기를 검증하지 않는다. 실제 서버의 재동기화 알림 수신 검증은 미구현 업무 REST를 포함한 복구 완료 검증을 뜻하지 않는다.
 
 ### AI 구현 대상
 
@@ -235,15 +256,15 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 
 ### 공통 계약 후속
 
-- DATA_TYPES의 `CommandAck`를 `MutationResult`로 정리하고 Socket 전용 `SubscriptionCommand`·`SubscriptionAck`·`RelayStatusEvent`를 제거한다. `ResyncRequiredEvent`는 DATA_TYPES에 정의한 형식을 사용한다.
-- Mock fixture와 기능 스펙의 명령명·ACK·구독 표를 REST 경로·HTTP 결과·SSE 대상 연결로 바꾼다.
+- MutationResult는 DATA_TYPES의 프론트 연동 프로필로 구현했다. 백엔드는 동일 필드와 HTTP 응답으로 저장 API/DTO를 구현해야 한다. ResyncRequiredEvent는 develop에 확정된 형식을 사용하며 스냅샷 커서·replay는 별도 구현 대상이다.
+- 공용 Mock fixture와 MVP 기능 스펙을 REST 경로·HTTP 결과·SSE 대상 연결로 전환했다. 후속 분리 동의는 API 문서의 REST 후보 경로를 따르되 상세 성공 응답·후보 전달·저장 모델은 별도 설계한다.
 
 ### 아직 검증하지 않은 항목
 
 - 실제 Spring·DB·Python/LLM·React SSE 전체 통합과 자동 브라우저 E2E.
-- Refresh 쿠키·CSRF/CORS·회전 경합/재사용·로그아웃/부서 변경 즉시 차단, SSE 통지 유실 시 권한 방어.
+- Refresh 쿠키·CSRF·회전 경합/재사용·로그아웃/부서 변경 즉시 차단, SSE 통지 유실 시 권한 방어. 개발용 로그인·내 정보·부서 SSE의 브라우저 CORS 연결 확인은 운영 CORS/CSRF 검증을 대신하지 않는다.
 - 프록시 buffering·timeout, replay 보존 구간, 연결 해제·재개, 다중 인스턴스 이벤트 순서·중복과 부하 한계.
-- 실제 DDL·마이그레이션·트랜잭션 경합·24시간 이후 중복 방지·부분 성공/재시도·최신 조회 동시성.
+- 문의·메시지·티켓 업무 DDL·마이그레이션·트랜잭션 경합·24시간 이후 중복 방지·부분 성공/재시도·최신 조회 동시성. 계정·부서 마이그레이션 실행과 구분한다.
 - 실제 모델 예산·지연 결과 차단·단계 재사용·정확도·비용·실측 SLO와 새 정책을 포함한 회귀 테스트.
 
 문서 변경이나 기존 Mock·어댑터 테스트 통과를 위 항목의 완료로 보고하지 않는다.

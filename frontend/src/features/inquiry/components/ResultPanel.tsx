@@ -1,12 +1,12 @@
 import type { InquiryResult } from '@/shared/api/types';
 import { displayDate } from '@/shared/lib/date';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { problemDisplay } from '../model/status';
+import { problemDisplay, runDisplay } from '../model/status';
 import { TicketStatuses } from './TicketStatuses';
 import styles from './ResultPanel.module.css';
 export function ResultPanel({ result }: { result: InquiryResult }) {
   const tickets = [...new Map(result.tickets.map((ticket) => [ticket.id, ticket])).values()];
-  if (!result.problems.length && result.currentRun?.status !== 'RUNNING') return null;
+  if (!result.problems.length && !result.currentRun) return null;
   return (
     <section className={styles.panel} aria-label="문제별 처리 결과">
       <header className={styles.header}>
@@ -14,7 +14,7 @@ export function ResultPanel({ result }: { result: InquiryResult }) {
         <span>
           {result.problems.length}개 문제 · 티켓 {tickets.length}개
         </span>
-        {result.currentRun?.status === 'RUNNING' && <StatusBadge label="분석 중" tone="progress" />}
+        {result.currentRun && <StatusBadge {...runDisplay(result.currentRun.status)} />}
       </header>
       {result.problems.map((problem) => (
         <section className={styles.problem} key={problem.id} aria-label={problem.summary}>

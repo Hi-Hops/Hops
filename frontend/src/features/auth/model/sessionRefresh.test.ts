@@ -41,7 +41,6 @@ describe('F001 Refresh Token 갱신', () => {
     const user = useSession.getState().user;
     vi.stubEnv('VITE_DATA_MODE', 'live');
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8080');
-    vi.stubEnv('VITE_SOCKET_URL', 'http://localhost:3001');
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -81,7 +80,6 @@ describe('F001 Refresh Token 갱신', () => {
     const user = useSession.getState().user;
     vi.stubEnv('VITE_DATA_MODE', 'live');
     vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8080');
-    vi.stubEnv('VITE_SOCKET_URL', 'http://localhost:3001');
     let finish: ((value: Response) => void) | undefined;
     vi.stubGlobal(
       'fetch',

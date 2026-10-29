@@ -9,6 +9,7 @@ import { LoadingState } from '@/shared/ui/LoadingState';
 import { RouteModal } from '@/shared/ui/RouteModal';
 import { useTickets } from '../hooks/useTickets';
 import { TicketDetail } from './TicketDetail';
+import { TicketKanban } from './TicketKanban';
 import styles from './Tickets.module.css';
 export function TicketBoard() {
   const board = useTickets();
@@ -37,12 +38,34 @@ export function TicketBoard() {
           <Link to={paths.home}>IT 문의하기로 돌아가기</Link>
         </>
       ) : (
-        <section className={styles.panel} aria-label="부서 티켓 목록">
+        <section
+          className={`${styles.panel} ${board.view === 'board' ? styles.boardPanel : ''}`}
+          aria-label="부서 티켓 목록"
+        >
           <div className={styles.toolbar}>
             <h2>
               티켓 목록 <span>{data?.totalElements ?? '–'}</span>
             </h2>
             <div className={styles.filters}>
+              <div className={styles.viewToggle} role="radiogroup" aria-label="티켓 보기 방식">
+                {(['board', 'list'] as const).map((view) => (
+                  <label key={view}>
+                    <input
+                      type="radio"
+                      name="ticket-view"
+                      value={view}
+                      checked={board.view === view}
+                      onChange={() => {
+                        board.change('view', view);
+                      }}
+                    />
+                    <span>
+                      <img src={`/assets/view-${view}.svg`} width="16" height="16" alt="" />
+                      {view === 'board' ? '보드' : '목록'}
+                    </span>
+                  </label>
+                ))}
+              </div>
               <label htmlFor="processing-filter">처리 상태</label>
               <select
                 id="processing-filter"
@@ -88,6 +111,14 @@ export function TicketBoard() {
               <strong>배정된 티켓이 없어요</strong>
               <p>선택한 처리 상태에 해당하는 티켓이 없어요.</p>
             </div>
+          ) : board.view === 'board' ? (
+            <>
+              <TicketKanban items={data.items} base={board.base} search={board.search.toString()} />
+              <p className={styles.boardHint}>
+                컬럼 숫자는 현재 페이지에서 불러온 건수예요. 카드를 누르면 상세가 열려요. 조회
+                전용으로 드래그해 상태를 바꾸지 않아요.
+              </p>
+            </>
           ) : (
             <div className={styles.tableWrap}>
               <table>

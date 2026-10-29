@@ -4,7 +4,6 @@ import { mockError } from './mockError';
 import type {
   ChatMessage,
   Department,
-  CommandAck,
   CurrentUser,
   InquiryPage,
   InquiryResult,
@@ -13,12 +12,13 @@ import type {
   RunRetryRequest,
   Problem,
   RunSummary,
-  StoredAck,
   SubscriptionTarget,
   TicketCard,
   TicketDetail,
 } from './types';
-import type { EventMap, StoredCommand, StoredCommandName } from '@/shared/realtime/types';
+import type { MutationResult } from './types';
+import type { EventMap } from '@/shared/realtime/types';
+import type { StoredCommand, StoredCommandName } from './mutations';
 
 type Mode = 'simple' | 'partial' | 'timeout' | 'error' | 'outside' | 'cs';
 type Record = {
@@ -34,7 +34,7 @@ type Publisher = <K extends keyof EventMap>(name: K, event: EventMap[K]) => void
 /** 공용 fixture를 초기 상태로 사용하는 메모리 서버 대역. 프론트 캐시와 분리한다. */
 export class MockWorkspace {
   private records = new Map<string, Record>();
-  private saved = new Map<string, { body: string; ack: StoredAck }>();
+  private saved = new Map<string, { body: string; ack: MutationResult }>();
   private jobs = new Map<ReturnType<typeof setTimeout>, () => void>();
   private publisher: Publisher | null = null;
   private rejectNext = false;
@@ -228,8 +228,14 @@ export class MockWorkspace {
     ))
       mockError(403, 'ACCESS_DENIED', '이 부서의 티켓을 볼 수 없어요.');
   }
-  command(user: CurrentUser, name: StoredCommandName, command: StoredCommand): CommandAck {
-    const key = `${user.id}:${name}:${command.requestId}`;
+  command(user: CurrentUser, name: StoredCommandName, command: StoredCommand): MutationResult {
+    const scope =
+      name === 'inquiry.create'
+        ? '/api/inquiries'
+        : 'inquiryId' in command
+          ? `/api/inquiries/${command.inquiryId}/messages${'messageId' in command ? `/${command.messageId}/revisions` : ''}`
+          : name;
+    const key = `${user.id}:POST:${scope}:${command.requestId}`;
     const body = JSON.stringify(command, Object.keys(command).sort());
     const previous = this.saved.get(key);
     if (previous) {
@@ -342,8 +348,7 @@ export class MockWorkspace {
       record.inquiry.status = 'IN_PROGRESS';
       this.scheduleAnalysis(record, runId, version);
     }
-    const ack: StoredAck = {
-      ok: true,
+    const ack: MutationResult = {
       requestId: command.requestId,
       inquiryId: record.inquiry.id,
       inquiryVersion: version,

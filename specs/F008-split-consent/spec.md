@@ -1,11 +1,11 @@
 # F008 새 문의 분리 동의
 
-상태: 개발 기준 확정 / 구현·검증 별도 · 범위: 후속 · MVP 제외, 상세 입출력 설계 필요 · 담당: frontend(화면) · 협의: infra(이벤트 중계), backend(동의 저장·새 문의 생성), ai(별개 문의 판단)
-근거: PRD 4.4 "새 문의 분리", 5.1 · API 2.1(동의 설명 문단), 2.4 `inquiry.split.respond` · DATA 3, 7 · ERD 저장 위치 없음(DATA 2)
+상태: 개발 기준 확정 / 구현·검증 별도 · 범위: 후속 · MVP 제외, 상세 입출력 설계 필요 · 담당: frontend(화면) · 협의: backend(REST 동의 저장·새 문의 생성·SSE), ai(별개 문의 판단)
+근거: PRD 4.4 "새 문의 분리", 5.1 · API 2.1(동의 설명 문단), 2.4 `POST /api/inquiries/{id}/split-responses` · DATA 3, 7 · ERD 저장 위치 없음(DATA 2)
 
 ## 확정 범위와 남은 작업 (2026-10-25)
 
-이 문서의 인수 조건은 후속 기능 착수 기준이며 현재 구현/MVP 완료 조건이 아니다. ConsentStatus는 DATA_TYPES에 정의했다. 후보·동의 만료 값·ACK·연결 조회의 전체 계약은 Q-BE-13/Q-AI-5에서 담당자가 설계한다.
+이 문서의 인수 조건은 후속 기능 착수 기준이며 현재 구현/MVP 완료 조건이 아니다. ConsentStatus는 DATA_TYPES에 정의했다. 전송은 API 문서의 REST 후보 경로를 따른다. 후보·동의 만료 값·성공 HTTP 응답·연결 조회의 전체 계약은 Q-BE-13/Q-AI-5에서 담당자가 설계한다. 기존 문의 저장용 MutationResult를 분리 동의 응답으로 확장한다고 가정하지 않는다.
 
 정확한 타입·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md), 정책은 [WIRE_CONTRACT 10절](../contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 구현·미검증은 [11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 확정은 개발 기준 선택이며 팀 리뷰/병합·서비스 구현 완료가 아니다.
 
@@ -22,9 +22,9 @@ AI가 같은 채팅 안의 내용을 별개 문의로 판단하면, 새 문의�
 | 이슈 #30 작업 목록 | "합의된 새 문의 동의와 이관 후 저장 전용 입력 표시" |
 | PRD 8.2 | MVP 완료 흐름에 새 문의 분리 없음 |
 | DATA 7 | "새 문의 동의"를 "후속 기능별" 합의 항목으로 둠. DATA 2 "최신 ERD에는 … 새 문의 동의 … 저장 방식이 없다" |
-| API 2.4 | `inquiry.split.respond` 이벤트 후보는 있음 |
+| API 2.4 | 후속 REST 후보 `POST /api/inquiries/{id}/split-responses`가 있음 |
 
-이슈와 원본 문서의 범위가 달라 Q-ALL-7로 확인한다. 답이 나오기 전에는 이 스펙을 "목으로 화면만 준비"하는 수준으로 둔다. 이슈 문구가 "합의된"이므로 계약이 합의되지 않으면 #30 완료 조건에서 이 항목을 빼는 것도 선택지다.
+Q-ALL-7에서 분리 동의는 MVP 제외·후속으로 정했다. 이 스펙은 후속 착수 시 사용할 화면 기준이며 현재 #30의 MVP 완료 조건으로 요구하지 않는다. 후보 전달·응답·저장 상세는 해당 기능 착수 전에 Q-BE-13/Q-AI-5로 확정한다.
 
 ## 3. 화면
 
@@ -42,13 +42,13 @@ AI가 같은 채팅 안의 내용을 별개 문의로 판단하면, 새 문의�
 - **F008-AC01 동의 요청 표시**
   Given 서버가 별개 문의 후보를 저장함 · When 채팅에서 그 후보를 받으면 · Then 동의 요청 카드에 가져갈 문맥 요약과 출처 메시지를 보여 주고, "새 문의로 시작"과 "아니요"를 제공한다. 후보를 React에 전달하는 방법(메시지 `payload`인지 별도 이벤트인지)은 정해지지 않았다. (PRD 4.4 · API 2.1 "서버가 후보 문맥과 출처를 제시" · Q-BE-13)
 - **F008-AC02 동의 전송**
-  When "새 문의로 시작"을 누르면 · Then `inquiry.split.respond` `{requestId,inquiryId,expectedInquiryVersion,consentId,accepted:true}`를 보내고, 저장 ACK 전에는 "새 문의를 만드는 중"을 표시한다. 저장 ACK에서 새 문의 ID를 확인한 뒤에만 새 채팅으로 이동한다. (API 2.4 · ACK 결과 필드 Q-BE-13, Q-INF-6)
+  When "새 문의로 시작"을 누르면 · Then `POST /api/inquiries/{id}/split-responses`에 `Idempotency-Key: requestId`와 `{expectedInquiryVersion,consentId,accepted:true}`를 보내고, 저장 응답 전에는 "새 문의를 만드는 중"을 표시한다. 저장 응답에서 새 문의 ID를 확인한 뒤에만 새 채팅으로 이동한다. (API 2.4 · 성공 응답 필드 Q-BE-13, Q-INF-6)
 - **F008-AC03 거절**
-  When "아니요"를 누르면 · Then `accepted:false`를 보내고, 저장 ACK 뒤 카드를 "기존 문의에서 계속"으로 바꾼다. 새 문의는 만들어지지 않는다. (PRD 4.4 · API 2.4)
+  When "아니요"를 누르면 · Then 같은 REST 경로로 `accepted:false`를 보내고, 저장 응답 뒤 카드를 "기존 문의에서 계속"으로 바꾼다. 새 문의는 만들어지지 않는다. (PRD 4.4 · API 2.4)
 - **F008-AC04 무응답**
   사용자가 응답하지 않으면 화면은 아무것도 보내지 않는다. 화면 타이머로 거절이나 동의를 대신 보내지 않는다. 후보가 만료되는지와 만료 시 표시는 서버 상태를 따른다. (PRD 4.4 "응답하지 않으면 새 문의를 만들지 않는다" · 만료 여부 Q-BE-13)
 - **F008-AC05 중복 동의**
-  ACK 시간 초과·끊김이면 F003-AC04와 같이 "결과 확인 중"으로 표시하고 같은 `requestId`로 다시 보낸다. 다시 보내거나 두 탭에서 동의해도 화면은 서버가 돌려준 같은 새 문의로 이동한다(새 문의 하나만 생성하는 것은 서버 책임). (PRD 4.4 · DATA 3, 5)
+  HTTP 응답 시간 초과·끊김이면 F003-AC04와 같이 "결과 확인 중"으로 표시하고 같은 `Idempotency-Key`와 본문으로 다시 확인한다. 다시 보내거나 두 탭에서 동의해도 화면은 서버가 돌려준 같은 새 문의로 이동한다(새 문의 하나만 생성하는 것은 서버 책임). (PRD 4.4 · DATA 3, 5)
 - **F008-AC06 기존 문의 유지**
   동의 뒤에도 원래 채팅의 메시지·문제·티켓 카드는 바뀌지 않는다. 원래 채팅에서 새 문의로, 새 문의에서 원래 문의로 갈 수 있는 연결을 보여 준다. (PRD 4.4 "출처 연결" · DATA 3 · 연결 필드 Q-BE-13)
 - **F008-AC07 오래된 동의 요청**
@@ -60,7 +60,7 @@ AI가 같은 채팅 안의 내용을 별개 문의로 판단하면, 새 문의�
 
 | 용도 | 경로·이벤트 | 판정 | 비고 |
 |---|---|---|---|
-| 동의 응답 | `inquiry.split.respond` `{requestId,inquiryId,expectedInquiryVersion,consentId,accepted}` | 초안 | API 2.4. ACK 결과의 새 문의 ID 필드 → Q-BE-13 |
+| 동의 응답 | `POST /api/inquiries/{id}/split-responses`, `Idempotency-Key` + `{expectedInquiryVersion,consentId,accepted}` | 후속 초안 | API 2.4. 성공 응답의 새 문의 ID 필드 → Q-BE-13 |
 | 동의 후보 전달 | — | 미정 | Spring → React 전달 방법, 후보 문맥·출처 형식 → Q-BE-13 |
 | 동의 상태 값 | ConsentStatus(DATA_TYPES) | 개발 기준 확정 | 후속 상세 payload/만료 값은 Q-BE-13 |
 | 동의 저장 위치 | — | 미정 | DATA 2 "최신 ERD에 없음". `QUESTIONS.md` 6절 |
@@ -70,8 +70,8 @@ AI가 같은 채팅 안의 내용을 별개 문의로 판단하면, 새 문의�
 ## 7. 화면 상태
 
 ```text
-후보 표시 → 동의 전송 중(ACK 대기) → 동의 저장: 새 채팅으로 이동, 원래 채팅에 링크
-                                  → 결과 확인 중: 같은 requestId로 확인·재전송
+후보 표시 → 동의 전송 중(HTTP 응답 대기) → 동의 저장: 새 채팅으로 이동, 원래 채팅에 링크
+                                       → 결과 확인 중: 같은 키·본문으로 확인·재전송
           → 거절 전송 중 → 기존 문의에서 계속
           → 무응답: 아무것도 보내지 않음(서버 만료 상태가 오면 표시)
 ```

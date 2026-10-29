@@ -32,7 +32,7 @@ function Location() {
     </output>
   );
 }
-function view(path = '/tickets') {
+function view(path = '/tickets?view=list') {
   return renderWithProviders(
     <>
       <Location />
@@ -55,7 +55,7 @@ describe('F009 부서 티켓 조회', () => {
   it('F009-AC06 권한 없는 상세 URL은 모달·상세 API·티켓 구독을 시작하지 않는다', async () => {
     await login(TEST_LOGINS.requester);
     const request = vi.spyOn(ticketApi, 'getTicket');
-    const send = vi.spyOn(transport, 'send');
+    const send = vi.spyOn(transport, 'subscribe');
     view(`/tickets/${network().id}`);
     await waitFor(() => {
       expect(realtime.getState()).toBe('connected');
@@ -63,19 +63,12 @@ describe('F009 부서 티켓 조회', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('조회 권한이 없어요');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(request).not.toHaveBeenCalled();
-    expect(
-      send.mock.calls.some(
-        ([name, command]) =>
-          name === 'subscription.request' &&
-          'target' in command &&
-          command.target.type === 'TICKET',
-      ),
-    ).toBe(false);
+    expect(send.mock.calls.some(([target]) => target.type === 'TICKET')).toBe(false);
   });
   it('F009-AC06 상세 컴포넌트를 직접 렌더링해도 권한 없으면 조회·구독하지 않는다', async () => {
     await login(TEST_LOGINS.requester);
     const request = vi.spyOn(ticketApi, 'getTicket');
-    const send = vi.spyOn(transport, 'send');
+    const send = vi.spyOn(transport, 'subscribe');
     const rendered = renderWithProviders(
       <RealtimeBoundary>
         <TicketDetail id={network().id} onClose={vi.fn()} />
@@ -86,14 +79,7 @@ describe('F009 부서 티켓 조회', () => {
     });
     await rendered.client.invalidateQueries({ queryKey: ['tickets'] });
     expect(request).not.toHaveBeenCalled();
-    expect(
-      send.mock.calls.some(
-        ([name, command]) =>
-          name === 'subscription.request' &&
-          'target' in command &&
-          command.target.type === 'TICKET',
-      ),
-    ).toBe(false);
+    expect(send.mock.calls.some(([target]) => target.type === 'TICKET')).toBe(false);
   });
   it('F009-AC01 서버가 허용한 현재 부서의 티켓만 표시한다', async () => {
     view();
@@ -186,7 +172,7 @@ describe('F009 부서 티켓 조회', () => {
   it('F009-AC03 다음·이전 페이지 이동을 주소에 반영한다', async () => {
     useSession.getState().logout();
     await login(TEST_LOGINS.admin);
-    view('/tickets?size=1');
+    view('/tickets?size=1&view=list');
     await screen.findByRole('table');
     await userEvent.click(screen.getByRole('button', { name: '다음' }));
     await waitFor(() => {
@@ -226,7 +212,7 @@ describe('F009 부서 티켓 조회', () => {
       requestId: crypto.randomUUID(),
       content: 'VPN 신규 문의',
     });
-    if (!ack.ok) throw new Error('문의 생성 실패');
+
     mockWorkspace.flushPending();
     mockWorkspace.command(owner, 'message.send', {
       requestId: crypto.randomUUID(),

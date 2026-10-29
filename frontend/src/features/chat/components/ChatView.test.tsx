@@ -1,6 +1,6 @@
 import { TEST_LOGINS } from '@/test/mockCredentials';
-import { screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { act, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { login, useSession } from '@/features/auth';
 import { RealtimeBoundary } from '@/features/realtime';
 import { mockBackend } from '@/shared/api/mockBackend';
@@ -8,7 +8,13 @@ import { mockWorkspace } from '@/shared/api/mockWorkspace';
 import { fixture } from '@/shared/api/mockData';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import { ChatView } from './ChatView';
-import type { StoredAck } from '@/shared/api/types';
+import type { MutationResult } from '@/shared/api/types';
+import * as chatApi from '../api/chatApi';
+import { realtime } from '@/shared/realtime/mockTransport';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 beforeEach(async () => {
   mockBackend.reset();
@@ -22,11 +28,92 @@ function start(content: string) {
     requestId: crypto.randomUUID(),
     content,
   });
-  if (!ack.ok) throw new Error('문의 생성 실패');
+
   return ack;
 }
 
 describe('F003 대화 조회·분석', () => {
+  it('F003-AC07 QUEUED는 실행 중 답변 대신 분석 대기로 안내한다', async () => {
+    const result = fixture('inquiry-result', 'InquiryResult');
+    result.currentRun = {
+      id: crypto.randomUUID(),
+      inquiryVersion: result.version,
+      status: 'QUEUED',
+      error: null,
+    };
+    vi.spyOn(chatApi, 'getInquiry').mockResolvedValue(result);
+    renderWithProviders(
+      <RealtimeBoundary>
+        <ChatView inquiryId={result.id} />
+      </RealtimeBoundary>,
+    );
+    expect(await screen.findByText('분석 순서를 기다리고 있어요.')).toBeVisible();
+    expect(screen.queryByText('답변 작성 중')).not.toBeInTheDocument();
+  });
+  it('F003-AC07 F004-AC03 실행 교체 후 새 진행 이벤트에 이전 임시 답변을 섞지 않는다', async () => {
+    const result = fixture('inquiry-result', 'InquiryResult');
+    const oldRun = crypto.randomUUID();
+    const newRun = crypto.randomUUID();
+    result.currentRun = {
+      id: oldRun,
+      inquiryVersion: result.version,
+      status: 'RUNNING',
+      error: null,
+    };
+    const request = vi.spyOn(chatApi, 'getInquiry').mockResolvedValue(result);
+    const { client } = renderWithProviders(
+      <RealtimeBoundary>
+        <ChatView inquiryId={result.id} />
+      </RealtimeBoundary>,
+    );
+    await screen.findByRole('heading', { level: 1 });
+    await waitFor(() => {
+      expect(realtime.getState()).toBe('connected');
+    });
+    act(() => {
+      realtime.publish('answer.delta', {
+        eventId: crypto.randomUUID(),
+        inquiryId: result.id,
+        inquiryVersion: result.version,
+        runId: oldRun,
+        payload: { messageId: crypto.randomUUID(), seq: 1, text: '이전 실행의 임시 답변' },
+      });
+    });
+    expect(await screen.findByText('이전 실행의 임시 답변')).toBeVisible();
+    const next = {
+      ...result,
+      version: result.version + 1,
+      currentRun: {
+        id: newRun,
+        inquiryVersion: result.version + 1,
+        status: 'RUNNING',
+        error: null,
+      },
+    };
+    request.mockResolvedValue(next);
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: chatApi.chatKeys.inquiry(result.id) });
+    });
+    await waitFor(() => {
+      expect(screen.queryByText('이전 실행의 임시 답변')).not.toBeInTheDocument();
+    });
+    act(() => {
+      realtime.publish('agent.progress', {
+        eventId: crypto.randomUUID(),
+        inquiryId: result.id,
+        inquiryVersion: next.version,
+        runId: newRun,
+        payload: {
+          stepNo: 1,
+          stepType: 'ANALYSIS',
+          displaySummary: '새 입력 분석 중',
+          status: 'RUNNING',
+        },
+      });
+    });
+    expect(await screen.findByText('새 입력 분석 중')).toBeVisible();
+    expect(screen.queryByText('이전 실행의 임시 답변')).not.toBeInTheDocument();
+  });
   it('F003-AC05 대화를 사용자·AI로 구분하고 페이지 순서를 유지한다', async () => {
     const seed = fixture('inquiry-result', 'InquiryResult');
     renderWithProviders(
@@ -117,10 +204,10 @@ describe('F003 대화 조회·분석', () => {
       expectedInquiryVersion: 2,
       content: '추가 발생 시각이에요',
     });
-    expect(supplement).toMatchObject({ ok: true, runId: null, effect: 'SUPPLEMENT_SAVED' });
+    expect(supplement).toMatchObject({ runId: null, effect: 'SUPPLEMENT_SAVED' });
   });
   it('F003-AC14 F005-AC08 저장 변경 신호 뒤 문의 결과를 다시 조회한다', async () => {
-    const ack: StoredAck = start('CS 검토 예시');
+    const ack: MutationResult = start('CS 검토 예시');
     renderWithProviders(
       <RealtimeBoundary>
         <ChatView inquiryId={ack.inquiryId} />
