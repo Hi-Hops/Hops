@@ -1,106 +1,61 @@
-# Knowledge–Diagnosis 책임과 Evidence Bundle 계약
+# Knowledge 검색·조건부 분석 계약
 
-상태: 데이터 담당자 확정 · 팀 리뷰 전
-확정일: 2026-10-27
+기준: [PRD](../PRD.md) 1.44 · 목표 설계 / 구체 입출력 스키마·구현 미확정. 기존 파일명과 v0 스키마는 이전 독립 Diagnosis 설계의 호환 자료로 남는다.
 
-## 1. 결정
+## 1. 책임
 
-- Knowledge Agent만 가이드·런북·CASE·정책 RAG를 검색한다.
-- Diagnosis Agent는 Vector DB와 지식 문서를 직접 검색하지 않는다.
-- Diagnosis Agent는 Knowledge Agent가 State에 저장한 `Evidence Bundle`과 읽기 MCP Tool 관측만 비교한다.
-- 추가 지식이 필요하면 Diagnosis Agent가 검색하지 않고 `NEED_MORE_KNOWLEDGE`를 반환한다.
-- Supervisor가 해당 요청을 받아 Knowledge Agent를 다시 호출하고 State를 갱신한다.
-- 진단 신호 레지스트리는 RAG 문서가 아니다. 신호 ID·의미·매칭 조건·확정 제한의 단일 정본이다.
+Knowledge는 허용된 Vector·Neo4j 검색, 직원 안내 근거, 증상·가능 원인·확인 항목, 읽기 전용 Mock 관측 비교와 불확실성을 조건부로 제공한다. 독립 Diagnosis 에이전트나 Diagnosis→Knowledge 재호출 계약을 새 구조의 필수 역할로 두지 않는다. Supervisor는 모델 판단으로 허용된 다음 동작을 고르며 실행 코드가 경로·호출·시간·재시도 예산을 제한한다.
 
-## 2. 책임 경계
+Ticket은 표준 요청과 책임 시스템을 제안하고 Spring은 지원 시스템·주담당자·버전·권한·저장을 확정한다. Neo4j 의존 관계나 과거 CASE만으로 현재 원인·책임 시스템을 확정하지 않는다. 근거 부족이면 미확인 항목을 보존하고 보고 시스템 담당자가 조사한다.
 
-| 구성요소 | 책임 | 금지 |
+## 2. 근거·권한·공개
+
+검색 전 역할별 범위를 적용하고 반환 근거의 출처·문서 버전·공개 가능 여부를 검증한다. 직원용 안내에 담당자 내부 원문을 노출하지 않는다. CASE는 문의자 해결 확인·담당자 승인과 동일 승인 버전 Vector·Neo4j 반영이 모두 성공해야 어느 경로에서든 공개한다. 시스템 적용 버전·조건은 담당자에게 보여 주며 미확인은 추정하지 않는다. 관측 Mock을 실제 운영 관측처럼 표시하지 않는다.
+
+## 3. 기존 v0 데이터의 전환
+
+[Evidence Bundle](../../datasets/knowledge/v0/schemas/knowledge_evidence_bundle.schema.json), [기존 Diagnosis 요청](../../datasets/knowledge/v0/schemas/diagnosis_knowledge_request.schema.json), [신호 레지스트리](../../datasets/knowledge/v0/catalogs/error_signals.json)는 기존 소비자와 데이터 검증을 위한 전환 전 자료다. 그대로 새 에이전트 계약으로 간주하지 않는다. 필요한 근거·권한·신호 필드를 재검토하고 구현 계약 합의 후 스키마·데이터·소비 코드·테스트를 함께 전환한다. 신호 레지스트리와 평가 정답을 그대로 검색 인덱스로 적재하지 않는다.
+
+## 4. Knowledge 입력과 결과의 상세 의미
+
+실제 필드명·스키마·필수 여부는 [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md) 리뷰 후 정한다. 아래는 조건부 분석에서 주고받아야 할 정보의 의미다.
+
+| 구분 | 필요한 내용 | 검증 포인트 |
 |---|---|---|
-| Knowledge Agent | RAG 검색, 관련 문서 선정, 신호 정의 조립, Evidence Bundle 생성 | Tool로 현재 상태 진단, 업무 상태 확정 |
-| Diagnosis Agent | 읽기 Tool 호출, Evidence Bundle과 관측 비교, 원인·반대 근거·불확실성 제안 | Vector DB·신호 레지스트리·CASE 직접 검색, 쓰기 작업 |
-| Supervisor | Agent 순서·재호출·실패 복구, State 전달 | 도메인 원인 임의 생성 |
-| Read MCP Tool | 현재 로그·메트릭·상태를 구조화해 반환 | 원인·부서·해결 여부 확정 |
-| Spring | 권한 검사, Evidence Bundle 검증, 티켓·부서·상태 최종 확정 | Agent 제안을 무검증 저장 |
+| 입력 문제 | 문의·문제 참조와 입력 버전, 보고 시스템·기능, 확인 사실·미확인, 이미 한 질문 | 최신 입력인지 확인하고 이미 확인한 사실을 반복 질문하지 않는다. |
+| 검색 목적 | 직원 안내, 담당자 참고 또는 다음 확인 항목 | 목적에 따라 허용된 자료와 반환 내용을 제한한다. |
+| 권한 문맥 | Spring이 확인한 사용자의 허용 시스템과 자료 범위 | 모델이 생성한 역할·대상으로 권한을 넓히지 않는다. |
+| 문서·사례 근거 | 자료 참조·버전·공개 범위·적용 조건·검색에 사용한 출처 | 승인 상태와 사용자의 권한을 검증하고 시스템 적용 버전을 구분한다. |
+| 관계 탐색 | 시스템·기능·증상·가능 원인·확인 항목과 해당 연결 출처 | 그래프에 연결이 존재한다는 것만으로 현재 원인을 확정하지 않는다. |
+| Mock 조회 | 허용된 읽기 결과·조회 시각·성공/거부/오류·출처 | Mock과 실제 관측을 혼동하지 않고 실패를 정상으로 바꾸지 않는다. |
+| 결과 | 안내 초안, 근거·확인 사실, 가능 원인·불확실성, 다음 확인 항목 | 현재 근거를 넘어서는 주장이나 내부 자료의 직원 노출을 막는다. |
 
-## 3. 저장과 파생
+## 5. 검색·분석 흐름
 
-```text
-진단 신호 레지스트리(단일 정본, RAG 금지)
-        ↓ signal_id 참조
-STAFF_RUNBOOK 정본
-        ↓ 청크 생성 시 신호 정의 결합
-RAG 런북 청크
-        ↓ Knowledge Agent 검색·조립
-Evidence Bundle(State)
-        ↓
-Diagnosis Agent + Read MCP Tool 관측
-```
+1. Inquiry가 확인한 사실과 표준 요청을 전달한다. 보고 시스템이 없으면 이를 미확인으로 보존한다.
+2. 서버가 검색 목적과 현재 사용자에 맞는 접근 범위를 전달한다. 검색 가능한 지식은 이 범위 안으로 제한한다.
+3. Vector에서 의미가 비슷한 자료를 찾고, 관계가 필요한 경우 Neo4j에서 확인 항목·가능 원인·관련 사례를 탐색한다.
+4. 해결 사례는 문의자 확인·담당자 승인과 같은 승인 버전의 두 반영 성공 여부를 확인한다. 조건이 충족되지 않거나 상태를 확인할 수 없으면 두 경로에서 공개하지 않는다.
+5. 이미 확인한 내용을 제외하고 다음 질문이나 담당자가 볼 근거를 구성한다. 현재 문제의 인과관계는 관련 사실과 확인 전까지 가능 원인으로 표시한다.
+6. 직원용 답변과 담당자 참고자료를 각 권한 범위에 맞게 제공하고 적용 시스템·버전·조건을 표시한다.
 
-- 런북 정본은 원인별 `required_signal_ids`와 `contradictory_signal_ids`를 참조한다.
-- 신호 이름·의미·확정 제한을 런북마다 복사하지 않는다.
-- 런북 RAG 청크에는 검색 결과 하나만으로 비교할 수 있도록 참조 신호 정의를 파생 포함한다.
-- 신호 레지스트리 자체의 독립 청크와 임베딩은 만들지 않는다.
+## 6. 실패·부족·복구의 구분
 
-## 4. 최초 진단 흐름
+| 상황 | 결과 의미 | 금지할 해석 |
+|---|---|---|
+| 허용된 검색 결과 0건 | 검색은 완료됐지만 적절한 근거가 없음 | 검색 시스템 장애라고 단정하거나 답을 꾸미지 않는다. |
+| 검색 시스템 오류 | 검색이나 접근 검증을 완료하지 못함 | 정상적인 0건 또는 해결된 상태로 보지 않는다. |
+| 읽기 Mock 결과 없음 | 해당 Mock이 데이터를 제공하지 않음 | 실제 시스템이 정상이라고 단정하지 않는다. |
+| 읽기 접근 거부 | 현재 요청에 허용된 조회가 아님 | 다른 도구를 사용해 권한을 우회하지 않는다. |
+| 부분 조회 실패 | 유효한 근거와 확인하지 못한 부분이 함께 존재 | 실패한 조회를 성공·원인 확정으로 바꾸지 않는다. |
+| 사례의 한쪽 반영 실패/미확인 | 해당 승인 버전의 검색 공개 조건 미충족 | 한쪽 검색 결과만 사용자에게 반환하지 않는다. |
+| 오래된 입력 | 결과가 현재 문의 버전보다 이전 | 저장된 이력을 지우지 않고 미반영 결과만 차단한다. |
 
-1. Supervisor가 사용자 문의와 문제 단위를 Knowledge Agent에 전달한다.
-2. Knowledge Agent가 권한에 맞는 가이드·런북·검증 CASE를 검색한다.
-3. Knowledge Agent가 관련 신호 정의와 문서 근거를 `Evidence Bundle`로 조립한다.
-4. Spring이 접근 범위와 근거 ID를 검증하고 State에 저장한다.
-5. Diagnosis Agent가 런북에서 요구한 읽기 Tool만 호출한다.
-6. Diagnosis Agent가 필요 신호·반대 신호와 실제 관측을 비교한다.
-7. 근거가 충분하면 원인 후보·불확실성·후보 부서를 제안하고, 부족하면 이관 또는 추가 지식을 요청한다.
+근거가 부족해도 보고 시스템이 확인됐다면 그 시스템 담당자가 최초 조사할 수 있다. 초안 답변·원인 후보·실행 성공만으로 문의 해결이나 실제 업무 변경을 확정하지 않는다.
 
-## 5. 조건부 Knowledge 재호출
+## 7. 전환·검증 조건
 
-Tool에서 현재 Evidence Bundle에 없는 코드·로그 패턴이 관측된 경우에만 다음 루프를 사용한다.
-
-```text
-Diagnosis Agent
-→ NEED_MORE_KNOWLEDGE + 관측값 + 요청 사유
-→ Supervisor
-→ Knowledge Agent 재호출
-→ 보강 Evidence Bundle로 State 갱신
-→ Diagnosis Agent 재실행
-```
-
-- Diagnosis Agent는 검색어를 실행하지 않고 관측 사실과 부족한 지식만 요청한다.
-- Supervisor는 동일 요청의 무한 반복을 막기 위해 재호출 횟수와 이미 검토한 문서 ID를 유지한다.
-- Knowledge 재조회 후에도 근거가 부족하면 원인을 만들지 않고 담당 부서로 이관한다.
-
-## 6. 기계 판독 계약
-
-- Knowledge 출력: [`knowledge_evidence_bundle.schema.json`](../../datasets/knowledge/v0/schemas/knowledge_evidence_bundle.schema.json)
-- Diagnosis 추가 지식 요청: [`diagnosis_knowledge_request.schema.json`](../../datasets/knowledge/v0/schemas/diagnosis_knowledge_request.schema.json)
-- 진단 신호 정본: [`error_signals.json`](../../datasets/knowledge/v0/catalogs/error_signals.json)
-
-`Evidence Bundle`은 다음 정보를 구조적으로 전달한다.
-
-| 필드 | 역할 |
-|---|---|
-| `artifacts` | 검색된 문서·버전·청크 ID와 관련성 요약을 남기는 출처 목록 |
-| `evidence_chunks` | 권한·해시 검증을 통과해 Diagnosis가 실제로 읽을 수 있는 청크 본문 |
-| `diagnostic_steps` | 런북의 읽기 전용 진단 순서, 기대 관측, Tool 필요 상태·호출 계약 |
-| `cause_hypotheses` | 원인 후보와 필요·반대 신호 ID, 담당 후보 부서, 근거 청크 연결 |
-| `diagnostic_signals` | 신호의 매칭 조건·의미·확정 제한과 `runbook_id/step_id`, `runbook_id/cause_id` 연결 |
-| `knowledge_gaps` | 검색 후에도 부족한 지식과 추가 조회·이관 판단 근거 |
-
-- Knowledge Agent는 접근 권한과 `content_sha256` 검증을 통과한 청크만
-  `evidence_chunks`에 넣는다.
-- Tool이 아직 연결되지 않은 단계는 `tool_requirement.status=PENDING`, 읽기 Tool이 필요 없는
-  단계는 `NOT_REQUIRED`, 호출 가능한 단계만 `READY`로 전달한다.
-- Diagnosis Agent는 Bundle 안의 검증된 본문·단계·원인–신호 연결만 사용하며 문서나
-  신호 레지스트리를 다시 검색하지 않는다.
-- Spring은 Bundle 저장 전 접근 범위, 청크·문서 ID, 해시, Tool 허용 목록을 다시 검증한다.
-
-현재 Schema는 데이터·Agent 구현 협의를 위한 v0다. 실제 State 모델과 API DTO에 적용할 때
-필드명을 맞추되 책임 경계와 위 검증 조건은 변경하지 않는다.
-
-## 7. 구현 전 남은 연결
-
-- [x] STAFF_RUNBOOK 11건의 원인별 필요·반대 신호를 signal ID로 연결
-- [x] 런북 청크 생성 시 신호 정의를 자동 결합
-- [ ] Knowledge Agent가 Evidence Bundle을 생성하는 조립기 구현
-- [ ] Diagnosis Agent가 `NEED_MORE_KNOWLEDGE`를 반환하는 출력 모델 구현
-- [ ] Supervisor 조건부 재호출·횟수 제한·checkpoint 구현
-- [ ] Spring의 접근 범위·근거 ID·업무 상태 검증 구현
+- 기존 `diagnosis_knowledge_request.schema.json`은 독립 Diagnosis 중심의 v0 자료다. Knowledge 조건부 분석의 새 스키마가 이미 승인되거나 구현된 것으로 취급하지 않는다.
+- 근거의 ID·문서 버전·권한·조회 시각, 모델과 Mock의 출력 및 실제 입력 버전의 추적 방법을 담당자 간 합의한다.
+- 검색/Mock/그래프의 정상·0건·거부·시간 초과·형식 오류·부분 실패, 사례의 두 저장소 불일치를 테스트한다.
+- Fake 검색 테스트, 실제 인덱스 연결, 실제 모델 응답과 Spring 권한·업무 저장 검증을 구분해 기록한다.

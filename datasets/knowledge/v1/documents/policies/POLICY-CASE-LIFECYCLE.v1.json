@@ -1,0 +1,89 @@
+{
+  "schema_version": "knowledge_policy.v0",
+  "policy_id": "POLICY-CASE-LIFECYCLE",
+  "version_no": 1,
+  "title": "처리·확인·사례 승인",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "POLICY",
+  "access": {
+    "access_scope": "STAFF",
+    "exposure_policy": "INTERNAL_ONLY",
+    "ingest_status": "PENDING"
+  },
+  "purpose": "해결 확인과 담당자 승인 뒤 사례를 검색에 공개한다.",
+  "rules": [
+    {
+      "rule_id": "RULE-NEW-CASE-CONFIRM",
+      "priority": 10,
+      "trigger": "담당자가 조치 또는 기능 구현·검증을 마침",
+      "agent_action": "문제별 해결 확인을 요청한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 사용자 확인을 검증하고 미해결은 같은 티켓에서 계속 처리한다.",
+      "required_evidence": [
+        "담당자 처리 기록",
+        "문의자 응답"
+      ],
+      "user_visible_behavior": "무응답 시 확인 대기를 표시한다.",
+      "prohibited_outcomes": [
+        "무응답 자동 종료",
+        "확인 없는 최종 완료",
+        "완료 후 재오픈"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-CASE-DRAFT",
+      "priority": 20,
+      "trigger": "담당자가 해결 기록을 저장함",
+      "agent_action": "Curator가 원문과 처리 기록에 근거해 초안을 제안한다.",
+      "final_authority": "SPRING",
+      "enforcement": "초안 실패는 기존 업무 기록이나 완료를 취소하지 않는다.",
+      "required_evidence": [
+        "연결 처리 기록"
+      ],
+      "user_visible_behavior": "담당자가 초안을 확인하고 수정한다.",
+      "prohibited_outcomes": [
+        "무티켓 대화만으로 사례 생성",
+        "실패 시도만으로 해결 사례 생성"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-CASE-APPROVE",
+      "priority": 30,
+      "trigger": "문의자가 해결을 확인함",
+      "agent_action": "담당자의 검토를 지원한다.",
+      "final_authority": "SPRING",
+      "enforcement": "해당 시스템 담당자의 승인과 기능 요청의 구현·검증 기록을 검사한다.",
+      "required_evidence": [
+        "문의자 해결 확인",
+        "담당자 승인"
+      ],
+      "user_visible_behavior": "승인과 공개를 구분한다.",
+      "prohibited_outcomes": [
+        "확인 전 사례 공개",
+        "승인 전 사례 공개"
+      ]
+    }
+  ],
+  "prohibitions": [
+    "Agent의 실제 시스템 변경·원격 제어",
+    "모델 문구만으로 저장·배정·해결 성공 확정"
+  ],
+  "related_artifacts": {
+    "guide_ids": [],
+    "runbook_ids": [],
+    "scenario_ids": []
+  },
+  "provenance": {
+    "source_policy_ids": [
+      "PRD-1.44"
+    ],
+    "created_at": "2026-10-31"
+  },
+  "review": {
+    "content_status": "AI_DRAFT",
+    "reviewer": null,
+    "reviewed_at": null,
+    "team_review_status": "PENDING"
+  }
+}

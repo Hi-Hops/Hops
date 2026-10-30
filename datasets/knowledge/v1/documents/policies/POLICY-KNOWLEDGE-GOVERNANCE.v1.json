@@ -1,0 +1,89 @@
+{
+  "schema_version": "knowledge_policy.v0",
+  "policy_id": "POLICY-KNOWLEDGE-GOVERNANCE",
+  "version_no": 1,
+  "title": "사례 검색 반영과 평가",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "POLICY",
+  "access": {
+    "access_scope": "STAFF",
+    "exposure_policy": "INTERNAL_ONLY",
+    "ingest_status": "PENDING"
+  },
+  "purpose": "승인된 사례의 두 검색 경로 공개와 평가 분리를 관리한다.",
+  "rules": [
+    {
+      "rule_id": "RULE-NEW-GOV-PUBLISH",
+      "priority": 10,
+      "trigger": "해결 확인을 받은 사례가 담당자 승인을 받음",
+      "agent_action": "승인된 관계 및 사례 반영을 지원한다.",
+      "final_authority": "SPRING",
+      "enforcement": "같은 승인 버전의 Vector·Neo4j 성공 확인 전 양쪽 검색에서 비공개한다.",
+      "required_evidence": [
+        "승인 버전",
+        "두 저장소 반영 결과"
+      ],
+      "user_visible_behavior": "승인과 공개 가능 여부를 구분한다.",
+      "prohibited_outcomes": [
+        "한쪽 성공만으로 공개",
+        "미확인을 성공으로 표시"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-GOV-RETRY",
+      "priority": 20,
+      "trigger": "한쪽 반영이 실패하거나 결과가 미확인임",
+      "agent_action": "오류를 확인하고 실패한 반영의 재실행을 지원한다.",
+      "final_authority": "SPRING",
+      "enforcement": "기존 승인·업무 기록을 보존하며 재반영과 공개 조건을 확인한다.",
+      "required_evidence": [
+        "승인 버전",
+        "반영 상태"
+      ],
+      "user_visible_behavior": "반영 실패와 성공을 구분한다.",
+      "prohibited_outcomes": [
+        "반영 실패로 처리 기록 취소",
+        "전용 복구 화면 강제"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-GOV-EVAL",
+      "priority": 30,
+      "trigger": "평가 데이터와 검색 자료를 구성함",
+      "agent_action": "현재 사건의 미래 해결 내용과 정답을 감춘다.",
+      "final_authority": "SPRING",
+      "enforcement": "평가 분할·지식 버전·권한을 검토한다.",
+      "required_evidence": [
+        "평가 분할",
+        "고정된 검색 자료"
+      ],
+      "user_visible_behavior": "정답 노출 없는 평가를 수행한다.",
+      "prohibited_outcomes": [
+        "평가 사건 정답 매핑 노출",
+        "조건별로 정답을 다르게 제공"
+      ]
+    }
+  ],
+  "prohibitions": [
+    "Agent의 실제 시스템 변경·원격 제어",
+    "모델 문구만으로 저장·배정·해결 성공 확정"
+  ],
+  "related_artifacts": {
+    "guide_ids": [],
+    "runbook_ids": [],
+    "scenario_ids": []
+  },
+  "provenance": {
+    "source_policy_ids": [
+      "PRD-1.44"
+    ],
+    "created_at": "2026-10-31"
+  },
+  "review": {
+    "content_status": "AI_DRAFT",
+    "reviewer": null,
+    "reviewed_at": null,
+    "team_review_status": "PENDING"
+  }
+}
