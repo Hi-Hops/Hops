@@ -1,5 +1,7 @@
 # 공용 Mock 데이터·시나리오
 
+> **PRD 1.44 전환:** 아래 `hops-mock-1` JSON은 현재 부서 기반 코드·테스트의 호환 데이터다. 새 3개 시스템·주담당자·확인·사례 공개 예제가 아니며 실제 기획의 검증 근거로 쓰지 않는다. 새 계약 합의 후 fixture·시나리오·소비 코드·테스트를 함께 전환한다.
+
 상태: `hops-mock-1` · 2026-10-27 REST·SSE 기준 문서 반영 · 전부 가상 데이터 · **실제 인증·업무 저장·AI 품질 평가가 아님**
 
 추가 프로필의 `message-history-empty`(MessageHistoryPage)·`run-retry-request`(RunRetryRequest) 예시를 fixtures.json에 포함한다. 최신 30개·이전 커서, 토큰 갱신, 분석 재시도는 WIRE_CONTRACT 10절을 따른다. 기존 messages/MessagePage 예제는 전방 조회 호환용이다. 실행 Mock의 시간 초과·모델 오류는 다시 분석 시 정상 진행을 재현하며 실제 체크포인트 저장이나 서버 쿠키 구현을 뜻하지 않는다.

@@ -1,5 +1,7 @@
 # Hops 프론트엔드 실행·서버 연동
 
+> **PRD 1.44 전환:** 아래 부서 티켓 화면·Mock·기존 계약은 현재 프론트 구현 설명이다. 목표는 시스템 주담당자 업무·사용자 해결 확인·사례 승인과 검색 반영이며 아직 화면·서버 연결이 완료된 것은 아니다. [PRD](../docs/PRD.md)와 [새 기능 목표](../specs/README.md)를 따른다.
+
 로그인·문의 채팅·메시지 정정·결과 카드·부서 티켓 조회의 프론트엔드와 Mock·fetch SSE Live Adapter를 제공한다. React→Spring REST로 변경 요청을 보내고 Spring→React SSE를 소비한다. 실제 팀원 서버의 업무/AI 연결 완료와는 구분하며 [연동 프로필](../specs/contracts/WIRE_CONTRACT.md#9-프론트-live-연동-프로필)을 따른다.
 
 ## 1. 실행 환경
