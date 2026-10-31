@@ -1,26 +1,39 @@
-# 구현 계약 질문과 결정이 필요한 항목
+# PRD 1.44 계약 검토와 적용 전 결정
 
-기준: [PRD 1.44](../docs/PRD.md)와 [목표 공통 계약](contracts/TARGET_CONTRACT.md). 팀이 이미 합의한 시스템 단위 배정, 5회 질문, 문의자 확인, 담당자 승인 및 같은 버전의 두 저장소 반영 후 공개는 재결정 항목이 아니다. 아래는 구현 전에 담당자 간에 정해야 할 세부 사항이다.
+기준: [PRD 1.44](../docs/PRD.md). 제품의 시스템 배정·5회 질문·문의자 확인·담당자 승인·동일 버전 양쪽 반영 정책은 합의된 전제다. 아래 구체안은 팀 리뷰 후 적용하며 이 대화·문서 작성만으로 팀 승인되지 않는다.
 
-1. **시스템·권한:** 시스템/기능 ID, 유효한 주담당자 저장·변경·이력, 수동 정정 권한, 접근 회수와 관련 대화 범위.
-2. **업무 관계:** 문의·문제·작업·티켓의 물리 관계, 표준 요청 버전, 상태 enum·전이, API 경로·필드·오류.
-3. **중복·실패:** 같은 업무 작업의 식별과 버전·멱등성, 저장 결과 미확인 확인 방법, 동시 재시도·실패 복구 주체와 조작.
-4. **처리·확인:** 실제 구현 완료·담당자 처리·문의자 확인의 저장 관계, 문제별 응답과 화면 내 알림 전달.
-5. **사례 공개:** Curator 실행과 버전, 초안 수정·승인, 동일 승인 버전의 Vector/Neo4j 반영 상태·검색 공개 검증·재반영 권한과 방식.
-6. **AI·검색:** 역할별 입력·출력·실패, 서비스 인증, Neo4j 관계·질의, 임베딩·모델·시간·호출·비용 상한.
-7. **전환·평가:** 부서 기반 API/SSE/Mock 및 DB의 호환·마이그레이션, 가상 데이터 검수, 평가 분할·목표·시연·일정.
+## 구체 제안이 작성된 항목
 
-항목이 문서에 적혔다고 합의나 구현이 완료된 것은 아니다.
+| ID | 제안 | 정본·검토 담당 | 현재 상태 |
+|---|---|---|---|
+| C01 | 신규 hops-system-1·/api/v2와 기존 프로필 분리 | [WIRE 12절](contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) · Frontend/Spring | 리뷰 대기 |
+| C02 | PRIMARY 기반 권한·관리자 제한 DTO·열린 SSE 회수 | [TARGET](contracts/TARGET_CONTRACT.md) · Frontend/Spring | 리뷰 대기 |
+| C03 | 문의/문제/작업/티켓 관계·버전·질문 번들 중복 방지 | [DATA_TYPES](contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[DATA](../docs/DATA.md) · Spring/AI | 리뷰 대기 |
+| C04 | 생성 결과 PENDING/STORED/NOT_CREATED/UNKNOWN·동일 작업 복구 | [F005](F005-result-cards/spec.md)·[F010](F010-creation-failures/spec.md) · 전체 | 리뷰 대기 |
+| C05 | 검증 기록·문제별 확인 요청·미해결 처리 주기 | [F006](F006-my-inquiries/spec.md)·[F009](F009-department-tickets/spec.md) · Frontend/Spring | 리뷰 대기 |
+| C06 | 사례 불변 버전·승인·outbox·두 저장소 공개 gate·수동 재반영 | [F011](F011-case-lifecycle/spec.md)·[DATA](../docs/DATA.md) · 전체 | 리뷰 대기 |
+| C07 | 역할별 출력·서비스 Bearer·기한/예산·검색/그래프 허용 범위 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) · AI/데이터/Spring | 리뷰 대기 |
+| C08 | 전체 필수 화면·목표 경로·조작·충돌/미확인·CONTRACT 검증 | [기능 목록](README.md)·[ROUTES](../docs/frontend/ROUTES.md) · Frontend/전체 | 리뷰 대기 |
+| C09 | 논리 업무 ID·필드와 물리 엔티티·FK·담당 관계의 매핑 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안)·[ERD 이슈 #66](https://github.com/Hi-Hops/Hops/issues/66) · Spring/데이터 | 연계 검토 |
+| C10 | 외부 wire JSON Schema·예시, 내부 State 작성/병합·종료·결과 적용 | [State 계약](../contracts/agents/README.md#내부-state와-wire-검증-계약) · AI/Spring | 리뷰 대기 |
 
-## 구현 전 확인할 계약별 산출물
+각 행은 미작성 항목이 아니라 구체 제안의 승인 대기다. 검토자는 채택/수정과 이유를 PR에 남기고 병합 후 해당 문서의 상태를 갱신한다. 실제 코드 상태와 합의 상태를 같은 완료 칸으로 합치지 않는다.
 
-| 계약 축 | 함께 정리할 산출물 | 관련 문서·담당 |
-|---|---|---|
-| 시스템·담당 권한 | 시스템/기능 목록과 담당 관계 조회·변경 이력, 관련 대화 허용 범위, SSE 접근 회수 | [ERD](../docs/ERD_설명.md), [F001](F001-auth/spec.md), [F009](F009-department-tickets/spec.md) · Spring/Frontend |
-| 문의·문제·표준 요청 | 사실·추정·미확인, 질문 횟수·보고/책임 시스템, 문의 버전과 원문 출처 | [목표 공통 계약](contracts/TARGET_CONTRACT.md), [F003](F003-chat/spec.md), [F008](F008-split-consent/spec.md) · AI/Spring |
-| 생성·부분 복구 | 업무 작업의 식별·티켓 유일성, 저장 결과 확인·실패/미확인, 재시도와 버전 충돌 | [F005](F005-result-cards/spec.md), [F010](F010-creation-failures/spec.md), [DATA](../docs/DATA.md) · Spring/AI/Frontend |
-| 처리·사용자 확인 | 처리·구현 검증 기록과 문의자의 대상별 해결/미해결, 무응답 대기 | [F006](F006-my-inquiries/spec.md), [F009](F009-department-tickets/spec.md) · Spring/Frontend |
-| 사례 승인·공개 | 원 기록·사례/적용 버전, 확인·승인, 양쪽 반영·실패 복구·권한별 공개 | [F011](F011-case-lifecycle/spec.md), [지식 수명주기](../docs/knowledge/KNOWLEDGE_LIFECYCLE.md) · AI/데이터/Spring/Frontend |
-| 공통 실행·평가 | 모델·예산·인증·실행/오류·근거와 가상 데이터·검색 평가 | [에이전트 계약](../contracts/agents/README.md), [시나리오](../docs/knowledge/INCIDENT_SCENARIOS.md) · AI/데이터 |
+## 적용 전 선정 항목
 
-구현 순서와 담당은 팀 작업 상황에 맞게 정한다. 목록에 적힌 초안은 새 경로·DB 스키마가 배포됐다는 뜻이 아니다. 기존 코드·Mock을 전환할 때는 소비자와 테스트에 미치는 영향 및 각 서비스의 실제 상태를 함께 확인한다.
+| ID | 선정할 값·산출물 | 담당 | 적용 전 조건 |
+|---|---|---|---|
+| S01 | OpenAI 모델 ID·임베딩 ID·차원·modelProfileId·가격 기준일 | AI/데이터 | 실제 호출 코드 연결 전 검수·비용 비교. 특정 개인 실험을 기본값으로 강제하지 않음 |
+| S02 | maxModelCalls/maxInputTokens/maxOutputTokens/maxToolCalls/maxRetries/maxCostUsd와 전체 실행 기한 | AI/Spring | 누적 제한과 초과 검증을 포함한 실행 manifest. 미선정이면 real 실행 비활성 |
+| S03 | Vector 제품/컬렉션·접속 환경, Neo4j 허용 그래프 카탈로그·검색 평가 | 데이터/AI | 같은 임베딩·출처·ACL·공개 gate 검증. 기존 데이터셋을 무검수 재사용하지 않음 |
+| S04 | 시스템/기능 UUID·가상 사용자·PRIMARY seed, 카탈로그 노드/관계 출처 | 데이터/Spring | 세 시스템·단일 유효 PRIMARY·개인정보 없는 seed 검수 |
+| S05 | 물리 DDL·잠금/outbox·journal 보존·인덱스, 부서 데이터 이관·롤백 계획 | Spring/데이터 | [저장 제약안](../docs/DATA.md#9-hops-system-1-저장-제약안)의 경합 테스트와 마이그레이션 리뷰 |
+| S06 | API/AI origin·서비스 토큰 배포·CORS·쿠키/TLS·접근 회수 구현 | Spring/AI | 실제 환경 인증·권한·브라우저 통합 검증 |
+| S07 | 대표 시나리오·평가 분할·데이터 동결·목표·담당·일정 | 전체 | 미래 해결/정답 유출 없는 평가와 E2E 시연 결과 |
+| S08 | AI RunLedger의 재시작 보존·저장 방식·보존 범위와 운영 환경 | AI/Spring | 같은 runId 재접수로 모델 호출이 중복되지 않는지, 복원 불가 UNKNOWN·새 Run 복구 검사 |
+
+선정은 기능 확장을 미루는 절차가 아니다. 모든 업무·화면·전송·엔티티·State 범위는 C01~C10에 포함한다. 실제 공급자/환경/수치가 필요한 항목은 담당자가 근거와 결과를 공유해 구현 연결 전에 선정한다. 기존 코드의 과거 모델·예산값은 신규 선정값이 아니다.
+
+## 결정 기록 방법
+
+계약 항목 ID, 채택한 값/방식, 생산자·소비자, 리뷰 PR, 적용 프로필·코드 전환 시점, 검사 결과를 해당 PR에 남긴다. 개인 대화 원문·세션 ID·비밀값은 공유 문서에 넣지 않는다. 계약 수정 후에는 정본·예시·기능 시나리오·서비스 소비자 영향을 함께 검토한다.

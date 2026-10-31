@@ -103,3 +103,42 @@ Vector·Neo4j 반영 결과는 승인 버전 기준으로 각각 추적한다. �
 - **경합:** 담당 변경과 수동 정정, 메시지 버전 충돌, 같은 작업 재시도, 사례 승인 버전 변경과 반영 완료의 경합을 검토한다. 실제 유일 제약·잠금·트랜잭션은 물리 설계 후 테스트한다.
 - **전환:** 기존 부서 기반 seed·Mock·wire 필드는 새 시스템 소유권을 뜻하지 않는다. 이름을 일괄 치환하지 않고 기능 경계, 기존 ID·외래키·마이그레이션 호환성을 확인한다.
 - **평가:** 합성·데모 자료와 실제 운영을 구분하고, 평가 사건의 미래 해결 내용과 정답 매핑을 검색 자료나 프롬프트에 넣지 않는다.
+
+## 9. hops-system-1 저장 제약안
+
+상태: 팀 리뷰용 구체 제안. 실제 DDL·테이블명·마이그레이션은 작성/적용하지 않았다. 위의 물리 설계 미확정 표시는 이 제안의 승인·구현이 남았다는 뜻이다. 타입/상태는 [신규 데이터 계약](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1), 전이는 [TARGET](../specs/contracts/TARGET_CONTRACT.md)가 정본이다.
+
+물리 테이블·컬럼·FK·JPA 매핑은 [기존 물리 ERD 작업 #66](https://github.com/Hi-Hops/Hops/issues/66)과 대조해 결정한다. 별도 엔티티 사전을 중복 생성하지 않는다. 아래 WorkItem/SystemAssignment 등은 논리 개념이며 동일 이름의 테이블 생성을 강제하지 않는다.
+
+| 관계·키 | 제약 제안 | 저장 경계 |
+|---|---|---|
+| SystemAssignment | 시스템별 유효 PRIMARY 한 명. 유효 구간 중첩 금지 | 관계 변경 잠금·이력·권한 세대 증가·무효화 outbox를 함께 저장 |
+| Inquiry → Problem | 1:N. problemId와 inquiryId 귀속 불변 | 분석 적용 시 문의 버전/활성 Run 검증·문제 ID 재사용 |
+| Problem → WorkItem → Ticket | 각각 0:1. UNIQUE(problemId) 작업, UNIQUE(workItemId)와 UNIQUE(problemId) 티켓 | workItem 잠금 안에서 최신 제안·기존 성공 검사, 티켓·배정·작업 STORED를 함께 commit |
+| MessageRevision | UNIQUE(messageId,revisionNo); 원 ID·sequenceNo 고정 | 메시지 revision과 inquiryVersion 비교 후 정정 이력·현재 내용 함께 저장 |
+| ProblemMessage | UNIQUE(problemId,messageId,revision,startCodePoint,endCodePoint)·원문 구간 출처 | 구간은 Unicode 코드 포인트의 [start,end)이며 실제 원문·revision과 일치해야 함. 복합 메시지의 다른 문제 구간은 담당자에게 제외 |
+| QuestionBundle | UNIQUE(problemId,bundleRef); 횟수 0~5 | 저장된 AI 질문과 번들·질문 수 증가를 같은 거래에서 처리 |
+| CommandJournal | UNIQUE(actorId,profile,requestId); method/path/body hash 불변 | 업무 변경·결과 참조·outbox와 함께 commit. 처리 중 키 중복은 기존 작업으로 합침 |
+| WorkRecord | 티켓 1:N 불변 기록; 검증 완료 종류에 verification 필수 | ticketRevision 검사·기록·확인 요청·Curator outbox를 함께 저장 |
+| ResolutionRequest | 문제별 PENDING 최대 하나; sourceKind/sourceId/sourceVersion 고정 | 요청 revision 비교·한 응답·관련 문제/티켓 상태 변경 함께 저장 |
+| CuratorJob | UNIQUE(workRecordId) | 중복 outbox는 기존 작업. 원 기록은 실패 시에도 유지 |
+| CaseVersion/Approval | UNIQUE(caseId,caseVersion), 버전별 승인 최대 하나 | 최신 버전·원 기록 해결 확인·현재 담당 관계를 잠금 안에서 검사 |
+| IndexJob | UNIQUE(caseId,caseVersion,store); attempt 단조 증가 | 중복 반영 요청은 같은 논리 작업. 외부 저장소 키도 동일 복합 키 |
+| Publication | 승인 버전별 공개 gate | 같은 버전 두 성공 확인과 gate 변경을 DB 내 원자 처리 |
+
+티켓 assignee는 배정 당시 또는 마지막 수동 정정의 저장값이다. 시스템 PRIMARY 변경으로 기존 티켓 assignee를 자동 재배정하지 않는다. 접근·처리 권한은 현재 시스템 PRIMARY가 가지며 화면은 저장된 배정과 현재 담당 관계가 다름을 표시하고 필요 시 수동 정정한다.
+
+NOT_CREATED는 진행 중 작업이 없고 서버가 미저장/롤백을 확인한 결과다. journal 유실·조회 불가·HTTP timeout을 NOT_CREATED로 바꾸지 않는다. DB commit 후 HTTP 유실은 같은 키/작업의 기존 결과로 복구한다. journal 상세는 최소 24시간 보존하며 사용된 키 표식·원 업무 유일성은 그 이후에도 유지한다. 실제 운영 장기 보존/삭제 정책을 이번 문서에서 추가하지 않는다.
+
+외부 AI·Vector·Neo4j와 DB 분산 트랜잭션을 구성하지 않는다. 저장 후 outbox로 실행·반영하고 중복 수신을 논리 키로 제거한다. 검색은 파생 저장소의 상태 플래그만 신뢰하지 않고 Spring 업무 DB의 승인·gate·현재 ACL을 재검증한다. 구버전 CASE의 자동 폐기·승인 취소는 추가하지 않는다.
+
+마이그레이션은 신규 관계·유일성·불변 원 기록·이력·권한 세대를 포함해 별도 리뷰한다. 현재 부서 seed·DDL·운영 데이터를 이 문서 작업으로 삭제하거나 변경하지 않는다.
+
+## 10. 물리 ERD 작업과의 매핑 검토
+
+[이슈 #66](https://github.com/Hi-Hops/Hops/issues/66)은 시스템 테이블의 PRIMARY 컬럼과 문제 행의 생성 상태를 사용하는 물리안을 다룬다. 이 문서의 별도 SystemAssignment/WorkItem 저장 제안과 차이가 있으므로 두 안을 동시에 확정된 구현 지침으로 적용하지 않는다.
+
+- 외부 workItemId는 고정 생성 작업의 논리 식별자다. 별도 테이블 없이 problemId에서 대응시켜도 동일 작업·부분 실패·결과 확인·유일성 보장을 만족하면 된다. 실제 ID 매핑을 물리안 리뷰에 기록한다.
+- 유효 PRIMARY·당시 배정 이력·현재 권한 회수는 필요하지만 담당 관계를 독립 테이블 또는 시스템 컬럼/이력 중 어디에 둘지는 #66과 일치시킨다.
+- 사례 문서 버전·원 처리 기록·확인 요청·동일 버전 두 반영 상태는 복원 가능해야 한다. 테이블 수·명칭은 wire DTO와 1:1일 필요가 없다.
+- 이 문서 PR은 API/상태/권한/중복 방지의 검토 기준을 정리한다. 물리 ERD·Entity·Flyway 구현은 별도 연계 작업이며 현재 적용된 V1과 논리 ERD 문서는 변경하지 않는다.

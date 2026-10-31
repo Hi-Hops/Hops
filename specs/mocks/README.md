@@ -50,3 +50,22 @@
 프론트의 `auth.invalidated`·`resync.required` 수신·복구 분기와 429 대기 안내는 구현하고 Mock/HTTP·SSE 대역 테스트로 검사했다. 실제 Spring의 부서 SSE와 eventId 단일 필드 `resync.required` 수신도 검사했다. 이는 업무 REST 복구·서버 auth.invalidated 발행·쿠키 회전, 실제 업무 DB 유일성/트랜잭션·AI 예산 강제·품질/비용 검증을 대신하지 않는다.
 
 fixtures의 저장 응답은 MutationResult, 오류는 ApiErrorBody, 연결 대상은 SubscriptionTarget이다. 응답 객체 자체를 사용하며 별도 성공 외피나 구독 응답은 요구하지 않는다. MutationResult는 프론트에서 구현한 REST 연동 프로필이며 백엔드의 동일 DTO·저장 API 구현은 Q-INF-6으로 추적한다. 스냅샷 커서·replay는 미구현이다.
+
+## hops-system-1 검토 예시
+
+[hops-system-1.examples.json](hops-system-1.examples.json)은 PRD 1.44 구체 계약안을 검토하는 신규 가상 예시다. meta.runtime=false이며 현재 프론트·AI가 import하지 않는다. 가상의 확인·승인을 실제 사용자 동작·실제 운영 결과로 해석하지 않는다. 타입은 [신규 DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)를 따른다.
+
+각 case는 독립 상태 스냅샷이다. 같은 ID의 PENDING/RESOLVED나 PRIVATE/SEARCHABLE 예시를 하나의 동시 DB 상태로 합치지 않는다. 순차 실행·지식 품질·실제 승인 검증 자료는 아니다.
+
+| 자료 | 처리 |
+|---|---|
+| 기존 contracts/mock-profile.json | hops-mock-1 enum·타입·공백 규칙 보존 |
+| 기존 accounts.json | 현재 부서 기반 실행 Mock 계정 보존 |
+| 기존 fixtures.json / scenarios.json | 현재 테스트 소비 데이터 보존 |
+| hops-system-1.examples.json | 세 시스템·업무 상태와 Spring↔AI 요청/결과/이벤트를 함께 담은 단일 검토 예시 |
+
+이전 파일을 새 필드로 덮으면 현행 소비 코드가 깨지므로 신규 예시는 분리한다. 새 실행 Mock으로 전환할 때에는 profile 선택·신규 DTO·권한·시나리오 소비 어댑터와 함께 적용하고 기존 프로필의 테스트를 별도로 유지한다. 전체 기능의 설계/검증 범위를 이번 계약에서 미루지 않는다.
+
+필수 전환 시나리오는 현재 PRIMARY 접근/회수, 5회 질문 중복 방지·대기 재진입, 복합 일부 성공, 저장 후 응답 유실·조회 불가·동시 재시도, 처리/구현 검증·문제별 확인·미해결/무응답, Curator 중복·초안 실패, 승인 버전·반영 부분 실패/미확인/불일치·양쪽 비공개·성공 뒤 권한 검색이다. 각 spec의 Fxxx-CONTRACT 번호와 연결한다.
+
+AI 타입의 예시는 [wire JSON Schema](../../contracts/agents/hops-system-1.schema.json)로 검사한다. 업무 DTO 예시와 같은 cases 목록에 두어 별도 예시 파일을 중복 유지하지 않는다. 모든 예시는 독립 상태이며 실제 선택 모델·실행 예산·확인/승인 증거가 아니다.

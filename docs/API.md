@@ -119,3 +119,19 @@ Spring→Python 실행 요청과 AI 진행/결과의 경로·서비스 인증·�
 - 사례의 한쪽 반영 실패·미확인·버전 불일치에서 Vector와 Neo4j 양쪽 검색이 공개하지 않는지, 재반영 이후 권한별 검색이 가능한지 검증한다.
 
 이는 구현 후 관찰할 조건이다. 실제 경로·DTO와 상태 전이는 [목표 공통 계약](../specs/contracts/TARGET_CONTRACT.md), 업무 관계는 [DATA](DATA.md), 화면별 동작은 [기능 명세](../specs/README.md)와 함께 리뷰한다.
+
+## 10. hops-system-1 구체 API 계약안
+
+상태: 2026-10-31 팀 리뷰용 제안. 위 절의 미정/미확정 표시는 실제 승인·서비스 적용이 남았다는 뜻이며 구체 제안이 없는 상태와 구분한다. 새 경로·필드·상태를 아래 정본에서 검토한다.
+
+| 영역 | 구체 정본 |
+|---|---|
+| /api/v2 auth·시스템·문의·업무·확인·사례 API, HTTP·재시도·SSE | [WIRE_CONTRACT 12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
+| 응답/명령 필드·필수성·enum·버전 | [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1) |
+| 업무 전이·권한·부분 실패·두 저장소 공개 | [TARGET_CONTRACT](../specs/contracts/TARGET_CONTRACT.md) |
+| /internal/v2 AI 실행·서비스 인증·검색 | [에이전트 실행 계약안](../contracts/agents/README.md#hops-system-1-실행-계약안) |
+| 거래 경계·유일성·outbox·DB 공개 gate | [DATA 9절](DATA.md#9-hops-system-1-저장-제약안) |
+
+관리자는 /management/tickets의 제한 DTO를, 현재 시스템 담당자는 /tickets의 업무 상세를 사용한다. 문의자는 본인 InquiryResult의 결과만 읽는다. API 분리는 관리자라는 이유로 타인 원문이 공개되는 것을 막기 위한 계약안이다.
+
+새 receipt의 성공은 명령 저장을 뜻하고 AI/티켓/사례 후속 성공과 분리한다. 저장 결과 미확인에서는 결과 확인을, 확정 미생성에서는 동일 workItem 복구를 제공한다. 상세 URL·오류 표를 이 문서에 중복 복사하지 않는다. 기존 /api·Mock·Python agent-1은 소비 코드 전환 전까지 보존한다.
