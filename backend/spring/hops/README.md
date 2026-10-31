@@ -1,5 +1,7 @@
 # Hops Spring 백엔드
 
+> **PRD 1.44 전환:** 아래 부서·시드·SSE·API 내용은 현재 구현 설명이다. 새 목표의 시스템별 주담당자 배정·처리·확인·사례 승인·검색 반영은 이 문서 변경으로 구현되지 않았다. [PRD](../../../docs/PRD.md), [API](../../../docs/API.md), [데이터](../../../docs/DATA.md)를 기준으로 별도 계약·migration·구현이 필요하다.
+
 Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에서는 해당 디렉터리를 Gradle 프로젝트로 엽니다. 빌드·테스트·실행 명령은 이 디렉터리에서 실행합니다.
 
 ## 패키지 구성

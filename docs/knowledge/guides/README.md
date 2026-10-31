@@ -1,24 +1,18 @@
-# 직원 가이드 검토 목록
+# 직원 안내 목록
 
-JSON 정본은 `datasets/knowledge/v0/documents/employee_guides/`, RAG 청크는
-`datasets/knowledge/v0/chunks/`에 있다. 이 폴더의 개별 Markdown은 팀 검토를 위한
-자동 생성본이므로 직접 수정하지 않는다.
+PRD 1.44 기준 합성 초안 8건이다. 모든 문서는 내용·권한·출처 검수 전이며 검색 적재 금지다. 기계 판독 JSON·청크·manifest는 아직 생성하지 않았다. 실제 운영 기록이나 특정 제품의 확인된 동작으로 간주하지 않는다.
 
-| 범위 | 가이드 | 내용 상태 | RAG 적재 |
-|---|---|---|---|
-| 공통 | [IT 문의 전에 준비할 정보](GUIDE-COMMON-INQUIRY-INFO.v1.md) | 담당자 확정 | 대기 |
-| 공통 | [문의 처리와 해결 확인 절차](GUIDE-COMMON-PROCESS.v1.md) | 담당자 확정 | 대기 |
-| 공통 | [Hops가 처리하는 IT 문의 범위](GUIDE-COMMON-SCOPE.v1.md) | 담당자 확정 | 대기 |
-| IDENTITY | [비밀번호를 잊었을 때](GUIDE-IDENTITY-PASSWORD-FORGOT.v1.md) | 담당자 확정 | 대기 |
-| IDENTITY | [비밀번호 재설정 오류](GUIDE-IDENTITY-PASSWORD-RESET.v1.md) | 담당자 확정 | 대기 |
-| IDENTITY | [MFA 등록 한도](GUIDE-IDENTITY-MFA-LIMIT.v1.md) | 담당자 확정 | 대기 |
-| IDENTITY | [MFA 복구](GUIDE-IDENTITY-MFA-RECOVERY.v1.md) | 담당자 확정 | 대기 |
-| REMOTE_ACCESS | [VPN 연결 오류](GUIDE-REMOTE-VPN.v1.md) | 담당자 확정 | 대기 |
-| FILE_SHARE | [공유 드라이브 연결 오류](GUIDE-FILE-DRIVE.v1.md) | 담당자 확정 | 대기 |
-| FILE_SHARE | [공유 폴더 액세스 거부](GUIDE-FILE-ACCESS.v1.md) | 담당자 확정 | 대기 |
-| PORTAL | [포털 서버 오류](GUIDE-PORTAL-SERVER-ERROR.v1.md) | 담당자 확정 | 대기 |
-| PORTAL | [포털 조회 지연](GUIDE-PORTAL-SLOW.v1.md) | 담당자 확정 | 대기 |
-| PORTAL | [포털 저장 대기·실패](GUIDE-PORTAL-SAVE-WAIT.v1.md) | 담당자 확정 | 대기 |
+## 신규 작성 후보
 
-Wi-Fi·802.1X 가이드는 근거 `GE-014`, `GE-055`가 `hold`이므로 생성하지 않았다.
-13건은 데이터 담당자의 내용 확인을 마쳤다. 팀 리뷰를 거친 뒤에만 RAG 적재 상태를 변경한다.
+- [결재 문서 작성 방법](v1/GUIDE-DRAFT-결재-문서-작성.md)
+- [결재 문서가 보이지 않을 때](v1/GUIDE-DRAFT-결재-문서-조회.md)
+- [결재 문서의 첨부를 열 수 없을 때](v1/GUIDE-DRAFT-결재-첨부-열람.md)
+- [기능 추가·개선 요청 방법](v1/GUIDE-DRAFT-기능-변경-요청.md)
+- [계정이나 로그인 접근이 필요할 때](v1/GUIDE-DRAFT-로그인-계정-접근.md)
+- [로그인이 반복 요청될 때](v1/GUIDE-DRAFT-로그인-반복.md)
+- [업무 파일 공유 방법](v1/GUIDE-DRAFT-파일-공유.md)
+- [공유 파일 열람 권한 문의](v1/GUIDE-DRAFT-파일-열람-권한.md)
+
+## 기존 v0 자료
+
+이전 생성 문서는 기존 JSON과 코드 검증용으로 보존한다. [전환 검토 목록](../DATA_MIGRATION_REVIEW.md)에서 개별 자료의 재사용·수정·제외 후보를 확인한다. 기존 자료의 검수 이력은 새 초안의 승인이 아니다.

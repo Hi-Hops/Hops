@@ -1,46 +1,43 @@
-# 공통 데이터 계약
+# 공통 데이터·전송 계약
 
-상태: `hops-mock-1` 기반 · 2026-10-27 REST·SSE 개발 기준 확정 / 팀 리뷰·서비스 구현 검증 별도.
+기준: [PRD](../../docs/PRD.md) 1.44 · 팀 합의 제품 기획. 이 폴더는 **새 목표 계약**과 **현재 코드가 사용하는 기존 프로필**을 구분한다. 기획 합의는 새 API·DB·AI가 이미 구현됐거나 상세 wire 계약이 확정됐다는 뜻이 아니다.
 
-인증·상태·오류·재시도·AI 초기 예산·MVP 범위의 확정 개발 기준은 [WIRE_CONTRACT 10절](WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필)에 모은다. [11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)은 담당별 구현 작업과 미검증 항목이다. 정책 선택과 실제 서비스 구현·팀 리뷰/병합을 구분한다. 공통 폴더에서 언어별 코드나 DTO를 생성·배포하지 않는다.
+## 새 기획을 설계할 때
 
-프론트는 Mock과 live 모드에서 같은 JSON 계약을 사용한다. 서버 담당자는 [REST·이벤트 연결표와 live 프로필](WIRE_CONTRACT.md#9-프론트-live-연동-프로필), 실행 담당자는 [프론트 환경 설정](../../frontend/README.md)을 확인한다. live 통신 어댑터 제공과 팀원 서버의 구현·통합 검증 완료는 구분한다.
+1. [목표 공통 계약](TARGET_CONTRACT.md): 시스템·주담당자, 문제별 표준 요청, 티켓 복구, 처리·해결 확인, 사례 승인과 두 저장소 공개의 논리 입출력·상태 및 상세 필드 제안.
+2. [API 설계](../../docs/API.md)와 [데이터 설계](../../docs/DATA.md): 서비스 경계, 서버 검증과 저장·권한·동시성 고려사항.
+3. [기능 명세](../README.md)와 [에이전트 계약](../../contracts/agents/README.md): 화면 인수 조건과 역할별 입력·제안·실패 경계.
+4. [구현 계약 질문](../QUESTIONS.md): 경로·필드·enum·권한·재시도와 저장소 반영 등의 남은 상세 결정.
 
-- [데이터 타입과 필드](DATA_TYPES.md): 공통 기본 타입·값 목록·객체 필드·필수/nullable·제약.
-- [요청·응답과 전송 규칙](WIRE_CONTRACT.md): REST·SSE·AI 입출력 연결, 권한, 오류, 멱등 재전송·버전·순서.
-- [Mock 데이터](../mocks/README.md): 화면과 테스트에서 사용하는 JSON 예시. 실행용 로그인 값은 frontend/.env에만 작성한다.
+제품 정책은 PRD와 맞춘다. 예를 들어 문제당 질문 묶음은 최대 5회, 티켓은 책임 시스템의 주담당자에게 서버가 검증해 배정한다. 사례는 문의자 확인과 담당자 승인, 같은 승인 버전의 Vector·Neo4j 반영 성공 뒤 권한에 따라 검색 공개한다. 이미 합의한 기획 방향을 구현 세부사항과 혼동해 다시 미결정으로 표시하지 않는다.
 
-## 확정 기준과 남은 담당 작업
+목표 계약의 필드 이름·타입·필수성·코드·예시는 리뷰용 제안이다. 실제 구현 전에 생산자와 소비자가 API·DB·오류·권한·버전·호환 방식을 함께 결정한다. 저장·배정·해결·승인은 Spring이 검증하며 모델 출력이나 SSE 이벤트만으로 성공을 확정하지 않는다.
 
-정확한 필드·enum은 DATA_TYPES, 요청/응답·전이·오류 행동은 WIRE_CONTRACT가 원본이다. 로그인·Refresh·SSE 대상 연결·REST 저장 결과·문의 버전·1:N 작업/티켓·멱등 정책은 개발 기준으로 확정했다. 추가 OpenAPI/JSON Schema는 MVP 연결의 필수 선행 조건이 아니다.
+## 현재 코드·Mock과 기존 프로필
 
-백엔드는 REST/DB/인증과 브라우저 SSE, AI+백엔드는 실행 경계·내부 SSE·예산/결과 검증을 구현한다. 프론트의 fetch SSE 어댑터·제어 이벤트·일부 상태/429 UI도 남아 있다. 실제 키·주소·프록시/부하 설정·모델/SDK·금액 상한·DDL은 담당 설계 대상으로 남기며 11절에서 통합 검증과 구분한다.
+| 문서 | 용도 | 새 기획으로 전환할 때 |
+|---|---|---|
+| [데이터 타입과 필드](DATA_TYPES.md) | 현재 프론트 및 Python의 `hops-mock-1` 기반 필드·상태 | 기존 `category`, 부서 배정, 3회 질문 등은 새 제품 정책이 아니다. 타입·DTO·테스트와 함께 전환한다. |
+| [전송 계약](WIRE_CONTRACT.md) | 기존 REST/SSE·Mock/live 어댑터와 개발 프로필 | 현행 경로·이벤트를 추적하는 용도다. 시스템 담당 권한·문제별 확인·사례 반영의 신규 경로와 데이터는 아직 확정되지 않았다. |
+| [Mock 데이터](../mocks/README.md) | 부서 기반 JSON fixture 및 프론트 Mock 설명 | 새 계약 합의 후 소비 코드·예시·테스트를 함께 전환한다. Mock은 실제 서버 저장·권한·모델 품질을 검증하지 않는다. |
+| [에이전트 내부 타입](../../ai/src/hops_ai/contracts/agent_1.py) | 현재 구현된 `agent-1` 내부 모델 | 내부 계약과 Spring–AI wire를 구분한다. Intake·Diagnosis 명칭은 현재 코드이며 새 기획의 Inquiry·Knowledge 조건부 분석·Curator가 구현됐다는 뜻이 아니다. |
 
-질문의 ID와 #22/#38 연결, 후속 상세 설계는 [QUESTIONS](../QUESTIONS.md)를 따른다. 선택한 기준을 같은 질문으로 다시 묻지 않는다.
+기존 프로필의 세부 시간·인증·입력·재접속 규칙은 기존 구현과 테스트를 이해할 때 참고한다. 새 기획과 충돌하는 부서 배정·CS 검토·무응답 종료·단일 에이전트 MVP를 새 제품의 완료 기준으로 사용하지 않는다. 새 계약에 공통화할지, 기존 동작을 유지할지는 해당 기능의 호환 검토에서 다룬다.
 
-## 스펙별 사용 타입
+## 기능별 계약 연결
 
-- F001: LoginRequest, LoginResponse, CurrentUser, Department, Role, ApiErrorBody.
-- F002: SubscriptionTarget(후속 이름 변경 대상), AgentProgressEvent, AnswerDeltaEvent, MessageStoredEvent, StateChangedEvent, AuthInvalidatedEvent, ResyncRequiredEvent.
-- F003: InquiryCreateCommand, MessageSendCommand, MutationResult(프론트 구현·백엔드 저장 API 구현 별도), ChatMessage, MessageHistoryQuery, MessageHistoryPage, InquiryResult, RunSummary, RunRetryRequest. 기존 MessagePage는 전방 조회 호환 예제다.
-- F004: MessageReviseCommand, MutationResult(프론트 구현·백엔드 저장 API 구현 별도), ChatMessage, MessageRevision, InquiryResult.
-- F005: InquiryResult, Problem, TicketCard, CreationFailure, RunSummary.
-- F006 재진입용 최소 목록: InquiryListQuery, InquiryPage, InquirySummary. 독립 목록·상세 모달은 후속이다.
-- F009: TicketListQuery, TicketPage, TicketCard, TicketDetail, AssignmentHistory, Department.
-- 서비스 AI 연결: AiRequest, AiAccepted, AiProgress, AiDelta, AiResult와 각 하위 타입. 기존 내부 agent-1 계약을 교체하지 않는다.
+| 기능 | 필요한 목표 계약의 의미 | 주로 관련된 명세 |
+|---|---|---|
+| 인증·접근·실시간 | 문의 소유자, 현재 시스템 담당자와 관리자 권한; REST/SSE 복구 | [F001](../F001-auth/spec.md)·[F002](../F002-realtime/spec.md) |
+| 문의·정정·문제 | 문의 버전·원문·문제별 질문·보고 시스템·표준 요청 | [F003](../F003-chat/spec.md)·[F004](../F004-revision/spec.md)·[F008](../F008-split-consent/spec.md) |
+| 티켓·배정·복구 | 책임 시스템·주담당자·저장 성공/실패/미확인·동일 작업 재시도 | [F005](../F005-result-cards/spec.md)·[F009](../F009-department-tickets/spec.md)·[F010](../F010-creation-failures/spec.md) |
+| 처리·문의자 확인 | 처리/구현 완료, 문의자의 해결·미해결과 확인 대기 | [F006](../F006-my-inquiries/spec.md)·[F009](../F009-department-tickets/spec.md) |
+| 사례·검색 공개 | 초안·문의자 확인·담당자 승인·같은 버전의 양쪽 반영과 권한별 공개 | [F011](../F011-case-lifecycle/spec.md) |
+| 업무 관리 | 관리자 권한과 책임 시스템·담당자의 수동 정정 이력 | [F007](../F007-admin-view/spec.md) |
 
-F007의 읽기 전용 티켓 조회는 MVP다. 별도 관리자 요약·F008 분리 동의·F010 운영 기술 복구 UI는 후속이며 상세 입출력은 해당 기능 착수 전에 설계한다.
+## 전환·검증 규칙
 
-각 타입의 정확한 필드와 상태값은 데이터 타입 문서의 같은 제목에서 확인한다. 각 스펙에서도 사용하는 타입을 연결한다. 조회된 티켓은 서버 저장 결과이고 AI 제안은 업무 저장 성공이 아니다.
-
-## SSE 타입 전환 상태 (2026-10-28)
-
-프론트는 MutationResult 연동 프로필을 공용 타입에 구현했다. AuthInvalidatedEvent와 develop에 확정된 ResyncRequiredEvent를 수신하며, 재생 불가 시 REST 복구 후 커서를 비워 재연결한다. 정확한 필드·동작은 [DATA_TYPES](DATA_TYPES.md#mutationresult--rest-저장-결과의-프론트-연동-프로필)와 WIRE_CONTRACT 9절을 따른다. 백엔드는 같은 저장 결과 DTO를 구현해야 하며 프론트 타입 존재만으로 서버 구현 완료를 뜻하지 않는다.
-
-PR #59는 develop에 병합됐다(dc44f2c). 서버는 state.changed.target.id를 사용하며, replay 불가 시 eventId만 포함한 resync.required를 보낸 뒤 종료한다. 문의·티켓 대상과 채팅/AI 생산자·실제 전체 통합은 미완료다. 스냅샷 커서·Redis 도입은 이번 갱신으로 구현되거나 확정되지 않았다.
-
-## 관리 원칙
-
-필드명은 서비스 간 JSON에서 camelCase로 맞춘다. 필수 여부·null·상태·버전·오류 의미를 각 담당 언어에서 유지하되 내부 클래스·DB 자료형까지 통일하지 않는다. 계약 변경은 문서·영향받는 스펙·Mock 예시와 각 서비스 테스트를 함께 리뷰한다. 언어별 자동 생성/동기화 도구는 사용하지 않는다.
-
-관련 Q-BE·Q-INF·Q-AI·Q-ALL 미정 사항은 [QUESTIONS](../QUESTIONS.md)에 남긴다. 이 문서는 운영 정책 승인이나 실제 서비스 연동 완료를 뜻하지 않는다. 제품 정책은 [PRD](../../docs/PRD.md), 역할 경계는 [API](../../docs/API.md)·[DATA](../../docs/DATA.md)를 따른다.
+- 새 계약의 특정 필드·상태·경로는 문서에 제안된 것만으로 확정하거나 이미 구현된 것으로 표현하지 않는다.
+- 계약 변경 시 생산자·소비자, Mock JSON, DB 마이그레이션, 화면 상태·테스트에 미치는 영향을 함께 검토한다. 기존 API·테스트가 사용하는 형식을 임의로 깨지 않는다.
+- Fake/Mock 연결, 서버 저장·권한, 실제 모델·검색 및 브라우저 E2E를 별도 검증으로 기록한다.
+- 공유 문서는 담당자 간 리뷰와 PR 절차를 거친다. 제품 내 시스템 담당자의 해결 사례 승인과 공통 계약의 팀 리뷰는 별개다.

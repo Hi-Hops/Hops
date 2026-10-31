@@ -1,5 +1,7 @@
 # 코드 작성과 기능 완료 기준
 
+> **PRD 1.44 전환:** 아래 기존 공통 계약과 AC 참조는 현행 구현 프로필이다. 새 기능은 PRD와 각 명세의 목표 인수 조건을 기준으로 상세 계약을 합의하고 실제 구현·검증을 별도로 기록한다.
+
 범위: `frontend/src`. 자동 검사 규칙의 원본은 [ESLint 설정](../../frontend/eslint.config.js)·[TypeScript 설정](../../frontend/tsconfig.app.json)·[Prettier 설정](../../frontend/.prettierrc.json)이다. 기능 동작과 전송 데이터의 원본은 [스펙](../../specs/README.md)과 [공통 계약](../../specs/contracts/README.md)이다.
 
 ## 1. TypeScript·React

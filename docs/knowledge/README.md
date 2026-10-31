@@ -1,6 +1,10 @@
 # Hops Knowledge 설계
 
-Knowledge Agent와 Diagnosis·Ticket Agent 개발자가 공통으로 참고할 가상 기업, 장애 시나리오, 지식 데이터 구성과 개선 규칙이다.
+> **PRD 1.44 기준:** [새 정책](policies/POLICY-PRD-1.44.md), [가상 기업](VIRTUAL_COMPANY.md), [지식 수명주기](KNOWLEDGE_LIFECYCLE.md)가 새 기획을 설명한다. 아래 기존 v0 데이터·개별 문서는 이전 담당 부서와 독립 Diagnosis 구조를 포함할 수 있는 전환 전 자료다. 재검수·기계 판독 데이터 전환 전 검색 정본으로 사용하지 않는다.
+
+Knowledge·Inquiry·Ticket·Curator 담당자가 참고할 가상 기업, 문의 시나리오, 지식 데이터 구성과 개선 규칙이다.
+
+[새 데이터 전환 목록](DATA_MIGRATION_REVIEW.md)에서 기존 24개 가이드·런북의 검토 후보와 남은 검수를 확인한다.
 
 ## 먼저 읽을 문서
 

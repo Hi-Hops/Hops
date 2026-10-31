@@ -1,5 +1,7 @@
 # Hops AI 서버
 
+> **PRD 1.44 목표와 현재 코드:** 팀이 합의한 MVP는 모델 기반 Supervisor + Inquiry·Knowledge·Ticket·Curator다. 아래 단일 baseline·RuleRouter·Intake/Diagnosis 자리와 설정은 현재 코드 설명이며 목표 구현 완료가 아니다. 새 역할·검색·Curator 전환 계획은 [개발 안내](../docs/AGENT_DEVELOPMENT.md)와 [PRD](../docs/PRD.md)를 따른다.
+
 Spring이 요청한 문의 분석을 에이전트로 실행하고, 진행과 결과를 SSE로 돌려주는 Python 서버입니다. Python 3.13 + FastAPI + LangGraph로 만들며 업무 DB에는 쓰지 않습니다. 권한·저장·티켓 배정·상태 확정은 Spring이 하고, 이 서버의 결과는 제안입니다([PRD](../docs/PRD.md), [개발 안내](../docs/AGENT_DEVELOPMENT.md)).
 
 ## 현재 상태

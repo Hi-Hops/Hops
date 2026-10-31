@@ -1,0 +1,87 @@
+{
+  "schema_version": "knowledge_policy.v0",
+  "policy_id": "POLICY-SYSTEM-ROUTING",
+  "version_no": 1,
+  "title": "시스템 책임과 부분 실패",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "POLICY",
+  "access": {
+    "access_scope": "STAFF",
+    "exposure_policy": "INTERNAL_ONLY",
+    "ingest_status": "PENDING"
+  },
+  "purpose": "보고 시스템을 보존하고 책임 시스템 주담당자에게 배정한다.",
+  "rules": [
+    {
+      "rule_id": "RULE-NEW-ROUTE-ASSIGN",
+      "priority": 10,
+      "trigger": "담당자 처리가 필요한 문제가 준비됨",
+      "agent_action": "Ticket이 책임 시스템과 근거를 제안한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 지원 시스템·주담당자를 검증하고 티켓과 배정을 확정한다.",
+      "required_evidence": [
+        "보고 시스템",
+        "책임 시스템 판단 근거"
+      ],
+      "user_visible_behavior": "저장된 배정 결과를 보여준다.",
+      "prohibited_outcomes": [
+        "그래프 의존만으로 원인 확정",
+        "주담당자 미확인 상태에서 배정 성공 표시"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-ROUTE-FALLBACK",
+      "priority": 20,
+      "trigger": "다른 책임 시스템을 식별할 근거가 부족함",
+      "agent_action": "확인된 보고 시스템과 미확인 내용을 제안한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 보고 시스템 주담당자에게 최초 조사 업무를 연결한다.",
+      "required_evidence": [
+        "확인된 보고 시스템"
+      ],
+      "user_visible_behavior": "불확실한 내용을 구분한다.",
+      "prohibited_outcomes": [
+        "원인 임의 확정"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-ROUTE-RETRY",
+      "priority": 30,
+      "trigger": "복합 문의의 일부 티켓 생성이 실패 또는 미확인임",
+      "agent_action": "실제 미생성으로 확인된 작업만 다시 제안한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 문의 버전과 기존 저장 결과를 먼저 확인한다.",
+      "required_evidence": [
+        "문제와 저장 결과",
+        "현재 문의 버전"
+      ],
+      "user_visible_behavior": "성공·실패·미확인을 구분한다.",
+      "prohibited_outcomes": [
+        "미확인 상태에서 새 티켓 생성",
+        "성공 티켓 취소"
+      ]
+    }
+  ],
+  "prohibitions": [
+    "Agent의 실제 시스템 변경·원격 제어",
+    "모델 문구만으로 저장·배정·해결 성공 확정"
+  ],
+  "related_artifacts": {
+    "guide_ids": [],
+    "runbook_ids": [],
+    "scenario_ids": []
+  },
+  "provenance": {
+    "source_policy_ids": [
+      "PRD-1.44"
+    ],
+    "created_at": "2026-10-31"
+  },
+  "review": {
+    "content_status": "AI_DRAFT",
+    "reviewer": null,
+    "reviewed_at": null,
+    "team_review_status": "PENDING"
+  }
+}
