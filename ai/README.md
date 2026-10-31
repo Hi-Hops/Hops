@@ -4,6 +4,8 @@
 
 Spring이 요청한 문의 분석을 에이전트로 실행하고, 진행과 결과를 SSE로 돌려주는 Python 서버입니다. Python 3.13 + FastAPI + LangGraph로 만들며 업무 DB에는 쓰지 않습니다. 권한·저장·티켓 배정·상태 확정은 Spring이 하고, 이 서버의 결과는 제안입니다([PRD](../docs/PRD.md), [개발 안내](../docs/AGENT_DEVELOPMENT.md)).
 
+신규 역할·State·서버 간 DTO를 구현하기 전에는 [공통 구현 계약](../specs/contracts/README.md)을 진입점으로 검토합니다. 업무 상태·브라우저 전송·AI wire의 정본을 구분하며, 기존 `hops-mock-1`/`agent-1`과 제안된 `hops-system-1`을 혼용하지 않습니다.
+
 ## 현재 상태
 
 | 구현됨 (Fake 모드) | 구현 전 |

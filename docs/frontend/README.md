@@ -25,3 +25,11 @@
 React·TypeScript·Vite를 사용한다. 조회 데이터는 TanStack Query, 로그인·미전송 입력 같은 공용 클라이언트 상태는 Zustand, 모달의 키보드·포커스 처리는 Radix를 사용한다. 스타일은 CSS Modules와 공통 토큰을 따른다. 필요한 경우에만 의존성을 추가하고 이유와 영향은 PR에서 리뷰한다.
 
 기준을 변경할 때는 영향받는 코드·스펙·설정을 함께 갱신한다. 공통 Git 절차와 승인 조건은 루트 문서에서 관리한다.
+
+## hops-system-1 구현 준비
+
+PRD 1.44의 전체 MVP에 대한 구체 계약·화면안은 [공통 계약](../../specs/contracts/README.md)·[목표 경로](ROUTES.md#hops-system-1-목표-경로안)·각 기능의 CONTRACT 시나리오를 따른다. 이는 팀 리뷰안이며 현재 부서 기반 코드가 전환됐다는 뜻이 아니다.
+
+필드/상태는 DATA_TYPES 신규 절, 경로/오류/SSE는 WIRE_CONTRACT 12절, 업무 전이는 TARGET_CONTRACT를 정본으로 삼는다. docs/frontend에는 동일 표를 복제하지 않는다. 새 DTO·API adapter를 연결할 때 기존 /api·hops-mock-1과 신규 /api/v2·hops-system-1을 명시적으로 분리한다. 현재 폴더 레이어·공통 UI·상태 도구를 재사용하며 새 프레임워크는 추가하지 않는다.
+
+기존 프론트 테스트·Mock 통과를 신규 계약 통과로 기록하지 않는다. 문서/예시 검사와 실제 화면·서버 저장/권한·AI/검색·E2E를 구분한다. 실제 router·구현 현황은 코드 전환 뒤 갱신한다.

@@ -1,0 +1,1069 @@
+{
+  "meta": {
+    "contractVersion": "hops-system-1",
+    "status": "REVIEW_DRAFT",
+    "runtime": false,
+    "origin": "SYNTHETIC",
+    "notice": "검토용 가상 상태 예시. 실행 Mock·실제 사용자 확인·실제 승인·통합 완료가 아님 AI limits는 실제 선정 예산이 아닌 형식 검토용 가상 수치다.",
+    "snapshotMode": "INDEPENDENT"
+  },
+  "systems": [
+    {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": []
+    },
+    {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": []
+    },
+    {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": []
+    }
+  ],
+  "users": [
+    {
+      "id": "f5b994d0-b857-5aba-bd46-2c49c7e8d1f0",
+      "employeeNo": "DEMO-001",
+      "name": "가상 문의자",
+      "department": {
+        "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+        "code": "DEMO_STAFF",
+        "name": "가상 IT서비스팀"
+      },
+      "roles": [],
+      "primarySystemIds": []
+    },
+    {
+      "id": "291f55b2-1546-58d8-81a4-bfa73a8d072e",
+      "employeeNo": "DEMO-002",
+      "name": "가상 담당자",
+      "department": {
+        "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+        "code": "DEMO_STAFF",
+        "name": "가상 IT서비스팀"
+      },
+      "roles": [],
+      "primarySystemIds": [
+        "3320ce84-c47c-592c-b599-6e968e12b0a3",
+        "8ae35be5-1857-58c0-a478-e05b4217ff95"
+      ]
+    },
+    {
+      "id": "d521afcc-4b74-52db-ac36-aabe9fb59707",
+      "employeeNo": "DEMO-003",
+      "name": "가상 업무 관리자",
+      "department": {
+        "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+        "code": "DEMO_STAFF",
+        "name": "가상 IT서비스팀"
+      },
+      "roles": [
+        "BIZ_ADMIN"
+      ],
+      "primarySystemIds": []
+    }
+  ],
+  "cases": [
+    {
+      "id": "waiting-system-five-bundles",
+      "type": "Problem",
+      "value": {
+        "id": "6f56bcf4-02a9-5667-80f1-6c9d5ee8e6f8",
+        "inquiryId": "f7048c49-7c99-5465-b4e5-db5b06c348f1",
+        "summary": "시스템이 확인되지 않은 문서 조회 문제",
+        "intent": "OBSERVED_SYMPTOM",
+        "processingType": "INVESTIGATION",
+        "reportedSystemId": null,
+        "reportedFeatureId": null,
+        "state": "WAITING_SYSTEM",
+        "questionCount": 5,
+        "guide": null,
+        "creationResult": null,
+        "ticket": null,
+        "activeResolutionRequest": null
+      },
+      "acceptanceCriteria": [
+        "F003-CONTRACT-01",
+        "F003-CONTRACT-02"
+      ]
+    },
+    {
+      "id": "creation-stored",
+      "type": "TicketCreationResult",
+      "value": {
+        "workItemId": "8a748a9f-8675-537a-9030-fd1b51a9b77b",
+        "problemId": "85bb078a-732b-5a27-98ed-0a99fc97325a",
+        "inquiryVersion": 2,
+        "outcome": "STORED",
+        "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+        "error": null,
+        "updatedAt": "2026-10-31T06:00:00Z"
+      },
+      "acceptanceCriteria": [
+        "F010-CONTRACT-01"
+      ]
+    },
+    {
+      "id": "creation-not_created",
+      "type": "TicketCreationResult",
+      "value": {
+        "workItemId": "0714dc80-cdfa-54fb-adac-01139e7b2b72",
+        "problemId": "b52eda4e-0dab-580f-ae75-9e064e33e516",
+        "inquiryVersion": 2,
+        "outcome": "NOT_CREATED",
+        "ticketId": null,
+        "error": {
+          "code": "SERVICE_UNAVAILABLE",
+          "message": "가상 저장 결과 확인 상태",
+          "requestId": "0b2f3107-3ba7-5852-a933-91972bb3d2c4",
+          "retryable": true,
+          "fieldErrors": []
+        },
+        "updatedAt": "2026-10-31T06:00:00Z"
+      },
+      "acceptanceCriteria": [
+        "F010-CONTRACT-04"
+      ]
+    },
+    {
+      "id": "creation-unknown",
+      "type": "TicketCreationResult",
+      "value": {
+        "workItemId": "5b01bcbb-dca1-516c-b591-1ef929ddb2de",
+        "problemId": "09c71e6a-8112-5b5e-8ba5-66f479503bd4",
+        "inquiryVersion": 2,
+        "outcome": "UNKNOWN",
+        "ticketId": null,
+        "error": {
+          "code": "SERVICE_UNAVAILABLE",
+          "message": "가상 저장 결과 확인 상태",
+          "requestId": "48d12e8e-e56c-5013-b33f-f3a2a277ab7b",
+          "retryable": false,
+          "fieldErrors": []
+        },
+        "updatedAt": "2026-10-31T06:00:00Z"
+      },
+      "acceptanceCriteria": [
+        "F010-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "verified-work-record",
+      "type": "WorkRecord",
+      "value": {
+        "id": "4c74164a-260a-52d3-b08c-692f8669dd0b",
+        "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+        "kind": "VERIFIED_RESOLUTION",
+        "action": "가상 조회 필터를 수정했습니다.",
+        "verification": "가상 대상 문서의 목록 표시·상세 열람을 확인했습니다.",
+        "author": {
+          "id": "291f55b2-1546-58d8-81a4-bfa73a8d072e",
+          "name": "가상 담당자",
+          "department": {
+            "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+            "code": "DEMO_STAFF",
+            "name": "가상 IT서비스팀"
+          }
+        },
+        "createdAt": "2026-10-31T06:00:00Z"
+      },
+      "acceptanceCriteria": [
+        "F009-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "work-confirmation-pending",
+      "type": "ResolutionRequest",
+      "value": {
+        "id": "27ca34fd-3783-5253-9ac8-266f67577c52",
+        "inquiryId": "f7048c49-7c99-5465-b4e5-db5b06c348f1",
+        "problemId": "85bb078a-732b-5a27-98ed-0a99fc97325a",
+        "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+        "source": "WORK_RECORD",
+        "sourceId": "4c74164a-260a-52d3-b08c-692f8669dd0b",
+        "sourceVersion": 1,
+        "requestRevision": 1,
+        "state": "PENDING",
+        "resultSummary": "가상 대상 문서의 목록 표시·상세 열람을 확인했습니다.",
+        "confirmationOrigin": "SYNTHETIC_PRESET",
+        "createdAt": "2026-10-31T06:00:00Z",
+        "respondedAt": null
+      },
+      "acceptanceCriteria": [
+        "F006-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "work-confirmation-resolved",
+      "type": "ResolutionRequest",
+      "value": {
+        "id": "27ca34fd-3783-5253-9ac8-266f67577c52",
+        "inquiryId": "f7048c49-7c99-5465-b4e5-db5b06c348f1",
+        "problemId": "85bb078a-732b-5a27-98ed-0a99fc97325a",
+        "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+        "source": "WORK_RECORD",
+        "sourceId": "4c74164a-260a-52d3-b08c-692f8669dd0b",
+        "sourceVersion": 1,
+        "requestRevision": 2,
+        "state": "RESOLVED",
+        "resultSummary": "가상 대상 문서의 목록 표시·상세 열람을 확인했습니다.",
+        "confirmationOrigin": "SYNTHETIC_PRESET",
+        "createdAt": "2026-10-31T06:00:00Z",
+        "respondedAt": "2026-10-31T06:00:00Z"
+      },
+      "acceptanceCriteria": [
+        "F006-CONTRACT-01"
+      ]
+    },
+    {
+      "id": "guide-confirmation-pending",
+      "type": "ResolutionRequest",
+      "value": {
+        "id": "adc6e382-ca81-5a9a-87d9-0db9d8be2c49",
+        "inquiryId": "f7048c49-7c99-5465-b4e5-db5b06c348f1",
+        "problemId": "08828bfe-97c1-53d9-a594-9d092c146d64",
+        "ticketId": null,
+        "source": "GUIDE",
+        "sourceId": "8481f126-f890-5fa2-a1a3-dcfc74cb046d",
+        "sourceVersion": 1,
+        "requestRevision": 1,
+        "state": "PENDING",
+        "resultSummary": "가상의 승인 직원 가이드 안내 결과를 확인해 주세요.",
+        "confirmationOrigin": "SYNTHETIC_PRESET",
+        "createdAt": "2026-10-31T06:00:00Z",
+        "respondedAt": null
+      },
+      "acceptanceCriteria": [
+        "F003-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "case-partial-private",
+      "type": "CaseDetail",
+      "value": {
+        "version": {
+          "id": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "APPROVED",
+          "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+          "problemId": "85bb078a-732b-5a27-98ed-0a99fc97325a",
+          "workRecordId": "4c74164a-260a-52d3-b08c-692f8669dd0b",
+          "resolutionRequestId": "27ca34fd-3783-5253-9ac8-266f67577c52",
+          "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+          "title": "가상 문서 조회 조건 수정 사례",
+          "action": "가상 조회 필터를 수정했습니다.",
+          "verification": "가상 대상 문서의 목록 표시·상세 열람을 확인했습니다.",
+          "applicability": "가상 전자결재의 조회 필터가 적용된 경우",
+          "limitations": [
+            "다른 원인을 배제하지 않음"
+          ],
+          "appliesToSystemVersion": null,
+          "accessScope": "SYSTEM_STAFF",
+          "origin": "SYNTHETIC",
+          "confirmationOrigin": "SYNTHETIC_PRESET",
+          "sourceMessageIds": [
+            "900d4f2a-5338-51a4-b04a-82392ac3aa58"
+          ],
+          "createdAt": "2026-10-31T06:00:00Z"
+        },
+        "approval": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "approvedBy": {
+            "id": "291f55b2-1546-58d8-81a4-bfa73a8d072e",
+            "name": "가상 담당자",
+            "department": {
+              "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+              "code": "DEMO_STAFF",
+              "name": "가상 IT서비스팀"
+            }
+          },
+          "approvedAt": "2026-10-31T06:00:00Z"
+        },
+        "indexes": [
+          {
+            "jobId": "0d34c56b-0175-5842-9780-98c30ccdc0ca",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 2,
+            "store": "VECTOR",
+            "state": "SUCCEEDED",
+            "attempt": 1,
+            "error": null,
+            "updatedAt": "2026-10-31T06:00:00Z"
+          },
+          {
+            "jobId": "6e05d49e-d439-5486-b71b-7ae9fb76c305",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 2,
+            "store": "NEO4J",
+            "state": "FAILED",
+            "attempt": 1,
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "가상 관계 반영 실패",
+              "requestId": "40f81c9e-9482-5db8-a589-d01bc72bd7a8",
+              "retryable": true,
+              "fieldErrors": []
+            },
+            "updatedAt": "2026-10-31T06:00:00Z"
+          }
+        ],
+        "publication": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "PRIVATE",
+          "canSearch": false
+        }
+      },
+      "acceptanceCriteria": [
+        "F011-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "case-same-version-searchable",
+      "type": "CaseDetail",
+      "value": {
+        "version": {
+          "id": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "APPROVED",
+          "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+          "problemId": "85bb078a-732b-5a27-98ed-0a99fc97325a",
+          "workRecordId": "4c74164a-260a-52d3-b08c-692f8669dd0b",
+          "resolutionRequestId": "27ca34fd-3783-5253-9ac8-266f67577c52",
+          "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+          "title": "가상 문서 조회 조건 수정 사례",
+          "action": "가상 조회 필터를 수정했습니다.",
+          "verification": "가상 대상 문서의 목록 표시·상세 열람을 확인했습니다.",
+          "applicability": "가상 전자결재의 조회 필터가 적용된 경우",
+          "limitations": [
+            "다른 원인을 배제하지 않음"
+          ],
+          "appliesToSystemVersion": null,
+          "accessScope": "SYSTEM_STAFF",
+          "origin": "SYNTHETIC",
+          "confirmationOrigin": "SYNTHETIC_PRESET",
+          "sourceMessageIds": [
+            "900d4f2a-5338-51a4-b04a-82392ac3aa58"
+          ],
+          "createdAt": "2026-10-31T06:00:00Z"
+        },
+        "approval": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "approvedBy": {
+            "id": "291f55b2-1546-58d8-81a4-bfa73a8d072e",
+            "name": "가상 담당자",
+            "department": {
+              "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+              "code": "DEMO_STAFF",
+              "name": "가상 IT서비스팀"
+            }
+          },
+          "approvedAt": "2026-10-31T06:00:00Z"
+        },
+        "indexes": [
+          {
+            "jobId": "0d34c56b-0175-5842-9780-98c30ccdc0ca",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 2,
+            "store": "VECTOR",
+            "state": "SUCCEEDED",
+            "attempt": 1,
+            "error": null,
+            "updatedAt": "2026-10-31T06:00:00Z"
+          },
+          {
+            "jobId": "6e05d49e-d439-5486-b71b-7ae9fb76c305",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 2,
+            "store": "NEO4J",
+            "state": "SUCCEEDED",
+            "attempt": 2,
+            "error": null,
+            "updatedAt": "2026-10-31T06:00:00Z"
+          }
+        ],
+        "publication": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "SEARCHABLE",
+          "canSearch": true
+        }
+      },
+      "acceptanceCriteria": [
+        "F011-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "message-command",
+      "type": "MessageSendCommand",
+      "value": {
+        "requestId": "083586a6-92c5-5ef6-be01-93f709d1e31a",
+        "expectedInquiryVersion": 2,
+        "content": "가상 문서 조회 문제의 보완 내용입니다.",
+        "problemIds": [
+          "85bb078a-732b-5a27-98ed-0a99fc97325a"
+        ]
+      },
+      "acceptanceCriteria": [
+        "F004-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "stored-command-receipt",
+      "type": "CommandReceipt",
+      "value": {
+        "requestId": "083586a6-92c5-5ef6-be01-93f709d1e31a",
+        "operationId": "3ffe39e4-0fa7-5159-a899-2ece5a3765a3",
+        "state": "SUCCEEDED",
+        "resource": {
+          "type": "INQUIRY",
+          "id": "f7048c49-7c99-5465-b4e5-db5b06c348f1"
+        },
+        "error": null
+      },
+      "acceptanceCriteria": [
+        "F003-CONTRACT-04"
+      ]
+    },
+    {
+      "id": "case-unknown-private",
+      "type": "CaseDetail",
+      "value": {
+        "version": {
+          "id": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "APPROVED",
+          "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+          "problemId": "85bb078a-732b-5a27-98ed-0a99fc97325a",
+          "workRecordId": "4c74164a-260a-52d3-b08c-692f8669dd0b",
+          "resolutionRequestId": "27ca34fd-3783-5253-9ac8-266f67577c52",
+          "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+          "title": "가상 문서 조회 조건 수정 사례",
+          "action": "가상 조회 필터를 수정했습니다.",
+          "verification": "가상 대상 문서의 목록 표시·상세 열람을 확인했습니다.",
+          "applicability": "가상 전자결재의 조회 필터가 적용된 경우",
+          "limitations": [
+            "다른 원인을 배제하지 않음"
+          ],
+          "appliesToSystemVersion": null,
+          "accessScope": "SYSTEM_STAFF",
+          "origin": "SYNTHETIC",
+          "confirmationOrigin": "SYNTHETIC_PRESET",
+          "sourceMessageIds": [
+            "900d4f2a-5338-51a4-b04a-82392ac3aa58"
+          ],
+          "createdAt": "2026-10-31T06:00:00Z"
+        },
+        "approval": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "approvedBy": {
+            "id": "291f55b2-1546-58d8-81a4-bfa73a8d072e",
+            "name": "가상 담당자",
+            "department": {
+              "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+              "code": "DEMO_STAFF",
+              "name": "가상 IT서비스팀"
+            }
+          },
+          "approvedAt": "2026-10-31T06:00:00Z"
+        },
+        "indexes": [
+          {
+            "jobId": "0d34c56b-0175-5842-9780-98c30ccdc0ca",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 2,
+            "store": "VECTOR",
+            "state": "SUCCEEDED",
+            "attempt": 1,
+            "error": null,
+            "updatedAt": "2026-10-31T06:00:00Z"
+          },
+          {
+            "jobId": "6e05d49e-d439-5486-b71b-7ae9fb76c305",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 2,
+            "store": "NEO4J",
+            "state": "UNKNOWN",
+            "attempt": 1,
+            "error": {
+              "code": "SERVICE_UNAVAILABLE",
+              "message": "가상 반영 결과 미확인",
+              "requestId": "40f81c9e-9482-5db8-a589-d01bc72bd7a8",
+              "retryable": false,
+              "fieldErrors": []
+            },
+            "updatedAt": "2026-10-31T06:00:00Z"
+          }
+        ],
+        "publication": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "PRIVATE",
+          "canSearch": false
+        }
+      },
+      "acceptanceCriteria": [
+        "F011-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "case-version-mismatch-private",
+      "type": "CaseDetail",
+      "value": {
+        "version": {
+          "id": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "APPROVED",
+          "ticketId": "55b02af6-8988-5457-a793-8f96c710c592",
+          "problemId": "85bb078a-732b-5a27-98ed-0a99fc97325a",
+          "workRecordId": "4c74164a-260a-52d3-b08c-692f8669dd0b",
+          "resolutionRequestId": "27ca34fd-3783-5253-9ac8-266f67577c52",
+          "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+          "title": "가상 문서 조회 조건 수정 사례",
+          "action": "가상 조회 필터를 수정했습니다.",
+          "verification": "가상 대상 문서의 목록 표시·상세 열람을 확인했습니다.",
+          "applicability": "가상 전자결재의 조회 필터가 적용된 경우",
+          "limitations": [
+            "다른 원인을 배제하지 않음"
+          ],
+          "appliesToSystemVersion": null,
+          "accessScope": "SYSTEM_STAFF",
+          "origin": "SYNTHETIC",
+          "confirmationOrigin": "SYNTHETIC_PRESET",
+          "sourceMessageIds": [
+            "900d4f2a-5338-51a4-b04a-82392ac3aa58"
+          ],
+          "createdAt": "2026-10-31T06:00:00Z"
+        },
+        "approval": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "approvedBy": {
+            "id": "291f55b2-1546-58d8-81a4-bfa73a8d072e",
+            "name": "가상 담당자",
+            "department": {
+              "id": "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+              "code": "DEMO_STAFF",
+              "name": "가상 IT서비스팀"
+            }
+          },
+          "approvedAt": "2026-10-31T06:00:00Z"
+        },
+        "indexes": [
+          {
+            "jobId": "0d34c56b-0175-5842-9780-98c30ccdc0ca",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 2,
+            "store": "VECTOR",
+            "state": "SUCCEEDED",
+            "attempt": 1,
+            "error": null,
+            "updatedAt": "2026-10-31T06:00:00Z"
+          },
+          {
+            "jobId": "6e05d49e-d439-5486-b71b-7ae9fb76c305",
+            "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+            "caseVersion": 1,
+            "store": "NEO4J",
+            "state": "SUCCEEDED",
+            "attempt": 1,
+            "error": null,
+            "updatedAt": "2026-10-31T06:00:00Z"
+          }
+        ],
+        "publication": {
+          "caseId": "a8eaefd3-a28a-5aa6-baef-b165dcb730f1",
+          "caseVersion": 2,
+          "state": "PRIVATE",
+          "canSearch": false
+        }
+      },
+      "acceptanceCriteria": [
+        "F011-CONTRACT-03"
+      ]
+    },
+    {
+      "id": "analysis-request",
+      "type": "AiRunRequest",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "kind": "INQUIRY_ANALYSIS",
+        "inquiryId": "d85ec0e0-87fe-5822-8b82-9e3f7ae41686",
+        "inquiryVersion": 1,
+        "problemIds": [
+          "545be77d-cdd2-522c-8dcd-b5b714e7dd21"
+        ],
+        "messages": [
+          {
+            "id": "f08fe804-3068-52ba-8743-ccd6296809cb",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "가상 전자결재에서 문서가 보이지 않아요.",
+            "problemIds": [
+              "545be77d-cdd2-522c-8dcd-b5b714e7dd21"
+            ],
+            "createdAt": "2026-10-31T06:00:00Z"
+          }
+        ],
+        "problems": [
+          {
+            "id": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+            "summary": "가상 문서 조회 문제",
+            "intent": "OBSERVED_SYMPTOM",
+            "processingType": "INVESTIGATION",
+            "reportedSystemId": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+            "reportedFeatureId": null,
+            "state": "WAITING_USER",
+            "questionCount": 1,
+            "standardRequest": null
+          }
+        ],
+        "systems": [
+          {
+            "id": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+            "code": "ELECTRONIC_APPROVAL",
+            "name": "가상 전자결재",
+            "features": []
+          }
+        ],
+        "accessContext": {
+          "actorId": "0961c1e0-6689-5aae-827d-cae1cec61028",
+          "purpose": "EMPLOYEE_HELP",
+          "systemIds": [
+            "400a25b6-d618-57ef-9204-ada1f1bcacfd"
+          ],
+          "allowedDocumentScopes": [
+            "EMPLOYEE"
+          ],
+          "policyRevision": 1
+        },
+        "existingWorkItems": [],
+        "workRecord": null,
+        "expiresAt": "2026-10-31T06:00:30Z",
+        "limits": {
+          "maxModelCalls": 4,
+          "maxInputTokens": 8000,
+          "maxOutputTokens": 2000,
+          "maxToolCalls": 4,
+          "maxRetries": 0,
+          "maxCostUsd": 0.05
+        },
+        "modelProfileId": "EXAMPLE_ONLY_NOT_SELECTED"
+      }
+    },
+    {
+      "id": "analysis-accepted",
+      "type": "AiAccepted",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "status": "QUEUED",
+        "eventsPath": "/internal/v2/runs/dc0c70a0-3a15-59a2-baf6-b52ee6c85222/events"
+      }
+    },
+    {
+      "id": "analysis-question-result",
+      "type": "AiResult",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "kind": "INQUIRY_ANALYSIS",
+        "inquiryId": "d85ec0e0-87fe-5822-8b82-9e3f7ae41686",
+        "inquiryVersion": 1,
+        "status": "SUCCEEDED",
+        "answer": "문서가 보이지 않는 화면과 발생 시점을 알려주세요.",
+        "problemProposals": [
+          {
+            "problemRef": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+            "summary": "가상 문서 조회 문제",
+            "intent": "OBSERVED_SYMPTOM",
+            "processingType": "INVESTIGATION",
+            "reportedSystemCandidateId": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+            "facts": [
+              {
+                "text": "가상 전자결재에서 문서가 보이지 않음",
+                "sourceMessageIds": [
+                  "f08fe804-3068-52ba-8743-ccd6296809cb"
+                ],
+                "knowledgeEvidenceIds": []
+              }
+            ],
+            "assumptions": [],
+            "unknowns": [
+              "발생 화면·시점"
+            ],
+            "details": {
+              "taskOrScreen": null,
+              "requestedAccess": null,
+              "businessPurpose": null,
+              "expectedBehavior": null,
+              "actualBehavior": null,
+              "occurredAt": null,
+              "currentWorkflow": null,
+              "desiredChange": null,
+              "acceptanceCriteria": []
+            }
+          }
+        ],
+        "questions": [
+          {
+            "problemRef": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+            "bundleRef": "question-bundle-2",
+            "text": "어느 화면에서 언제부터 발생했나요?",
+            "requestedFields": [
+              "taskOrScreen",
+              "occurredAt"
+            ]
+          }
+        ],
+        "guide": null,
+        "ticketProposals": [],
+        "caseProposal": null,
+        "evidence": [],
+        "error": null
+      }
+    },
+    {
+      "id": "curator-request-before-user-confirmation",
+      "type": "AiRunRequest",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "a5246cc1-ac56-5fae-84bc-76917e51381b",
+        "kind": "CASE_DRAFT",
+        "inquiryId": "d85ec0e0-87fe-5822-8b82-9e3f7ae41686",
+        "inquiryVersion": 1,
+        "problemIds": [
+          "545be77d-cdd2-522c-8dcd-b5b714e7dd21"
+        ],
+        "messages": [
+          {
+            "id": "f08fe804-3068-52ba-8743-ccd6296809cb",
+            "revision": 1,
+            "sequenceNo": 1,
+            "sender": "USER",
+            "content": "가상 전자결재에서 문서가 보이지 않아요.",
+            "problemIds": [
+              "545be77d-cdd2-522c-8dcd-b5b714e7dd21"
+            ],
+            "createdAt": "2026-10-31T06:00:00Z"
+          }
+        ],
+        "problems": [
+          {
+            "id": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+            "summary": "가상 문서 조회 문제",
+            "intent": "OBSERVED_SYMPTOM",
+            "processingType": "INVESTIGATION",
+            "reportedSystemId": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+            "reportedFeatureId": null,
+            "state": "WAITING_USER",
+            "questionCount": 1,
+            "standardRequest": null
+          }
+        ],
+        "systems": [
+          {
+            "id": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+            "code": "ELECTRONIC_APPROVAL",
+            "name": "가상 전자결재",
+            "features": []
+          }
+        ],
+        "accessContext": {
+          "actorId": "0961c1e0-6689-5aae-827d-cae1cec61028",
+          "purpose": "CASE_DRAFT",
+          "systemIds": [
+            "400a25b6-d618-57ef-9204-ada1f1bcacfd"
+          ],
+          "allowedDocumentScopes": [
+            "EMPLOYEE",
+            "SYSTEM_STAFF"
+          ],
+          "policyRevision": 1
+        },
+        "existingWorkItems": [],
+        "workRecord": {
+          "id": "91a2f5a1-c8e7-557d-8a20-9503c796a930",
+          "ticketId": "bb10e74e-d947-5d40-a4f3-16531fbe0e9c",
+          "problemId": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+          "systemId": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+          "kind": "VERIFIED_RESOLUTION",
+          "action": "가상 조회 필터를 수정했습니다.",
+          "verification": "가상 문서 표시를 확인했습니다.",
+          "createdAt": "2026-10-31T06:00:00Z",
+          "resolutionRequestId": "c759aef2-ef3f-5aaa-a5ac-1abf9fb9b4d2",
+          "confirmationState": "PENDING"
+        },
+        "expiresAt": "2026-10-31T06:00:30Z",
+        "limits": {
+          "maxModelCalls": 4,
+          "maxInputTokens": 8000,
+          "maxOutputTokens": 2000,
+          "maxToolCalls": 4,
+          "maxRetries": 0,
+          "maxCostUsd": 0.05
+        },
+        "modelProfileId": "EXAMPLE_ONLY_NOT_SELECTED"
+      }
+    },
+    {
+      "id": "curator-draft-result",
+      "type": "AiResult",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "a5246cc1-ac56-5fae-84bc-76917e51381b",
+        "kind": "CASE_DRAFT",
+        "inquiryId": "d85ec0e0-87fe-5822-8b82-9e3f7ae41686",
+        "inquiryVersion": 1,
+        "status": "SUCCEEDED",
+        "answer": null,
+        "problemProposals": [],
+        "questions": [],
+        "guide": null,
+        "ticketProposals": [],
+        "caseProposal": {
+          "reusable": true,
+          "title": "가상 문서 조회 조건 사례",
+          "action": "가상 조회 필터를 수정했습니다.",
+          "verification": "가상 문서 표시를 확인했습니다.",
+          "applicability": "가상 조회 필터가 적용된 경우",
+          "limitations": [
+            "다른 원인을 확정하지 않음"
+          ],
+          "appliesToSystemVersion": null,
+          "accessScope": "SYSTEM_STAFF",
+          "sourceMessageIds": [
+            "f08fe804-3068-52ba-8743-ccd6296809cb"
+          ],
+          "entityLinks": [
+            {
+              "relation": "APPLIES_TO",
+              "targetId": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+              "evidenceIds": []
+            }
+          ]
+        },
+        "evidence": [],
+        "error": null
+      }
+    },
+    {
+      "id": "analysis-timeout-result",
+      "type": "AiResult",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "kind": "INQUIRY_ANALYSIS",
+        "inquiryId": "d85ec0e0-87fe-5822-8b82-9e3f7ae41686",
+        "inquiryVersion": 1,
+        "status": "TIMED_OUT",
+        "answer": null,
+        "problemProposals": [],
+        "questions": [],
+        "guide": null,
+        "ticketProposals": [],
+        "caseProposal": null,
+        "evidence": [],
+        "error": {
+          "code": "DEADLINE_EXCEEDED",
+          "message": "가상 실행 기한 초과",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "id": "analysis-progress-event",
+      "type": "AiEvent",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "seq": 1,
+        "eventType": "progress",
+        "payload": {
+          "role": "INQUIRY",
+          "displaySummary": "문의 내용을 확인해요."
+        }
+      }
+    },
+    {
+      "id": "analysis-delta-event",
+      "type": "AiEvent",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "seq": 2,
+        "eventType": "answer.delta",
+        "payload": {
+          "messageRef": "new:answer",
+          "chunkSeq": 1,
+          "text": "문의 내용을 확인하고 있어요."
+        }
+      }
+    },
+    {
+      "id": "analysis-result-event",
+      "type": "AiEvent",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "seq": 3,
+        "eventType": "result",
+        "payload": {
+          "contractVersion": "hops-system-1",
+          "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+          "kind": "INQUIRY_ANALYSIS",
+          "inquiryId": "d85ec0e0-87fe-5822-8b82-9e3f7ae41686",
+          "inquiryVersion": 1,
+          "status": "SUCCEEDED",
+          "answer": "문서가 보이지 않는 화면과 발생 시점을 알려주세요.",
+          "problemProposals": [
+            {
+              "problemRef": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+              "summary": "가상 문서 조회 문제",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystemCandidateId": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+              "facts": [
+                {
+                  "text": "가상 전자결재에서 문서가 보이지 않음",
+                  "sourceMessageIds": [
+                    "f08fe804-3068-52ba-8743-ccd6296809cb"
+                  ],
+                  "knowledgeEvidenceIds": []
+                }
+              ],
+              "assumptions": [],
+              "unknowns": [
+                "발생 화면·시점"
+              ],
+              "details": {
+                "taskOrScreen": null,
+                "requestedAccess": null,
+                "businessPurpose": null,
+                "expectedBehavior": null,
+                "actualBehavior": null,
+                "occurredAt": null,
+                "currentWorkflow": null,
+                "desiredChange": null,
+                "acceptanceCriteria": []
+              }
+            }
+          ],
+          "questions": [
+            {
+              "problemRef": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+              "bundleRef": "question-bundle-2",
+              "text": "어느 화면에서 언제부터 발생했나요?",
+              "requestedFields": [
+                "taskOrScreen",
+                "occurredAt"
+              ]
+            }
+          ],
+          "guide": null,
+          "ticketProposals": [],
+          "caseProposal": null,
+          "evidence": [],
+          "error": null
+        }
+      }
+    },
+    {
+      "id": "restart-unknown-snapshot",
+      "type": "AiRunSnapshot",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "status": "UNKNOWN",
+        "lastSeq": 0,
+        "result": null,
+        "error": {
+          "code": "MODEL_UNAVAILABLE",
+          "message": "가상 재시작 후 실행 확인 불가",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "completed-snapshot",
+      "type": "AiRunSnapshot",
+      "value": {
+        "contractVersion": "hops-system-1",
+        "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+        "status": "SUCCEEDED",
+        "lastSeq": 3,
+        "result": {
+          "contractVersion": "hops-system-1",
+          "runId": "dc0c70a0-3a15-59a2-baf6-b52ee6c85222",
+          "kind": "INQUIRY_ANALYSIS",
+          "inquiryId": "d85ec0e0-87fe-5822-8b82-9e3f7ae41686",
+          "inquiryVersion": 1,
+          "status": "SUCCEEDED",
+          "answer": "문서가 보이지 않는 화면과 발생 시점을 알려주세요.",
+          "problemProposals": [
+            {
+              "problemRef": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+              "summary": "가상 문서 조회 문제",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystemCandidateId": "400a25b6-d618-57ef-9204-ada1f1bcacfd",
+              "facts": [
+                {
+                  "text": "가상 전자결재에서 문서가 보이지 않음",
+                  "sourceMessageIds": [
+                    "f08fe804-3068-52ba-8743-ccd6296809cb"
+                  ],
+                  "knowledgeEvidenceIds": []
+                }
+              ],
+              "assumptions": [],
+              "unknowns": [
+                "발생 화면·시점"
+              ],
+              "details": {
+                "taskOrScreen": null,
+                "requestedAccess": null,
+                "businessPurpose": null,
+                "expectedBehavior": null,
+                "actualBehavior": null,
+                "occurredAt": null,
+                "currentWorkflow": null,
+                "desiredChange": null,
+                "acceptanceCriteria": []
+              }
+            }
+          ],
+          "questions": [
+            {
+              "problemRef": "545be77d-cdd2-522c-8dcd-b5b714e7dd21",
+              "bundleRef": "question-bundle-2",
+              "text": "어느 화면에서 언제부터 발생했나요?",
+              "requestedFields": [
+                "taskOrScreen",
+                "occurredAt"
+              ]
+            }
+          ],
+          "guide": null,
+          "ticketProposals": [],
+          "caseProposal": null,
+          "evidence": [],
+          "error": null
+        },
+        "error": null
+      }
+    }
+  ]
+}

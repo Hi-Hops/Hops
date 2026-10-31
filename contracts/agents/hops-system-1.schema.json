@@ -1,0 +1,2080 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HOPS hops-system-1 Spring-AI wire review draft",
+  "description": "PRD 1.44 검토용 스키마. 현재 런타임·팀 승인·실제 서비스 구현을 뜻하지 않음. 의미·출처·권한 검증은 STATE_CONTRACT.md를 함께 적용한다.",
+  "oneOf": [
+    {
+      "$ref": "#/definitions/AiRunRequest"
+    },
+    {
+      "$ref": "#/definitions/AiAccepted"
+    },
+    {
+      "$ref": "#/definitions/AiRunSnapshot"
+    },
+    {
+      "$ref": "#/definitions/AiResult"
+    },
+    {
+      "$ref": "#/definitions/AiEvent"
+    }
+  ],
+  "definitions": {
+    "AiError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "INVALID_OUTPUT",
+            "SEARCH_UNAVAILABLE",
+            "TOOL_UNAVAILABLE",
+            "MODEL_UNAVAILABLE",
+            "DEADLINE_EXCEEDED",
+            "BUDGET_EXCEEDED",
+            "AUTH_CONTEXT_INVALID",
+            "SUPERSEDED"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "SystemFeature": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "SupportedSystem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "code": {
+          "type": "string",
+          "enum": [
+            "ELECTRONIC_APPROVAL",
+            "COMMON_LOGIN",
+            "FILE_SHARING"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SystemFeature"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "name",
+        "features"
+      ],
+      "additionalProperties": false
+    },
+    "AccessContext": {
+      "type": "object",
+      "properties": {
+        "actorId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": [
+            "EMPLOYEE_HELP",
+            "SYSTEM_WORK",
+            "CASE_DRAFT"
+          ]
+        },
+        "systemIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "allowedDocumentScopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "EMPLOYEE",
+              "SYSTEM_STAFF"
+            ]
+          }
+        },
+        "policyRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "actorId",
+        "purpose",
+        "systemIds",
+        "allowedDocumentScopes",
+        "policyRevision"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutionLimits": {
+      "type": "object",
+      "properties": {
+        "maxModelCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "maxInputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "maxToolCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "maxCostUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "maxModelCalls",
+        "maxInputTokens",
+        "maxOutputTokens",
+        "maxToolCalls",
+        "maxRetries",
+        "maxCostUsd"
+      ],
+      "additionalProperties": false
+    },
+    "InputMessage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "sequenceNo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "sender": {
+          "type": "string",
+          "enum": [
+            "USER",
+            "AI"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "problemIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "sequenceNo",
+        "sender",
+        "content",
+        "problemIds",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeEvidence": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "documentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "GUIDE",
+            "POLICY",
+            "RUNBOOK",
+            "CASE"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "excerpt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "systemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "appliesToSystemVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "applicability": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "accessScope": {
+          "type": "string",
+          "enum": [
+            "EMPLOYEE",
+            "SYSTEM_STAFF"
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "SYNTHETIC",
+            "DEMO_VERIFIED",
+            "OPERATIONAL"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "documentId",
+        "documentVersion",
+        "kind",
+        "title",
+        "excerpt",
+        "systemId",
+        "appliesToSystemVersion",
+        "applicability",
+        "accessScope",
+        "origin"
+      ],
+      "additionalProperties": false
+    },
+    "EvidenceStatement": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "sourceMessageIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "knowledgeEvidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }
+      },
+      "required": [
+        "text",
+        "sourceMessageIds",
+        "knowledgeEvidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "AcceptanceCriterion": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "confirmation": {
+          "type": "string",
+          "enum": [
+            "PROPOSED",
+            "CONFIRMED"
+          ]
+        },
+        "confirmedBy": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "text",
+        "confirmation",
+        "confirmedBy"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "confirmation": {
+                "const": "PROPOSED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmedBy": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "confirmation": {
+                "const": "CONFIRMED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmedBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "RequestDetails": {
+      "type": "object",
+      "properties": {
+        "taskOrScreen": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requestedAccess": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "businessPurpose": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedBehavior": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actualBehavior": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "occurredAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentWorkflow": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "desiredChange": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "acceptanceCriteria": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AcceptanceCriterion"
+          }
+        }
+      },
+      "required": [
+        "taskOrScreen",
+        "requestedAccess",
+        "businessPurpose",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt",
+        "currentWorkflow",
+        "desiredChange",
+        "acceptanceCriteria"
+      ],
+      "additionalProperties": false
+    },
+    "StandardRequestBody": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "confirmedFacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvidenceStatement"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvidenceStatement"
+          }
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "responsibleSystemCandidateId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "responsibilityEvidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "details": {
+          "$ref": "#/definitions/RequestDetails"
+        },
+        "knowledge": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/KnowledgeEvidence"
+          }
+        }
+      },
+      "required": [
+        "summary",
+        "confirmedFacts",
+        "assumptions",
+        "unknowns",
+        "responsibleSystemCandidateId",
+        "responsibilityEvidenceIds",
+        "details",
+        "knowledge"
+      ],
+      "additionalProperties": false
+    },
+    "InputProblem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "HOW_TO",
+            "ACCESS_REQUEST",
+            "OBSERVED_SYMPTOM",
+            "FEATURE_REQUEST",
+            "IMPROVEMENT_REQUEST",
+            "UNKNOWN",
+            "OUT_OF_SCOPE"
+          ]
+        },
+        "processingType": {
+          "type": "string",
+          "enum": [
+            "KNOWLEDGE_QA",
+            "SERVICE_REQUEST",
+            "INVESTIGATION",
+            "INCIDENT",
+            "CHANGE_REQUEST",
+            "REVIEW_REQUIRED",
+            "OUT_OF_SCOPE"
+          ]
+        },
+        "reportedSystemId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reportedFeatureId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ANALYZING",
+            "WAITING_USER",
+            "WAITING_SYSTEM",
+            "TICKET_PENDING",
+            "IN_SERVICE",
+            "WAITING_CONFIRMATION",
+            "RESOLVED",
+            "OUT_OF_SCOPE"
+          ]
+        },
+        "questionCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "standardRequest": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/StandardRequestBody"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "summary",
+        "intent",
+        "processingType",
+        "reportedSystemId",
+        "reportedFeatureId",
+        "state",
+        "questionCount",
+        "standardRequest"
+      ],
+      "additionalProperties": false
+    },
+    "ExistingWorkItem": {
+      "type": "object",
+      "properties": {
+        "workItemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "problemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "STORED",
+            "NOT_CREATED",
+            "UNKNOWN"
+          ]
+        },
+        "ticketId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "workItemId",
+        "problemId",
+        "inquiryVersion",
+        "outcome",
+        "ticketId"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "STORED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ticketId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "ticketId": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "WorkRecordContext": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "ticketId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "problemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "systemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "VERIFIED_RESOLUTION",
+            "IMPLEMENTED_VERIFIED"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "verification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "resolutionRequestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "confirmationState": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "RESOLVED",
+            "UNRESOLVED"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "ticketId",
+        "problemId",
+        "systemId",
+        "kind",
+        "action",
+        "verification",
+        "createdAt",
+        "resolutionRequestId",
+        "confirmationState"
+      ],
+      "additionalProperties": false
+    },
+    "AiRunRequest": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "INQUIRY_ANALYSIS",
+            "CASE_DRAFT"
+          ]
+        },
+        "inquiryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "problemIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/InputMessage"
+          }
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/InputProblem"
+          }
+        },
+        "systems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SupportedSystem"
+          }
+        },
+        "accessContext": {
+          "$ref": "#/definitions/AccessContext"
+        },
+        "existingWorkItems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ExistingWorkItem"
+          }
+        },
+        "workRecord": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WorkRecordContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "limits": {
+          "$ref": "#/definitions/ExecutionLimits"
+        },
+        "modelProfileId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "contractVersion",
+        "runId",
+        "kind",
+        "inquiryId",
+        "inquiryVersion",
+        "problemIds",
+        "messages",
+        "problems",
+        "systems",
+        "accessContext",
+        "existingWorkItems",
+        "workRecord",
+        "expiresAt",
+        "limits",
+        "modelProfileId"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "INQUIRY_ANALYSIS"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "workRecord": {
+                "type": "null"
+              },
+              "accessContext": {
+                "properties": {
+                  "purpose": {
+                    "type": "string",
+                    "enum": [
+                      "EMPLOYEE_HELP",
+                      "SYSTEM_WORK"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "CASE_DRAFT"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "workRecord": {
+                "$ref": "#/definitions/WorkRecordContext"
+              },
+              "accessContext": {
+                "properties": {
+                  "purpose": {
+                    "const": "CASE_DRAFT"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ProblemProposal": {
+      "type": "object",
+      "properties": {
+        "problemRef": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|new:[A-Za-z0-9_-]+)$"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "HOW_TO",
+            "ACCESS_REQUEST",
+            "OBSERVED_SYMPTOM",
+            "FEATURE_REQUEST",
+            "IMPROVEMENT_REQUEST",
+            "UNKNOWN",
+            "OUT_OF_SCOPE"
+          ]
+        },
+        "processingType": {
+          "type": "string",
+          "enum": [
+            "KNOWLEDGE_QA",
+            "SERVICE_REQUEST",
+            "INVESTIGATION",
+            "INCIDENT",
+            "CHANGE_REQUEST",
+            "REVIEW_REQUIRED",
+            "OUT_OF_SCOPE"
+          ]
+        },
+        "reportedSystemCandidateId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvidenceStatement"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EvidenceStatement"
+          }
+        },
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "details": {
+          "$ref": "#/definitions/RequestDetails"
+        }
+      },
+      "required": [
+        "problemRef",
+        "summary",
+        "intent",
+        "processingType",
+        "reportedSystemCandidateId",
+        "facts",
+        "assumptions",
+        "unknowns",
+        "details"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionProposal": {
+      "type": "object",
+      "properties": {
+        "problemRef": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|new:[A-Za-z0-9_-]+)$"
+        },
+        "bundleRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "requestedFields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "required": [
+        "problemRef",
+        "bundleRef",
+        "text",
+        "requestedFields"
+      ],
+      "additionalProperties": false
+    },
+    "GuideProposal": {
+      "type": "object",
+      "properties": {
+        "messageText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "evidenceIds": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "problemRef": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|new:[A-Za-z0-9_-]+)$"
+        }
+      },
+      "required": [
+        "messageText",
+        "evidenceIds",
+        "problemRef"
+      ],
+      "additionalProperties": false
+    },
+    "TicketProposal": {
+      "type": "object",
+      "properties": {
+        "problemRef": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|new:[A-Za-z0-9_-]+)$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "processingType": {
+          "type": "string",
+          "enum": [
+            "KNOWLEDGE_QA",
+            "SERVICE_REQUEST",
+            "INVESTIGATION",
+            "INCIDENT",
+            "CHANGE_REQUEST",
+            "REVIEW_REQUIRED",
+            "OUT_OF_SCOPE"
+          ]
+        },
+        "responsibleSystemCandidateId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "standardRequestSnapshot": {
+          "$ref": "#/definitions/StandardRequestBody"
+        }
+      },
+      "required": [
+        "problemRef",
+        "title",
+        "processingType",
+        "responsibleSystemCandidateId",
+        "evidenceIds",
+        "standardRequestSnapshot"
+      ],
+      "additionalProperties": false
+    },
+    "EntityLink": {
+      "type": "object",
+      "properties": {
+        "relation": {
+          "type": "string",
+          "enum": [
+            "APPLIES_TO",
+            "ADDRESSES",
+            "USES_CHECK"
+          ]
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "evidenceIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        }
+      },
+      "required": [
+        "relation",
+        "targetId",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "CaseProposal": {
+      "type": "object",
+      "properties": {
+        "reusable": {
+          "type": "boolean"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "verification": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "applicability": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "appliesToSystemVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accessScope": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "EMPLOYEE",
+                "SYSTEM_STAFF"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceMessageIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "entityLinks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EntityLink"
+          }
+        }
+      },
+      "required": [
+        "reusable",
+        "title",
+        "action",
+        "verification",
+        "applicability",
+        "limitations",
+        "appliesToSystemVersion",
+        "accessScope",
+        "sourceMessageIds",
+        "entityLinks"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "reusable": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "action": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "verification": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "applicability": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "accessScope": {
+                "type": "string",
+                "enum": [
+                  "EMPLOYEE",
+                  "SYSTEM_STAFF"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reusable": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "title": {
+                "type": "null"
+              },
+              "action": {
+                "type": "null"
+              },
+              "verification": {
+                "type": "null"
+              },
+              "applicability": {
+                "type": "null"
+              },
+              "appliesToSystemVersion": {
+                "type": "null"
+              },
+              "accessScope": {
+                "type": "null"
+              },
+              "limitations": {
+                "maxItems": 0
+              },
+              "sourceMessageIds": {
+                "maxItems": 0
+              },
+              "entityLinks": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AiResult": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "INQUIRY_ANALYSIS",
+            "CASE_DRAFT"
+          ]
+        },
+        "inquiryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "inquiryVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "SUCCEEDED",
+            "FAILED",
+            "TIMED_OUT",
+            "SUPERSEDED"
+          ]
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "problemProposals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProblemProposal"
+          }
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/QuestionProposal"
+          }
+        },
+        "guide": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/GuideProposal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ticketProposals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TicketProposal"
+          }
+        },
+        "caseProposal": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CaseProposal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/KnowledgeEvidence"
+          }
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AiError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "contractVersion",
+        "runId",
+        "kind",
+        "inquiryId",
+        "inquiryVersion",
+        "status",
+        "answer",
+        "problemProposals",
+        "questions",
+        "guide",
+        "ticketProposals",
+        "caseProposal",
+        "evidence",
+        "error"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUCCEEDED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "error": {
+                "$ref": "#/definitions/AiError"
+              },
+              "problemProposals": {
+                "maxItems": 0
+              },
+              "questions": {
+                "maxItems": 0
+              },
+              "ticketProposals": {
+                "maxItems": 0
+              },
+              "evidence": {
+                "maxItems": 0
+              },
+              "answer": {
+                "type": "null"
+              },
+              "guide": {
+                "type": "null"
+              },
+              "caseProposal": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUCCEEDED"
+              },
+              "kind": {
+                "const": "INQUIRY_ANALYSIS"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "answer": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "caseProposal": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUCCEEDED"
+              },
+              "kind": {
+                "const": "CASE_DRAFT"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "caseProposal": {
+                "$ref": "#/definitions/CaseProposal"
+              },
+              "answer": {
+                "type": "null"
+              },
+              "guide": {
+                "type": "null"
+              },
+              "problemProposals": {
+                "maxItems": 0
+              },
+              "questions": {
+                "maxItems": 0
+              },
+              "ticketProposals": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "AiAccepted": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "status": {
+          "const": "QUEUED"
+        },
+        "eventsPath": {
+          "type": "string",
+          "pattern": "^/internal/v2/runs/[0-9a-f-]{36}/events$"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "runId",
+        "status",
+        "eventsPath"
+      ],
+      "additionalProperties": false
+    },
+    "AiRunSnapshot": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "QUEUED",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "TIMED_OUT",
+            "SUPERSEDED",
+            "UNKNOWN"
+          ]
+        },
+        "lastSeq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AiResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AiError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "contractVersion",
+        "runId",
+        "status",
+        "lastSeq",
+        "result",
+        "error"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "QUEUED",
+                  "RUNNING",
+                  "UNKNOWN"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "SUCCEEDED",
+                  "FAILED",
+                  "TIMED_OUT",
+                  "SUPERSEDED"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "$ref": "#/definitions/AiResult"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUCCEEDED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "properties": {
+                  "status": {
+                    "const": "SUCCEEDED"
+                  }
+                }
+              },
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "FAILED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "properties": {
+                  "status": {
+                    "const": "FAILED"
+                  }
+                }
+              },
+              "error": {
+                "$ref": "#/definitions/AiError"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "TIMED_OUT"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "properties": {
+                  "status": {
+                    "const": "TIMED_OUT"
+                  }
+                }
+              },
+              "error": {
+                "$ref": "#/definitions/AiError"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUPERSEDED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "result": {
+                "properties": {
+                  "status": {
+                    "const": "SUPERSEDED"
+                  }
+                }
+              },
+              "error": {
+                "$ref": "#/definitions/AiError"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ProgressPayload": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": [
+            "SUPERVISOR",
+            "INQUIRY",
+            "KNOWLEDGE",
+            "TICKET",
+            "CURATOR"
+          ]
+        },
+        "displaySummary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "role",
+        "displaySummary"
+      ],
+      "additionalProperties": false
+    },
+    "DeltaPayload": {
+      "type": "object",
+      "properties": {
+        "messageRef": {
+          "type": "string",
+          "pattern": "^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|new:[A-Za-z0-9_-]+)$"
+        },
+        "chunkSeq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "messageRef",
+        "chunkSeq",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "AiEvent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "const": "hops-system-1"
+            },
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "eventType": {
+              "const": "progress"
+            },
+            "payload": {
+              "$ref": "#/definitions/ProgressPayload"
+            }
+          },
+          "required": [
+            "contractVersion",
+            "runId",
+            "seq",
+            "eventType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "const": "hops-system-1"
+            },
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "eventType": {
+              "const": "answer.delta"
+            },
+            "payload": {
+              "$ref": "#/definitions/DeltaPayload"
+            }
+          },
+          "required": [
+            "contractVersion",
+            "runId",
+            "seq",
+            "eventType",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contractVersion": {
+              "const": "hops-system-1"
+            },
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "eventType": {
+              "const": "result"
+            },
+            "payload": {
+              "$ref": "#/definitions/AiResult"
+            }
+          },
+          "required": [
+            "contractVersion",
+            "runId",
+            "seq",
+            "eventType",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
