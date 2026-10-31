@@ -9,6 +9,7 @@
 1. [AGENTS.md](AGENTS.md): 팀과 AI의 공통 작업 규칙.
 2. [PRD](docs/PRD.md): 제품 목적·사용자·기능·범위·성공 기준.
 3. [Git 컨벤션](GIT_CONVENTION.md): 브랜치·커밋·PR·리뷰 방법.
+4. [공통 구현 계약](specs/contracts/README.md): Frontend·Spring·AI 서버가 함께 검토하는 업무 상태·데이터·전송·역할의 정본과 읽는 순서. PRD 1.44 신규 계약안과 현재 구현 프로필을 구분합니다.
 
 Claude Code의 진입점은 [CLAUDE.md](CLAUDE.md)이며 AGENTS.md를 먼저 읽도록 안내합니다.
 
