@@ -150,7 +150,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 - **동작 순서:** 로그인 ID로 회원·부서·역할을 DB에서 찾고(삭제된 회원 제외) → BCrypt로 비밀번호 해시 비교 → `AccessTokenIssuer`가 토큰 발급 (`auth/service`).
 - **토큰 클레임:** `sub`(회원 UUID), `employeeNo`, `departmentId`·`departmentCode`·`departmentName`, `roles`, `iss`·`aud`·`iat`·`exp`(발급 후 15분). 토큰 내용은 누구나 읽을 수 있으므로 비밀번호 등은 넣지 않습니다.
 - **`/me`는 토큰이 아니라 DB를 다시 읽습니다.** 토큰 발급 뒤 역할 회수·부서 변경·계정 차단이 있었을 수 있기 때문입니다.
-- 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD 설명](../../../docs/ERD_설명.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
+- 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD](../../../docs/ERD.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
 - **아직 없음:** refresh 토큰(HttpOnly 쿠키), `POST /api/auth/logout`.
 
