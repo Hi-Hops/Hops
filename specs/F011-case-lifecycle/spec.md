@@ -36,7 +36,7 @@
 - **F011-DETAIL-03 문의자 확인:** 문의자의 해결 확인 전이나 담당자의 승인 전에는 공개하지 않는다. 기능 요청은 실제 구현·검증 완료 기록도 확인한다.
 - **F011-DETAIL-04 부분 반영:** Vector만 또는 Neo4j만 성공하면 양쪽 검색에서 해당 승인 버전을 반환하지 않는다. 성공한 반영과 승인·업무 기록은 보존한다.
 - **F011-DETAIL-05 미확인·버전 불일치:** 한쪽 결과가 미확인이거나 승인 사례와 색인 버전이 다르면 공개 가능으로 취급하지 않는다.
-- **F011-DETAIL-06 재반영:** 원인을 수정하고 FAILED 반영을 수동 재실행한다. UNKNOWN은 먼저 결과를 확인한다. 조작·권한·멱등성은 아래 신규 계약안을 따르며 자동 재시도·전용 복구 화면은 제외한다.
+- **F011-DETAIL-06 재반영:** 원인을 수정하고 FAILED 반영을 수동 재실행한다. PENDING/RUNNING/UNKNOWN은 기존 반영 확인 조작을 사용하며, 유효한 원격 NOT_FOUND에서만 보존한 같은 요청의 멱등 재접수를 허용한다. 새 attempt 생성과 구분하고 자동 재시도·전용 복구 화면은 제외한다.
 - **F011-DETAIL-07 버전·적용:** 사례 문서 버전과 적용 시스템 버전을 구분하고 알 수 없는 적용 버전은 미확인으로 표시한다. 오래된 사례를 무조건 삭제·차단하지 않는다.
 - **F011-DETAIL-08 출처:** 합성 사례의 가상 문의자 확인 설정과 실제 HOPS 확인을 구분한다. 실제 운영 이력으로 오인하지 않는다.
 - **F011-DETAIL-09 검색 권한:** 직원용 공개 지식과 담당자 내부 자료를 분리하고 서버가 승인·공개 상태 및 현재 접근 권한을 검색 양쪽 경로에서 검증한다.
@@ -52,7 +52,7 @@
 | 초안 생성 | CaseGeneration은 원 검증 WorkRecord당 한 작업. FAILED는 담당자 수동 재시도, NO_REUSABLE_CASE는 사례 없음 |
 | 편집·승인 | CaseEditCommand/CaseApproveCommand. 현재 담당 관계·원 기록 해결 응답·기능 검증·caseVersion 검사 |
 | 편집 범위 | MVP는 현재 DRAFT만 편집·버전 증가. 승인 후 내용은 읽기 전용이며 복수 승인 버전 병행은 후순위 |
-| 반영·확인 | CaseDetail.indexes의 저장소별 버전·상태와 Publication 표시. UNKNOWN은 index-checks로 확인 |
+| 반영·확인 | PENDING/RUNNING/UNKNOWN은 index-checks로 확인. 유효한 원격 NOT_FOUND이면 승인 시 보존한 같은 요청을 멱등 재접수. 새 jobId/attempt 생성 없음 |
 | 실패 반영 | FAILED 저장소만 index-retries. 성공한 반영·승인·업무 기록은 유지 |
 
 | 화면 상태 | 관찰 가능한 동작 |
@@ -100,3 +100,8 @@
 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
 
 - **F011-CONTRACT-08:** 기존 resolved_case의 현재 승인 버전과 vector_status/graph_status 두 성공을 확인한 경우에만 공개한다. 추가 버전·반영 이력 테이블 없이 다른 버전의 응답은 적용하지 않는다.
+
+- **F011-CONTRACT-09:** 승인 commit 뒤 색인 POST 전 종료돼도 승인과 같은 거래에 보존한 source_metadata.indexRequests로 복구한다. 담당자 확인에서 유효한 원격 NOT_FOUND이면 동일 jobId/attempt/digest/본문을 재접수하며 두 성공 전 검색 비공개를 유지한다. 승인 또는 요청 보존이 실패하면 해당 승인 거래 전체가 롤백된다.
+- **F011-CONTRACT-10:** 원격이 접수했으나 응답이 유실된 경우 기존 RUNNING/UNKNOWN snapshot은 조회만 반영한다. 최초 전달과 수동 재전달이 경합해도 AI의 같은 (jobId,attempt) 실행은 하나이며 내용이 다르면409다.
+- **F011-CONTRACT-11:** timeout·5xx·인증/권한 오류·형식이 잘못된404·메타데이터 누락·승인 버전 불일치는 새 POST나 attempt 증가를 만들지 않는다. 현재 권한 없는 사용자의 확인 요청과 브라우저 GET·폴링도 색인을 시작하지 않는다.
+- **F011-CONTRACT-12:** FAILED의 다음 attempt를 저장한 뒤 전달 전 종료되면 그 현재 요청을 같은 키로 재접수한다. 이전 attempt의 늦은 성공은 무시하고 다른 저장소의 성공은 유지한다. 원격 상세 보존 기간이 지나 기존 키만 남으면 UNKNOWN을 반환하고 새 작업으로 실행하지 않는다.

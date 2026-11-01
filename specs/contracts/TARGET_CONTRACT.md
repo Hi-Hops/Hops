@@ -111,9 +111,9 @@ MVP는 기존 resolved_case의 현재 DRAFT만 편집하고 낙관적 버전 검
 
 CASE 버전은 원 WorkRecord·확인 요청·원문 출처에 고정한다. 미해결 응답을 받은 처리 기록의 초안은 승인하지 않는다. 이후 검증 완료 기록은 별도 Curator 작업과 새 사례 후보를 만든다. 초안이 재사용할 내용이 없으면 승인 대상을 만들지 않는다.
 
-승인 commit 뒤 Spring이 저장소별 반영을 호출한다. 기존 resolved_case.vector_status/graph_status를 현재 승인 버전의 결과로 사용하고 요청/응답의 caseVersion·작업 참조를 대조한다. 별도 반영 이력 테이블과 영속 전달 큐는 만들지 않는다. Vector/Neo4j 결과는 Spring을 통한 현재 승인·공개·ACL 검증을 통과한 항목만 반환한다.
+승인과 같은 DB 거래에서 현재 CASE 검색 문서 버전의 source_metadata.indexRequests에 VECTOR/NEO4J의 현재 IndexApplyRequest를 각각 보존하고 두 상태를 PENDING으로 둔다. commit 뒤 Spring이 그 요청을 전달한다. 기존 resolved_case.vector_status/graph_status를 현재 승인 버전의 결과로 사용하며 별도 반영 이력 테이블과 영속 전달 큐는 만들지 않는다. Vector/Neo4j 결과는 Spring을 통한 현재 승인·공개·ACL 검증을 통과한 항목만 반환한다.
 
-실패 반영은 담당자가 원인을 수정한 뒤 수동 재실행한다. UNKNOWN은 먼저 상태 확인으로 성공/실패를 판정하며 그대로 재실행하지 않는다. 성공한 저장소는 유지한다. 사용자에게 원시 예외·비밀값을 보여 주지 않는다. 자동 재시도·전용 복구 화면·새 지식 검토자 역할은 추가하지 않는다.
+실패 반영은 담당자가 원인을 수정한 뒤 수동 재실행한다. UNKNOWN은 먼저 상태를 확인하며 새 attempt를 만들지 않는다. 담당자의 index-checks에서 유효한 원격 NOT_FOUND를 받으면 보존된 같은 작업·attempt·digest·본문으로 멱등 재접수할 수 있다. 이는 미전달 요청의 복구이며 실패 후 새 시도와 구분한다. 세부 경계는 [I1.1 수동 복구](../../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)를 따른다. 성공한 저장소는 유지하며 자동 재시도·전용 복구 화면·새 지식 검토자 역할은 추가하지 않는다.
 
 ## 8. 화면 구성과 계약 연결
 

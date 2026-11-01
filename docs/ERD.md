@@ -558,7 +558,7 @@ MVP는 병합된 22개 테이블을 재사용한다. 별도 해결 확인·사�
 | agent_run | input_snapshot JSONB NOT NULL, QUEUED 상태 추가, started_at NULL 허용 | 입력은 AiRunRequest. 상담 answerMessageId는 input_snapshot에 고정하며 CURATION은null. result와 validation_result를 분리. CURATION이면 trigger_work_log_id 필수·UNIQUE(trigger_work_log_id) WHERE task=CURATION, 상담이면 처리 기록 없음 |
 | idempotency_key | contract_version VARCHAR(50), operation_id UUID UNIQUE, operation_state VARCHAR(30), resource_type VARCHAR(30) NULL, resource_id UUID NULL, tombstoned_at TIMESTAMPTZ NULL | 신규 필수 키는 NOT NULL, UNIQUE(actor_member_id,contract_version,idempotency_key). operation_state=PENDING/SUCCEEDED/REJECTED/UNKNOWN. 메서드/경로/본문 해시를 재확인 후 버전 비교 |
 | idempotency_key | response_status/response_body는 tombstone 정리 뒤 NULL 허용 | 상세 최소24시간. 만료 뒤410, 기존 키/해시/operation/resource는 보존. 같은 키 새 실행 금지. PENDING 접수는202 receipt이며 업무 반영+최종 journal은 한 거래로 저장 |
-| knowledge_document_version | content_digest CHAR(64) NOT NULL, source_metadata JSONB NOT NULL, review_status VARCHAR(30) NOT NULL DEFAULT PENDING | 승인 원문 UTF-8 바이트 SHA-256과 origin/출처/적용 조건을 버전 고정. 승인된 문서/버전만 검색하며 현재 ACL·data_split도 검사 |
+| knowledge_document_version | content_digest CHAR(64) NOT NULL, source_metadata JSONB NOT NULL, review_status VARCHAR(30) NOT NULL DEFAULT PENDING | 승인 원문·origin/출처/조건을 버전 고정. CASE의 source_metadata.indexRequests는 VECTOR/NEO4J 현재 IndexApplyRequest를 승인과 같은 거래로 보존. 기술 요청 메타데이터는 본문 해시·공개 DTO·모델 입력에서 제외 |
 | knowledge_document | document_type에 CASE 허용 | 승인된 현재 사례의 검색용 문서. 원본과 승인 여부는 resolved_case에서 확인하며 직원 공개 범위도 재검사 |
 | hops_knowledge.knowledge_chunk | embedding VECTOR, 차원은 모델 선정 후 정의. 기존 knowledge_document_version_id FK 유지, content_digest/chunk_digest CHAR(64) NOT NULL | 문서와 승인 CASE 모두 기존 문서 버전 경로로 검색 조각 저장. UNIQUE(knowledge_document_version_id,chunk_no). source_metadata의 원 사례 ID/버전과 실제 승인 내용을 대조 |
 
@@ -568,7 +568,7 @@ MVP는 병합된 22개 테이블을 재사용한다. 별도 해결 확인·사�
 
 - **해결 확인:** 가이드는 inquiry_problem.confirm_requested_at/resolved_at과 message.payload, 티켓은 ticket.confirm_requested_at/resolved_at과 ticket_event를 사용한다. 요청의 원 메시지·처리 기록·현재 확인 상태·revision은 기존 JSONB 메타데이터에 연결해 ResolutionRequest DTO로 투영한다. 새 테이블이나 그 테이블의 FK를 요구하지 않는다.
 - **사례 편집과 승인:** resolved_case의 현재 초안과 version_no를 사용한다. 초안을 고칠 때 현재 행의 버전을 증가시키며 과거 초안 전체를 별도 행으로 보존하지 않는다. 승인 후에는 내용 편집을 막고, 현재 승인 버전과 두 반영 결과만 검증한다. 승인 후 새 초안·과거 승인 버전의 병행 관리는 MVP에 넣지 않는다.
-- **반영과 검색:** resolved_case.vector_status/graph_status를 PENDING/SUCCEEDED/FAILED로 관리한다. 진행 중이거나 결과를 모르면 DB의 PENDING을 유지해 비공개로 두고, 조회 DTO는 확인 가능한 실행 상태를 표현한다. jobId/attempt/digest는 서비스 요청·결과 대조와 기존 journal의 현재 결과에 사용하며 별도 시도 이력 테이블은 만들지 않는다. 반영 결과의 버전이 현재 승인 버전과 다르면 성공으로 적용하지 않는다.
-- **후속 실행:** 처리·승인 DB commit 뒤 Spring이 Curator·색인·SSE 전달을 호출한다. 외부 호출을 DB 거래 안에서 기다리지 않는다. 호출 실패는 저장된 업무를 취소하지 않으며, 서버 종료 사이의 전달 누락을 자동 복구하는 영속 큐는 이번 MVP 범위에서 제외한다.
+- **반영과 검색:** resolved_case.vector_status/graph_status를 PENDING/SUCCEEDED/FAILED로 관리한다. 진행 중이거나 결과를 모르면 DB의 PENDING을 유지해 비공개로 둔다. 승인 거래에서 기존 knowledge_document/knowledge_document_version의 현재 CASE 스냅샷을 만들고 source_metadata.indexRequests에 저장소별 전체 요청을 보존한다. 현재 요청 두 건은 승인 버전·jobId·attempt·digest·approvedCase를 포함하며 journal 상세 만료 뒤에도 유지한다. 새 반영 이력 테이블·추가 컬럼은 필요하지 않다. 반영 결과의 버전이 현재 승인 버전과 다르면 성공으로 적용하지 않는다.
+- **후속 실행과 수동 복구:** commit 뒤 Spring이 보존한 색인 요청을 전달한다. 호출 직전 서버가 종료돼도 담당자의 기존 index-checks에서 같은 작업을 확인하고, 유효한 원격 NOT_FOUND이면 같은 요청을 멱등 재접수할 수 있다. PENDING/UNKNOWN을 FAILED로 바꾸거나 새 attempt를 만드는 복구가 아니다. FAILED 재시도만 현재 요청의 attempt를 증가시켜 먼저 저장한다. 외부 호출은 DB 거래 밖에서 수행하고 자동 복구 큐는 추가하지 않는다. 자세한 동작은 [에이전트 I1.1](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)을 따른다.
 
 resolution_request, resolved_case_version, case_index_job, outbox_event의 추가 DDL·FK 정의는 이번 범위에서 제외한다. 사용자 해결 확인, 승인 전 비공개, 같은 승인 버전의 양쪽 반영 성공 후 공개라는 제품 조건은 기존 테이블과 서버 검증으로 유지한다. 실제 migration·동시성·외부 호출 검증은 구현 PR에서 기록한다.

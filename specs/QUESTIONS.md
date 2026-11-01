@@ -21,7 +21,7 @@
 | C03 | UUID·UTC Z·필수 키/null 규칙, 문의 입력 버전과 메시지/업무/확인/사례 버전 분리. 원문 1~4,000 코드 포인트 | [DATA_TYPES](contracts/DATA_TYPES.md#신규-계약-hops-system-1) |
 | C04 | 생성 결과 PENDING/STORED/NOT_CREATED/UNKNOWN. 결과 확인 뒤 확정 미생성만 같은 논리 작업 재시도 | [F005](F005-result-cards/spec.md)·[F010](F010-creation-failures/spec.md) |
 | C05 | 검증 완료 WorkRecord별 PENDING 확인 요청 하나. 해결·미해결은 문제별 한 번, 무응답 대기·미해결 같은 티켓 계속 | [F006](F006-my-inquiries/spec.md)·[F009](F009-department-tickets/spec.md) |
-| C06 | 기존 resolved_case의 현재 초안 편집·버전 증가 후 승인하면 읽기 전용. 현재 승인 버전의 VECTOR/NEO4J 두 성공 전 양쪽 비공개. 실패 반영만 수동 재실행 | [F011](F011-case-lifecycle/spec.md) |
+| C06 | 현재 초안 편집·승인 후 읽기 전용. 승인과 함께 기존 문서 버전의 indexRequests를 보존하고 미전달은 같은 키로 수동 재접수. FAILED에서만 새 attempt, 현재 승인 버전의 양쪽 성공 전 비공개 | [F011](F011-case-lifecycle/spec.md)·[수동 복구](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구) |
 | C07 | AiRunRequest/Result/Event + IndexApplyRequest/Snapshot + KnowledgeAuthorizationRequest/Response, 서비스 Bearer 인증 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
 | C08 | 현재 frontend UI를 구현 기준으로 채택. 독립 티켓 상세와 사례 최소 목록·채팅 안 해결 확인을 기존 구성/토큰으로 확장하고 기능 책임·상태 소유를 고정 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[목표 구조](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
 | C09 | workItemId=problemId, 생성 상태는 inquiry_problem, 티켓은 ticket.inquiry_problem_id UNIQUE. 현재 PRIMARY는 it_system의 FK, 당시 배정은 ticket_assignment 이력 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안) |
@@ -43,7 +43,7 @@
 | S02 | 실행 요청의 expiresAt과 ExecutionLimits 형식만 정의. 기한·호출·토큰·도구·재시도 상한의 구체 수치는 실행 설정에서 별도 관리 | 실행기가 유효한 서버 설정과 요청을 검증하고 실행 전체에서 누적. 역할 전환으로 한도를 초기화하지 않음 |
 | S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 벡터 차원은 모델 선정 후 결정. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
 | S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [DATA 2절](../docs/DATA.md#2-고정-카탈로그)의 seed 작성 코드 | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
-| S05 | #69 원본22개 테이블 사용. 기존 확인 시각·이벤트·JSONB와 현재 resolved_case의 버전/두 반영 상태를 재사용. 업무와 journal 저장 후 Spring이 후속 호출 | 추가 테이블 없이 MVP 정상 흐름 우선. 복수 승인 버전 병행·반영 시도 전체 이력·영속 이벤트 전달 복구는 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
+| S05 | #69 원본22개 테이블 사용. 승인과 현재 요청을 기존 source_metadata.indexRequests에 원자 저장하고 commit 뒤 전달. 미전달은 기존 확인 조작에서 같은 요청으로 수동 복구 | 새 테이블·추가 컬럼·자동 전달 큐 없음. 복수 승인 버전·전체 시도 이력은 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
 | S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
 | S07 | 데이터 구축·평가 수량과 분할은 [데이터 구축 계획](../docs/knowledge/DATASETS.md#소량-검증과-수량-제안)의 검토안으로 관리하며 실제 선정은 별도 | 계약 정상/거부/실패 검사와 모델 품질 평가를 구분하고 미래 해결·정답은 KB와 모델 입력에서 분리 |
 | S08 | 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB·AI 전용 권한. RunLedger PK=runId, 입력 digest 불변·동일 ID 새 모델 실행 금지. index job은 (jobId,attempt) 유일 | AI 계정은 Spring 업무 원본 쓰기 권한 없음. 검색 조각 권한과 ledger 권한은 각각 제한. 재시작 후 진행 중 실행은 UNKNOWN, 중간 checkpoint 자동 재개 없음. 안전한 실패 뒤 새 runId. 상세24시간·사용 ID/digest 표식 유지 |

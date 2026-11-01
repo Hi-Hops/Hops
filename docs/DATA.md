@@ -106,7 +106,7 @@ const primaryAssignments = systems.map((system) => {
 
 검증 기록 commit 뒤 Curator를 호출한다. 실행 실패·재사용할 내용 없음이 업무 기록을 취소하지 않는다. 현재 resolved_case는 원 처리 기록과 확인 응답·공개 범위·적용 버전에 연결한다. 승인 시 현재 PRIMARY·원 기록의 해결 확인·기능 구현/검증을 재검사한다. MVP는 현재 초안만 편집하고 승인 후에는 읽기 전용으로 두며, 복수 승인 버전 병행은 후순위다.
 
-승인과 두 저장소 반영 성공은 별개다. 현재 resolved_case.version_no와 vector_status/graph_status를 기준으로 양쪽 성공을 확인한 뒤 공개한다. 서비스 요청의 caseVersion/attempt/digest는 결과 대조에 사용하고 기존 journal에는 현재 작업 결과를 남긴다. 별도 반영 이력 테이블은 만들지 않으며 미확인·실패·다른 버전 결과는 공개 성공으로 처리하지 않는다. 승인 CASE의 검색용 스냅샷은 기존 knowledge_document/knowledge_document_version에 저장한다.
+승인과 두 저장소 반영 성공은 별개다. 현재 resolved_case.version_no와 vector_status/graph_status의 양쪽 성공을 확인한 뒤 공개한다. 승인과 같은 거래에서 기존 knowledge_document/knowledge_document_version의 현재 CASE 스냅샷과 source_metadata.indexRequests의 VECTOR/NEO4J 요청을 보존한다. commit 뒤 전달 전 종료돼도 담당자가 현재 요청의 같은 jobId/attempt/digest/본문으로 멱등 재접수할 수 있다. [에이전트 I1.1](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)의 유효한 NOT_FOUND·권한·버전 조건을 적용한다. journal은 공개 명령 결과를 관리하며 요청 복구 정보는 상세 만료와 무관하게 보존한다. 새 테이블·추가 컬럼·반영 전체 이력은 만들지 않으며 미확인·실패·다른 버전 결과로 공개하지 않는다.
 
 ## 8. 보존·전환
 
@@ -127,7 +127,7 @@ const primaryAssignments = systems.map((system) => {
 | 표준 요청 | standard_request 불변 스냅샷, UNIQUE(inquiry_problem_id,inquiry_version,agent_run_id)로 출처 보존. 현재 포인터는 최신 유효 결과에만 연결 |
 | 처리·확인 | ticket/ticket_event·ticket_work_log와 inquiry_problem/message.payload로 현재 확인 상태·원 기록·가이드 revision 투영. 별도 확인 테이블 없음 |
 | Curator / CASE | 원 검증 기록의 agent_run.task=CURATION과 resolved_case.source_work_log_id로 연결. 현재 초안의 version_no를 관리하고 승인 뒤 읽기 전용 |
-| 반영·공개 | resolved_case.vector_status/graph_status에 현재 승인 버전의 결과 저장. 별도 시도 이력 테이블 없이 요청/응답 버전·digest를 검증 |
+| 반영·공개 | 현재 승인 버전의 결과는 resolved_case의 두 상태 컬럼, 요청 정본은 knowledge_document_version.source_metadata.indexRequests. 승인/요청 보존을 같은 거래로 저장하고 같은 키 재접수로 미전달 복구 |
 | journal | idempotency_key에서 (actor_member_id,contract_version,idempotency_key) 유일·메서드/경로/본문 digest 고정, 결과 재확인 먼저 후 업무 버전 비교 |
 | 후속 호출 | 업무 commit 뒤 Spring이 AI·색인·SSE 호출. 영속 이벤트 큐·재시작 자동 복구는 후순위이며 외부 호출 실패로 업무 저장을 취소하지 않음 |
 
@@ -193,6 +193,7 @@ PostgreSQL 격리는 READ COMMITTED, 잠금 순서는 Inquiry → problemId 정�
 | agent_run.validation_result | {policyRevision,inputDigest,resultDigest?,applied:boolean,appliedAt:time?,resources:ResourceRef[],caseGenerationState:GenerationState?}. resultDigest는 최종 AiResult의 canonical JSON SHA-256. 같은 run/digest는 재적용하지 않음 |
 | resolved_case의 현재 행·기존 JSONB | CaseVersion은 현재 사례 컬럼과 confirmed_facts/relation_candidates 등 기존 JSONB의 출처·적용 조건에서 투영. 승인 필드는 기존 approved_by_member_id/approved_at 사용. 승인 후 내용은 읽기 전용 |
 | knowledge_document.source_data | {origin:KnowledgeOrigin,sourceRef,reviewPr,contentDigest,appliesToSystemVersion:string?,applicability:string}. 승인 manifest는 이 메타데이터의 버전 고정 반입 자료이며 문서와 버전의 review_status/현재 ACL/data_split=RAG를 매 검색 검사. origin/출처/조건은 knowledge_document_version.source_metadata에 버전별 고정 |
+| knowledge_document_version.source_metadata의 CASE 기술 메타데이터 | caseId/caseVersion과 indexRequests:{VECTOR:IndexApplyRequest,NEO4J:IndexApplyRequest}. 승인 시 현재 문서 버전과 함께 원자 저장. 승인 본문·출처는 불변이고 indexRequests[store]만 FAILED 재시도 때 현재 attempt로 교체. CASE 행 잠금과 원 승인 버전·이전 attempt 대조. 본문 digest·공개 DTO·모델 입력에서 제외하며 journal 만료로 삭제하지 않음 |
 
 상담의 answerMessageId는 예약된 UUID이며 최종 검증 전에는 message 행을 만들지 않는다. 성공 적용 시 그 ID의 AI message.content=AiResult.answer를 한 번 저장하고, 질문 번들·문제별 count·가이드 확인 메타데이터·agent_run 적용 표식/성공을 같은 거래로 갱신한다. 기존 message PK와 문의 잠금·동일 run/digest 적용 검사로 중복을 막는다. 공개 메시지 조회에는 COMPLETED 행만 포함하고 ChatMessage.requestId는 payload에서 투영한다. GUIDE의 sourceId는 이 AI message.id, resultSummary는 payload.guide.text다. 기존 테이블/JSONB를 사용하며 추가 채팅 테이블은 만들지 않는다. 전송·최종 병합은 [WIRE12.8절](../specs/contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)을 따른다.
 

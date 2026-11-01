@@ -339,7 +339,7 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 | GET /cases/{caseId} | caseVersion 선택·현재 버전만 | CaseDetail | 현재 사례 시스템 담당자. 과거 버전 지정은404 |
 | POST /cases/{caseId}/versions | CaseEditCommand | CommandReceipt · CASE | 현재 담당자·현재 DRAFT·최신 버전 일치. 승인 후 편집은409 INVALID_STATE |
 | POST /cases/{caseId}/approvals | CaseApproveCommand | CommandReceipt · CASE | 현재 담당자·승인 전제 충족 |
-| POST /cases/{caseId}/index-checks | IndexCheckCommand | CommandReceipt · CASE | 현재 담당자·결과 재확인 |
+| POST /cases/{caseId}/index-checks | IndexCheckCommand | CommandReceipt · CASE | 현재 담당자·현재 요청 확인. 유효한 원격 NOT_FOUND이면 보존한 같은 요청의 멱등 재접수 |
 | POST /cases/{caseId}/index-retries | IndexRetryCommand | CommandReceipt · CASE | 현재 담당자·FAILED |
 
 scope 기본은 ASSIGNED_SYSTEMS이며 ADMIN은 BIZ_ADMIN만 허용한다. systemId 생략은 현재 허용된 모든 시스템이며 타 시스템 지정은 403이다. state는 해당 객체 enum 한 개만 받는다. 문의·티켓·사례는 updatedAt DESC,id DESC로 정렬한다. 보드 건수는 현재 페이지 기준이며 전체 상태별 집계로 표현하지 않는다.
@@ -365,6 +365,8 @@ scope 기본은 ASSIGNED_SYSTEMS이며 ADMIN은 BIZ_ADMIN만 허용한다. syste
 | 504 | DEADLINE_EXCEEDED | 분석 실패와 업무 저장 미확인을 구분 |
 
 retryable은 수동 재시도 후보임을 뜻하며 상태·권한 검사를 생략하거나 자동 재전송하라는 뜻이 아니다. timeout·연결 오류는 프론트 로컬 오류이며 서버 DB 미저장 코드로 바꾸지 않는다. 검색 EMPTY와 ERROR, 모델 오류와 OUT_OF_SCOPE를 구분한다. 서비스 내부 오류는 에이전트 계약의 안전한 코드로 변환한다.
+
+색인 index-checks는 현재 담당자·expectedCaseVersion·PENDING/RUNNING/UNKNOWN을 검증한 수동 명령이다. 서버는 source_metadata.indexRequests의 현재 요청을 읽고 같은 원격 jobId/attempt를 조회한다. 유효한 원격 404 NOT_FOUND이면 보존한 같은 요청 전체를 한 번 멱등 재접수할 수 있다. 404를 FAILED나 새 시도의 근거로 바꾸지 않는다. timeout·5xx·인증/권한·형식 오류·메타데이터 누락에는 재전송하지 않는다. 기존 원격 UNKNOWN이면 조회만 반영한다. index-retries는 FAILED에서만 같은 jobId의 다음 attempt를 먼저 저장한 뒤 전달한다. 공개 명령의 requestId와 원격 jobId/attempt는 서로 다른 식별자다. 동일 공개 명령 키 재전달은 기존 receipt를 반환하고 새로운 확인 클릭만 새 requestId를 만든다. 상세는 [에이전트 I1.1](../../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)을 따른다. GET·보조 폴링은 색인을 시작하지 않는다.
 
 티켓 생성 재시도는 현재 inquiryVersion·workItem 잠금·기존 티켓 유일성을 확인한 뒤 수행한다. 이미 STORED면 기존 참조를 반환한다. UNKNOWN/PENDING이면 409 WORK_ITEM_NOT_RETRYABLE이며 확인만 가능하다. NOT_CREATED라도 입력 버전이 달라졌으면 충돌로 반환하고 새 표준 요청 적용 후 같은 작업을 재시도한다.
 

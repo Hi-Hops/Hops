@@ -378,7 +378,18 @@ digest는 `{caseId,caseVersion,store,approvedCase}` 객체를 키 오름차순·
 
 VECTOR는 caseId/caseVersion 청크를 upsert하고 NEO4J는 승인된 기존 노드/관계만 같은 버전 키로 upsert한다. 결과는 jobId/caseId/caseVersion/store/attempt/contentDigest/state/error/updatedAt다. 성공은 원격 저장 검증 후 SUCCEEDED, 실패는 FAILED, 확인 불가는 UNKNOWN이다. Spring은 현재 승인 버전·최신 attempt·digest가 모두 맞는 성공만 기록한다. 이전 attempt의 늦은 성공이 새 반영 상태를 덮지 못한다.
 
-Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되지 않으면 UNKNOWN으로 유지한다. 확인 조작은 같은 attempt를 GET하며 새 반영을 생성하지 않는다. FAILED의 다음 attempt는 현재 담당자의 수동 명령으로만 만든다. UNKNOWN은 확인 전 재실행하지 않는다. 성공한 저장소를 실패 저장소 재실행 때문에 지우지 않는다. 두 성공 전 Spring의 공개 gate는 PRIVATE다.
+Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되지 않으면 UNKNOWN으로 유지한다. FAILED의 다음 attempt는 현재 담당자의 수동 명령으로만 만든다. UNKNOWN을 실패로 간주해 새 attempt를 만들지 않는다. 성공한 저장소는 유지하며 두 성공 전 Spring의 공개 gate는 PRIVATE다.
+
+#### I1.1 승인 후 미전달 요청의 수동 복구
+
+1. **승인과 요청 보존:** Spring은 CASE 행을 잠그고 승인·현재 검색 문서 버전·VECTOR/NEO4J의 최초 IndexApplyRequest·두 PENDING 상태를 같은 DB 거래로 저장한다. 요청은 기존 knowledge_document_version.source_metadata.indexRequests의 VECTOR/NEO4J 키에 각각 전체 객체로 보존한다. 각 요청은 jobId·attempt=1·승인 버전·contentDigest·approvedCase를 포함하며 이 거래가 실패하면 승인도 저장하지 않는다. 외부 호출은 commit 뒤 수행한다.
+2. **현재 요청만 유지:** 같은 CASE/승인 버전의 검색 문서 버전은 CASE 행 잠금 아래 하나로 생성·선택한다. indexRequests는 저장소별 현재 요청 두 개만 보존하고 journal 상세 만료 뒤에도 삭제하지 않는다. 승인 본문·출처·버전은 불변이다. 이 기술 메타데이터는 CASE 본문 contentDigest의 대상과 공개 DTO·모델 입력에서 제외한다. 새 테이블·영속 큐·자동 복구 작업은 추가하지 않는다.
+3. **담당자 확인:** 현재 담당자가 POST /cases/{caseId}/index-checks를 호출하면 Spring은 현재 권한·expectedCaseVersion·PENDING/RUNNING/UNKNOWN 상태를 확인하고 저장한 현재 요청을 읽는다. 먼저 같은 jobId/attempt를 GET한다. 정상 snapshot이면 버전·저장소·attempt·digest를 검증해 상태만 반영한다. 원격에 존재하는 UNKNOWN 작업을 새로 실행하지 않는다.
+4. **같은 요청 재전달:** 인증된 고정 AI 서비스가 형식이 유효한 404 NOT_FOUND를 반환한 경우에만 저장한 요청 전체를 같은 POST /internal/v2/index-jobs로 한 번 재전달할 수 있다. 재전달 직전 현재 권한·승인 버전·저장된 현재 요청을 다시 대조하고 변경됐으면 중단한다. 404를 실패나 미실행 증거로 확정하는 것은 아니다. 원격 멱등 접수에 원 요청의 존재 확인·최초 접수를 맡기는 절차이며 jobId/attempt/승인 버전/digest/approvedCase를 바꾸지 않는다. timeout·5xx·인증/권한 오류·형식 오류이면 상태를 미확인으로 유지하고 재전달하지 않는다. 새 버튼 클릭은 새 공개 requestId를 사용하되 같은 원격 작업을 확인한다.
+5. **AI 멱등 접수:** AI는 (jobId,attempt)를 유일 키로 원자적으로 접수한다. 같은 키·같은 요청은 기존 snapshot을 반환하고 실행을 추가하지 않으며 다른 내용은409다. 최초 요청과 재전달이 동시에 도착해도 실행은 한 번이다. 상세 보존 기간이 지나도 사용 키·digest 표식을 유지한다. 상세 결과를 복원할 수 없는 기존 키는 UNKNOWN을 반환하며 404나 새 접수로 바꾸지 않는다. 이미 접수된 실행의 재시작 자동 복원은 이번 최소 복구 범위에 추가하지 않는다.
+6. **실패 후 새 시도:** FAILED에서만 index-retries가 같은 jobId의 attempt를1 올린 현재 요청과 PENDING 상태를 DB에 먼저 저장한다. 승인 버전·본문·digest와 성공한 저장소는 유지한다. 새 시도의 commit 뒤 호출이 누락돼도 위 확인/재전달을 적용한다. 늦은 이전 attempt의 결과는 현재 상태를 바꾸지 않는다. 요청 메타데이터 누락·불일치는 안전한 프로토콜 오류이며 새 ID 생성·자동 재승인으로 우회하지 않는다.
+
+이 복구는 기존 담당자 확인 조작의 서버 처리다. 화면의 GET·보조 폴링은 읽기만 수행하며 색인을 시작하지 않는다. 같은 키 재전달의 202 접수는 검색 공개 성공이 아니며 양쪽의 같은 승인 버전 SUCCEEDED를 확인한 뒤에만 공개한다.
 
 ### K1. 검색 후보의 최신 권한
 
@@ -414,7 +425,7 @@ WorkRecordContext에는 실제 담당자가 입력한 confirmedCause와 appliesT
 
 공통 POLICY만 KnowledgeEvidence.systemId=null을 허용한다. 시스템 없는 직원 정책은 EMPLOYEE 문맥에, STAFF 공통 정책은 현재 PRIMARY가 있는 담당자 문맥에만 허용한다. null을 특정 시스템 후보로 바꾸지 않는다. chunk의 source content_digest는 authorization 응답과, chunk_digest는 실제 조각 바이트의 SHA-256과 각각 대조한다. 기존 승인 버전/문서의 출처 메타데이터는 버전 스냅샷으로 읽고 현재 ACL은 다시 검사한다.
 
-MVP는 기존 resolved_case의 현재 승인 버전·vector_status/graph_status와 현재 journal 결과를 사용하며 추가 테이블을 요구하지 않는다. 승인 뒤 사례 내용은 읽기 전용이고 반영 응답의 버전을 대조한다. Source CASE 해시는 store 없는 approvedCase 스냅샷, 반영 요청 해시는 store 포함 스냅샷이며 혼용하지 않는다. AI 내부 State/별도 RunLedger는 업무 Entity와 구분한다. 복수 승인 버전·반영 시도 전체 이력·영속 후속 전달 복구는 후순위다.
+MVP는 기존 resolved_case의 현재 승인 버전·두 반영 상태와 기존 문서 버전의 source_metadata.indexRequests를 사용하며 추가 테이블을 요구하지 않는다. 승인 뒤 사례 본문은 읽기 전용이고 현재 기술 요청만 FAILED 재시도 때 교체한다. Source CASE 해시는 store 없는 approvedCase, 반영 요청 해시는 store 포함 스냅샷이며 indexRequests나 journal을 포함하지 않는다. AI 내부 State/별도 RunLedger는 업무 Entity와 구분한다. 복수 승인 버전·반영 전체 이력·자동 후속 전달 복구는 후순위다.
 
 InputProblem.resolutionContext는 같은 문제의 현재 확인 상태를 기존 message.payload 또는 ticket_event에서 requestId/source/sourceId/sourceVersion/state로 투영하며 없으면 null이다. GUIDE 미해결 후에는 이 문맥을 같은 문제·누적 질문 수와 함께 새 run으로 보낸다. 문의 입력 버전은 유지하고 activeRunId를 바꿔 옛 결과를 차단한다. ResolutionRequest는 외부 DTO 이름이며 별도 물리 테이블을 요구하지 않는다. 모델이 원 확인 상태나 다른 문제의 출처를 만들어내지 못하도록 Spring이 소속을 검증한다.
 
@@ -674,6 +685,31 @@ async function checkIndexJob(aiOrigin, serviceToken, jobId, attempt) {
   });
 }
 
+async function checkOrDeliverIndex(aiOrigin, serviceToken, storedRequest, assertCurrentRequest) {
+  // Spring이 현재 권한·승인 버전·대기 상태를 검사한 수동 index-checks에서만 호출한다.
+  // storedRequest는 승인 시 source_metadata.indexRequests에 저장한 원 요청이다.
+  await assertCurrentRequest(storedRequest);
+  let response;
+  try {
+    response = await checkIndexJob(
+      aiOrigin, serviceToken, storedRequest.jobId, storedRequest.attempt,
+    );
+  } catch (error) {
+    const detail = error.data;
+    const notFound = error.status === 404 && detail !== null
+      && typeof detail === "object" && detail.code === "NOT_FOUND"
+      && typeof detail.message === "string" && detail.message.trim().length > 0
+      && typeof detail.retryable === "boolean" && Object.keys(detail).length === 3;
+    if (!notFound) throw error;
+    await assertCurrentRequest(storedRequest); // 조회 사이 권한·버전·현재 attempt가 바뀌면 중단
+    response = await applyApprovedCase(aiOrigin, serviceToken, storedRequest);
+  }
+  for (const field of ["jobId", "caseId", "caseVersion", "store", "attempt", "contentDigest"]) {
+    if (response.data[field] !== storedRequest[field]) throw new Error("반영 응답 불일치");
+  }
+  return response; // 접수·현재 결과다. 이 값만으로 검색 공개를 확정하지 않는다.
+}
+
 async function authorizeKnowledge(springOrigin, serviceToken, input) {
   return requestJson({
     origin: springOrigin, path: "/internal/v2/knowledge/authorizations",
@@ -682,4 +718,4 @@ async function authorizeKnowledge(springOrigin, serviceToken, input) {
 }
 ```
 
-반영의 202 접수만으로 검색 공개를 확정하지 않는다. 같은 승인 버전의 두 저장소 성공을 Spring이 확인한 뒤 현재 ACL에 맞게 공개한다. 권한 확인 오류를 검색 0건으로 바꾸지 않으며 허용된 참조의 원문만 모델 입력에 사용한다.
+checkOrDeliverIndex는 [I1.1의 수동 복구](#i11-승인-후-미전달-요청의-수동-복구)를 설명하는 호출 예시다. 브라우저 GET·폴링·자동 반복에서 호출하지 않는다. 반영의 202 접수만으로 검색 공개를 확정하지 않는다. 같은 승인 버전의 두 저장소 성공을 Spring이 확인한 뒤 현재 ACL에 맞게 공개한다. 권한 확인 오류를 검색 0건으로 바꾸지 않으며 허용된 참조의 원문만 모델 입력에 사용한다.

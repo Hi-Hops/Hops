@@ -134,8 +134,8 @@
 | AssignmentCorrectionCommand | expectedTicketRevision:int, responsibleSystemId:Uuid, reason:string, evidenceMessageIds:Uuid[], evidenceNote:string? | reason 필수·근거 하나 이상. 관리자는 무권한 메시지 ID 대신 evidenceNote 사용 |
 | CaseEditCommand | expectedCaseVersion:int, problemStatement:string, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string?, accessScope:AccessScope | 출처·원 기록·적용 시스템을 이 API로 바꾸지 않음 |
 | CaseApproveCommand | expectedCaseVersion:int | 최신 DRAFT의 확인된 버전에만 승인 |
-| IndexRetryCommand | expectedCaseVersion:int, store:IndexStore | FAILED 저장소만 재실행. UNKNOWN은 먼저 확인 |
-| IndexCheckCommand | expectedCaseVersion:int, store:IndexStore | UNKNOWN/PENDING/RUNNING의 저장소별 결과 확인. 새 반영 생성 아님 |
+| IndexRetryCommand | expectedCaseVersion:int, store:IndexStore | FAILED 저장소만 새 attempt를 저장 후 실행. UNKNOWN은 먼저 확인 |
+| IndexCheckCommand | expectedCaseVersion:int, store:IndexStore | UNKNOWN/PENDING/RUNNING의 현재 요청 확인. 유효한 원격 NOT_FOUND이면 보존한 동일 요청의 멱등 재접수 허용. 새 jobId/attempt 생성 아님 |
 
 각 명령의 응답은 CommandReceipt이며 resource로 관련 문의(메시지 포함)·실행·티켓·작업·확인 요청·사례를 재조회한다. 생성 결과·AI 실행 완료·검색 공개는 receipt의 성공과 별개다. 신규 문의자 DTO에는 전체 표준 요청·내부 근거·다른 문제의 원문을 포함하지 않는다.
 
