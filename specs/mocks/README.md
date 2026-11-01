@@ -50,3 +50,13 @@
 프론트의 `auth.invalidated`·`resync.required` 수신·복구 분기와 429 대기 안내는 구현하고 Mock/HTTP·SSE 대역 테스트로 검사했다. 실제 Spring의 부서 SSE와 eventId 단일 필드 `resync.required` 수신도 검사했다. 이는 업무 REST 복구·서버 auth.invalidated 발행·쿠키 회전, 실제 업무 DB 유일성/트랜잭션·AI 예산 강제·품질/비용 검증을 대신하지 않는다.
 
 fixtures의 저장 응답은 MutationResult, 오류는 ApiErrorBody, 연결 대상은 SubscriptionTarget이다. 응답 객체 자체를 사용하며 별도 성공 외피나 구독 응답은 요구하지 않는다. MutationResult는 프론트에서 구현한 REST 연동 프로필이며 백엔드의 동일 DTO·저장 API 구현은 Q-INF-6으로 추적한다. 스냅샷 커서·replay는 미구현이다.
+
+## 신규 계약의 호출 예시와 검증
+
+PRD 1.44 신규 기능은 [에이전트 계약의 호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)를 참고한다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에 seed 코드로 정의한다. 별도 예시 JSON 파일은 두지 않는다. 문서의 예시는 실제 확인·승인·서비스 통합 증거가 아니다.
+
+기존 contracts/mock-profile.json·accounts.json·fixtures.json·scenarios.json은 현재 소비 코드와 함께 보존한다. 새 실행 Mock으로 전환할 때에는 profile 선택·신규 DTO·권한·시나리오 소비 어댑터와 함께 적용하고 기존 프로필의 테스트를 별도로 유지한다. 전체 기능의 설계/검증 범위를 이번 계약에서 미루지 않는다.
+
+필수 전환 시나리오는 현재 PRIMARY 접근/회수, 5회 질문 중복 방지·대기 재진입, 복합 일부 성공, 저장 후 응답 유실·조회 불가·동시 재시도, 처리/구현 검증·문제별 확인·미해결/무응답, Curator 중복·초안 실패, 승인 버전·반영 부분 실패/미확인/불일치·양쪽 비공개·성공 뒤 권한 검색이다. 각 spec의 Fxxx-CONTRACT 번호와 연결한다.
+
+AI 요청·결과·이벤트의 형식은 [에이전트 Markdown 계약](../../contracts/agents/README.md#s2-외부-wire-형식)을 기준으로 구현한다. 검증용 Schema는 공유 산출물에 포함하지 않으며 이 문서만 받아서 자동 검증이 실행되지는 않는다. 각 서비스는 Markdown의 호출 예시와 기능별 CONTRACT 시나리오를 바탕으로 구현에 맞는 검사를 작성하며 문서 코드만으로 서비스 검증을 대신하지 않는다.

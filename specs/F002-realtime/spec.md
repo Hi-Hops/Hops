@@ -1,6 +1,6 @@
 # F002 실시간 진행·상태 복구
 
-상태: PRD 1.44 목표 명세 · 팀 기획 합의 / 상세 계약·구현·검증 별도.
+상태: PRD 1.44 목표 명세 · PRD 정책 유지 / PR #68 계약 결정값 작성 완료·팀 승인/구현/검증 별도.
 
 ## 1. 목표와 범위
 
@@ -20,7 +20,7 @@ React는 Spring REST로 명령을 보내고 권한이 확인된 Spring SSE로 �
 
 ### 화면
 
-- 문의 채팅, 티켓 상세와 담당 시스템 업무에서 연결 상태·진행 문구를 표시한다. 새 시스템 대상의 SSE 식별 방식은 미정이다.
+- 문의 채팅, 티켓 상세와 담당 시스템 업무에서 연결 상태·진행 문구를 표시한다. 새 시스템 대상은 아래 hops-system-1 SSE 계약안을 따른다.
 
 ### 흐름
 
@@ -39,16 +39,30 @@ React는 Spring REST로 명령을 보내고 권한이 확인된 Spring SSE로 �
 
 ## 계약·화면 상태
 
-- 기존 프론트 프로필의 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`, `resync.required`와 대상별 전달은 전송 계약에서 확인한다.
-- 현재 Spring은 부서 SSE를 제공한다. 시스템 대상 이름·업무 이벤트·서버 replay 및 서비스 간 인증은 새 계약과 실제 구현 검증이 필요하다.
+신규 `hops-system-1`의 PR #68 제출 결정값이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
 
-| 상태 | 사용자에게 보이는 동작 |
+| 조작 | 계약·검증 |
 |---|---|
-| 로딩·처리 중 | 현재 요청의 진행을 표시하고 저장·완료로 단정하지 않는다. |
-| 정상 결과 | 서버가 확정한 값만 표시한다. |
-| 빈 결과 | 정상 조회된 0건을 안내한다. |
-| 실패·결과 미확인 | 실패와 저장 미확인을 구분하고 입력·이미 저장된 결과를 보존한다. |
-| 권한 없음 | 서버가 접근을 거부하고 허용되지 않은 내용을 표시하지 않는다. |
+| 대상 연결 | INQUIRY/TICKET/SYSTEM_TICKETS/CASE와 Bearer. 관리자 SYSTEM_TICKETS에는 메타데이터 변화만 전달 |
+| 진행·답변 조각 | 현재 inquiryVersion/runId만 임시 표시. eventId와 조각 seq로 중복 제거 |
+| 저장·업무 변경 | message.stored/state.changed를 받은 대상 GET을 무효화·재조회. 메시지 정정·처리·확인·사례 반영을 포함 |
+| 복구 | 신규 초기 프로필은 replay 없음. resync.required 후 REST 성공 → 커서/임시 조각 초기화 → 새 연결 |
+| 조회 보완 | 목록 활성 화면 5초 폴링, 활성 분석 Run 1초 조회. 숨김·화면 이탈 시 중단 |
+
+| 화면 상태 | 관찰 가능한 동작 |
+|---|---|
+| 연결 끊김 | 입력·성공 티켓 보존, 보호 데이터 마스킹·복구 중 표시 |
+| REST 복구 실패 | 연결됐다는 이유만으로 복구 완료 표시 금지 |
+| 권한 회수 | 자동 반복 연결 중단·현재 사용자/메뉴 재확인 |
+
+## hops-system-1 검증 시나리오
+
+- **F002-CONTRACT-01:** 같은 eventId와 answer.delta 조각을 반복 전달해도 한 번만 표시한다.
+- **F002-CONTRACT-02:** 정정 전 runId의 늦은 조각은 무시하고 저장된 이전 대화는 유지한다.
+- **F002-CONTRACT-03:** Last-Event-ID에 resync.required를 받으면 REST 조회 성공 전까지 복구 중이다.
+- **F002-CONTRACT-04:** 업무 저장 이벤트가 HTTP 응답보다 먼저 도착해도 requestId/messageId로 하나의 결과를 표시한다.
+
+문서/JSON 검사·Mock·실제 서버 저장/권한·실제 AI/검색·브라우저 E2E를 분리해 결과를 기록한다. 기존 테스트의 이전 AC 번호를 새 시나리오 통과로 간주하지 않는다.
 
 ## 범위·연관 기능
 
@@ -60,4 +74,24 @@ React는 Spring REST로 명령을 보내고 권한이 확인된 Spring SSE로 �
 
 기존 코드·테스트의 인수 조건 번호는 이전 기준이며 목표 조건과 구분한다. 목표 AC는 실제 구현·검증 완료를 뜻하지 않는다. 실제 구현 범위는 서비스 코드와 실행 안내에서 확인한다.
 
-기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. 새 API 경로·필드·enum·권한과 테스트 연결은 담당자 간 계약 확정 후 진행한다.
+기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. hops-system-1 계약안의 담당자 리뷰·승인 후 코드·테스트를 전환한다. 현재 구현을 문서만으로 완료 처리하지 않는다.
+
+## 서비스 간 계약 추적
+
+| 경계 | 이 기능에 적용할 계약 |
+|---|---|
+| Frontend↔Spring | SSE envelope·순번/중복·재조회·인증. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
+| Spring↔AI | AiAccepted/Snapshot/Event와 취소. 내부 seq와 공개 eventId를 분리. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약) |
+| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 저장·서비스 인증·검증 게이트를 참조. 비밀값은 배포 환경 주입 |
+
+
+## 병합 ERD 적용 조건
+
+[DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
+
+- **F002-CONTRACT-05:** DB INQUERY/CURATION/CANCELLED를 외부 INQUIRY/CASE_DRAFT/SUPERSEDED로 변환한다. 답변 조각은 임시 표시이며 최종 message_status=COMPLETED 행을 조회한 뒤 확정한다.
+
+- **F002-CONTRACT-06:** 내부 delta.messageId=input.answerMessageId이며 공개 messageId도 같다. 내부 이벤트 전체 seq와 답변 chunkSeq를 혼용하지 않고 공개 seq에는 chunkSeq를 사용한다.
+- **F002-CONTRACT-07:** 조각의 순서 변경·중복·저장 이벤트 선도착에도 같은 messageId의 말풍선은 하나다. GET으로 최종 본문을 읽은 뒤 도착한 늦은 조각은 무시한다.
+- **F002-CONTRACT-08:** SSE 연결 전에 AI가 완료됐거나 message.stored가 유실돼도 내부 snapshot·공개 Run 조회와 최종 메시지 GET으로 완료한다. Run 종료 또는 currentRun 교체 시 문의·메시지를 재조회하고 새 업무 명령을 만들지 않는다.
+- **F002-CONTRACT-09:** Run 성공 후 최종 GET이 실패하면 동기화 실패·재조회 조작을 표시한다. 실패한 조회를 빈 메시지 성공으로 바꾸거나 AI 실행을 자동 재시도하지 않는다.

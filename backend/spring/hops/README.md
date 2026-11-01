@@ -4,6 +4,8 @@
 
 Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에서는 해당 디렉터리를 Gradle 프로젝트로 엽니다. 빌드·테스트·실행 명령은 이 디렉터리에서 실행합니다.
 
+PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/contracts/README.md)에서 데이터·전송·상태·AI 경계를 함께 검토합니다. 기존 `/api` 구현과 제안된 `hops-system-1`을 구분하며, 물리 ERD·엔티티 매핑은 이슈 #66과 맞춥니다.
+
 ## 패키지 구성
 
 `com.hihops.hops` 아래에 `auth`, `user`, `department`, `inquiry`, `ticket`, `agent`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.

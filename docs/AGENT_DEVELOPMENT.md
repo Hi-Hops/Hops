@@ -12,6 +12,10 @@ Python은 제안과 근거를 반환하고, Spring이 인증·권한·저장·�
 
 ## 2. 통합 경로
 
+새 작업은 루트 [AGENTS.md](../AGENTS.md)와 PRD를 읽은 뒤 이 문서에서 구현 범위를 확인한다. 이어서 [역할별 입출력](../contracts/agents/README.md#역할별-상세-책임), [서비스 실행 계약](../contracts/agents/README.md#hops-system-1-실행-계약안), [호출과 진행 예시](../contracts/agents/README.md#호출과-진행-예시)를 읽는다. 프론트·Spring과 맞출 필드·상태·전송은 [공통 계약](../specs/contracts/README.md), 실제 환경·실행은 [AI 실행 안내](../ai/README.md)를 확인한다.
+
+채팅 연결은 [송수신 완료 규칙](../specs/contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)과 [AI 답변·저장 메시지 연결](../contracts/agents/README.md#상담-답변과-저장-메시지-연결)을 구현 기준으로 사용한다. 상담 run당 한 최종 메시지, 서버 발급 ID, answer 본문과 질문/가이드 메타데이터의 관계를 채택했으며 AI 내부 역할 조합을 후속 변경하더라도 이 외부 의미는 유지한다.
+
 1. 시스템·기능·주담당자와 표준 요청, 역할별 입력·출력·실패 계약을 합의한다.
 2. 가상 데이터와 Mock을 준비하고 실제 모델로 Inquiry→필요 시 Knowledge→Ticket→Spring 저장·배정을 연결한다. 보고 시스템과 책임 시스템을 분리한다.
 3. 문제별 질문 최대 5회, 시스템 확인 대기, 무티켓 안내, 복합 문의와 부분 실패·결과 미확인을 검증한다.
