@@ -14,7 +14,7 @@
 | AI 외부 wire·내부 역할 | [에이전트 계약](../../contracts/agents/README.md#hops-system-1-실행-계약안) | 모델 제안과 업무 확정의 경계 |
 | 화면·조작·검증 | [F001~F011](../README.md) | 계약과 기능 연결 |
 | 저장 관계·물리 제약 제안 | [DATA](../../docs/DATA.md#9-hops-system-1-저장-제약안) | 저장·재시도·공개 보장 |
-| State·외부 DTO 상세 | [State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약)·[wire 스키마](../../contracts/agents/hops-system-1.schema.json) | 실행 상태·전송과 업무 저장 분리 |
+| State·외부 DTO 상세 | [State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약) | 실행 상태·전송과 업무 저장 분리 |
 
 `hops-system-1`은 `/api/v2`와 새 서비스 간 경로에 적용하는 프로필로 채택한다. 현재 `/api` 응답·프론트 타입·Mock JSON을 새 형식으로 조용히 바꾸지 않는다. 문서의 계약안은 전체 MVP 범위를 포함하며 구현 순서 때문에 사례·공개 계약을 후속 범위로 미루지 않는다.
 
@@ -36,6 +36,7 @@
 4. 티켓 변경에는 `ticketRevision`, 확인 응답에는 `requestRevision`, 사례 편집·승인에는 `caseVersion`을 사용한다. 서로 대체하지 않는다.
 5. 분석 결과 적용은 현재 입력 버전·활성 runId를 잠금 안에서 대조한다. 오래된 미반영 제안은 저장하지 않는다. 이전에 확정된 메시지·티켓·배정은 유지한다.
 6. 신규 문제는 AI의 임시 참조를 Spring UUID에 매핑해 저장한다. 재분석에서 기존 문제 ID를 재사용한다. 임시 참조·요약·배열 순서를 DB 유일 키로 사용하지 않는다.
+7. 상담 run마다 Spring이 answerMessageId를 예약한다. 그 run의 임시 답변과 최종 AI 메시지 ID는 같으며 SUCCEEDED 답변은 한 메시지로 저장한다. USER 임시 입력은 최초 명령 requestId로 저장 메시지와 합친다. 본문·질문·가이드 적용과 송수신 순서는 [WIRE12.8절](WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)·[에이전트 답변 연결](../../contracts/agents/README.md#상담-답변과-저장-메시지-연결)을 따른다.
 
 ## 4. 문의·문제·질문
 
@@ -54,7 +55,7 @@
 | WAITING_CONFIRMATION | 문의자 RESOLVED | RESOLVED |
 | WAITING_CONFIRMATION | 문의자 UNRESOLVED | 티켓 있으면 IN_SERVICE, GUIDE이면 ANALYZING 후 담당자 연결 검토 |
 
-재분석·SSE 재전달은 같은 `questionBundleId`를 다시 세지 않는다. 복합 문제에 보낸 같은 메시지가 서로 다른 문제의 질문을 포함하면 각 문제에 번들 하나씩 연결한다. 5회 도달 후 시스템 선택은 질문 횟수에 포함하지 않으며 저장된 대기를 화면 종료 후에도 복원한다.
+재분석·SSE 재전달은 같은 `(problemId,bundleRef)`를 다시 세지 않는다. 복합 문제에 보낸 같은 메시지가 서로 다른 문제의 질문을 포함하면 각 문제에 번들 하나씩 연결한다. 5회 도달 후 시스템 선택은 질문 횟수에 포함하지 않으며 저장된 대기를 화면 종료 후에도 복원한다.
 
 문의 표시 상태는 Spring이 저장된 문제들을 다음 순서로 집계한다.
 

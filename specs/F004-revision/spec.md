@@ -79,7 +79,7 @@
 | 경계 | 이 기능에 적용할 계약 |
 |---|---|
 | Frontend↔Spring | 정정·문의/메시지 버전·보완 연결. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
-| Spring↔AI | 현재 run 취소·늦은 결과 SUPERSEDED·최신 입력 스냅샷. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
+| Spring↔AI | 현재 run 취소·늦은 결과 SUPERSEDED·최신 입력 스냅샷. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약) |
 | 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 저장·서비스 인증·검증 게이트를 참조. 비밀값은 배포 환경 주입 |
 
 

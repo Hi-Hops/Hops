@@ -66,7 +66,7 @@
 
 ## hops-system-1 검증 시나리오
 
-- **F003-CONTRACT-01:** 같은 questionBundleId의 저장/재전달은 한 번만 집계해 5회를 넘기지 않는다.
+- **F003-CONTRACT-01:** 같은 (problemId,bundleRef)의 저장/재전달은 한 번만 집계해 5회를 넘기지 않는다.
 - **F003-CONTRACT-02:** 5회·시스템 미확인에서 닫고 다시 열어도 동일 WAITING_SYSTEM과 질문 수가 복원된다.
 - **F003-CONTRACT-03:** 가이드로 해결한 문제는 티켓·Curator 없이 해결되고 미해결 안내는 담당자 연결로 이어진다.
 - **F003-CONTRACT-04:** 새 문의 저장 후 응답 유실을 같은 키로 재확인하면 원 문의 하나만 표시한다.
@@ -102,3 +102,12 @@
 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
 
 - **F003-CONTRACT-07:** 공통 POLICY의 systemId=null은 공통 정책으로 표시한다. GUIDE/RUNBOOK/CASE의 null 시스템은 오류이며 모델이 임의 시스템으로 채우지 않는다.
+
+## 채팅 송수신 적용 조건
+
+[WIRE12.8절](../contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)과 [AI 답변 연결](../../contracts/agents/README.md#상담-답변과-저장-메시지-연결)을 구현 기준으로 사용한다. 프론트는 ChatMessage.requestId로 USER 임시 입력을 합치고 RunSummary.answerMessageId로 AI 임시 답변을 최종 저장 메시지에 연결한다.
+
+- **F003-CONTRACT-08:** 문의·USER 메시지 저장 응답은 답변 완료를 기다리지 않는다. 조회한 currentRun에는 서버 발급 answerMessageId가 있으며 같은 명령 재전송으로 새 실행을 만들지 않는다.
+- **F003-CONTRACT-09:** 질문 결과의 answer와 questions[].text 또는 가이드 결과의 answer와 guide.messageText는 AI 말풍선 하나로 표시한다. 질문/가이드 상태와 본문을 같은 거래로 저장하고 result 재전달로 질문 횟수·확인 요청이 증가하지 않는다.
+- **F003-CONTRACT-10:** 질문/가이드 본문이 answer에 없거나 현재 messageId·문제 참조·남은 질문 한도를 위반한 결과는 새 답변으로 저장하지 않는다. 공개 Run 오류와 입력·기존 대화를 유지한다.
+- **F003-CONTRACT-11:** 조각 없이 성공해도 Run 종료 후 메시지 GET으로 답변 하나를 표시한다. 실패·시간 초과·대체된 실행은 미완성 답변을 저장 성공이나 해결 완료로 표시하지 않는다.

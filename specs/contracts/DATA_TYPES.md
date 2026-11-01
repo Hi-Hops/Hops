@@ -77,7 +77,7 @@
 | 타입 | 필드·자료형 | 조건 |
 |---|---|---|
 | MessageRevision | revisionNo:int, content:string, createdAt:time | 정정 전후 영구 보존 |
-| ChatMessage | id:Uuid, inquiryId:Uuid, revision:int, sequenceNo:int, sender:USER 또는 AI, content:string, problemIds:Uuid[], revisions:MessageRevision[], createdAt:time | related problemIds는 서버가 검증한 연결 |
+| ChatMessage | id:Uuid, inquiryId:Uuid, requestId:Uuid?, revision:int, sequenceNo:int, sender:USER 또는 AI, content:string, problemIds:Uuid[], revisions:MessageRevision[], createdAt:time | USER의 requestId는 최초 생성 명령 ID이며 정정 후에도 유지. AI는 null. 최종 저장 메시지만 반환하며 problemIds는 서버가 검증한 연결 |
 | RelatedMessage | id:Uuid, revision:int, sender:USER 또는 AI, content:string, revisions:MessageRevision[], createdAt:time | 담당자에게 해당 문제의 허용된 원문 구간만 투영. 복합 메시지의 무관한 구간은 제외하고 정정 이력에도 같은 필터 적용. 안전한 분리가 불가능하면 원문 대신 해당 문제의 표준 요청을 제공 |
 | Problem | id:Uuid, inquiryId:Uuid, summary:string, intent:InquiryIntent, processingType:ProcessingType, reportedSystemId:Uuid?, reportedFeatureId:Uuid?, state:ProblemState, questionCount:int, guide:GuideAnswer?, creationResult:TicketCreationResult?, ticket:TicketSummary?, activeResolutionRequest:ResolutionRequest? | 문의자 조회용 투영. questionCount=0~5. WAITING_SYSTEM이면 reportedSystemId=null. 담당자 내부 StandardRequest는 반환하지 않음 |
 | GuideAnswer | messageId:Uuid, evidence:KnowledgeEvidence[] | 저장된 직원용 안내와 현재 공개 가능한 EMPLOYEE 근거만 반환 |
@@ -87,7 +87,7 @@
 | AcceptanceCriterion | text:string, confirmation:PROPOSED 또는 CONFIRMED, confirmedBy:Uuid? | PROPOSED이면 confirmedBy=null. 명시적 사람 확인 없이 CONFIRMED로 승격하지 않음 |
 | InquirySummary | id:Uuid, inquiryNumber:string, title:string, status:InquiryStatus, problemCount:int, ticketCount:int, pendingConfirmationCount:int, createdAt:time, updatedAt:time | 목록에서 담당자 내부 근거 제외 |
 | InquiryResult | id:Uuid, inquiryNumber:string, inquiryVersion:int, status:InquiryStatus, problems:Problem[], currentRun:RunSummary?, pendingTargetMessageIds:Uuid[], resultRevision:int, createdAt:time, updatedAt:time | resultRevision은 문제별 생성 결과 변경 시 증가. 모달 확인용이며 inquiryVersion과 다름 |
-| RunSummary | id:Uuid, inquiryId:Uuid, inquiryVersion:int, status:RunStatus, error:ApiError? | 새 재분석은 새 runId; 기존 성공 업무 유지. 내부 snapshot UNKNOWN은 FAILED·AI_RUN_STATE_UNKNOWN으로 변환 |
+| RunSummary | id:Uuid, inquiryId:Uuid, inquiryVersion:int, answerMessageId:Uuid, status:RunStatus, error:ApiError? | 상담 실행용. Spring이 접수 때 예약한 최종 AI 메시지 ID. 실패하면 그 메시지가 존재하지 않을 수 있음. SUCCEEDED는 답변·질문/가이드 상태의 저장 commit 후만 반환. FAILED/TIMED_OUT은 error 필수, 그 외는null. 내부 snapshot UNKNOWN은 FAILED·AI_RUN_STATE_UNKNOWN으로 변환 |
 
 ### 티켓·처리·확인
 

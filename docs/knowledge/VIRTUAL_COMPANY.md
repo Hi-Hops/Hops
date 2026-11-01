@@ -2,7 +2,7 @@
 
 > **PR #68 계약 결정:** 시스템/기능/가상 담당 카탈로그·검색·평가 수량/분할/게이트는 [결정 대장](../../specs/QUESTIONS.md#실행검색-기본값)에 기입했다. 아래 자료의 개별 원문 검수·콘텐츠 제작·실행 측정 상태와 계약값 결정을 구분한다.
 
-기준: [PRD 1.44](../PRD.md) · 팀 합의 제품 범위. 현재 `datasets/knowledge/v0/catalogs/virtual_company.json`은 기존 4개 서비스·부서 기반 카탈로그이며 새 시스템·담당자 정본이 아니다. 새 시스템·기능 ID와 가상 담당자는 [공용 예시](../../specs/mocks/hops-system-1.examples.json)의 hops-demo-v1을 따른다. 개별 지식 내용의 검수·적재 완료는 별도로 기록한다.
+기준: [PRD 1.44](../PRD.md) · 팀 합의 제품 범위. 현재 `datasets/knowledge/v0/catalogs/virtual_company.json`은 기존 4개 서비스·부서 기반 카탈로그이며 새 시스템·담당자 정본이 아니다. 새 시스템·기능 ID와 가상 담당자는 [DATA의 고정 카탈로그](../DATA.md#2-고정-카탈로그)의 hops-demo-v1을 따른다. 개별 지식 내용의 검수·적재 완료는 별도로 기록한다.
 
 ## MVP 환경
 

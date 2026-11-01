@@ -81,7 +81,7 @@ React는 Spring REST로 명령을 보내고 권한이 확인된 Spring SSE로 �
 | 경계 | 이 기능에 적용할 계약 |
 |---|---|
 | Frontend↔Spring | SSE envelope·순번/중복·재조회·인증. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
-| Spring↔AI | AiAccepted/Snapshot/Event와 취소. 내부 seq와 공개 eventId를 분리. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
+| Spring↔AI | AiAccepted/Snapshot/Event와 취소. 내부 seq와 공개 eventId를 분리. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약) |
 | 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 저장·서비스 인증·검증 게이트를 참조. 비밀값은 배포 환경 주입 |
 
 
@@ -90,3 +90,8 @@ React는 Spring REST로 명령을 보내고 권한이 확인된 Spring SSE로 �
 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
 
 - **F002-CONTRACT-05:** DB INQUERY/CURATION/CANCELLED를 외부 INQUIRY/CASE_DRAFT/SUPERSEDED로 변환한다. 답변 조각은 임시 표시이며 최종 message_status=COMPLETED 행을 조회한 뒤 확정한다.
+
+- **F002-CONTRACT-06:** 내부 delta.messageId=input.answerMessageId이며 공개 messageId도 같다. 내부 이벤트 전체 seq와 답변 chunkSeq를 혼용하지 않고 공개 seq에는 chunkSeq를 사용한다.
+- **F002-CONTRACT-07:** 조각의 순서 변경·중복·저장 이벤트 선도착에도 같은 messageId의 말풍선은 하나다. GET으로 최종 본문을 읽은 뒤 도착한 늦은 조각은 무시한다.
+- **F002-CONTRACT-08:** SSE 연결 전에 AI가 완료됐거나 message.stored가 유실돼도 내부 snapshot·공개 Run 조회와 최종 메시지 GET으로 완료한다. Run 종료 또는 currentRun 교체 시 문의·메시지를 재조회하고 새 업무 명령을 만들지 않는다.
+- **F002-CONTRACT-09:** Run 성공 후 최종 GET이 실패하면 동기화 실패·재조회 조작을 표시한다. 실패한 조회를 빈 메시지 성공으로 바꾸거나 AI 실행을 자동 재시도하지 않는다.

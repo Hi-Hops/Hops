@@ -10,12 +10,14 @@
 | [DATA_TYPES 신규 절](DATA_TYPES.md#신규-계약-hops-system-1) | 데이터 타입·enum·필드·필수성·nullable·명령 본문 |
 | [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1) | /api/v2 REST·오류·SSE·멱등성·복구 |
 | [에이전트 계약 신규 절](../../contracts/agents/README.md#hops-system-1-실행-계약안) | Spring↔AI wire·내부 역할·검색·실행 한도 |
-| [AI State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) | 내부 State·실행/색인/검색 권한 DTO의 기계 검증 |
+| [AI State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약) | 내부 State·실행/색인/검색 권한 DTO의 필드·검증 규칙 |
 | [F001~F011](../README.md) | 화면·조작·AC·계약 검증 시나리오 |
 | [DATA](../../docs/DATA.md)·[ERD](../../docs/ERD_설명.md) | 기존22개 테이블의 업무 저장 관계·유일성·잠금·commit 뒤 후속 호출 |
 | [QUESTIONS](../QUESTIONS.md) | 공통 계약·저장 기준과 모델·비용 선정 제외 범위·팀 승인/구현 상태 |
 
 공통 상태·오류·필드 표를 각 spec에 다시 정의하지 않는다. spec은 해당 정본을 참조하고 사용자에게 관찰되는 동작·완료 조건을 적는다. 제품 범위의 정본은 PRD다.
+
+채팅을 연결할 때는 [WIRE12.8절의 송수신 순서](WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)와 [AI 답변·저장 메시지 연결](../../contracts/agents/README.md#상담-답변과-저장-메시지-연결)을 함께 따른다. 상담 run당 한 최종 메시지, 서버 발급 ID, 질문/가이드와 본문의 관계는 이 계약의 채택값이다.
 
 ## 프로필과 실제 구현
 
@@ -29,6 +31,6 @@
 
 ## 예시와 전환
 
-[신규 JSON 예시](../mocks/hops-system-1.examples.json)는 명령/상태 경계를 검토하는 가상 데이터다. 실행 Mock의 대체 파일·서버 응답·실제 승인 데이터가 아니다. 기존 mock-profile.json·accounts.json·fixtures.json·scenarios.json은 소비 코드와 함께 전환하기 전까지 그대로 둔다.
+[호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)는 명령·상태 경계를 검토하는 Markdown 코드다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에서 확인한다. 예시는 실행 Mock·실제 서버 응답·승인 증거가 아니며, 기존 mock-profile.json·accounts.json·fixtures.json·scenarios.json은 소비 코드와 함께 전환하기 전까지 그대로 둔다.
 
 전환은 신규 API/DB/AI 구현 → 신규 어댑터·DTO → 프로필별 fixture/계약 검사 → 서비스 저장·권한 검사 → 실제 모델/검색 → 브라우저 E2E 순으로 검증한다. 전체 설계는 이번 계약에 포함하고 구현만 순서대로 진행한다. 통신 실패 시 다른 프로필이나 Fake로 자동 대체하지 않는다.

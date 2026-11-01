@@ -361,7 +361,7 @@ scope 기본은 ASSIGNED_SYSTEMS이며 ADMIN은 BIZ_ADMIN만 허용한다. syste
 | 409 | RUN_NOT_RETRYABLE, WORK_ITEM_NOT_RETRYABLE, INVALID_STATE, APPROVAL_PRECONDITION_FAILED, INDEX_NOT_RETRYABLE | 최신 상태 확인; 허용 조작만 제공 |
 | 410 | OPERATION_RESULT_EXPIRED | 상세 재확인 기간 만료. 원 업무 조회·재조정 없이 새 키 실행 금지 |
 | 429 | RATE_LIMITED | Retry-After 초 단위; 해당 시간까지 버튼 비활성·입력 보존 |
-| 503 | SERVICE_UNAVAILABLE, ASSIGNMENT_UNAVAILABLE, SEARCH_UNAVAILABLE, MODEL_UNAVAILABLE, AI_RUN_STATE_UNKNOWN | 성공으로 표시하지 않음. 저장 여부 불명은 receipt UNKNOWN 또는 재확인. AI 실행 확인 불가는 공개 Run FAILED로 표시하고 새 run 재분석 제공 |
+| 503 | SERVICE_UNAVAILABLE, ASSIGNMENT_UNAVAILABLE, SEARCH_UNAVAILABLE, MODEL_UNAVAILABLE, AI_INVALID_OUTPUT, AI_RUN_STATE_UNKNOWN | 성공으로 표시하지 않음. 저장 여부 불명은 receipt UNKNOWN 또는 재확인. AI 실행 확인 불가는 공개 Run FAILED로 표시하고 새 run 재분석 제공 |
 | 504 | DEADLINE_EXCEEDED | 분석 실패와 업무 저장 미확인을 구분 |
 
 retryable은 수동 재시도 후보임을 뜻하며 상태·권한 검사를 생략하거나 자동 재전송하라는 뜻이 아니다. timeout·연결 오류는 프론트 로컬 오류이며 서버 DB 미저장 코드로 바꾸지 않는다. 검색 EMPTY와 ERROR, 모델 오류와 OUT_OF_SCOPE를 구분한다. 서비스 내부 오류는 에이전트 계약의 안전한 코드로 변환한다.
@@ -389,7 +389,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 담당 관계 변경 시 서버는 기존 구독의 전송 권한도 즉시 무효화한다. 메시지를 보내기 전에 현재 권한 세대를 검증하고 오래된 구독에 내부 payload를 보내지 않는다. 무효화 신호가 유실돼도 새 GET은 거부한다. 화면은 연결을 잃으면 보호 영역을 가리고 재조회 후 복원한다.
 
-내 문의·업무/사례 목록은 활성 화면에서 5초 간격 보조 폴링을 사용한다. 채팅은 실행이 QUEUED/RUNNING일 때만 1초 간격 Run 조회를 병행한다. 숨겨진 탭에서는 폴링을 멈추고 포커스 복귀 시 재조회한다. SSE 또는 폴링 어느 쪽도 신규 업무 명령을 만들지 않는다.
+내 문의·업무/사례 목록은 활성 화면에서 5초 간격 보조 폴링을 사용한다. 채팅은 실행이 QUEUED/RUNNING일 때만 1초 간격 Run 조회를 병행하고 종료를 관찰하면 문의와 메시지를 재조회한다. 숨겨진 탭에서는 폴링을 멈추고 포커스 복귀 시 재조회한다. SSE 또는 폴링 어느 쪽도 신규 업무 명령을 만들지 않는다. 채팅의 접수·임시 답변·최종 저장과 동기화 순서는 12.8절을 따른다.
 
 ### 12.5 전환 확인
 
@@ -410,7 +410,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 보완 메시지의 대상이 불명확하면 pendingTargetMessageIds에 저장하고 기존 문제 선택 UI를 제공한다. problem-links는 저장된 원문을 바꾸지 않고 같은 문의의 기존 문제와 연결한다. 최신 문의 버전 검사 후 입력 버전을1 올리고 배정된 티켓에는 보완만 연결한다. 질문 횟수 증가·자동 새 티켓·자동 재배정은 없다. 이미 연결된 메시지의 임의 재연결은409 INVALID_STATE다.
 
-프론트가 받는 오류/상태·조작은 이 표와 각 spec, 서비스 간 실행/색인/검색 권한은 에이전트 계약과 JSON Schema를 정본으로 한다. 동일 규칙을 spec마다 복사하지 않는다.
+프론트가 받는 오류/상태·조작은 이 표와 각 spec, 서비스 간 실행/색인/검색 권한은 에이전트 Markdown 계약을 정본으로 한다. 동일 규칙을 spec마다 복사하지 않는다.
 
 ### 12.7 병합 ERD와 외부 계약의 경계
 
@@ -421,3 +421,20 @@ WorkRecordCommand의 FAILED_ATTEMPT는 진행 이력 저장이며 해결 확인�
 알림 테이블 신설은 REST/SSE 경로나 메뉴 신설을 뜻하지 않는다. 본 프로필은 기존 INQUIRY/TICKET/SYSTEM_TICKETS/CASE 구독과 현재 GET 결과로 화면을 갱신한다. 응답 본문·같은 요청 키의 만료 뒤 tombstone 및 410 동작은 이 절의 원 규칙을 유지한다.
 
 처리 유형 정정은 현재 담당자만 INVESTIGATION↔INCIDENT 사이에서 수행한다. reason·허용 메시지 또는 직접 관측한 evidenceNote를 검증하고 ticket.version 증가와 WORK_TYPE_CHANGED 이벤트를 같은 거래로 저장한다. 상태/확인 요청은 바꾸지 않는다. 완료 티켓·다른 처리 유형·관리자 역할만 가진 사용자는409 INVALID_STATE 또는403이다.
+
+### 12.8 채팅 송수신 완료 규칙
+
+아래 연결 방식을 신규 프로필의 구현 기준으로 채택한다. 모델·역할 내부 구현과 관계없이 같은 입력·출력·저장 의미를 유지한다. AI의 본문 조합과 ID 검증은 [상담 답변 연결](../../contracts/agents/README.md#상담-답변과-저장-메시지-연결), 필드는 DATA_TYPES 신규 절과 에이전트 Markdown 계약이 정본이다.
+
+1. **입력 저장:** 최초 `POST /inquiries`는 문의·첫 USER 메시지·inquiryVersion=1을 저장한다. 이후 메시지·정정은 expected 버전을 검사한 뒤 입력 버전을 1 올린다. USER 메시지 생성의 requestId는 최초 명령 ID로 보존한다. 같은 거래에서 새 상담 runId와 answerMessageId를 발급하고 불변 실행 입력·QUEUED·currentRun 연결·멱등 결과를 저장한다. 정정/새 입력은 이전 활성 run을 SUPERSEDED로 만든다. 기존 티켓과 질문 횟수는 유지한다.
+2. **명령 응답:** 정상 저장은 200 SUCCEEDED CommandReceipt·resource=INQUIRY다. 이는 사용자 입력과 실행 접수 정보의 저장이며 답변 완료가 아니다. 답변을 기다리느라 REST 응답을 유지하지 않는다. 기존 202 PENDING/UNKNOWN·원 키 재확인 규칙은 그대로 적용한다. 같은 명령 재전송은 기존 저장 결과를 반환하고 새 run을 만들지 않는다.
+3. **AI 실행:** Spring은 commit 후 이전 실행을 최선 노력 취소하고 `POST /internal/v2/runs`에 새 입력을 보낸다. 이어 내부 SSE를 연결하고 snapshot도 즉시 조회한다. QUEUED/RUNNING 동안 1초 간격 snapshot 조회를 병행해 SSE 접속 전에 끝난 실행도 확인한다. 이벤트와 snapshot의 같은 최종 결과는 한 번만 적용한다. 접수·조회 실패나 기한 초과를 안전한 공개 Run 오류로 남기며 영속 전달 큐를 추가하지 않는다.
+4. **화면 진입:** 문의 ID를 얻으면 INQUIRY SSE 연결을 시작하고 InquiryResult와 최신 MessagePage를 조회한다. 요청이 겹쳐도 메시지는 id로 합친다. USER 임시 말풍선은 ChatMessage.requestId로 저장 메시지와 합치고, 서버 GET의 revision/content/sequenceNo를 사용한다. SSE 연결 이전의 저장 결과도 초기 GET에서 복구한다. 실행 중이면 공개 Run 조회를 병행한다.
+5. **임시 답변:** 내부 delta의 messageId=input.answerMessageId를 검증하고 공개 answer.delta의 messageId로 그대로 전달한다. 내부 chunkSeq를 공개 seq로 사용하며 내부 이벤트 전체 순번과 혼용하지 않는다. 현재 inquiryVersion/runId/answerMessageId가 맞는 조각만 임시 말풍선 하나에 누적한다. 같은 seq·같은 text는 무시하고 다른 text 충돌·누락은 임시 본문을 확정하지 않는다. 앞뒤 순서가 바뀐 조각은 seq로 정렬해 연결한다. 이미 GET으로 저장된 같은 messageId가 있으면 늦은 조각은 무시한다.
+6. **최종 저장:** 검증된 AiResult.answer와 질문·가이드 상태를 Spring이 같은 거래로 저장한 뒤 공개 Run SUCCEEDED를 반환한다. 최종 AI 메시지는 run의 answerMessageId 한 건이다. questions[].text·guide.messageText는 answer 안에 포함되며 별도 말풍선이나 추가 저장 메시지로 만들지 않는다. questionCount 증가와 GUIDE 확인 요청 생성은 이 commit 때만 수행한다. 답변 저장·질문 규칙과 기존 문제별 티켓 저장 결과는 별도로 확정한다.
+7. **완료 표시:** message.stored/state.changed 또는 Run 종료를 관찰하면 InquiryResult와 최신 MessagePage를 모두 재조회한다. 최종 ChatMessage.id와 임시 messageId가 같으면 content를 서버 본문으로 통째로 교체하고 임시 상태를 해제한다. 조각을 다시 붙이지 않는다. 이 GET 성공 전에는 답변을 저장 완료로 표시하지 않는다. 진행 중 currentRun이 바뀌어도 먼저 같은 재조회를 수행해 직전에 저장된 답변을 놓치지 않는다. 종료한 run의 폴링은 멈추고 재조회한 currentRun이 QUEUED/RUNNING이면 그 run을 조회한다.
+8. **실패·다음 입력:** FAILED/TIMED_OUT/SUPERSEDED 실행의 미저장 임시 답변은 제거하고 저장된 대화·입력을 유지한다. 실패는 안전한 Run 오류와 허용된 재분석 UI로 표시하며 가짜 AI 저장 메시지나 해결 상태를 만들지 않는다. 재분석은 새 runId·새 answerMessageId다. 새 메시지·정정 중 이전 조각은 무시하고 기존 저장 메시지는 보존한다. 시스템 선택과 GUIDE 미해결의 재분석도 같은 접수·답변 연결 방식을 사용하며 질문 수를 초기화하지 않는다.
+
+메시지 GET은 신규 프로필에서 message_status=COMPLETED인 저장 행만 반환한다. 예약 answerMessageId만으로 빈 메시지를 조회 결과에 넣지 않는다. answer.delta가 한 건도 없어도 SUCCEEDED 뒤 GET으로 최종 답변을 표시하며, SSE 유실·재접속·포커스 복귀 시 동일한 조회/병합 규칙을 적용한다. Run 종료 조회 후 최종 메시지 조회가 실패하면 동기화 실패와 재조회 조작을 표시한다. 사용자의 새 입력이나 AI 재분석을 자동 생성하지 않는다.
+
+권한 있는 기존 Run의 조회는 실패 상태여도 HTTP200 RunSummary다. 실패의 error는 ApiError 형식을 사용하고 requestId에는 해당 run 접수를 만든 공개 명령 ID를 넣는다. 내부 INVALID_OUTPUT은 FAILED/AI_INVALID_OUTPUT, MODEL_UNAVAILABLE·SEARCH_UNAVAILABLE은 FAILED/동명 코드, TOOL_UNAVAILABLE·BUDGET_EXCEEDED는 FAILED/SERVICE_UNAVAILABLE, DEADLINE_EXCEEDED는 TIMED_OUT/DEADLINE_EXCEEDED로 변환한다. 실행 확인 불가는 FAILED/AI_RUN_STATE_UNKNOWN이다. 이들 오류의 retryable=true는 최신 FAILED/TIMED_OUT run에 수동 RunRetryCommand를 제공한다는 뜻이며 업무 명령 자동 재전송은 아니다. AUTH_CONTEXT_INVALID는 FAILED/AUTH_CONTEXT_CHANGED·retryable=false이며 먼저 현재 권한을 확인한다. 이전 입력으로 대체된 run은 SUPERSEDED·error=null이며 재분석 대상이 아니다. 원시 오류·내부 응답 본문을 그대로 사용자에게 반환하지 않는다.

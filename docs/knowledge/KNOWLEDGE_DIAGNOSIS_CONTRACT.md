@@ -20,7 +20,7 @@ Ticket은 표준 요청과 책임 시스템을 제안하고 Spring은 지원 시
 
 ## 4. Knowledge 입력과 결과의 상세 의미
 
-필드명·스키마·필수 여부는 [공통 데이터 타입](../../specs/contracts/DATA_TYPES.md#지식사례반영)·[에이전트 wire Schema](../../contracts/agents/hops-system-1.schema.json)를 따른다. 아래는 조건부 분석에서 주고받는 정보의 의미이며 별도 타입을 정의하지 않는다.
+필드명·스키마·필수 여부는 [공통 데이터 타입](../../specs/contracts/DATA_TYPES.md#지식사례반영)·[에이전트 전송 형식](../../contracts/agents/README.md#s2-외부-wire-형식)를 따른다. 아래는 조건부 분석에서 주고받는 정보의 의미이며 별도 타입을 정의하지 않는다.
 
 | 구분 | 필요한 내용 | 검증 포인트 |
 |---|---|---|

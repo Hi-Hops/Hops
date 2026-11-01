@@ -25,7 +25,10 @@
 | C07 | AiRunRequest/Result/Event + IndexApplyRequest/Snapshot + KnowledgeAuthorizationRequest/Response, 서비스 Bearer 인증 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
 | C08 | 현재 frontend UI를 구현 기준으로 채택. 독립 티켓 상세와 사례 최소 목록·채팅 안 해결 확인을 기존 구성/토큰으로 확장하고 기능 책임·상태 소유를 고정 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[목표 구조](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
 | C09 | workItemId=problemId, 생성 상태는 inquiry_problem, 티켓은 ticket.inquiry_problem_id UNIQUE. 현재 PRIMARY는 it_system의 FK, 당시 배정은 ticket_assignment 이력 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안) |
-| C10 | AI input 읽기 전용·State 단일 작성자·검증된 patch 병합, 종료 결과 불변. JSON Schema Draft-07로 서비스 wire 검증 | [State 계약](../contracts/agents/README.md#내부-state와-wire-검증-계약) |
+| C10 | AI input 읽기 전용·State 단일 작성자·검증된 patch 병합, 종료 결과 불변. 외부 DTO의 필드·타입·조건을 Markdown 계약으로 정의 | [State 계약](../contracts/agents/README.md#내부-state와-wire-검증-계약) |
+| C11 | 상담 run당 최종 AI 메시지 하나. Spring 발급 answerMessageId를 입력·delta·최종 저장에 사용. answer가 채팅 본문 정본, questions/guide는 본문에 포함된 내용의 메타데이터. 답변·질문/가이드 상태 저장 뒤 공개 Run 성공·REST 본문으로 임시 답변 교체 | [채팅 송수신](contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)·[AI 답변 연결](../contracts/agents/README.md#상담-답변과-저장-메시지-연결) |
+
+문의 종합 상태는 [TARGET 4절](contracts/TARGET_CONTRACT.md#4-문의문제질문)의 집계를 채택한다. PRD 3.1절의 범위 안내와 3.4절의 해결 확인을 구분하도록 모든 문제가 OUT_OF_SCOPE인 문의에만 CLOSED를 사용한다. DATA_TYPES의 누락값과 DATA11.2절/ERD6.1절의 저장 보완안을 일치시켰으며, 무응답 자동 종료는 추가하지 않는다. 화면 확인 조건은 F006-CONTRACT-07~09이며, [호출과 진행 예시](../contracts/agents/README.md#호출과-진행-예시)에서 조회·표시 코드를 확인한다.
 
 <a id="적용-전-선정-항목"></a>
 
@@ -39,7 +42,7 @@
 | S01-E | 구체 임베딩 모델·차원·단가는 선정 범위에서 제외. 코사인 검색·청크512토큰·겹침64·상위5건·후보20건은 검색 검토 기준 | 모델·토크나이저 선정 후 청크와 차원을 검증. 문서와 CASE의 검색 설정 버전을 기록하고 호환되지 않는 벡터를 혼용하지 않음 |
 | S02 | 실행 요청의 expiresAt과 ExecutionLimits 형식만 정의. 기한·호출·토큰·도구·재시도 상한의 구체 수치는 실행 설정에서 별도 관리 | 실행기가 유효한 서버 설정과 요청을 검증하고 실행 전체에서 누적. 역할 전환으로 한도를 초기화하지 않음 |
 | S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 벡터 차원은 모델 선정 후 결정. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
-| S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [공용 예시](mocks/hops-system-1.examples.json)의 systems/users/primaryAssignments | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
+| S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [DATA 2절](../docs/DATA.md#2-고정-카탈로그)의 seed 작성 코드 | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
 | S05 | #69 원본22개 테이블 사용. 기존 확인 시각·이벤트·JSONB와 현재 resolved_case의 버전/두 반영 상태를 재사용. 업무와 journal 저장 후 Spring이 후속 호출 | 추가 테이블 없이 MVP 정상 흐름 우선. 복수 승인 버전 병행·반영 시도 전체 이력·영속 이벤트 전달 복구는 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
 | S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
 | S07 | 최초 평가30건(개발18/보류12), 시스템·의도·대표 예외 분포와 게이트는 아래 검증 기준. prompt/profile/catalog 해시로 동결 | 미래 해결·정답은 KB와 모델 입력에서 분리. 일정은 D1 계약→D2 선정값 적용→통합→동결→시연 순서로 고정하며 완료 날짜를 실행 전 실적으로 기록하지 않음 |

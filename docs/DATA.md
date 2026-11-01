@@ -8,7 +8,72 @@ Spring의 PostgreSQL 업무 DB가 사용자·시스템 PRIMARY·문의·티켓·
 
 ## 2. 고정 카탈로그
 
-세 시스템·기능10개·가상 사용자·현재 PRIMARY3개는 [공용 예시](../specs/mocks/hops-system-1.examples.json)의 catalogVersion=hops-demo-v1을 사용한다. 부서는 소속이다. 시스템 UUID는 `uuid5(NAMESPACE_URL,"hops-system-1.example/"+SystemCode)`, 기능은 `uuid5(NAMESPACE_URL,"hops-system-1.feature/"+SystemCode+"/"+기능코드)`다. 데이터는 모두 가상이며 로그인 비밀값을 포함하지 않는다.
+세 시스템·기능10개·가상 사용자·현재 PRIMARY3개는 아래 catalogVersion=hops-demo-v1의 seed 작성 코드를 기준으로 한다. 부서는 소속이다. 시스템 UUID는 `uuid5(NAMESPACE_URL,"hops-system-1.example/"+SystemCode)`, 기능은 `uuid5(NAMESPACE_URL,"hops-system-1.feature/"+SystemCode+"/"+기능코드)`다. 데이터는 모두 가상이며 로그인 비밀값을 포함하지 않는다. 아래 코드는 seed의 식별·관계를 설명하며 실제 DB 적재를 수행하지 않는다. 직원용 API에는 담당 관계 전체를 노출하지 않고 해당 DTO로 투영한다.
+
+```javascript
+const catalogVersion = "hops-demo-v1";
+const department = {
+  id: "2e3f4c5d-5c26-5026-94bd-1efac7067ff1",
+  code: "DEMO_STAFF",
+  name: "가상 IT서비스팀",
+};
+const systems = [
+  {
+    id: "3320ce84-c47c-592c-b599-6e968e12b0a3",
+    code: "ELECTRONIC_APPROVAL", name: "전자결재",
+    features: [
+      { id: "8c3ade64-251a-5b46-ba24-7bacb5384900", name: "문서 작성" },
+      { id: "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e", name: "문서 조회" },
+      { id: "74c8f41e-e3a1-5828-a317-2ccca15895c7", name: "결재 상태" },
+      { id: "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4", name: "첨부 열람" },
+    ],
+  },
+  {
+    id: "8ae35be5-1857-58c0-a478-e05b4217ff95",
+    code: "COMMON_LOGIN", name: "공통 로그인",
+    features: [
+      { id: "213718e2-a478-56c0-a8ad-456b3607516c", name: "로그인·SSO" },
+      { id: "0da3984c-7a69-5337-ba51-7b282f5f2659", name: "계정 접근" },
+      { id: "7a361da4-7df4-592d-845f-75829318cd7c", name: "권한 신청" },
+    ],
+  },
+  {
+    id: "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+    code: "FILE_SHARING", name: "파일 공유",
+    features: [
+      { id: "152e8439-1e01-5e26-9749-f77df1cb65fc", name: "파일 열람" },
+      { id: "06bb5aba-b278-5cc1-9e5b-41c38e674991", name: "파일 공유" },
+      { id: "b7b05865-02c9-5e39-a22e-d103b2a00057", name: "접근 권한" },
+    ],
+  },
+];
+const users = [
+  {
+    id: "f5b994d0-b857-5aba-bd46-2c49c7e8d1f0", employeeNo: "DEMO-001",
+    name: "가상 문의자", department, roles: [], primarySystemIds: [],
+  },
+  {
+    id: "291f55b2-1546-58d8-81a4-bfa73a8d072e", employeeNo: "DEMO-002",
+    name: "가상 담당자", department, roles: [],
+    primarySystemIds: [systems[0].id, systems[1].id],
+  },
+  {
+    id: "d521afcc-4b74-52db-ac36-aabe9fb59707", employeeNo: "DEMO-003",
+    name: "가상 업무 관리자", department, roles: ["BIZ_ADMIN"], primarySystemIds: [],
+  },
+  {
+    id: "ca1fd3bb-10f4-5504-94da-704b8a5f394b", employeeNo: "DEMO-004",
+    name: "가상 파일 담당자", department, roles: [], primarySystemIds: [systems[2].id],
+  },
+];
+const primaryAssignments = systems.map((system) => {
+  const owner = users.find((user) => user.primarySystemIds.includes(system.id));
+  return {
+    systemId: system.id,
+    primaryUser: { id: owner.id, name: owner.name, department: owner.department },
+  };
+});
+```
 
 ## 3. 버전과 원문
 
@@ -119,15 +184,17 @@ PostgreSQL 격리는 READ COMMITTED, 잠금 순서는 Inquiry → problemId 정�
 
 | 저장 위치 | 결정한 내용·조회 규칙 |
 |---|---|
-| message.payload | 서버 관리 contractVersion, problemLinks[{problemId,revision,spans:[{start,end}]}], questionBundles[{problemId,bundleRef}], pendingTarget:boolean. 질문 번들 유일성/횟수 갱신은 문제 행 잠금 안에서 적용. 범위는 Unicode 코드 포인트 [start,end) |
+| message.payload | 서버 관리 contractVersion, requestId:Uuid?(USER 최초 생성 명령·AI는null), answerRunId:Uuid?(AI 실행·USER는null), problemLinks[{problemId,revision,spans:[{start,end}]}], questionBundles[{problemId,bundleRef}], guide:{problemId,text,evidenceIds}?, pendingTarget:boolean. guide.text는 GuideProposal.messageText이며 같은 AI 본문의 부분 문자열. 질문 번들 유일성/횟수 갱신은 문제 행 잠금 안에서 적용. 범위는 Unicode 코드 포인트 [start,end) |
 | message_revision | revision_no는 보존한 과거 원문의 번호. 현재 content/revision은 message에서 읽고 둘을 합쳐 정정 이력 구성. 미수정 메시지는 revision1·이력[] |
 | standard_request.system_candidates | [{systemId,evidenceIds}]와 현재 responsible_system_id 후보. confirmed_facts/assumptions는 EvidenceStatement[], missing_items는 string[], type_detail은 RequestDetails, related_knowledge는 KnowledgeEvidence[] |
 | ticket_event.before_data/after_data | WORK_TYPE_CHANGED이면 {processingType,evidence:{messageIds:Uuid[],note:string?}}. 현재 담당자의 근거/사유와 실제 값 변경을 ticket.version 증가와 같은 거래로 기록 |
 | ticket_assignment.evidence | 추가 JSONB {messageIds:Uuid[],note:string?}. 이전 시스템/담당자는 assigned_at/id 순서의 직전 이력에서 투영. AUTO의 actorId=null |
-| agent_run.input_snapshot | 검증한 AiRunRequest 원본. model/사용자 비밀값과 내부 사고 과정 제외. inquiry.current_run_id는 상담만 가리키며 CURATION은 trigger_work_log_id로 분리 |
+| agent_run.input_snapshot | 검증한 AiRunRequest 원본. 상담 answerMessageId는 run 접수 시 발급·고정하고 RunSummary로 투영. CURATION은 null. 모델/사용자 비밀값과 내부 사고 과정 제외. inquiry.current_run_id는 상담만 가리키며 CURATION은 trigger_work_log_id로 분리 |
 | agent_run.validation_result | {policyRevision,inputDigest,resultDigest?,applied:boolean,appliedAt:time?,resources:ResourceRef[],caseGenerationState:GenerationState?}. resultDigest는 최종 AiResult의 canonical JSON SHA-256. 같은 run/digest는 재적용하지 않음 |
 | resolved_case의 현재 행·기존 JSONB | CaseVersion은 현재 사례 컬럼과 confirmed_facts/relation_candidates 등 기존 JSONB의 출처·적용 조건에서 투영. 승인 필드는 기존 approved_by_member_id/approved_at 사용. 승인 후 내용은 읽기 전용 |
 | knowledge_document.source_data | {origin:KnowledgeOrigin,sourceRef,reviewPr,contentDigest,appliesToSystemVersion:string?,applicability:string}. 승인 manifest는 이 메타데이터의 버전 고정 반입 자료이며 문서와 버전의 review_status/현재 ACL/data_split=RAG를 매 검색 검사. origin/출처/조건은 knowledge_document_version.source_metadata에 버전별 고정 |
+
+상담의 answerMessageId는 예약된 UUID이며 최종 검증 전에는 message 행을 만들지 않는다. 성공 적용 시 그 ID의 AI message.content=AiResult.answer를 한 번 저장하고, 질문 번들·문제별 count·가이드 확인 메타데이터·agent_run 적용 표식/성공을 같은 거래로 갱신한다. 기존 message PK와 문의 잠금·동일 run/digest 적용 검사로 중복을 막는다. 공개 메시지 조회에는 COMPLETED 행만 포함하고 ChatMessage.requestId는 payload에서 투영한다. GUIDE의 sourceId는 이 AI message.id, resultSummary는 payload.guide.text다. 기존 테이블/JSONB를 사용하며 추가 채팅 테이블은 만들지 않는다. 전송·최종 병합은 [WIRE12.8절](../specs/contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)을 따른다.
 
 knowledge_document_version.id는 내부 FK이고, 외부 documentId는 knowledge_document.id·documentVersion은 version_no다. CASE의 documentId는 resolved_case.id다. 공통 POLICY만 systemId=null을 허용하고 특정 시스템을 임의 배정하지 않는다. 시스템 없는 STAFF 공통 정책은 현재 PRIMARY가 있는 담당자 문맥에서만 허용한다. DEV/EVAL 자료는 검색에서 제외한다.
 

@@ -8,7 +8,7 @@
 |---|---|
 | 필드·자료형·필수/null·enum·요청 본문 | [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1) |
 | /api/v2 REST·오류·SSE·멱등/저장 확인 | [WIRE_CONTRACT12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
-| /internal/v2 실행·반영·권한 검증·State | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안)·[wire JSON Schema](../contracts/agents/hops-system-1.schema.json) |
+| /internal/v2 실행·반영·권한 검증·State | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
 | 업무 전이·접근·공개 | [TARGET_CONTRACT](../specs/contracts/TARGET_CONTRACT.md) |
 | 외부 ID와 물리 저장의 매핑 | [DATA](DATA.md) |
 
@@ -26,6 +26,8 @@ Spring이 현재 인증·권한·문의 버전·업무 저장·배정·해결 �
 | 사례·승인·반영 상태 | 불변 사례 버전·해결 확인·현재 담당자 승인, 실패 반영 수동 실행 | F011 |
 
 공통 receipt·작업/키 결과 조회·페이지·SSE 재동기화도 WIRE12절에 정의한다. 관리자는 메타데이터/정정만, 문의자는 본인 결과만, 현재 담당자는 관련 업무와 허용 원문 구간만 받는다. 조회 실패를 빈 결과로, timeout을 DB 미저장으로 바꾸지 않는다.
+
+채팅은 [WIRE12.8절](../specs/contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)의 입력 저장→실행 접수→임시 SSE→최종 저장→REST 병합 순서를 사용한다. 상담 run당 Spring이 예약한 answerMessageId의 AI 메시지 하나를 저장하며 공개 Run 성공은 답변·질문/가이드 상태 commit 뒤 반환한다. SSE 유실이나 조각 없는 성공도 같은 REST 조회로 완료한다.
 
 ## 3. Spring↔AI
 

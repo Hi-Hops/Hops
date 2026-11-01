@@ -549,13 +549,13 @@ MVP는 병합된 22개 테이블을 재사용한다. 별도 해결 확인·사�
 | member | policy_revision INT NOT NULL DEFAULT1 | 현재 권한 문맥 버전. 시스템 PRIMARY/역할 변경 때 영향 회원 행과 같은 거래에서 증가 |
 | it_system | ownership_version INT NOT NULL DEFAULT1 | 현재 PRIMARY 변경 세대. 권한 검증에 사용하며 과거 티켓 assignee를 바꾸지 않음 |
 | inquiry | current_run_id UUID NULL FK→agent_run.id, result_revision INT NOT NULL DEFAULT1. inquiry_status CHECK에 CLOSED 추가 | current_run은 상담 실행만. 현재 입력 버전과 둘 다 맞는 결과만 적용. 상태는 IN_PROGRESS/WAITING_USER/RESOLVED/CLOSED이며 CLOSED는 모든 문제의 범위 밖 안내 저장 후에만 집계. 무응답 자동 종료에 사용하지 않음 |
-| message | revision INT NOT NULL DEFAULT1, payload JSONB NOT NULL DEFAULT{} | revision≥1, 신규 최종 저장 행의 message_status=COMPLETED. payload의 문제/원문 구간/질문 번들 구조는 DATA11.3절 |
+| message | revision INT NOT NULL DEFAULT1, payload JSONB NOT NULL DEFAULT{} | revision≥1, 신규 최종 저장 행의 message_status=COMPLETED. 상담 run의 예약 answerMessageId를 최종 PK로 사용하며 미완성 행은 만들지 않음. payload의 requestId/answerRunId·문제/원문 구간/질문/가이드는 DATA11.3절 |
 | inquiry_problem | creation_outcome VARCHAR(30) NULL, creation_input_version INT NULL | NULL은 작업 없음. PENDING/STORED/NOT_CREATED/UNKNOWN, STORED에만 같은 문제의 ticket 존재. 상태 확인과 행 잠금 후만 변경 |
 | standard_request | agent_run_id는 신규 프로필에서 NOT NULL, UNIQUE(inquiry_problem_id,inquiry_version,agent_run_id) | 같은 문의 버전의 새 run도 새 스냅샷. 옛 스냅샷을 덮어쓰지 않음 |
 | ticket | 기존 version=0 유지, 0~2,147,483,646 CHECK | 외부 ticketRevision=version+1. 외부 expected-1을 비교. ticket.work_type 저장값은5종, 신규 AI 제안은 INCIDENT를 제외한4종 |
 | ticket_assignment | evidence JSONB NOT NULL DEFAULT{"messageIds":[],"note":null} | 현 배정 UNIQUE(ticket_id) WHERE ended_at IS NULL. 근거는 DATA11.3절 |
 | ticket_work_log | 완료 RESOLVED/IMPLEMENTED이면 verification_result 비공백 CHECK | FAILED_ATTEMPT는 Curator/해결 확인을 만들지 않음. confirmed_cause·applied_version은 실제 담당자 입력만 저장 |
-| agent_run | input_snapshot JSONB NOT NULL, QUEUED 상태 추가, started_at NULL 허용 | 입력은 AiRunRequest. result와 validation_result를 분리. CURATION이면 trigger_work_log_id 필수·UNIQUE(trigger_work_log_id) WHERE task=CURATION, 상담이면 처리 기록 없음 |
+| agent_run | input_snapshot JSONB NOT NULL, QUEUED 상태 추가, started_at NULL 허용 | 입력은 AiRunRequest. 상담 answerMessageId는 input_snapshot에 고정하며 CURATION은null. result와 validation_result를 분리. CURATION이면 trigger_work_log_id 필수·UNIQUE(trigger_work_log_id) WHERE task=CURATION, 상담이면 처리 기록 없음 |
 | idempotency_key | contract_version VARCHAR(50), operation_id UUID UNIQUE, operation_state VARCHAR(30), resource_type VARCHAR(30) NULL, resource_id UUID NULL, tombstoned_at TIMESTAMPTZ NULL | 신규 필수 키는 NOT NULL, UNIQUE(actor_member_id,contract_version,idempotency_key). operation_state=PENDING/SUCCEEDED/REJECTED/UNKNOWN. 메서드/경로/본문 해시를 재확인 후 버전 비교 |
 | idempotency_key | response_status/response_body는 tombstone 정리 뒤 NULL 허용 | 상세 최소24시간. 만료 뒤410, 기존 키/해시/operation/resource는 보존. 같은 키 새 실행 금지. PENDING 접수는202 receipt이며 업무 반영+최종 journal은 한 거래로 저장 |
 | knowledge_document_version | content_digest CHAR(64) NOT NULL, source_metadata JSONB NOT NULL, review_status VARCHAR(30) NOT NULL DEFAULT PENDING | 승인 원문 UTF-8 바이트 SHA-256과 origin/출처/적용 조건을 버전 고정. 승인된 문서/버전만 검색하며 현재 ACL·data_split도 검사 |

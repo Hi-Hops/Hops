@@ -33,4 +33,4 @@ F001~F011의 화면 구현은 [현재 frontend UI 기준](../docs/frontend/READM
 
 ## 구현·검증 구분
 
-각 spec의 기존 TARGET/DETAIL 조건은 보존하고 신규 계약 검증에는 Fxxx-CONTRACT 번호를 사용한다. 이전 코드의 AC 테스트 통과를 신규 시나리오 통과로 옮겨 적지 않는다. 문서/예시·Mock·HTTP/SSE 대역·실제 Spring/DB·AI/검색·브라우저 E2E를 따로 기록한다. [신규 JSON 예시](mocks/hops-system-1.examples.json)는 가상 검토 자료이며 실행 Mock 대체물이 아니다.
+각 spec의 기존 TARGET/DETAIL 조건은 보존하고 신규 계약 검증에는 Fxxx-CONTRACT 번호를 사용한다. 이전 코드의 AC 테스트 통과를 신규 시나리오 통과로 옮겨 적지 않는다. 문서/예시·Mock·HTTP/SSE 대역·실제 Spring/DB·AI/검색·브라우저 E2E를 따로 기록한다. 신규 기능의 [호출과 진행 예시](../contracts/agents/README.md#호출과-진행-예시)는 Markdown 코드로 제공하며 실행 Mock 대체물이 아니다.
