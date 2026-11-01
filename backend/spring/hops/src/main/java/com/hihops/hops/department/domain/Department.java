@@ -7,7 +7,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
 /**
- * 부서. 요청자 소속 부서와 IT 처리 부서를 함께 관리한다 (docs/ERD_설명.md "부서 department").
+ * 부서. 요청자 소속 부서와 IT 처리 부서를 함께 관리한다 (docs/ERD.md "부서 department").
  *
  * <p>routable이 true인 부서만 AI가 티켓을 배정할 수 있는 IT 처리 부서다 (요청자 소속 부서는 false).
  * code는 AI 제안·JWT departmentCode에 쓰는 고유 코드이고, name은 화면 표시용이다.

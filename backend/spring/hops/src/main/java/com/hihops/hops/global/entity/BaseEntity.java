@@ -12,7 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 
 /**
- * ERD(docs/ERD_설명.md)의 테이블 대부분이 공통으로 가진 컬럼을 한 곳에 정의한 부모 클래스.
+ * ERD(docs/ERD.md)의 테이블 대부분이 공통으로 가진 컬럼을 한 곳에 정의한 부모 클래스.
  *
  * <table>
  *   <tr><th>컬럼</th><th>필드</th><th>채워지는 방법</th></tr>
