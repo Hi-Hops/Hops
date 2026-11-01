@@ -1,6 +1,6 @@
 # F011 해결 사례 초안·승인·검색 공개
 
-상태: PRD 1.44 목표 · PR #68 계약·화면 결정값 작성 완료 / 팀 승인·구현·통합 검증 별도. 관련 문서: [PRD](../../docs/PRD.md), [API](../../docs/API.md), [데이터](../../docs/DATA.md), [데이터 구축 계획](../../docs/knowledge/DATASETS.md#저장검색과-사례-공개).
+상태: PRD 1.44 목표 · hops-system-1 계약·화면 기준 / 구현·통합 검증 별도. 관련 문서: [PRD](../../docs/PRD.md), [API](../../docs/API.md), [데이터](../../docs/DATA.md), [데이터 구축 계획](../../docs/knowledge/DATASETS.md#저장검색과-사례-공개). [UNKNOWN 복구·수동 공개 중단 변경안](RECOVERY_PROPOSAL.md)을 참고한다.
 
 ## 목표와 사용자
 
@@ -44,7 +44,7 @@
 
 ## 계약·화면 상태
 
-신규 `hops-system-1`의 PR #68 제출 결정값이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
+신규 `hops-system-1`의 계약이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·통합 완료 표시가 아니다.
 
 | 조작 | 계약·검증 |
 |---|---|
@@ -81,7 +81,7 @@
 
 담당자 기록·Curator·승인·두 검색 저장소 반영의 실제 연동 및 통합 검증은 별도다.
 
-기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. hops-system-1 계약안의 담당자 리뷰·승인 후 코드·테스트를 전환한다. 현재 구현을 문서만으로 완료 처리하지 않는다.
+기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. hops-system-1 계약에 맞춰 코드·테스트를 전환한다. 현재 구현을 문서만으로 완료 처리하지 않는다.
 
 ## 서비스 간 계약 추적
 
@@ -101,7 +101,7 @@
 
 - **F011-CONTRACT-08:** 기존 resolved_case의 현재 승인 버전과 vector_status/graph_status 두 성공을 확인한 경우에만 공개한다. 추가 버전·반영 이력 테이블 없이 다른 버전의 응답은 적용하지 않는다.
 
-- **F011-CONTRACT-09:** 승인 commit 뒤 색인 POST 전 종료돼도 승인과 같은 거래에 보존한 source_metadata.indexRequests로 복구한다. 담당자 확인에서 유효한 원격 NOT_FOUND이면 동일 jobId/attempt/digest/본문을 재접수하며 두 성공 전 검색 비공개를 유지한다. 승인 또는 요청 보존이 실패하면 해당 승인 거래 전체가 롤백된다.
+- **F011-CONTRACT-09:** 승인 commit 뒤 색인 POST 전 종료되고 원격이 유효한 NOT_FOUND를 반환하면, 승인과 같은 거래에 보존한 source_metadata.indexRequests의 동일 jobId/attempt/digest/본문을 담당자 확인으로 재접수하며 두 성공 전 검색 비공개를 유지한다. 승인 또는 요청 보존이 실패하면 해당 승인 거래 전체가 롤백된다.
 - **F011-CONTRACT-10:** 원격이 접수했으나 응답이 유실된 경우 기존 RUNNING/UNKNOWN snapshot은 조회만 반영한다. 최초 전달과 수동 재전달이 경합해도 AI의 같은 (jobId,attempt) 실행은 하나이며 내용이 다르면409다.
 - **F011-CONTRACT-11:** timeout·5xx·인증/권한 오류·형식이 잘못된404·메타데이터 누락·승인 버전 불일치는 새 POST나 attempt 증가를 만들지 않는다. 현재 권한 없는 사용자의 확인 요청과 브라우저 GET·폴링도 색인을 시작하지 않는다.
-- **F011-CONTRACT-12:** FAILED의 다음 attempt를 저장한 뒤 전달 전 종료되면 그 현재 요청을 같은 키로 재접수한다. 이전 attempt의 늦은 성공은 무시하고 다른 저장소의 성공은 유지한다. 원격 상세 보존 기간이 지나 기존 키만 남으면 UNKNOWN을 반환하고 새 작업으로 실행하지 않는다.
+- **F011-CONTRACT-12:** FAILED의 다음 attempt를 저장한 뒤 전달 전 종료되면 그 현재 요청을 같은 키로 재접수한다. 이전 attempt의 늦은 성공은 무시하고 다른 저장소의 성공은 유지한다. 원격 상세 보존 기간이 지나 기존 키만 남으면 UNKNOWN을 반환하고 새 작업으로 실행하지 않는다. 이 경우 현재 계약에는 자동 또는 수동 새 시도 복구 경로가 없다.
