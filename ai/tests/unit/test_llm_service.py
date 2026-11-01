@@ -3,12 +3,12 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from hops_ai.fakes.llm import FakeLLMClient
 from hops_ai.harness.budget import RunBudget
 from hops_ai.harness.errors import LlmCallLimitExceeded, OutputRejected, TransientError
 from hops_ai.services.llm.budgeted import BudgetedLLMClient
 from hops_ai.services.llm.client import LLMClient, LLMMessage, LLMRequest, LLMUsage
 from hops_ai.services.llm.usage import UsageRecorder
+from tests.doubles.llm import FakeLLMClient
 
 
 class Reply(BaseModel):
@@ -19,9 +19,11 @@ class Other(BaseModel):
     number: int
 
 
-def make_request(max_output_tokens: int = 500, prompt_version: str = "intake.v1") -> LLMRequest:
+def make_request(
+    max_output_tokens: int = 500, prompt_version: str = "test.prompt.v1"
+) -> LLMRequest:
     return LLMRequest(
-        messages=[LLMMessage(role="user", content="VPN 접속 오류가 나요.")],
+        messages=[LLMMessage(role="user", content="전자결재 문서 조회 방법을 알려주세요.")],
         response_model=Reply,
         max_output_tokens=max_output_tokens,
         prompt_version=prompt_version,
@@ -111,7 +113,7 @@ async def test_budgeted_client_returns_the_response_and_records_usage(clock, mak
     summary = usage.summary()
     assert (summary.model_calls, summary.input_tokens, summary.output_tokens) == (1, 120, 30)
     assert summary.model_ids == ("fake-llm",)
-    assert summary.prompt_versions == ("intake.v1",)
+    assert summary.prompt_versions == ("test.prompt.v1",)
 
 
 async def test_output_tokens_are_capped_by_the_budget(clock, make_settings) -> None:
@@ -182,13 +184,13 @@ def test_meta_has_null_model_fields_when_no_model_was_used() -> None:
 
 def test_meta_lists_every_distinct_model_and_prompt_version() -> None:
     usage = UsageRecorder()
-    usage.record(model_id="m-a", prompt_version="intake.v1", usage=LLMUsage(10, 5))
-    usage.record(model_id="m-a", prompt_version="ticket.v2", usage=LLMUsage(20, 8))
-    usage.record(model_id="m-b", prompt_version="ticket.v2", usage=LLMUsage(1, 1))
+    usage.record(model_id="m-a", prompt_version="test.prompt.v1", usage=LLMUsage(10, 5))
+    usage.record(model_id="m-a", prompt_version="test.prompt.v2", usage=LLMUsage(20, 8))
+    usage.record(model_id="m-b", prompt_version="test.prompt.v2", usage=LLMUsage(1, 1))
 
     meta = usage.to_meta(duration_ms=900)
     summary = usage.summary()
 
     assert meta.modelId == "m-a+m-b"
-    assert meta.promptVersion == "intake.v1+ticket.v2"
+    assert meta.promptVersion == "test.prompt.v1+test.prompt.v2"
     assert (summary.model_calls, summary.input_tokens, summary.output_tokens) == (3, 31, 14)

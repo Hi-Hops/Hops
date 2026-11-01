@@ -1,4 +1,4 @@
-"""하네스가 실행 중 만나는 실패와 agent-1 오류로의 변환.
+"""하네스 내부 실패와 안전한 오류로의 변환.
 
 계약 오류에는 미리 정한 안전한 문구만 담는다. 원시 예외 메시지·비밀값·내부 사고 과정은 담지 않는다.
 상세 내용(detail)은 로그용이다.
@@ -7,7 +7,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from hops_ai.contracts.agent_1 import AgentError, AgentErrorCode, ResultStatus
+from hops_ai.contracts.runtime import AgentError, AgentErrorCode, ResultStatus
 
 
 class HarnessError(Exception):
@@ -94,7 +94,7 @@ class RetrievalUnavailable(HarnessError):
 
 
 class UnsupportedRoute(HarnessError):
-    """아직 연결하지 않은 처리 경로(예: Knowledge·Diagnosis 호출)가 필요한 입력이다."""
+    """허용되지 않았거나 아직 연결하지 않은 처리 경로다."""
 
     safe_message = "아직 지원하지 않는 처리 경로다"
 
@@ -135,3 +135,10 @@ def describe_failure(error: BaseException) -> Failure:
             retryable=HarnessError.retryable,
         ),
     )
+
+
+class ComponentNotReady(RuntimeError):
+    """미구현 요소를 성공·빈 결과·Fake 응답으로 대체하지 않는다."""
+
+    def __init__(self, component: str) -> None:
+        super().__init__(f"{component}: 아직 구현·연결되지 않았다")

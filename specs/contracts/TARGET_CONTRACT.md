@@ -284,10 +284,10 @@ Neo4j 반영 결과가 미확인이므로 동일 사례는 Vector를 포함한 *
 
 | 기존 자료·구현에서 확인한 항목 | 새 목표에서 필요한 변경 | 영향과 검증 대상 |
 |---|---|---|
-| [기존 데이터 타입](DATA_TYPES.md)의 `Problem.category`와 `questionCount` 0~3 | 문의 의도와 내부 처리 유형 분리, 문제별 질문 묶음 최대 5회 | 프론트 타입·Mock, AI `QuestionCount` 제약, 질문 전이·테스트. 기존 `category`를 동일 의미로 일괄 치환하지 않음. |
+| [기존 데이터 타입](DATA_TYPES.md)의 `Problem.category`와 `questionCount` 0~3 | 문의 의도와 내부 처리 유형 분리, 문제별 질문 묶음 최대 5회 | 프론트 타입·Mock과 실제 질문 전이·서버 검증은 전환 전. AI 내부 `QuestionCount`는 0~5로 정리했으며 실제 질문 전이는 미구현. |
 | 기존 `TicketCard.department`, `routingStatus`의 부서·CS 중심 표현 | 보고 시스템·책임 시스템·서버가 확정한 주담당자와 근거 | 프론트 화면·조회/권한, Spring 저장·SSE 대상, 기존 계약/fixture 호환. |
-| AI 서비스 `hops-mock-1`의 `AiRequest.departments`, `TicketProposal.departmentCode` | 서버 제공 시스템 목록과 책임 시스템 후보·근거 | Python 외부 DTO와 Spring 어댑터·권한 검증·계약 테스트. 기존 버전의 호환 정책 협의. |
-| 내부 `agent-1`의 Intake·Diagnosis·Ticket과 기존 Supervisor 구성 | Inquiry·Knowledge의 조건부 분석·Ticket·Curator 및 모델 기반 Supervisor | 내부 역할 계약·라우팅·가짜 역할/테스트. 이름 변경만으로 기능 완성으로 간주하지 않음. |
+| 기존 부서 기반 AI 요청·티켓 제안 | 서버 제공 시스템 목록과 책임 시스템 후보·근거 | 옛 Python 실행 어댑터는 분리했다. 새 외부 DTO·Spring 어댑터·인증·권한·계약 테스트는 합의·구현 전. |
+| 기존 `agent-1`·단일 baseline·규칙 기반 Supervisor | Inquiry·Knowledge의 조건부 분석·Ticket·Curator 및 모델 기반 Supervisor | 새 역할 골격으로 정리했고 호출 시 미구현 오류를 낸다. 상세 입출력·모델 조율·실제 역할 실행은 구현 전. |
 | 기존 처리 상태의 미확인 종료·재오픈 관련 프로필 | 무응답 확인 대기, 완료 후 재오픈 제외 | 처리 상태·UI·기존 Mock 및 과거 데이터 전환. 기존 상태 이력의 보존·표시 방식은 별도 협의. |
 | 기존 지식 v0와 정책·가이드의 부서 기반 본문 | 새 시스템·소유권·승인·양쪽 반영 정책 | JSON·schema·문서·청크·manifest 및 검색 대상 동기화와 검수. |
 

@@ -1,7 +1,7 @@
 [project]
 name = "hops-ai"
 version = "0.1.0"
-description = "Hops AI 서버. Spring이 요청한 문의 분석을 에이전트로 실행하고 진행과 결과를 SSE로 전달한다"
+description = "IT 문의 표준화·지식 검색·사례 재사용을 위한 Hops AI 서버 골격"
 requires-python = ">=3.13,<3.14"
 # 초기 직접 의존성은 docs/AGENT_DEVELOPMENT.md 9장의 고정 버전을 따른다.
 dependencies = [
