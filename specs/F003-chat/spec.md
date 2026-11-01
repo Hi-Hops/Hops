@@ -90,11 +90,11 @@
 | 경계 | 이 기능에 적용할 계약 |
 |---|---|
 | Frontend↔Spring | 문의/메시지/system-confirmation/problem-links·Run 재분석. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
-| Spring↔AI | AiRunRequest/Result·KnowledgeAuthorization·고정 profile/예산. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
-| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |
+| Spring↔AI | AiRunRequest/Result·KnowledgeAuthorization·실행 기한/누적 한도 형식. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약) |
+| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 저장·서비스 인증·검증 게이트를 참조. 비밀값은 배포 환경 주입 |
 
 - **F003-CONTRACT-05:** 배정 뒤 대상이 불명확한 메시지는 보존하고 problem-links로 기존 문제를 확정한다. 질문 수 증가·새 티켓·자동 재배정 없이 같은 메시지의 보완 연결만 저장한다.
-- **F003-CONTRACT-06:** 요청이 결정 profile의 기한/토큰/호출/비용을 높이거나 일일 예산을 초과하면 모델을 호출하지 않고 안전한 한도 오류와 입력 보존을 제공한다.
+- **F003-CONTRACT-06:** AI 실행기는 서버가 준비한 기한·누적 실행 한도를 검증하고 한도를 넘은 실행의 새 제안을 적용하지 않는다. 실패해도 저장된 원문·기존 티켓을 유지한다.
 
 
 ## 병합 ERD 적용 조건

@@ -475,7 +475,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 
 중복 불가 조합: (문서 버전 ID, 조각 순번)
 
-신규 프로필은 같은 Spring PostgreSQL DB의 hops_knowledge 스키마에 pgvector vector(1536)를 두고 text-embedding-3-small을 사용한다. 문서 버전 FK는 같은 DB의 업무 스키마를 참조한다. 6절의 CASE 버전 FK와 출처 XOR를 적용한다. 해결 사례의 임베딩도 같은 저장소에 두며 버전별 반영 정본은 case_index_job이다. resolved_case.vector_status/graph_status는 최신 버전 캐시다. 시스템·기능·증상 등 관계는 Neo4j에 둔다.
+신규 프로필은 같은 Spring PostgreSQL DB의 hops_knowledge 스키마에 pgvector를 사용한다. 임베딩 모델과 벡터 차원은 별도 선정하며 여기서 고정하지 않는다. 문서 버전 FK는 기존 knowledge_document_version을 참조한다. 승인 CASE도 기존 knowledge_document/knowledge_document_version에 검색용 스냅샷으로 투영하고 source_metadata에 caseId/caseVersion을 연결한다. 별도 사례 버전·반영 작업 테이블은 만들지 않는다. 반영 결과는 resolved_case.vector_status/graph_status로 관리하며 시스템·기능·증상 등 관계는 Neo4j에 둔다.
 
 #### 해결 사례 `resolved_case`
 담당자의 해결·구현 기록으로 만든 사례예요. Curator가 초안을 만들고, 해당 시스템 주담당자가 승인한 뒤 Vector·Neo4j에 모두 반영돼야 검색에 나와요. *(근거: 최종기획서 7.3, 8.1~8.5, 9.4)*
@@ -534,7 +534,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 ## 5. 물리 적용 상태
 
 - 실제 DB에 적용된 테이블은 V1의 `department`·`member`·`member_role`뿐이다. 나머지 19개 테이블과 `is_routable`·`AGENT_OPS_ADMIN` 제거는 새 Flyway 마이그레이션(V2 이후)과 코드·계약 전환 이슈에서 적용한다.
-- JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 모델·예산은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다. 실제 CHECK/인덱스/migration 적용은 백엔드 구현 PR의 검증 대상이다.
+- JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다. 실제 CHECK/인덱스/migration 적용은 백엔드 구현 PR의 검증 대상이다.
 - 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다. 본 문서6절은 이번 PR의 추가 설계이며 #69에서 이미 승인·적용한 구조로 간주하지 않는다.
 
 

@@ -1,6 +1,6 @@
 # 에이전트 공통 입출력 계약 — PRD 1.44
 
-상태: PR #68 제출 결정안 · 역할/State/wire/모델/저장/예산 값 기입 완료 · 팀 승인·실제 구현·통합 검증은 별도. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 기존 코드·Fake의 `agent-1` 계약은 [현재 Python 타입](../../ai/src/hops_ai/contracts/agent_1.py)과 [AI 서버 안내](../../ai/README.md)에서 확인한다.
+상태: PR #68 제출 결정안 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. 팀 승인·실제 구현·통합 검증은 별도다. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 기존 코드·Fake의 `agent-1` 계약은 [현재 Python 타입](../../ai/src/hops_ai/contracts/agent_1.py)과 [AI 서버 안내](../../ai/README.md)에서 확인한다.
 
 ## 역할과 최소 입출력
 
@@ -97,7 +97,7 @@
 2. 사용자·시스템·권한·문서/사례 버전과 기존 성공 업무는 서버가 제공·검증한다. 임시 문제 참조를 실제 DB 키나 저장 성공으로 사용하지 않는다.
 3. 테스트용 Fake는 역할 교체·오류·경로 검증에 사용한다. 실제 모델·검색·Spring DB 저장 및 문의자 확인 E2E 완료의 근거는 아니다.
 4. 사례 생성·승인·반영의 상태는 실제 서버 결과로 확인한다. 역할 호출 결과만으로 사례 공개를 확정하지 않는다.
-5. 모델·임베딩·시간·호출·비용·서비스 인증의 채택값은 결정 대장과 신규 실행 계약에 기입했다. 실제 구현·실행 검증은 별도다. 코드에 존재하는 과거 예산을 새 제품 목표로 재확정하지 않는다.
+5. 실행 입력의 기한·누적 한도 형식과 서비스 인증은 신규 실행 계약을 따른다. 구체 LLM·임베딩 모델·차원·단가·예상 비용·금액 예산과 실행 상한의 수치는 이 문서에서 정하지 않는다. 코드에 존재하는 과거 설정을 새 제품 목표로 재확정하지 않는다.
 
 ## hops-system-1 실행 계약안
 
@@ -124,7 +124,7 @@
 |---|---|---|
 | AiRunRequest | contractVersion,runId,kind,inquiryId,inquiryVersion,problemIds,messages,problems,systems,accessContext,existingWorkItems,workRecord,expiresAt,limits,modelProfileId | contractVersion=hops-system-1. kind=INQUIRY_ANALYSIS 또는 CASE_DRAFT. CASE_DRAFT에만 workRecord가 있고 다른 kind는 null |
 | AccessContext | actorId,purpose,systemIds,allowedDocumentScopes,policyRevision | Spring이 만든 최소 권한. purpose=EMPLOYEE_HELP 또는 SYSTEM_WORK 또는 CASE_DRAFT. 모델이 확장하지 못함 |
-| ExecutionLimits | maxModelCalls,maxInputTokens,maxOutputTokens,maxToolCalls,maxRetries,maxCostUsd | 모두 양수, maxRetries만 0 허용. 전체 실행의 누적 한도 |
+| ExecutionLimits | maxModelCalls,maxInputTokens,maxOutputTokens,maxToolCalls,maxRetries | 양의 정수, maxRetries만 0 허용. 전체 실행의 누적 한도 형식이며 구체 수치는 서버 실행 설정에서 관리 |
 | AiAccepted | contractVersion,runId,status,eventsPath | status=QUEUED. 경로는 허용된 AI 서버 origin 안의 상대 경로만 허용 |
 | AiRunSnapshot | contractVersion,runId,status,lastSeq,result,error | result/error는 조건부 nullable. status=QUEUED/RUNNING/SUCCEEDED/FAILED/TIMED_OUT/SUPERSEDED/UNKNOWN |
 | AiResult | contractVersion,runId,kind,inquiryId,inquiryVersion,status,answer,problemProposals,questions,guide,ticketProposals,caseProposal,evidence,error | kind·종료 상태별 조합은 JSON Schema. 제안 성공이 DB 저장 성공은 아님 |
@@ -159,9 +159,9 @@ Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검
 
 ### 실행 제한·진행·실패
 
-expiresAt은 Spring이 정한 실행 전체 기한이며 역할 전환 시 다시 시작하지 않는다. maxModelCalls·토큰·도구·비용은 모든 역할에 걸쳐 누적한다. maxRetries=0이며 형식 오류도 자동 재호출하지 않고 INVALID_OUTPUT으로 끝낸다. 공급자 응답이 timeout 뒤 도착해도 기한·현재 입력 버전을 다시 검사한다.
+expiresAt은 Spring이 정한 실행 전체 기한이며 역할 전환 시 다시 시작하지 않는다. maxModelCalls·토큰·도구·재시도는 모든 역할에 걸쳐 누적한다. 형식 오류는 유효한 저장 제안으로 적용하지 않고 INVALID_OUTPUT으로 처리한다. 공급자 응답이 timeout 뒤 도착해도 기한·현재 입력 버전을 다시 검사한다.
 
-모델은 gpt-5.6-luna·reasoning none, 임베딩은 text-embedding-3-small/1536, profileId는 hops-mvp-20261101로 채택한다. 실행/저장/비용 기본값은 [결정 대장](../../specs/QUESTIONS.md#실행검색-기본값)이 정본이다. 요청이 그 상한을 높이거나 다른 profile을 주장하면 거부한다. API 키는 AI 서버 환경에만 주입한다. 문서 변경으로 유료 호출을 실행하지 않는다.
+구체 LLM·임베딩 모델·reasoning 설정·벡터 차원·단가·예상 비용·금액 예산과 실행 상한의 수치는 이 계약에서 선정하지 않는다. 모델·과금 설정은 AI 서버에서 별도 관리하며 AiRunRequest에 모델 프로필이나 금액 필드를 두지 않는다. 서버는 요청의 기한·누적 한도를 실행 설정에 대조해 검증한다. 저장·서비스 연결 기준은 [결정 대장](../../specs/QUESTIONS.md#실행검색-기본값)을 따르고 API 키는 AI 서버 환경에만 주입한다.
 
 AiEvent는 contractVersion/runId/seq/eventType/payload envelope다. progress payload는 role/displaySummary, answer.delta는 messageRef/chunkSeq/text, result는 AiResult다. seq는 실행 전체에서 증가하고 final result는 한 논리 결과로 고정한다. Spring은 원본 AI seq와 별도로 공개 eventId를 발급한다. seq 누락·연결 종료 시 snapshot을 재확인하며 업무 저장을 AI 이벤트 재생으로 재실행하지 않는다.
 
@@ -233,13 +233,13 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | caseProposal | CaseProposal 또는 null | CASE_DRAFT의 Curator 검증기만 변경 |
 | roleResults | Map<invocationId,검증된 역할 결과>·빈 map | 실행기. 같은 호출 ID 재전달은 중복 저장하지 않음 |
 | pendingCalls | Set<invocationId>·빈 set | 실행기만 예약/해제. 역할이 다른 역할을 직접 호출하지 않음 |
-| usage | calls/inputTokens/outputTokens/toolCalls/retries/costUsd 누적 | 실행기·도구 wrapper만 원자적으로 증가 |
+| usage | calls/inputTokens/outputTokens/toolCalls/retries 누적 | 실행기·도구 wrapper만 원자적으로 증가 |
 | eventSeq | int·0 | 이벤트 발행기만 증가. 역할 출력의 임의 seq는 신뢰하지 않음 |
 | cancellation | cancelled:boolean,reason:null 또는 안전한 코드 | runtime/서버 취소 경로만 변경 |
 | error | AiError 또는 null | 실행기만 최초 종료 오류를 고정 |
 | finalResult | AiResult 또는 null | FINALIZING에서 한 번 고정. 이후 새로운 제안/진행을 반영하지 않음 |
 
-Map은 역할끼리 공유해서 직접 수정하는 가변 객체가 아니다. 노드는 검증된 patch를 반환하고 실행기가 키별 병합한다. 병렬 실행을 사용한다면 phase/input/usage/eventSeq 같은 단일 작성자 필드에 last-write-wins를 쓰지 않는다. 비용은 호출 직전 예약하고 결과 후 실제 사용량으로 정산하며 취소/실패 호출도 실제 발생 비용을 남긴다.
+Map은 역할끼리 공유해서 직접 수정하는 가변 객체가 아니다. 노드는 검증된 patch를 반환하고 실행기가 키별 병합한다. 병렬 실행을 사용한다면 phase/input/usage/eventSeq 같은 단일 작성자 필드에 last-write-wins를 쓰지 않는다. 누적 실행 사용량은 실행기가 관리하며 역할 출력으로 초기화하지 않는다.
 
 roleResults에는 구조화된 결과·오류·근거 참조만 저장한다. 모델 내부 사고 과정·토큰·API 키·서비스 Bearer를 포함하지 않는다. 원문은 input의 접근 범위 밖으로 확장하지 않는다.
 
@@ -264,7 +264,7 @@ questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 �
 
 - Spring은 AiRun 입력·상태·최종 결과 digest와 실제 업무 결과를 보존한다. AI의 내부 State는 한 run용이며 업무 DB 정본을 대체하지 않는다.
 - 병합된 ERD와의 run/kind·입력/정책 버전·원 기록·결과 적용 매핑은 [DATA11절 E04/E07~E10](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 대조 완료했다. Entity의 컬럼을 AI State에 그대로 복제하지 않으며 wire 필드 의미가 바뀌면 이 문서·Schema·예시·영향 spec을 함께 갱신한다.
-- AI 실행 접수 기록(runId·입력 digest·상태·최종 결과/seq)은 RunLedger로 중복을 차단해야 한다. 저장은 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB로 채택한다. AI 계정에 업무 원본 쓰기 권한을 주지 않는다. 검색 schema 권한은 별도로 제한한다. runId PK·입력 digest·원자적 접수/비용 예약·결과/순번·24시간 상세와 ID 표식을 보존한다. 재시작 뒤 같은 ID로 새 모델 호출을 시작하지 않는다.
+- AI 실행 접수 기록(runId·입력 digest·상태·최종 결과/seq)은 RunLedger로 중복을 차단해야 한다. 저장은 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB로 채택한다. AI 계정에 업무 원본 쓰기 권한을 주지 않는다. 검색 schema 권한은 별도로 제한한다. runId PK·입력 digest·원자적 접수·결과/순번·24시간 상세와 ID 표식을 보존한다. 재시작 뒤 같은 ID로 새 모델 호출을 시작하지 않는다.
 - MVP는 중간 그래프 checkpoint에서 자동 재개하지 않는다. 접수됐지만 실행 상태를 복원할 수 없으면 snapshot UNKNOWN으로 반환한다. Spring은 이를 공개 RunSummary.status=FAILED·error.code=AI_RUN_STATE_UNKNOWN으로 변환해 새 runId 재분석을 제공한다. 기존 workItem·성공 티켓은 유지하고 이전 run의 늦은 결과는 적용하지 않는다.
 - 최종 결과 적용은 Spring의 최신 inquiryVersion·activeRunId·policyRevision·원 출처 검증 후 수행한다. 동일 runId·최종 digest는 한 번만 적용하고 같은 ID·다른 결과는 거부한다.
 - 상담 AI는 티켓 저장 commit을 기다리는 무제한 내부 루프를 만들지 않는다. 최종 제안을 반환한 뒤 Spring이 생성/배정 결과를 확인해 사용자 결과를 구성한다. 진행 문구에서 저장 성공을 선행 확정하지 않는다.

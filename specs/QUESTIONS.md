@@ -1,13 +1,13 @@
 # PRD 1.44 공통 계약 결정 대장
 
-기준: PRD 1.44 · 결정안 작성일 2026-11-01 · PR #68에 올리는 채택값. 이 문서는 구현자가 선택할 항목을 비워 두지 않는 결정 대장이다. **결정안 작성 완료**, **팀 PR 승인**, **코드 적용**, **실행 검증**을 별도 상태로 관리한다. 현재 결정값은 기입 완료이며 팀의 승인·병합이나 실제 구현 완료를 주장하지 않는다.
+기준: PRD 1.44 · 결정안 작성일 2026-11-01 · PR #68의 공통 계약·실행 기준을 기록한다. LLM·임베딩 모델 선정, 단가·예상 비용·금액 예산과 구체 실행 설정값은 이 문서의 결정 범위에서 제외한다. **계약안 작성**, **팀 PR 승인**, **코드 적용**, **실행 검증**을 별도 상태로 관리하며 문서 기입을 승인·병합이나 구현 완료로 취급하지 않는다.
 
 ## 1. 상태를 읽는 방법
 
 | 구분 | 의미·현재 상태 |
 |---|---|
 | PRD 정책 | 시스템 PRIMARY·5회 질문·문제별 확인·같은 승인 버전 양쪽 반영을 유지 |
-| 계약 채택값 | 아래 C01~C10·S01~S08에 사용할 값/방식을 모두 기입 |
+| 계약 채택값 | C01~C11의 공통 계약과 S01~S08의 실행·저장 기준을 기록. 모델·비용·구체 실행 설정값은 고정하지 않음 |
 | 팀 PR 리뷰 | #68에서 채택·수정 승인. 리뷰 대기는 빈 설계 항목을 뜻하지 않음 |
 | 구현·검증 | 코드·migration·실제 모델·DB·E2E를 실행한 뒤 별도로 완료 표시 |
 | 배포 입력 | 비밀키·접속 비밀번호·공용 도메인은 환경 주입. 필드/검증 규칙은 고정하며 비밀값을 문서에 기록하지 않음 |
@@ -31,37 +31,25 @@
 
 ## 실행·검색 기본값
 
-다음은 선택 후보 목록이 아니라 공통 구현에서 사용할 기본값이다. 변경하려면 profileId를 올리고 영향·가격·검증을 함께 PR로 수정한다. 문서 선택은 실제 유료 호출·새 인프라 배포를 실행하는 행위가 아니다.
+다음은 서비스 연결·검색·저장의 검토 기준이며 담당자 리뷰·승인 후 적용한다. 특정 LLM·임베딩 모델명, 역할별 모델 배분, reasoning 설정, 모델 프로필, 임베딩 차원·단가·예상 비용·금액 예산과 실행 상한의 구체 수치는 정하지 않는다. 모델·과금 설정은 서비스 입출력 계약과 분리하며 문서 작성만으로 유료 호출이나 새 인프라 배포를 실행하지 않는다.
 
 | ID | 채택값 | 선정 이유·적용 규칙 |
 |---|---|---|
-| S01 | modelProfileId=hops-mvp-20261101, 모든 역할 gpt-5.6-luna, reasoning.effort=none, Responses API·역할별 Structured Outputs, store=false | 비용 우선의 단일 모델 설정. 역할마다 모델을 승격하거나 다른 공급자로 fallback하지 않음 |
-| S01-E | text-embedding-3-small, dimensions=1536, 코사인 거리, 입력 청크 512토큰·겹침64, 상위5건·후보20건 | 문서·CASE 모두 같은 모델/차원. 재임베딩은 별도 버전 컬렉션으로 생성·검증 후 전환 |
-| S02 | 아래 실행 한도 표와 요청 전 토큰/비용 예약. SDK 자동 재시도 0, 429/형식 오류 포함 자동 모델 재호출 0 | 호출 수·기한·입출력 토큰·도구·비용을 실행 전체에서 누적 |
-| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, vector(1536) 정확 코사인 검색. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
+| S01 | OpenAI API·역할별 구조화 출력·서버의 API 키 관리 원칙 유지. 모델·과금 설정은 이 계약에서 제외 | AiRunRequest는 모델 선택·가격·금액 예산을 전달하지 않음. 모델 접근·형식 호환·품질은 실제 구현에서 검증 |
+| S01-E | 구체 임베딩 모델·차원·단가는 선정 범위에서 제외. 코사인 검색·청크512토큰·겹침64·상위5건·후보20건은 검색 검토 기준 | 모델·토크나이저 선정 후 청크와 차원을 검증. 문서와 CASE의 검색 설정 버전을 기록하고 호환되지 않는 벡터를 혼용하지 않음 |
+| S02 | 실행 요청의 expiresAt과 ExecutionLimits 형식만 정의. 기한·호출·토큰·도구·재시도 상한의 구체 수치는 실행 설정에서 별도 관리 | 실행기가 유효한 서버 설정과 요청을 검증하고 실행 전체에서 누적. 역할 전환으로 한도를 초기화하지 않음 |
+| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 벡터 차원은 모델 선정 후 결정. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
 | S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [공용 예시](mocks/hops-system-1.examples.json)의 systems/users/primaryAssignments | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
 | S05 | #69 원본22개 테이블 사용. 기존 확인 시각·이벤트·JSONB와 현재 resolved_case의 버전/두 반영 상태를 재사용. 업무와 journal 저장 후 Spring이 후속 호출 | 추가 테이블 없이 MVP 정상 흐름 우선. 복수 승인 버전 병행·반영 시도 전체 이력·영속 이벤트 전달 복구는 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
 | S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
 | S07 | 최초 평가30건(개발18/보류12), 시스템·의도·대표 예외 분포와 게이트는 아래 검증 기준. prompt/profile/catalog 해시로 동결 | 미래 해결·정답은 KB와 모델 입력에서 분리. 일정은 D1 계약→D2 선정값 적용→통합→동결→시연 순서로 고정하며 완료 날짜를 실행 전 실적으로 기록하지 않음 |
 | S08 | 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB·AI 전용 권한. RunLedger PK=runId, 입력 digest 불변·동일 ID 새 모델 실행 금지. index job은 (jobId,attempt) 유일 | AI 계정은 Spring 업무 원본 쓰기 권한 없음. 검색 조각 권한과 ledger 권한은 각각 제한. 재시작 후 진행 중 실행은 UNKNOWN, 중간 checkpoint 자동 재개 없음. 안전한 실패 뒤 새 runId. 상세24시간·사용 ID/digest 표식 유지 |
 
-### 실행 한도
+### 서비스 인증과 실행 입력
 
 서비스 인증은 Spring→AI의 AI_SERVICE_TOKEN, AI→Spring의 SPRING_SERVICE_TOKEN을 분리한다. 각 토큰은 최소32바이트 난수를 base64url로 환경 주입하고 미설정/빈 값이면 신규 프로필을 기동하지 않는다. PUBLIC_WEB_ORIGIN·SPRING_SERVICE_ORIGIN·AI_SERVICE_ORIGIN은 경로/query/fragment 없는 고정 origin이며 공용 환경은 HTTPS만 허용한다. 개발 CORS는 위 frontend origin과 credentials만 허용하고 wildcard를 사용하지 않는다.
 
-| 값 | INQUIRY_ANALYSIS | CASE_DRAFT |
-|---|---:|---:|
-| 전체 기한 | 60초 | 30초 |
-| 모델 호출 합계 | 8 | 3 |
-| 입력 토큰 합계 | 20,000 | 12,000 |
-| 출력 토큰 합계(과금 reasoning 포함) | 4,000 | 2,500 |
-| 도구 호출 합계 | 8 | 4 |
-| 자동 모델 재시도 | 0 | 0 |
-| 실행당 비용 한도 USD | 0.02 | 0.01 |
-
-개별 모델 호출 timeout=min(15초,남은 실행 기한), 개별 max_output_tokens=min(1,024,남은 출력 예산)이다. 그래프의 최대 전이 수는32이며 토큰/시간 제한을 대신하지 않는다. 매 호출 전에 예상 입력+최대 출력 비용을 예약하고 실제 usage로 정산한다. 결과 유실은 예약을 즉시 환불하지 않는다. 공유 가상 시연 환경의 모델+임베딩 일일 합계는 USD1.00(UTC 자정 경계)로 제한하며 초과 시 429 AI_BUDGET_EXHAUSTED·Retry-After를 반환한다. 외부 과금 상한을 보장하는 결제 설정이 아니라 애플리케이션에서 새 호출을 차단하는 한도다.
-
-가격 계산 기준일은 2026-11-01, 100만 토큰당 USD 기준 gpt-5.6-luna 입력0.20/출력1.20, text-embedding-3-small 입력0.02를 사용한다. 할인·캐시 적중을 가정하지 않는 보수적 계산이다. [OpenAI 모델](https://developers.openai.com/api/docs/models/gpt-5.6-luna), [임베딩 모델](https://developers.openai.com/api/docs/models/text-embedding-3-small), [차원 안내](https://developers.openai.com/api/docs/guides/embeddings), [pgvector](https://github.com/pgvector/pgvector)를 확인했다. 모델 접근 불가·스키마 거부는 안전한 오류로 종료하고 임의 대체하지 않는다. alias의 실제 반환 모델 ID·가격 기준을 실행 기록에 남기고 조건 변경은 profile 재검증으로 처리한다.
+Spring은 서버에서 준비한 expiresAt·limits를 AI 실행 입력에 넣고 AI는 기한·누적 한도를 검증한다. 이 문서는 실행당·일일 금액, 단가·예상 비용, 모델 프로필과 구체 실행 상한을 정의하지 않는다. 추가 사용자 발화의 재분석은 새 run이며 모델 접근 불가·형식 거부를 임의의 다른 모델로 우회하거나 업무 성공으로 처리하지 않는다.
 
 ### 카탈로그와 검증 기준
 
@@ -69,14 +57,14 @@
 
 평가30건의 범위는 전자결재10·공통 로그인10·파일 공유8·범위 밖2, 개발/보류 분할은 각6/4·6/4·5/3·1/1이다. 의도는 사용법6·권한6·현상8·기능추가4·개선4·범위밖2로 구성한다. UNKNOWN은 중간 불확실성으로 따로 검증한다. 표현 변형은 원 사건과 같은 분할에 둔다.
 
-출시 게이트는 계약별 정상/오류 검사 전부 통과, 무권한 공개·중복 티켓·5회 초과·무응답 자동 종료·양쪽 반영 전 CASE 공개 0건, 보류12건의 의도/책임 시스템 정답 각각10/12 이상, 근거 없는 해결 성공 단정0건, 승인→양쪽 반영→재검색 실제 연결1건 이상이다. API 저장 ack p95≤2초·첫 공개 진행 p95≤3초·상담/초안 전체는각60/30초 이내를 목표로 측정한다. 이는 합격 기준이며 아직 측정한 결과가 아니다.
+출시 게이트는 계약별 정상/오류 검사 전부 통과, 무권한 공개·중복 티켓·5회 초과·무응답 자동 종료·양쪽 반영 전 CASE 공개 0건, 보류12건의 의도/책임 시스템 정답 각각10/12 이상, 근거 없는 해결 성공 단정0건, 승인→양쪽 반영→재검색 실제 연결1건 이상이다. API 저장 ack p95≤2초·첫 공개 진행 p95≤3초를 목표로 측정하고 상담·초안은 요청의 expiresAt 안에서 종료되는지 검사한다. 이는 합격 기준이며 아직 측정한 결과가 아니다.
 
 ## 3. 계약 범위와 spec 연결
 
 | 경계 | 문서 정본 | 연결 spec | 포함 범위 |
 |---|---|---|---|
 | Frontend↔Spring | DATA_TYPES 신규 절·WIRE12절 | F001~F011 | 명령/조회·nullable/enum·버전·HTTP/오류·멱등/복구·SSE·화면 조작 |
-| Spring↔AI 실행 | 에이전트 README·wire JSON Schema | F002/F003/F004/F005/F008/F010/F011 | 요청/수락/snapshot/진행/최종결과/취소·State·인증·예산 |
+| Spring↔AI 실행 | 에이전트 README의 외부 DTO·검증 규칙 | F002/F003/F004/F005/F008/F010/F011 | 요청/수락/snapshot/진행/최종결과/취소·State·인증·예산 |
 | Spring→AI 반영 | 에이전트 README·IndexApplyRequest/Snapshot | F011 | 승인 스냅샷·저장소·attempt·상태·digest·부분 실패 |
 | AI→Spring 검색 권한 | 에이전트 README·KnowledgeAuthorizationRequest/Response | F001/F003/F009/F011 | 현재 run·policyRevision·후보 문서/CASE 버전·허용 참조 |
 | wire→저장 | DATA9/10절 | F004/F005/F006/F007/F009/F010/F011 | 논리 작업 키·당시/현재 담당·원 기록·버전·잠금·원자 공개 |

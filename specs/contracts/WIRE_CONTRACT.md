@@ -360,7 +360,7 @@ scope 기본은 ASSIGNED_SYSTEMS이며 ADMIN은 BIZ_ADMIN만 허용한다. syste
 | 409 | IDEMPOTENCY_KEY_REUSED | 같은 키의 다른 의도 거부 |
 | 409 | RUN_NOT_RETRYABLE, WORK_ITEM_NOT_RETRYABLE, INVALID_STATE, APPROVAL_PRECONDITION_FAILED, INDEX_NOT_RETRYABLE | 최신 상태 확인; 허용 조작만 제공 |
 | 410 | OPERATION_RESULT_EXPIRED | 상세 재확인 기간 만료. 원 업무 조회·재조정 없이 새 키 실행 금지 |
-| 429 | RATE_LIMITED, AI_BUDGET_EXHAUSTED | Retry-After 초 단위; 해당 시간까지 버튼 비활성·입력 보존. 일일 모델 예산 소진은 다음 UTC 자정까지 새 실행 차단 |
+| 429 | RATE_LIMITED | Retry-After 초 단위; 해당 시간까지 버튼 비활성·입력 보존 |
 | 503 | SERVICE_UNAVAILABLE, ASSIGNMENT_UNAVAILABLE, SEARCH_UNAVAILABLE, MODEL_UNAVAILABLE, AI_RUN_STATE_UNKNOWN | 성공으로 표시하지 않음. 저장 여부 불명은 receipt UNKNOWN 또는 재확인. AI 실행 확인 불가는 공개 Run FAILED로 표시하고 새 run 재분석 제공 |
 | 504 | DEADLINE_EXCEEDED | 분석 실패와 업무 저장 미확인을 구분 |
 
@@ -401,7 +401,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 |---|---|---|
 | auth·시스템/PRIMARY | Login/CurrentUser/SupportedSystem, 401/403·권한 회수 | F001/F002 |
 | 문의·메시지·정정·시스템 선택·problem-links | 명령/receipt·입력 버전·커서·보완 대상 | F003/F004/F008 |
-| Run 조회/재분석·operation 결과 | RunSummary·CommandReceipt·키 재확인·예산 오류 | F002/F003/F004 |
+| Run 조회/재분석·operation 결과 | RunSummary·CommandReceipt·키 재확인·실행 오류 | F002/F003/F004 |
 | 작업 결과·티켓 생성 재시도 | TicketCreationResult·workItemId=problemId·미생성 선확인 | F005/F010 |
 | 티켓·관리 상세·관련 메시지·수동 정정 | 권한별 DTO·티켓 버전·실제 PRIMARY·원문 구간 | F007/F009 |
 | 처리 기록·해결 확인 | WorkRecord/ResolutionRequest·문제별 처리 주기 | F003/F006/F009 |

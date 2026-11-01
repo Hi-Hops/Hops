@@ -89,7 +89,7 @@
 |---|---|
 | Frontend↔Spring | ResolutionRequest/Response·문제별 처리 주기. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
 | Spring↔AI | AI 저장 명령 없음. Spring 응답 결과를 CASE 승인 전제와 다음 입력에서 사용. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
-| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |
+| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 저장·서비스 인증·검증 게이트를 참조. 비밀값은 배포 환경 주입 |
 
 
 ## 병합 ERD 적용 조건

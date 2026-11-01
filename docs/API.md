@@ -1,6 +1,6 @@
 # API 설계 — PRD 1.44 공통 계약
 
-상태: PR #68 제출 결정안 · 필드/경로/상태/예산 값 작성 완료 · 팀 승인/코드 적용/통합 검증은 별도. 사용자 명령·조회는 React↔Spring REST, 공개 진행·변화는 Spring→React SSE, AI 실행/색인/검색 권한은 서비스 전용 HTTP를 사용한다. [공통 진입점](../specs/contracts/README.md), [결정 대장](../specs/QUESTIONS.md)을 따른다.
+상태: PR #68 제출 결정안 · 필드/경로/상태 계약 작성 · 팀 승인/코드 적용/통합 검증은 별도. 사용자 명령·조회는 React↔Spring REST, 공개 진행·변화는 Spring→React SSE, AI 실행/색인/검색 권한은 서비스 전용 HTTP를 사용한다. [공통 진입점](../specs/contracts/README.md), [결정 대장](../specs/QUESTIONS.md)을 따른다.
 
 ## 1. 정본과 책임
 
@@ -31,13 +31,13 @@ Spring이 현재 인증·권한·문의 버전·업무 저장·배정·해결 �
 
 상담/Curator는 `/internal/v2/runs`, 사례 저장소 반영은 `/internal/v2/index-jobs`, AI 검색 후보의 최신 권한 검증은 Spring의 `/internal/v2/knowledge/authorizations`로 구분한다. 모든 내부 호출은 서비스 Bearer·고정 origin과 정해진 타입을 사용하고 사용자 JWT/쿠키를 전달하지 않는다.
 
-Spring은 기존 저장 결과·원문·현재 입력/정책 버전·모델 profile과 누적 예산을 제공한다. AI는 구조화된 제안을 반환하며 Spring이 현재 버전·실제 출처·지원 시스템·현재 PRIMARY를 검증해 적용한다. 같은 runId·다른 결과는 거부한다. 문서/CASE 후보는 승인·공개·ACL 검증 전에 모델 입력으로 넣지 않는다.
+Spring은 기존 저장 결과·원문·현재 입력/정책 버전·실행 기한과 누적 한도를 제공한다. AI는 구조화된 제안을 반환하며 Spring이 현재 버전·실제 출처·지원 시스템·현재 PRIMARY를 검증해 적용한다. 같은 runId·다른 결과는 거부한다. 문서/CASE 후보는 승인·공개·ACL 검증 전에 모델 입력으로 넣지 않는다.
 
 승인 후 반영은 같은 caseId/caseVersion/store/jobId/attempt/digest를 대조한다. 다른 버전·오래된 attempt·결과 미확인으로 공개 gate를 열지 않는다. 두 저장소 성공을 DB에서 확인한 뒤 검색 반환 시에도 현재 권한을 다시 검사한다.
 
 ## 4. 값과 완료 상태
 
-모델·임베딩·Vector·기한/토큰/비용·RunLedger·개발 origin·평가 게이트는 [결정 대장](../specs/QUESTIONS.md#실행검색-기본값)에 값이 기입돼 있다. 공용 도메인·키·비밀번호는 배포 환경 입력이며 계약을 비워 둔 항목이 아니다. 새 공급자·유료 관리형 인프라로 자동 대체하지 않는다.
+Vector 저장·RunLedger·개발 origin·평가 게이트는 [결정 대장](../specs/QUESTIONS.md#실행검색-기본값)을 따른다. 모델 선정·단가·예상 비용·금액 예산과 구체 실행 설정값은 이 계약에서 제외한다. 공용 도메인·키·비밀번호는 배포 환경 입력이며 계약을 비워 둔 항목이 아니다. 새 공급자·유료 관리형 인프라로 자동 대체하지 않는다.
 
 현재 /api·hops-mock-1·agent-1의 코드/Mock은 그대로 보존한다. 신규 경로와 DTO가 실제 서버에 등록됐다는 뜻은 아니다. 문서/JSON 검사·Mock·실제 저장/권한·실제 모델/검색·브라우저 E2E를 분리해 기록한다.
 
