@@ -15,7 +15,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 /**
- * 회원. 로그인 계정과 소속 부서를 관리한다 (docs/ERD_설명.md "회원 member").
+ * 회원. 로그인 계정과 소속 부서를 관리한다 (docs/ERD.md "회원 member").
  *
  * <p>로그인 ID(loginId)와 사번(employeeNo)은 별도 컬럼이다. 사번은 JWT employeeNo 클레임의 원본이다.
  * 비밀번호는 원문을 저장하지 않고 BCrypt 해시(passwordHash)만 보관한다.

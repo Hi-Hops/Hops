@@ -2,6 +2,8 @@
 
 기준: [PRD 1.44](PRD.md) · 팀 합의 제품 방향 / 구현 및 실제 검증 별도. 현재 AI는 새 역할과 서비스 연결을 위한 골격이며 업무 실행·모델·검색은 미구현이다. 실제 환경·설정·구현 범위는 [AI 실행 안내](../ai/README.md)를 따른다.
 
+AI·검색·도구를 개발하거나 연결할 때는 [보안 개발 명세](SECURITY.md)의 요구사항과 공격 시나리오를 작업 범위에 맞게 확인한다.
+
 ## 1. 개발 목표와 책임
 
 MVP부터 모델 판단 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 연결한다. Inquiry는 대화·질문·문제 분리, Knowledge는 Vector·Neo4j 검색과 조건부 분석, Ticket은 표준 요청 및 책임 시스템 제안, Curator는 해결 기록의 사례 초안·기존 관계 후보 제안을 담당한다. Diagnosis는 별도 역할이 아니다. 모든 문의가 모든 역할을 실행하지 않는다.
