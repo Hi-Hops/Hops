@@ -1,1 +1,1 @@
-"""역할별 에이전트와 실행 구현을 고르는 레지스트리."""
+"""Inquiry·Knowledge·Ticket·Curator. Supervisor가 조율하며 업무 확정은 Spring이 한다."""

@@ -1,132 +1,84 @@
-# Hops AI 서버
+# HOPS AI 서버 골격
 
-> **PRD 1.44 목표와 현재 코드:** 팀이 합의한 MVP는 모델 기반 Supervisor + Inquiry·Knowledge·Ticket·Curator다. 아래 단일 baseline·RuleRouter·Intake/Diagnosis 자리와 설정은 현재 코드 설명이며 목표 구현 완료가 아니다. 새 역할·검색·Curator 전환 계획은 [개발 안내](../docs/AGENT_DEVELOPMENT.md)와 [PRD](../docs/PRD.md)를 따른다.
+[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 실행 가능한 것은 생존·준비 상태 조회와 재사용한 기술 하네스다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
 
-Spring이 요청한 문의 분석을 에이전트로 실행하고, 진행과 결과를 SSE로 돌려주는 Python 서버입니다. Python 3.13 + FastAPI + LangGraph로 만들며 업무 DB에는 쓰지 않습니다. 권한·저장·티켓 배정·상태 확정은 Spring이 하고, 이 서버의 결과는 제안입니다([PRD](../docs/PRD.md), [개발 안내](../docs/AGENT_DEVELOPMENT.md)).
+실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
-## 현재 상태
+신규 역할·State·서버 간 DTO의 구현 기준은 [공통 구현 계약](../specs/contracts/README.md)과 [에이전트 계약](../contracts/agents/README.md)에서 확인한다. 문서의 신규 hops-system-1과 현재 미구현 골격의 상태를 구분한다.
 
-| 구현됨 (Fake 모드) | 구현 전 |
+## 현재 실행 범위
+
+| 항목 | 상태 |
 |---|---|
-| 실행 접수·SSE 엔드포인트(Mock 계약 경로), 중복 요청·버전 대체·이어 받기 | 실제 LLM(OpenAI) 연결과 실제 프롬프트. `real` 모드는 시작을 거부함 |
-| 단일(도구형)·멀티(Supervisor) 구성과 같은 예산·같은 결과 검증 | 실제 검색(RAG)·읽기 도구. 지금은 가상 문서 3개와 가짜 도구 |
-| 하네스: 마감·호출 상한·재시도·취소·결과 검증·실행 기록 | 서비스 간 인증, 취소 엔드포인트, 답변 조각(`answer.delta`) |
-| 가짜 에이전트·검색·도구, 팀 공용 Mock 예시로 계약 검증 | Langfuse 연결, 실제 모델 평가 |
+| FastAPI | `GET /healthz`는 200, `GET /readyz`는 미구현 상태를 나타내는 503 |
+| 역할·Supervisor | 역할 골격만 존재. 호출하면 `ComponentNotReady` 발생 |
+| OpenAI·pgvector·Neo4j | 내부 인터페이스와 연결 자리만 존재. 호출하면 미구현 오류 |
+| 실행 하네스 | 마감·모델 호출 상한·LLM 일시 오류 재시도·사용량·취소 확인·도구 허용 검사 |
+| 업무 실행·SSE·서비스 인증 | 상세 계약·실행 관리·어댑터 연결 전 |
+| Fake·Mock | 테스트 전용 LLM·도구 대역. 서버에 자동 연결하지 않음 |
 
-Fake 모드의 검사는 **연결과 통제 규칙**만 확인합니다. 분석 품질이나 MVP 완료를 뜻하지 않습니다.
-
-## 준비물과 실행
-
-- Python 3.13과 [uv](https://docs.astral.sh/uv/)가 필요합니다. 아래 명령은 모두 `ai/`에서 실행합니다.
-
-```bash
-cd ai
-uv sync
-```
-
-```bash
-uv run uvicorn --factory hops_ai.main:create_app --port 8000
-```
-
-서버가 뜨면 생존을 확인합니다.
-
-```bash
-curl http://127.0.0.1:8000/healthz
-```
-
-설정은 환경변수(`HOPS_AI_*`)나 `ai/.env`로 바꿉니다. 이름과 기본값은 [`.env.example`](.env.example)을 복사해서 참고하며 `.env`는 Git에 올리지 않습니다.
-
-| 변수 | 기본값 | 의미 |
-|---|---|---|
-| `HOPS_AI_MODE` | `fake` | `fake`(가짜 구현) · `real`(아직 미지원) |
-| `HOPS_AI_AGENT_MODE` | `single` | `single`(도구를 쓰는 단일 에이전트) · `multi`(Supervisor + 4개 역할) |
-| `HOPS_AI_API_PREFIX` | `/internal/mock/v1` | Spring이 호출하는 경로의 접두사. 운영 경로가 합의되면 값만 바꿈 |
-| `HOPS_AI_RUN_DEADLINE_SECONDS` | `60` | 한 실행 전체 제한 시간. Spring이 준 마감과 비교해 더 이른 쪽을 씀 |
-| `HOPS_AI_LLM_CALL_TIMEOUT_SECONDS` | `30` | 모델 호출 1회 제한 시간 |
-| `HOPS_AI_MAX_LLM_CALLS` | `8` | 한 실행의 모델 호출 상한. 재시도 포함, 단일·멀티 공통 |
-| `HOPS_AI_MAX_AUTO_RETRIES` | `2` | 일시 오류에 대한 호출당 자동 재시도 |
-| `HOPS_AI_MAX_OUTPUT_TOKENS` | `1500` | 모델 호출 1회의 최대 출력 토큰 |
-
-예산 값은 초기 기준이며 실제 모델 측정 후 조정합니다. 값이 잘못되면 서버가 시작되지 않습니다.
-
-## 동작 확인
-
-서버를 띄운 뒤 팀 공용 Mock 예시([`specs/mocks`](../specs/mocks/README.md))로 한 번 실행해 봅니다. 예시의 마감 시각(`deadlineAt`)은 과거라서 미래로 바꿔 보냅니다.
-
-```bash
-uv run python - <<'EOF'
-import datetime as dt, json, pathlib, httpx
-
-cases = json.loads(pathlib.Path("../specs/mocks/fixtures.json").read_text(encoding="utf-8"))["cases"]
-request = next(case["value"] for case in cases if case["id"] == "ai-request")
-request["deadlineAt"] = (dt.datetime.now(dt.UTC) + dt.timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-base = "http://127.0.0.1:8000/internal/mock/v1"
-print(httpx.post(f"{base}/runs", json=request).status_code)  # 202
-with httpx.stream("GET", f"{base}/runs/{request['runId']}/events") as response:
-    print(response.read().decode())  # 이벤트(id·event·data)가 차례로 나오고 result로 끝남
-EOF
-```
-
-`HOPS_AI_AGENT_MODE=multi`로 띄우면 역할별 `progress` 이벤트가 `result` 앞에 추가됩니다.
-
-## Spring이 호출하는 경로
-
-계약 원본은 [WIRE_CONTRACT 7절](../specs/contracts/WIRE_CONTRACT.md)과 [DATA_TYPES](../specs/contracts/DATA_TYPES.md)입니다. 아래는 구현 요약이며 운영 경로·서비스 인증은 아직 합의 전입니다.
-
-| 경로 | 동작 |
-|---|---|
-| `GET /healthz` | 프로세스 생존 확인(접두사 없음) |
-| `POST {prefix}/runs` | `AiRequest` → `202 AiAccepted`. 같은 `runId`를 다시 보내면 새로 실행하지 않고 같은 응답, 같은 `runId`에 다른 문의·버전이면 `409` |
-| `GET {prefix}/runs/{runId}/events` | SSE `progress` · `result`(한 번, 마지막). 이벤트 `id`는 번호이며 `Last-Event-ID`로 이어 받음. 알 수 없는 실행은 `404` |
-
-- 같은 문의에 더 높은 버전 요청이 오면 끝나지 않은 낮은 버전 실행은 `CANCELLED`로 끝납니다. 최종 판단은 Spring이 문의 버전으로 합니다.
-- 오류 응답은 `ApiErrorBody` 형태이고 잘못된 요청에도 보낸 내용을 담지 않습니다.
-- `result`의 `OK`는 분석이 끝났다는 뜻이며 티켓 저장·배정 성공이 아닙니다.
+단일 baseline, 독립 Diagnosis, Intake 명칭, 규칙 기반 Supervisor, 부서/CS 배정과 옛 `agent-1` 실행 모델은 활성 코드에서 분리했다. 기존 `/internal/mock/v1/runs` 접수·이벤트 경로는 제공하지 않는다. 예전 Fake 모드의 실행 명령이나 프론트 공용 `hops-mock-1` fixture로 이 서버를 호출하지 않는다.
 
 ## 구성
 
 ```text
 src/hops_ai/
-├── api/          Spring과의 HTTP 어댑터: 경로, 요청·응답 타입(schemas), 변환(mappers), SSE, 오류 응답
-├── contracts/    agent-1(에이전트 내부 계약)과 분석 입출력 타입
-├── harness/      모든 실행에 공통인 통제(LLM 밖에서 코드로 강제)
-│                 예산·재시도·정책·취소·결과 검증·이벤트·실행 관리(runner)·기록(trace)
-├── supervisor/   멀티 구성의 LangGraph: 경로 선택(Router)과 결과 조합
-├── agents/       baseline(도구를 쓰는 단일 에이전트), 역할 규약·레지스트리, intake·knowledge·diagnosis·ticket 자리
-├── services/     에이전트가 공유하는 LLM·검색·도구 인터페이스와 예산 안에서 호출하는 래퍼
-└── fakes/        외부 연결 없는 가짜 구현. Fake 모드 서버 실행과 테스트에서 함께 씀
-tests/            unit · contract · integration · fixtures
+├── api/routes/health.py       생존·준비 상태; 업무 API는 계약 후 연결
+├── contracts/                PRD 의미와 내부 기술 자료형; 외부 전송 DTO 아님
+├── supervisor/graph.py       모델 기반 조율 자리; 상담과 사후 실행 분리 예정
+├── agents/
+│   ├── inquiry/              대화·질문·독립 문제·표준 요청
+│   ├── knowledge/            Vector·관계 검색과 조건부 분석
+│   ├── ticket/               책임 시스템 후보·근거·티켓 내용 제안
+│   └── curator/              처리 기록 기반 사례 초안·기존 관계 연결 후보
+├── harness/                  공통 예산·재시도·취소·도구 정책; guardrails는 구현 자리
+├── services/
+│   ├── llm/                  LLM 인터페이스·예산 래퍼·OpenAI 연결 자리
+│   ├── retrieval/            검색 인터페이스·pgvector·Neo4j 연결 자리
+│   ├── tools/                읽기 전용 도구 인터페이스·등록·호출 전 검사
+│   └── indexing/             청크·임베딩·관계 반영 구현 자리
+└── evaluation/               검색·표준화·응답 평가 구현 자리
+tests/
+├── doubles/                  정해 둔 응답만 반환하는 LLM·도구 대역
+├── unit/                     기술 하네스와 미구현 경계 검증
+└── integration/              골격 앱의 생존·준비 상태와 옛 API 비노출 검증
 ```
 
-- **단일(baseline)**: LLM은 `decide` 노드 하나만 쓰고, 검색·도구 조회·결과 조립은 LLM 없이 실행합니다. 검색 범위(접근 필터)는 서버가 정하며 모델이 고르지 않습니다.
-- **멀티(Supervisor)**: Intake → (필요할 때만) Ticket → 결과 조합. 경로는 `RuleRouter`가 역할이 낸 제안을 전이표로 따라 정합니다. Knowledge·Diagnosis 경로는 해당 역할을 연결할 때 추가합니다.
-- 두 구성은 같은 입력·예산·서비스·결과 검증을 쓰므로 같은 조건으로 비교할 수 있습니다.
-- 모델이 만든 값(근거 ID·부서 코드·문제 참조·질문 횟수)은 서버 사실과 대조해 어긋나면 거부합니다.
+역할의 상세 요청·응답과 업무 상태는 아직 확정하지 않았다. `contracts/`의 자료형과 검색 인터페이스는 내부 개발용이며 Spring DTO·권한 검증·승인 상태를 대신하지 않는다.
 
-## 테스트와 검사
+## 실행과 검사
+
+Python 3.13과 uv를 사용한다. 다음 명령은 `ai/`에서 실행한다.
+
+```bash
+uv sync --locked
+uv run uvicorn --factory hops_ai.main:create_app --host 127.0.0.1 --port 8000
+```
+
+```bash
+curl http://127.0.0.1:8000/healthz
+curl -i http://127.0.0.1:8000/readyz
+```
+
+`healthz` 성공은 프로세스 생존만 의미한다. `readyz`는 현재 항상 503이며 분석 요청을 받을 준비가 됐다고 표시하지 않는다. `real` 모드는 시작을 거부한다.
+
+환경변수는 [예시](.env.example)를 따른다. 기존 `.env`의 `HOPS_AI_MODE=fake`, `HOPS_AI_AGENT_MODE`, `HOPS_AI_API_PREFIX`는 제거하고 현재 설정에 맞춘다. 단일/멀티 선택 설정은 없다. 비밀값은 Git에 올리지 않는다.
+
+실행 예산의 초기 기술 기본값은 전체 60초, 모델 호출당 30초, 최대 8시도, LLM 일시 오류 재시도 2회, 호출당 출력 1,500토큰이다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한과 서비스 인증은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
 
 ```bash
 uv run pytest
-```
-
-```bash
 uv run ruff check .
-```
-
-```bash
 uv run ruff format --check .
 ```
 
-테스트는 외부 연결 없이 Fake로 돕니다. 계약 테스트는 팀 공용 Mock 예시를 그대로 읽습니다. 에디터(VS Code 등)에서 `hops_ai`·`fastapi` import 오류가 보이면 인터프리터로 `ai/.venv/bin/python`을 선택합니다.
+테스트는 외부 모델·DB 호출 없이 수행한다. 대역은 명시적으로 준비한 응답·오류만 반환하며, 문의 분류·원인 판정·담당 배정·해결 성공을 만들어내지 않는다. 하네스·골격 검사를 실제 모델 품질·Spring 연동·서비스 E2E 결과로 보고하지 않는다.
 
-## 알려진 제한
+## 구현 경계와 다음 작업
 
-- **상태는 메모리에만 있습니다.** 서버를 다시 시작하면 진행 중인 실행과 보관한 결과(기본 10분)가 사라집니다. 알 수 없는 `runId`(404)를 받았을 때 Spring이 어떻게 복구할지(예: 새 `runId`로 다시 요청)는 Spring과 합의해야 합니다. 여러 인스턴스로 나눠 띄울 수도 없습니다.
-- 서비스 간 인증이 없으므로 내부망에서만 노출합니다.
-- 서비스 간 계약의 `AiSuccess`에는 근거 목록이 없어 문서·도구 근거 ID를 Spring이 해석할 수 없습니다. 실제 검색·진단을 연결하기 전에 계약을 확장해야 합니다.
-- agent-1 오류 코드를 서비스 간 `ErrorCode`로 바꾸는 표는 계약 리뷰 전 제안입니다(`api/mappers.py`).
+- **Inquiry·Ticket:** 의도와 내부 처리 유형을 분리한다. 질문 묶음은 독립 문제당 최대 5회다. 보고 시스템·책임 시스템 후보·근거와 미확인을 보존한다. 구체 질문 전이·서버 저장 검증은 구현 전이다.
+- **Knowledge:** 권한이 허용된 가이드·업무 정책·런북·승인 사례를 검색한다. 조건부 분석을 포함하며 그래프 연결만으로 원인을 확정하지 않는다. 검색 0건과 검색 오류를 구분한다.
+- **Curator·색인:** 처리 기록으로 초안을 제안한다. 문의자 해결 확인·시스템 담당자 승인과 같은 승인 버전의 양쪽 반영 성공 전에는 사례를 어느 검색 경로에서도 공개하지 않는다. 업무 승인·공개 확정은 Spring의 책임이다.
+- **공통:** Python은 업무 DB에 직접 쓰지 않는다. 새 실행/SSE·오류·인증·멱등성·취소·버전·공개 검증 계약을 생산자·소비자와 정한 뒤 연결한다. 읽기 전용 Mock은 기능 명세가 정해진 뒤 구현하며 실제 운영 관측과 구분한다.
 
-## 함께 볼 문서
-
-[공통 입출력 계약(agent-1)](../contracts/agents/README.md) · [개발·통합 준비 안내](../docs/AGENT_DEVELOPMENT.md) · [Knowledge 설계](../docs/knowledge/README.md) · [공용 Mock](../specs/mocks/README.md)
+먼저 [가상 기업 명세](../docs/knowledge/VIRTUAL_COMPANY.md)와 [데이터 구축 계획](../docs/knowledge/DATASETS.md)으로 소량 데이터를 검토한다. [에이전트 계약](../contracts/agents/README.md)과 [목표 공통 계약](../specs/contracts/TARGET_CONTRACT.md)을 구체화한 뒤 검색·실행·역할을 연결한다. Curator 담당 범위는 관련 담당자와 합의한다.

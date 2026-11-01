@@ -48,13 +48,6 @@ def test_remaining_time_decreases_as_time_passes(clock, make_settings) -> None:
     assert budget.remaining_seconds() == 35
 
 
-def test_single_and_multi_agent_get_the_same_call_limit(clock, make_settings) -> None:
-    single = RunBudget.start(make_settings(agent_mode="single"), clock=clock)
-    multi = RunBudget.start(make_settings(agent_mode="multi"), clock=clock)
-
-    assert single.max_llm_calls == multi.max_llm_calls == 8
-
-
 def test_calls_beyond_the_limit_are_refused(clock, make_settings) -> None:
     budget = RunBudget.start(make_settings(max_llm_calls=3), clock=clock)
 
@@ -107,7 +100,7 @@ def test_deadline_is_checked_before_the_call_limit(clock, make_settings) -> None
 
 
 def test_roles_share_one_budget_so_time_is_not_reset_per_role(clock, make_settings) -> None:
-    budget = RunBudget.start(make_settings(agent_mode="multi"), clock=clock)
+    budget = RunBudget.start(make_settings(), clock=clock)
 
     clock.advance(40)  # 첫 역할이 40초를 썼다
     second_role_timeout = budget.start_llm_call()

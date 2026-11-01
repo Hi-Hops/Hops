@@ -7,7 +7,9 @@
 1. 이 문서에서 협업 규칙을 확인한다.
 2. [PRD](docs/PRD.md)에서 프로젝트의 목적·범위·핵심 정책을 읽는다.
 3. 변경 작업에는 [Git 컨벤션](GIT_CONVENTION.md)을 적용한다.
-4. 프론트엔드(`frontend/`, `specs/`의 화면 기능) 작업에는 [프론트엔드 개발 기준](docs/frontend/README.md)을 따른다.
+4. 보안·인증·데이터·AI·검색·도구·외부 연동 변경에는 [보안 개발 명세](docs/SECURITY.md)를 읽고 해당 요구사항과 검증을 적용한다.
+5. 프론트엔드(`frontend/`, `specs/`의 화면 기능) 작업에는 [프론트엔드 개발 기준](docs/frontend/README.md)을 따른다.
+6. AI 및 Spring↔AI 연동 작업은 [에이전트 개발·통합 안내](docs/AGENT_DEVELOPMENT.md)에서 시작한다. 역할별 입출력·State·호출 예시는 [에이전트 계약](contracts/agents/README.md), 서비스 공통 필드·전송·상태는 [공통 계약 진입점](specs/contracts/README.md), 현재 코드 실행은 [AI 실행 안내](ai/README.md)로 이어서 확인한다.
 
 Claude Code는 루트 [CLAUDE.md](CLAUDE.md)를 진입점으로 사용한다. 다른 AI에는 작업 시작 시 이 문서를 직접 읽도록 요청한다. 읽지 못한 파일을 읽었다고 가정하지 않는다.
 

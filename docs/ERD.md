@@ -1,6 +1,6 @@
 # ERD (물리 테이블·컬럼)
 
-상태: 최종 기획서 v1.1(2026-10-30) 기준 물리 설계 · 테이블 22개 · FK 45개 · 실제 DB 적용 전 (#66).
+상태: PRD 1.44 MVP 공통 계약 정합안 · 병합 원본(#69)의 22개 테이블을 사용하고 추가 테이블은 만들지 않는다. 기존 컬럼·DTO 대응은 6절에서 보완하며 팀 리뷰·실제 DB 적용 전이다. 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
 
 이 문서는 테이블·컬럼·타입·FK를 적은 **물리 설계**다. ERD Cloud import와 Flyway 마이그레이션 작성의 기준으로 쓴다. 엔터티의 의미·관계·저장 불변식(**논리 모델**)은 [ERD 설명](ERD_설명.md)과 [DATA](DATA.md)를 따른다. 두 문서가 다르면 논리 모델을 먼저 맞추고 이 문서를 고친다.
 
@@ -38,14 +38,14 @@
 | 항목 | 규칙 |
 |---|---|
 | 기본키 | 모든 테이블 `id` UUID (UUIDv7 권장). 화면에는 Q-0142·TK-0001·CASE-0001 같은 표시 번호를 따로 씀 |
-| 시간 컬럼 | 바뀌는 테이블: 생성일시·수정일시·삭제일시 / 추가만 하는 이력·기록 테이블(9개): 생성일시만 / AI 실행: 생성일시·수정일시 |
+| 시간 컬럼 | 바뀌는 테이블: 생성일시·수정일시·삭제일시 / 원본 이력·기록9개는 생성일시만. journal은 operation/tombstone 갱신, CASE는 현재 초안 편집 후 승인하면 읽기 전용(6절) / AI 실행: 생성일시·수정일시 |
 | 이력·기록 테이블 | 메시지 수정 이력, 표준 요청서, 티켓 변경 이력, 티켓 처리 기록, AI 실행 단계, 중복 요청 방지 기록, 알림, 문서 버전, 검색 조각 |
 | 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약 |
 | 업무 데이터 쓰기 | Spring이 REST 변경 요청을 저장·확정하고 권한별 SSE를 전달. AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
-| 관계선 | 실제 DB는 FK 45개 전부 적용. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
+| 관계선 | 원본 FK45개를 기준으로 기존 테이블의 컬럼 보완을 구현 시 대조한다. 추가 테이블의 FK는 만들지 않는다. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
 | 중복 방지 | REST `Idempotency-Key`는 중복 요청 방지 기록에 업무 변경과 같은 트랜잭션으로 저장. 문의 1:N 문제 → 문제당 티켓 최대 1개 (`ticket.inquiry_problem_id` 중복 불가) |
-| 삭제 | 문의·티켓·처리 기록·해결 사례는 지우지 않고 보존 (최종기획서 8.3). 만료된 중복 요청 방지 기록만 실제로 정리 |
-| 저장소 경계 | PostgreSQL은 사용자·시스템·주담당자·문의·티켓·승인·상태의 정본. 관계 탐색은 Neo4j, 의미 검색은 Vector 저장소, 로그인 세션·Refresh·SSE replay는 Redis (최종기획서 9.1, 팀 합의 2026-10-28) |
+| 삭제 | 문의·티켓·처리 기록·해결 사례는 지우지 않고 보존 (최종기획서 8.3). 신규 프로필의 만료된 journal 응답 본문은 정리하되 키/digest/tombstone은 유지(6절). 전환 전 프로필의 정책과 구분 |
+| 저장소 경계 | PostgreSQL은 사용자·시스템·주담당자·문의·티켓·승인·상태의 정본. 관계 탐색은 Neo4j, 의미 검색은 Vector 저장소, 로그인 세션·Refresh는 Redis. 신규 hops-system-1 SSE는 replay 없이 REST 재동기화, 전환 전 replay 프로필은 별도 Redis (최종기획서 9.1, 팀 합의 2026-10-28) |
 
 ## 3. 테이블별 컬럼
 
@@ -74,7 +74,7 @@
 |---|---|---|---|:-:|---|---|---|
 | **회원** | 회원 ID | `id` | UUID | ● | uuidv7() |  | 회원 한 건을 구분하는 고유 번호 |
 |  | 로그인 ID | `login_id` | VARCHAR(100) | ● |  |  | 자체 로그인 아이디. 같은 아이디가 두 개 생기지 않게 · 중복 불가 |
-|  | 사번 | `employee_no` | VARCHAR(100) | ● |  |  | JWT `employeeNo`의 원본 · 중복 불가. 회원 ID·로그인 ID와 별도인 컬럼 후보이며 길이·변경/재사용 정책은 구현 전 확정 |
+|  | 사번 | `employee_no` | VARCHAR(100) | ● |  |  | JWT `employeeNo`의 원본 · 중복 불가. 회원 ID·로그인 ID와 별도. 최대100자·비어 있지 않은 고유 문자열, MVP에서 변경·퇴사자 사번 재사용 기능 없음 |
 |  | 비밀번호 해시 | `password_hash` | VARCHAR(255) | ● |  |  | 로그인 확인용. 비밀번호 원문은 저장하지 않으려고 해시로 보관 |
 |  | 이름 | `name` | VARCHAR(50) | ● |  |  | 헤더·요청자·담당자 이름을 화면에 보여주려고 |
 |  | 소속 부서 ID | `department_id` | UUID | ● |  | 부서 | 헤더·문의자 정보에 소속을 보여주려고. 티켓 조회 권한과 배정에는 쓰지 않음 |
@@ -98,9 +98,9 @@
 
 문의자는 별도 역할 없이 모든 회원이다. 시스템 주담당자(PRIMARY)도 역할이 아니라 시스템의 주담당자 지정으로 판단한다. 에이전트 운영 관리자(`AGENT_OPS_ADMIN`)는 최종기획서 3의 역할에 없어 뺀다.
 
-JWT 매핑: `sub`는 회원 ID, `employeeNo`는 사번, `departmentId/departmentCode/departmentName`은 현재 소속 부서의 ID·코드·이름, `roles`는 역할 부여에서 가져온다. 부서명으로 권한을 비교하거나 사용자 소속으로 티켓을 배정하지 않는다. 부서·역할 변경 시 토큰을 무효화하고 열린 SSE를 종료하는 계약이 필요하다.
+JWT 매핑: `sub`는 회원 ID, `employeeNo`는 사번, `departmentId/departmentCode/departmentName`은 현재 소속 부서의 ID·코드·이름, `roles`는 역할 부여에서 가져온다. 부서명으로 권한을 비교하거나 사용자 소속으로 티켓을 배정하지 않는다. 부서·역할 변경 시 토큰을 무효화하고 열린 SSE를 종료하는 규칙은 신규 WIRE12절과 DATA11절을 따른다.
 
-JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션·Refresh 검증값과 SSE replay 이벤트 이력은 Redis에 두고, 요청 멱등은 중복 요청 방지 기록 테이블에 둔다 (팀 합의 2026-10-28). SSE 연결과 eventId는 업무 문의와 별개이며, 채팅 원본은 `inquiry/message/message_revision`에 보존한다.
+JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션·Refresh 검증값과 전환 전 프로필의 SSE replay 이벤트 이력은 Redis에 두고, 요청 멱등은 중복 요청 방지 기록 테이블에 둔다 (팀 합의 2026-10-28). SSE 연결과 eventId는 업무 문의와 별개이며, 채팅 원본은 `inquiry/message/message_revision`에 보존한다.
 
 ### 시스템
 
@@ -110,7 +110,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 | 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
 |---|---|---|---|:-:|---|---|---|
 | **시스템** | 시스템 ID | `id` | UUID | ● | uuidv7() |  | 시스템 한 건을 구분하는 고유 번호 |
-|  | 시스템 코드 | `code` | VARCHAR(30) | ● |  |  | AI가 시스템 후보를 제안할 때 쓰는 고유 코드 (예: E_APPROVAL) · 중복 불가 |
+|  | 시스템 코드 | `code` | VARCHAR(30) | ● |  |  | AI가 시스템 후보를 제안할 때 쓰는 고유 코드 (ELECTRONIC_APPROVAL / COMMON_LOGIN / FILE_SHARING) · 중복 불가 |
 |  | 시스템명 | `name` | VARCHAR(100) | ● |  |  | 채팅의 시스템 확인 질문·티켓 목록에 시스템 이름을 보여주려고 (예: 전자결재) |
 |  | 지원 범위 설명 | `description` | TEXT |  |  |  | 사용자가 시스템을 고르지 않았을 때 AI가 문의 내용과 비교해 시스템 후보를 고르려고 |
 |  | 주담당자 ID | `primary_owner_member_id` | UUID | ● |  | 회원 | 이 시스템 문의를 자동 배정받는 주담당자(PRIMARY) 1명. 한 회원이 여러 시스템을 맡을 수 있음 |
@@ -118,7 +118,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
 
-주담당자는 시스템당 1명이고 담당자 없음·중복·만료는 정상 데이터에 없다고 전제해 별도 담당 관계 테이블을 두지 않는다 (최종기획서 3). 담당자 변경 이력이나 부담당자가 필요해지면 분리한다. 지원 시스템 목록은 삭제되지 않은 행이며, 목록에 없는 시스템의 문의는 범위 밖으로 안내한다 (최종기획서 5.1).
+주담당자는 시스템당 1명이고 담당자 없음·중복·만료는 정상 데이터에 없다고 전제해 별도 담당 관계 테이블을 두지 않는다 (최종기획서 3). 외부 현재 담당 DTO는 systemId/primaryUser다. 권한 세대는 6절 ownership_version·member.policy_revision으로 관리하고 당시 티켓 배정은 ticket_assignment에 보존한다. 부담당자·별도 담당 관계 Entity는 두지 않는다. 지원 시스템 목록은 삭제되지 않은 행이며, 목록에 없는 시스템의 문의는 범위 밖으로 안내한다 (최종기획서 5.1).
 
 #### 시스템 기능 `system_feature`
 시스템 안의 기능이에요. 사용자가 어디에서 현상을 겪었는지, CASE가 어느 기능 이야기인지 가리켜요. *(근거: 최종기획서 2.2, 4.1, 8.4, 11.1)*
@@ -215,7 +215,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 
 - 의도·처리 유형·시스템·확인 사실은 표준 요청서에 버전별로 두고 이 테이블에는 진행 상태만 둔다.
 - 시스템을 끝까지 알 수 없으면 배정하지 않고 `SYSTEM_PENDING`으로 보존한다. 이때 자유 질문을 더 하지 않고 지원 시스템 선택을 요청한다 (최종기획서 5.1).
-- 티켓 생성이 실패하면 `TICKET_FAILED`와 오류 코드를 남긴다. 다시 만들 때 티켓의 문제 ID 중복 불가가 같은 문제의 티켓 중복을 막는다 (최종기획서 5.4). 다시 시도하는 주체와 화면은 구현 전에 정한다 (최종기획서 14).
+- 티켓 생성이 실패하면 `TICKET_FAILED`와 오류 코드를 남긴다. 다시 만들 때 티켓의 문제 ID 중복 불가가 같은 문제의 티켓 중복을 막는다 (최종기획서 5.4). 미생성이 서버에서 확인된 NOT_CREATED 작업만 문의 소유자가 같은 workItemId로 재시도한다. UNKNOWN은 저장 결과를 먼저 확인하며 F010·WIRE12절을 따른다.
 
 #### 표준 요청서 `standard_request`
 문제별 대화를 담당자가 바로 일할 수 있는 요청서로 정리해요. 원문은 대화 메시지에 그대로 두고, 문의 버전마다 새 행을 추가해 정정 전 정리도 남겨요. *(근거: 최종기획서 1.3, 4.1~4.5, 5.1, 7.1)*
@@ -240,9 +240,9 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 관련 지식 | `related_knowledge` | JSONB | ● | '[]' |  | 검색된 지식·해결 사례와 적용 조건·차이점을 담당자에게 함께 전달하려고 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 
-중복 불가 조합: (문제 ID, 문의 버전)
+신규 계약 중복 불가 조합: (문제 ID, 문의 버전, AI 실행 ID). 같은 입력 버전의 새 run은 새 불변 스냅샷을 만들고 현재 포인터는 최신 적용 run에서만 선택한다.
 
-추가만 하는 이력 테이블이라 수정·삭제일시를 두지 않는다. 사용자에게 알 수 없는 정보를 강요하거나 미확인 값을 모델 추정으로 채우지 않도록 확인한 사실·추정·미확인 항목을 분리한다 (최종기획서 4.4). 기획서 4.5의 티켓 제목·내용과 PRIMARY 배정 결과는 티켓·배정 이력에 저장한다. 필수·조건부 항목과 JSONB 내부 구조는 데이터 설계에서 정한다.
+추가만 하는 이력 테이블이라 수정·삭제일시를 두지 않는다. 사용자에게 알 수 없는 정보를 강요하거나 미확인 값을 모델 추정으로 채우지 않도록 확인한 사실·추정·미확인 항목을 분리한다 (최종기획서 4.4). 기획서 4.5의 티켓 제목·내용과 PRIMARY 배정 결과는 티켓·배정 이력에 저장한다. 필수·null·JSONB 구조는 DATA11.3절과 신규 DATA_TYPES·AI Schema를 따른다.
 
 
 ### 티켓 · 배정 · 처리
@@ -384,7 +384,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 
 중복 불가 조합: (실행 ID, 단계 순번)
 
-상담 실행과 Curator 실행은 같은 테이블에 두되 `task`로 나눈다. Curator 실행이 실패해도 저장된 처리 기록과 업무 완료는 취소하지 않는다 (최종기획서 7.3). Diagnosis는 별도 에이전트가 아니라 Knowledge의 조건부 기능이라 `agent_type`에 두지 않는다 (최종기획서 7.1). `INQUERY`는 기획서에서 회의로 정한 명칭을 그대로 쓴다.
+상담 실행과 Curator 실행은 같은 테이블에 두되 `task`로 나눈다. Curator 실행이 실패해도 저장된 처리 기록과 업무 완료는 취소하지 않는다 (최종기획서 7.3). Diagnosis는 별도 에이전트가 아니라 Knowledge의 조건부 기능이라 `agent_type`에 두지 않는다 (최종기획서 7.1). `INQUERY`는 이 물리 모델의 저장 명칭을 유지하며 신규 외부 role=INQUIRY와 Spring에서 변환한다.
 
 ### 요청 처리
 
@@ -404,11 +404,11 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |  | 만료일시 | `expires_at` | TIMESTAMPTZ | ● |  |  | 이 시각까지 같은 요청을 중복으로 판단. 생성 후 최소 24시간 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 
-중복 불가 조합: (요청자 ID, 요청 방식, 요청 경로, 요청 키)
+전환 전 유일 키는 (요청자 ID, 요청 방식, 요청 경로, 요청 키)다. 신규 hops-system-1은 6절의 (actor_member_id,contract_version,idempotency_key)로 교체하고 다른 메서드/경로/본문 재사용을409로 거부한다.
 
-- 업무 변경과 **같은 트랜잭션**으로 저장한다. 업무 저장이 실패해 롤백되면 이 기록도 남지 않아서, 같은 키로 다시 보내면 처음부터 다시 처리한다. 커밋 전에는 다른 요청에 보이지 않으므로 처리 중 상태 컬럼을 따로 두지 않는다. 같은 키가 동시에 오면 중복 불가 조합에서 한 요청만 저장된다.
-- 로그인 세션·Refresh 검증값과 SSE replay 이벤트 이력은 Redis에 두고 이 테이블에 넣지 않는다 (팀 합의 2026-10-28).
-- 업무 기록이 아니라 기술 기록이다. 만료일시가 지난 행은 정리 작업이 실제로 지운다. 문의·티켓·처리 기록·사례를 삭제하지 않는 원칙(최종기획서 8.3)과 별개다. 만료 뒤의 중복 티켓은 `ticket.inquiry_problem_id` 중복 불가로 막는다.
+- 업무 변경과 **같은 트랜잭션**으로 저장한다. 전환 전 프로필의 롤백 기록과 신규 PENDING 접수 기록을 구분한다. 신규 프로필은 예약된 operation을 유지하고 업무 실패를 같은 키로 재확인한다. 새 업무 의도로 자동 재실행하지 않는다. 신규 프로필은 6절 operation_state와 저장 명령을 함께 관리한다. 장기 작업의 PENDING 접수 기록과 실제 업무 반영 트랜잭션을 구분한다. 같은 키가 동시에 오면 중복 불가 조합에서 한 요청만 저장된다.
+- 로그인 세션·Refresh 검증값과 전환 전 프로필의 SSE replay 이벤트 이력은 Redis에 두고 이 테이블에 넣지 않는다 (팀 합의 2026-10-28).
+- 업무 기록이 아니라 기술 기록이다. 신규 프로필은 만료 후 응답 본문만 비우고 사용 키·해시·operation/resource 표식은 tombstone으로 유지한다. 행 삭제로 새 실행을 허용하지 않는다. 문의·티켓·처리 기록·사례를 삭제하지 않는 원칙(최종기획서 8.3)과 별개다. 만료 뒤의 중복 티켓은 `ticket.inquiry_problem_id` 중복 불가로 막는다.
 
 ### 알림
 
@@ -475,7 +475,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 
 중복 불가 조합: (문서 버전 ID, 조각 순번)
 
-PostgreSQL에 pgvector를 쓰는 경우의 구조다. Vector 저장소·임베딩 모델은 구현하며 정하고 (최종기획서 9.1), 별도 Vector 저장소를 고르면 이 테이블은 그쪽으로 옮긴다. 해결 사례의 임베딩도 같은 저장소에 두고 반영 결과는 `resolved_case.vector_status`로 추적한다. 시스템·기능·증상 등 관계는 Neo4j에 둔다.
+신규 프로필은 같은 Spring PostgreSQL DB의 hops_knowledge 스키마에 pgvector를 사용한다. 임베딩 모델과 벡터 차원은 별도 선정하며 여기서 고정하지 않는다. 문서 버전 FK는 기존 knowledge_document_version을 참조한다. 승인 CASE도 기존 knowledge_document/knowledge_document_version에 검색용 스냅샷으로 투영하고 source_metadata에 caseId/caseVersion을 연결한다. 별도 사례 버전·반영 작업 테이블은 만들지 않는다. 반영 결과는 resolved_case.vector_status/graph_status로 관리하며 시스템·기능·증상 등 관계는 Neo4j에 둔다.
 
 #### 해결 사례 `resolved_case`
 담당자의 해결·구현 기록으로 만든 사례예요. Curator가 초안을 만들고, 해당 시스템 주담당자가 승인한 뒤 Vector·Neo4j에 모두 반영돼야 검색에 나와요. *(근거: 최종기획서 7.3, 8.1~8.5, 9.4)*
@@ -514,8 +514,8 @@ PostgreSQL에 pgvector를 쓰는 경우의 구조다. Vector 저장소·임베�
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
 
 - **초안 → 승인:** Curator가 `DRAFT`로 저장하고 담당자가 확인·수정한다. Spring은 사례 시스템의 주담당자인지, 해결 사례면 문의자 해결 확인이 끝났는지, 기능 구현 사례면 `IMPLEMENTED` 기록인지 확인한 뒤 `APPROVED`로 바꾼다 (최종기획서 8.2). 별도 지식 검수자는 없고 주담당자의 자기 승인을 허용한다.
-- **검색 공개:** `APPROVED`이고 `vector_status`·`graph_status`가 모두 `SUCCEEDED`일 때만 검색에 쓴다. 한쪽이라도 실패하면 양쪽 검색에서 모두 제외한다. 초안 생성·업무 완료·승인·검색 반영은 서로 다른 사실이라 상태를 따로 둔다 (최종기획서 8.2).
-- **이번 범위 밖:** 승인 취소·재검토·비활성화·색인 재시도는 만들지 않는다 (최종기획서 8.5). 반영이 실패하면 `FAILED`로 남기고 성공으로 바꾸지 않는다 (7.3).
+- **검색 공개:** MVP는 현재 resolved_case가 승인됐고 원 처리 기록의 문의자 해결 확인과 vector_status/graph_status의 양쪽 성공을 확인해야 검색에 공개한다. 승인 후 내용은 읽기 전용이며 결과의 caseVersion을 현재 승인 버전과 대조한다. 한쪽이 실패·대기·미확인이면 양쪽 검색에서 제외한다. 승인 후 새 초안과 이전 공개 버전의 병행 관리는 후순위다.
+- **이번 범위:** PRD1.44에 따라 실패한 저장소의 수동 재실행과 UNKNOWN 결과 확인을 제공한다. 승인 취소·자동 재검토·자동 비활성화·자동 색인 재시도·전용 복구 화면은 제외한다. 반영이 실패하면 `FAILED`로 남기고 성공으로 바꾸지 않는다 (7.3).
 - 작성자는 원 처리 기록의 작성 담당자다. 처리 기록 하나에서 사례는 최대 하나만 만든다.
 
 ## 4. 주요 흐름에서 쓰이는 테이블
@@ -534,5 +534,41 @@ PostgreSQL에 pgvector를 쓰는 경우의 구조다. Vector 저장소·임베�
 ## 5. 물리 적용 상태
 
 - 실제 DB에 적용된 테이블은 V1의 `department`·`member`·`member_role`뿐이다. 나머지 19개 테이블과 `is_routable`·`AGENT_OPS_ADMIN` 제거는 새 Flyway 마이그레이션(V2 이후)과 코드·계약 전환 이슈에서 적용한다.
-- 아직 정하지 않은 것: JSONB 내부 구조, 상태 CHECK 제약, 인덱스, Neo4j 노드·관계·속성, Vector 저장소와 임베딩 모델, 티켓 생성 실패를 다시 시도하는 주체 (최종기획서 14).
-- 상태 코드와 서비스 간 필드는 공통 계약을 따른다. 현재 [DATA_TYPES](../specs/contracts/DATA_TYPES.md)·[WIRE_CONTRACT](../specs/contracts/WIRE_CONTRACT.md)는 이전 기획 기준이므로, 최종 기획 기준 계약으로 전환되면 이 문서의 값과 함께 맞춘다.
+- JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다. 실제 CHECK/인덱스/migration 적용은 백엔드 구현 PR의 검증 대상이다.
+- 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다. 본 문서6절은 이번 PR의 추가 설계이며 #69에서 이미 승인·적용한 구조로 간주하지 않는다.
+
+
+## 6. hops-system-1 공통 계약 보완
+
+MVP는 병합된 22개 테이블을 재사용한다. 별도 해결 확인·사례 버전·반영 작업·이벤트 전달 테이블을 추가하지 않는다. 아래는 기존 컬럼과 조회 DTO를 연결하기 위한 정의이며 Entity/Flyway/실제 DB 변경은 수행하지 않았다. 승인 후 복수 버전 병행, 반영 시도 전체 이력, 프로세스 재시작 뒤 후속 호출 자동 복구는 후순위다.
+
+### 6.1 기존 컬럼과 제약 보완
+
+| 대상 | 추가/수정 정의 | 조건 |
+|---|---|---|
+| member | policy_revision INT NOT NULL DEFAULT1 | 현재 권한 문맥 버전. 시스템 PRIMARY/역할 변경 때 영향 회원 행과 같은 거래에서 증가 |
+| it_system | ownership_version INT NOT NULL DEFAULT1 | 현재 PRIMARY 변경 세대. 권한 검증에 사용하며 과거 티켓 assignee를 바꾸지 않음 |
+| inquiry | current_run_id UUID NULL FK→agent_run.id, result_revision INT NOT NULL DEFAULT1. inquiry_status CHECK에 CLOSED 추가 | current_run은 상담 실행만. 현재 입력 버전과 둘 다 맞는 결과만 적용. 상태는 IN_PROGRESS/WAITING_USER/RESOLVED/CLOSED이며 CLOSED는 모든 문제의 범위 밖 안내 저장 후에만 집계. 무응답 자동 종료에 사용하지 않음 |
+| message | revision INT NOT NULL DEFAULT1, payload JSONB NOT NULL DEFAULT{} | revision≥1, 신규 최종 저장 행의 message_status=COMPLETED. 상담 run의 예약 answerMessageId를 최종 PK로 사용하며 미완성 행은 만들지 않음. payload의 requestId/answerRunId·문제/원문 구간/질문/가이드는 DATA11.3절 |
+| inquiry_problem | creation_outcome VARCHAR(30) NULL, creation_input_version INT NULL | NULL은 작업 없음. PENDING/STORED/NOT_CREATED/UNKNOWN, STORED에만 같은 문제의 ticket 존재. 상태 확인과 행 잠금 후만 변경 |
+| standard_request | agent_run_id는 신규 프로필에서 NOT NULL, UNIQUE(inquiry_problem_id,inquiry_version,agent_run_id) | 같은 문의 버전의 새 run도 새 스냅샷. 옛 스냅샷을 덮어쓰지 않음 |
+| ticket | 기존 version=0 유지, 0~2,147,483,646 CHECK | 외부 ticketRevision=version+1. 외부 expected-1을 비교. ticket.work_type 저장값은5종, 신규 AI 제안은 INCIDENT를 제외한4종 |
+| ticket_assignment | evidence JSONB NOT NULL DEFAULT{"messageIds":[],"note":null} | 현 배정 UNIQUE(ticket_id) WHERE ended_at IS NULL. 근거는 DATA11.3절 |
+| ticket_work_log | 완료 RESOLVED/IMPLEMENTED이면 verification_result 비공백 CHECK | FAILED_ATTEMPT는 Curator/해결 확인을 만들지 않음. confirmed_cause·applied_version은 실제 담당자 입력만 저장 |
+| agent_run | input_snapshot JSONB NOT NULL, QUEUED 상태 추가, started_at NULL 허용 | 입력은 AiRunRequest. 상담 answerMessageId는 input_snapshot에 고정하며 CURATION은null. result와 validation_result를 분리. CURATION이면 trigger_work_log_id 필수·UNIQUE(trigger_work_log_id) WHERE task=CURATION, 상담이면 처리 기록 없음 |
+| idempotency_key | contract_version VARCHAR(50), operation_id UUID UNIQUE, operation_state VARCHAR(30), resource_type VARCHAR(30) NULL, resource_id UUID NULL, tombstoned_at TIMESTAMPTZ NULL | 신규 필수 키는 NOT NULL, UNIQUE(actor_member_id,contract_version,idempotency_key). operation_state=PENDING/SUCCEEDED/REJECTED/UNKNOWN. 메서드/경로/본문 해시를 재확인 후 버전 비교 |
+| idempotency_key | response_status/response_body는 tombstone 정리 뒤 NULL 허용 | 상세 최소24시간. 만료 뒤410, 기존 키/해시/operation/resource는 보존. 같은 키 새 실행 금지. PENDING 접수는202 receipt이며 업무 반영+최종 journal은 한 거래로 저장 |
+| knowledge_document_version | content_digest CHAR(64) NOT NULL, source_metadata JSONB NOT NULL, review_status VARCHAR(30) NOT NULL DEFAULT PENDING | 승인 원문·origin/출처/조건을 버전 고정. CASE의 source_metadata.indexRequests는 VECTOR/NEO4J 현재 IndexApplyRequest를 승인과 같은 거래로 보존. 기술 요청 메타데이터는 본문 해시·공개 DTO·모델 입력에서 제외 |
+| knowledge_document | document_type에 CASE 허용 | 승인된 현재 사례의 검색용 문서. 원본과 승인 여부는 resolved_case에서 확인하며 직원 공개 범위도 재검사 |
+| hops_knowledge.knowledge_chunk | embedding VECTOR, 차원은 모델 선정 후 정의. 기존 knowledge_document_version_id FK 유지, content_digest/chunk_digest CHAR(64) NOT NULL | 문서와 승인 CASE 모두 기존 문서 버전 경로로 검색 조각 저장. UNIQUE(knowledge_document_version_id,chunk_no). source_metadata의 원 사례 ID/버전과 실제 승인 내용을 대조 |
+
+검색 조각은 별도 PostgreSQL **DB**로 옮기지 않고 같은 DB의 hops_knowledge **schema**에 둬 실제 FK를 유지한다. AI 계정은 이 schema의 조각 DML과 FK 검사용 REFERENCES만 허용하며 업무 원본 쓰기 권한을 주지 않는다. 같은 계정으로 Spring 업무 저장을 수행하지 않는다. AI RunLedger는 기존 결정대로 별도 hops_ai_runtime DB다. 임베딩/CASE 저장소 작업은 별도 서비스 계약을 사용한다.
+
+### 6.2 기존 테이블을 사용하는 MVP 범위
+
+- **해결 확인:** 가이드는 inquiry_problem.confirm_requested_at/resolved_at과 message.payload, 티켓은 ticket.confirm_requested_at/resolved_at과 ticket_event를 사용한다. 요청의 원 메시지·처리 기록·현재 확인 상태·revision은 기존 JSONB 메타데이터에 연결해 ResolutionRequest DTO로 투영한다. 새 테이블이나 그 테이블의 FK를 요구하지 않는다.
+- **사례 편집과 승인:** resolved_case의 현재 초안과 version_no를 사용한다. 초안을 고칠 때 현재 행의 버전을 증가시키며 과거 초안 전체를 별도 행으로 보존하지 않는다. 승인 후에는 내용 편집을 막고, 현재 승인 버전과 두 반영 결과만 검증한다. 승인 후 새 초안·과거 승인 버전의 병행 관리는 MVP에 넣지 않는다.
+- **반영과 검색:** resolved_case.vector_status/graph_status를 PENDING/SUCCEEDED/FAILED로 관리한다. 진행 중이거나 결과를 모르면 DB의 PENDING을 유지해 비공개로 둔다. 승인 거래에서 기존 knowledge_document/knowledge_document_version의 현재 CASE 스냅샷을 만들고 source_metadata.indexRequests에 저장소별 전체 요청을 보존한다. 현재 요청 두 건은 승인 버전·jobId·attempt·digest·approvedCase를 포함하며 journal 상세 만료 뒤에도 유지한다. 새 반영 이력 테이블·추가 컬럼은 필요하지 않다. 반영 결과의 버전이 현재 승인 버전과 다르면 성공으로 적용하지 않는다.
+- **후속 실행과 수동 복구:** commit 뒤 Spring이 보존한 색인 요청을 전달한다. 호출 직전 서버가 종료돼도 담당자의 기존 index-checks에서 같은 작업을 확인하고, 유효한 원격 NOT_FOUND이면 같은 요청을 멱등 재접수할 수 있다. PENDING/UNKNOWN을 FAILED로 바꾸거나 새 attempt를 만드는 복구가 아니다. FAILED 재시도만 현재 요청의 attempt를 증가시켜 먼저 저장한다. 외부 호출은 DB 거래 밖에서 수행하고 자동 복구 큐는 추가하지 않는다. 자세한 동작은 [에이전트 I1.1](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)을 따른다.
+
+resolution_request, resolved_case_version, case_index_job, outbox_event의 추가 DDL·FK 정의는 이번 범위에서 제외한다. 사용자 해결 확인, 승인 전 비공개, 같은 승인 버전의 양쪽 반영 성공 후 공개라는 제품 조건은 기존 테이블과 서버 검증으로 유지한다. 실제 migration·동시성·외부 호출 검증은 구현 PR에서 기록한다.

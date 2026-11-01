@@ -4,7 +4,7 @@
 앞 검사를 통과하지 못하면 실제 게이트웨이를 부르지 않는다.
 """
 
-from hops_ai.contracts.agent_1 import AgentRole
+from hops_ai.contracts.domain import AgentRole
 from hops_ai.harness.errors import PolicyDenied
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.tools.base import ToolGateway, ToolRequest, ToolResult
