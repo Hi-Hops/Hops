@@ -294,7 +294,7 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 - auth 외 변경 요청은 JSON의 requestId와 같은 Idempotency-Key를 보낸다. 200은 업무 저장 또는 기존 결과가 확정된 CommandReceipt, 202는 PENDING/UNKNOWN receipt다. 200 SUCCEEDED는 해당 명령 저장만 뜻하며 AI 실행·해결·검색 공개 완료를 뜻하지 않는다. 4xx/5xx는 ApiError를 반환한다.
 - 로그인·갱신은 200 LoginResponse, logout은 204다. GET은 200·데이터 타입을 직접 반환한다. 응답 envelope는 추가하지 않는다.
 - 같은 사용자·프로필·requestId에 HTTP 메서드·정규화한 경로·본문을 묶어 결과를 보존한다. 동일 키 재확인은 버전 비교보다 먼저 수행하며 이미 권한이 회수됐다면 기존 비공개 결과도 반환하지 않는다. 같은 키에 다른 경로/본문은 409 IDEMPOTENCY_KEY_REUSED다.
-- 명령 journal과 업무 변경·outbox는 같은 DB 저장 경계에서 기록한다. 상세 재확인 결과는 최소 24시간 보존하고 이후에도 요청 키 사용 이력과 업무 유일 제약으로 재실행을 막는다. 기간 이후 조회는 410이며 새로운 키로 자동 재생성하지 않는다.
+- 명령 journal과 업무 변경은 같은 DB 저장 경계에서 기록하고 commit 뒤 후속 AI·색인·SSE 호출을 수행한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다. 상세 재확인 결과는 최소 24시간 보존하고 이후에도 요청 키 사용 이력과 업무 유일 제약으로 재실행을 막는다. 기간 이후 조회는 410이며 새로운 키로 자동 재생성하지 않는다.
 - 클라이언트 응답 대기는 10초, 자동 업무 재전송은 하지 않는다. 입력·원본 키·본문을 보존하고 결과 확인을 제공한다. 같은 키·동일 본문의 원 명령 재전송은 최초 요청 재확인이며 새 업무 의도가 아니다. 서버는 현재 권한·journal·업무 유일성을 검사하고 진행/미확인 작업을 중복 실행하지 않는다. 티켓 생성 복구는 별도의 work-item API를 사용한다.
 - operations/by-request 조회의 404는 원 명령이 도착하지 않았거나 확인할 수 없음을 뜻한다. DB 미저장 증거로 표시하지 않는다. 티켓 재시도는 서버가 NOT_CREATED를 확인한 경우에만 허용한다.
 
@@ -336,8 +336,8 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 | GET /case-generations/{generationId} | 없음 | CaseGeneration | 원 티켓의 현재 담당자 |
 | POST /case-generations/{generationId}/retries | requestId | CommandReceipt · CASE_GENERATION | 현재 담당자·FAILED |
 | GET /cases | systemId,state,page,size | Page<CaseSummary> | 현재 담당 시스템 |
-| GET /cases/{caseId} | caseVersion 선택 | CaseDetail | 현재 사례 시스템 담당자 |
-| POST /cases/{caseId}/versions | CaseEditCommand | CommandReceipt · CASE | 현재 담당자·최신 버전 일치 |
+| GET /cases/{caseId} | caseVersion 선택·현재 버전만 | CaseDetail | 현재 사례 시스템 담당자. 과거 버전 지정은404 |
+| POST /cases/{caseId}/versions | CaseEditCommand | CommandReceipt · CASE | 현재 담당자·현재 DRAFT·최신 버전 일치. 승인 후 편집은409 INVALID_STATE |
 | POST /cases/{caseId}/approvals | CaseApproveCommand | CommandReceipt · CASE | 현재 담당자·승인 전제 충족 |
 | POST /cases/{caseId}/index-checks | IndexCheckCommand | CommandReceipt · CASE | 현재 담당자·결과 재확인 |
 | POST /cases/{caseId}/index-retries | IndexRetryCommand | CommandReceipt · CASE | 현재 담당자·FAILED |
@@ -383,7 +383,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 이 절의 JSON 필드들은 모두 필수이고 eventId·messageId는 UUID, stepNo/seq/revision은 양의 정수다. role은 SUPERVISOR/INQUIRY/KNOWLEDGE/TICKET/CURATOR다. role=CURATOR의 내부 진행을 직원 INQUIRY에 전달하지 않는다. SSE id와 JSON eventId는 동일하며 payload의 전송 대상은 서버가 고정한다.
 
-업무 저장·outbox commit 뒤만 stored/state 이벤트를 만든다. 이벤트 도착 순서는 HTTP 응답과 독립이다. 이벤트는 GET 무효화 신호이며 AI 답변 조각·알림만으로 티켓·해결·사례 공개를 확정하지 않는다.
+업무 저장 commit 뒤만 stored/state 이벤트를 만든다. 이벤트 도착 순서는 HTTP 응답과 독립이다. 영속 이벤트 전달은 보장하지 않으므로 기존 REST 재조회·보조 폴링으로 저장 상태를 확인한다. 이벤트는 GET 무효화 신호이며 AI 답변 조각·알림만으로 티켓·해결·사례 공개를 확정하지 않는다.
 
 첫 신규 프로필의 replay는 제공하지 않는다. Last-Event-ID가 오면 권한 확인 후 resync.required를 보내고 종료한다. 클라이언트는 REST 조회 성공 뒤 마지막 ID·임시 조각을 비우고 ID 없이 연결한다. 실패 시 복구 중 상태를 유지한다. 재접속 간격은 1/2/5/10/30초 상한이며 화면 이탈·권한 거부 시 중단한다. 15초 comment heartbeat는 상태를 변경하지 않는다.
 

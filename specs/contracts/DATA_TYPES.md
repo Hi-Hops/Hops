@@ -27,7 +27,7 @@
 | Role | BIZ_ADMIN. 일반 임직원·담당자는 roles=[]도 가능하며 담당 능력은 primarySystemIds에서 확인 |
 | InquiryIntent | HOW_TO, ACCESS_REQUEST, OBSERVED_SYMPTOM, FEATURE_REQUEST, IMPROVEMENT_REQUEST, UNKNOWN, OUT_OF_SCOPE |
 | ProcessingType | KNOWLEDGE_QA, SERVICE_REQUEST, INVESTIGATION, INCIDENT, CHANGE_REQUEST, REVIEW_REQUIRED, OUT_OF_SCOPE |
-| InquiryStatus | IN_PROGRESS, WAITING_USER, RESOLVED |
+| InquiryStatus | IN_PROGRESS, WAITING_USER, RESOLVED, CLOSED |
 | ProblemState | ANALYZING, WAITING_USER, WAITING_SYSTEM, TICKET_PENDING, IN_SERVICE, WAITING_CONFIRMATION, RESOLVED, OUT_OF_SCOPE |
 | TicketState | WAITING, IN_PROGRESS, WAITING_CONFIRMATION, RESOLVED |
 | CreationOutcome | PENDING, STORED, NOT_CREATED, UNKNOWN |
@@ -109,8 +109,8 @@
 | KnowledgeEvidence | id:Uuid, documentId:Uuid, documentVersion:int, kind:GUIDE 또는 POLICY 또는 RUNBOOK 또는 CASE, title:string, excerpt:string, systemId:Uuid?, appliesToSystemVersion:string?, applicability:string, accessScope:AccessScope, origin:KnowledgeOrigin | systemId=null은 공통 POLICY만. 직원 응답에는 허용된 EMPLOYEE 항목만. CASE는 공개 버전 재검증 |
 | SearchResult | state:SearchState, evidence:KnowledgeEvidence[], error:ApiError? | EMPTY는 error=null·evidence=[]; ERROR는 error 필수. 부분 저장소 오류는 전체 ERROR로 보수 처리 |
 | CaseGeneration | id:Uuid, workRecordId:Uuid, state:GenerationState, caseId:Uuid?, error:ApiError? | SUCCEEDED에만 caseId 필수; 원 처리 기록당 한 작업 |
-| CaseSummary | id:Uuid, title:string, systemId:Uuid, latestCaseVersion:int, latestState:CaseVersionState, publishedVersions:int[], generationState:GenerationState, updatedAt:time | 담당 시스템 범위의 검토 목록 |
-| CaseVersion | id:Uuid, caseVersion:int, state:CaseVersionState, ticketId:Uuid, problemId:Uuid, workRecordId:Uuid, resolutionRequestId:Uuid, systemId:Uuid, caseType:CaseType, problemStatement:string, confirmedCause:string?, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string?, accessScope:AccessScope, origin:KnowledgeOrigin, confirmationOrigin:ConfirmationOrigin, sourceMessageIds:Uuid[], createdAt:time | source 원 기록 고정. caseType/confirmedCause는 원 WorkRecord에서 투영. 초안 편집은 새 버전. id는 resolved_case.id이며 버전 행 PK와 다름 |
+| CaseSummary | id:Uuid, title:string, systemId:Uuid, latestCaseVersion:int, latestState:CaseVersionState, publishedVersions:int[], generationState:GenerationState, updatedAt:time | 담당 시스템 범위의 검토 목록. MVP의 publishedVersions는 [] 또는 현재 승인·공개 버전 하나 |
+| CaseVersion | id:Uuid, caseVersion:int, state:CaseVersionState, ticketId:Uuid, problemId:Uuid, workRecordId:Uuid, resolutionRequestId:Uuid, systemId:Uuid, caseType:CaseType, problemStatement:string, confirmedCause:string?, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string?, accessScope:AccessScope, origin:KnowledgeOrigin, confirmationOrigin:ConfirmationOrigin, sourceMessageIds:Uuid[], createdAt:time | 기존 resolved_case 현재 행을 투영. 원 처리 기록 고정, caseType/confirmedCause는 원 WorkRecord 값. 현재 DRAFT 편집 시 버전 증가·승인 뒤 읽기 전용. id는 resolved_case.id |
 | CaseApproval | caseId:Uuid, caseVersion:int, approvedBy:UserSummary, approvedAt:time | 해당 시스템 주담당자. 승인 내용 불변 |
 | IndexResult | jobId:Uuid, caseId:Uuid, caseVersion:int, store:IndexStore, state:IndexState, attempt:int, error:ApiError?, updatedAt:time | attempt≥1. 저장소별 같은 승인 버전 추적 |
 | CaseDetail | version:CaseVersion, approval:CaseApproval?, indexes:IndexResult[], publication:Publication | DRAFT에는 approval=null·indexes=[] |

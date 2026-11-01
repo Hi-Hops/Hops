@@ -56,6 +56,7 @@
 | PENDING | 해결/미해결 버튼; 무응답은 대기 유지 |
 | RESOLVED | 해당 문제 최종 완료. 다른 독립 문제는 그대로 |
 | UNRESOLVED | 같은 티켓 처리 계속; 가이드이면 담당자 연결 검토 |
+| 문의 CLOSED | 모든 문제가 OUT_OF_SCOPE인 경우 '지원 범위 밖 안내 종료' 표시. 해결 완료와 구분하며 범위 밖 문제에 티켓·해결 확인을 만들지 않음 |
 | 오래된/중복 응답 | 원 키 같은 응답은 기존 결과. 다른 응답·오래된 revision은 충돌 후 조회 |
 
 ## hops-system-1 검증 시나리오
@@ -64,6 +65,9 @@
 - **F006-CONTRACT-02:** 미해결 뒤 같은 티켓에서 새 검증 기록·새 확인 요청이 생성되며 이전 요청은 이력으로 유지된다.
 - **F006-CONTRACT-03:** 무응답으로 시간이 지나도 대기 상태이고 알림 읽음은 해결 응답이 아니다.
 - **F006-CONTRACT-04:** 응답 저장 후 HTTP 유실을 재확인하면 원 응답 하나만 남는다.
+- **F006-CONTRACT-07:** 모든 문제의 범위 밖 안내가 저장되면 문의는 CLOSED, 문제는 OUT_OF_SCOPE로 조회된다. 목록·채팅은 '지원 범위 밖 안내 종료'로 표시하고 해결 성공·티켓·해결 확인 요청을 만들지 않는다.
+- **F006-CONTRACT-08:** 해결 확인된 문제와 OUT_OF_SCOPE 문제만 남으면 문의는 RESOLVED이며 범위 밖 문제는 OUT_OF_SCOPE를 유지한다.
+- **F006-CONTRACT-09:** 범위 밖 문제 외의 미완료 문제가 모두 WAITING_USER/WAITING_SYSTEM/WAITING_CONFIRMATION이면 문의는 WAITING_USER다. 하나라도 ANALYZING/TICKET_PENDING/IN_SERVICE이면 IN_PROGRESS이며 무응답·화면 종료로 CLOSED가 되지 않는다.
 
 문서/JSON 검사·Mock·실제 서버 저장/권한·실제 AI/검색·브라우저 E2E를 분리해 결과를 기록한다. 기존 테스트의 이전 AC 번호를 새 시나리오 통과로 간주하지 않는다.
 

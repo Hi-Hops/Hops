@@ -21,7 +21,7 @@
 | C03 | UUID·UTC Z·필수 키/null 규칙, 문의 입력 버전과 메시지/업무/확인/사례 버전 분리. 원문 1~4,000 코드 포인트 | [DATA_TYPES](contracts/DATA_TYPES.md#신규-계약-hops-system-1) |
 | C04 | 생성 결과 PENDING/STORED/NOT_CREATED/UNKNOWN. 결과 확인 뒤 확정 미생성만 같은 논리 작업 재시도 | [F005](F005-result-cards/spec.md)·[F010](F010-creation-failures/spec.md) |
 | C05 | 검증 완료 WorkRecord별 PENDING 확인 요청 하나. 해결·미해결은 문제별 한 번, 무응답 대기·미해결 같은 티켓 계속 | [F006](F006-my-inquiries/spec.md)·[F009](F009-department-tickets/spec.md) |
-| C06 | 원 기록에 고정한 불변 사례 버전·버전별 승인. VECTOR/NEO4J 두 반영 성공 전 양쪽 비공개. 실패만 수동 다음 attempt | [F011](F011-case-lifecycle/spec.md) |
+| C06 | 기존 resolved_case의 현재 초안 편집·버전 증가 후 승인하면 읽기 전용. 현재 승인 버전의 VECTOR/NEO4J 두 성공 전 양쪽 비공개. 실패 반영만 수동 재실행 | [F011](F011-case-lifecycle/spec.md) |
 | C07 | AiRunRequest/Result/Event + IndexApplyRequest/Snapshot + KnowledgeAuthorizationRequest/Response, 서비스 Bearer 인증 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
 | C08 | 현재 frontend UI를 구현 기준으로 채택. 독립 티켓 상세와 사례 최소 목록·채팅 안 해결 확인을 기존 구성/토큰으로 확장하고 기능 책임·상태 소유를 고정 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[목표 구조](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
 | C09 | workItemId=problemId, 생성 상태는 inquiry_problem, 티켓은 ticket.inquiry_problem_id UNIQUE. 현재 PRIMARY는 it_system의 FK, 당시 배정은 ticket_assignment 이력 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안) |
@@ -40,7 +40,7 @@
 | S02 | 아래 실행 한도 표와 요청 전 토큰/비용 예약. SDK 자동 재시도 0, 429/형식 오류 포함 자동 모델 재호출 0 | 호출 수·기한·입출력 토큰·도구·비용을 실행 전체에서 누적 |
 | S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, vector(1536) 정확 코사인 검색. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
 | S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [공용 예시](mocks/hops-system-1.examples.json)의 systems/users/primaryAssignments | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
-| S05 | #66의 시스템·문제·티켓 명칭으로 논리 키 매핑, READ COMMITTED + 문의→문제→티켓 순서 행 잠금, 낙관 버전 충돌은409. journal 상세24시간·키 표식/업무 이력 유지, DB outbox·공개 gate 원자화 | DDL 적용·migration 파일 작성은 백엔드 구현 작업. 테이블 수가 달라도 같은 외부 키·불변식 유지. ERD6절에 resolution_request/resolved_case_version/case_index_job/outbox_event 추가 설계. 별도 엔티티 사전 생성 없음 |
+| S05 | #69 원본22개 테이블 사용. 기존 확인 시각·이벤트·JSONB와 현재 resolved_case의 버전/두 반영 상태를 재사용. 업무와 journal 저장 후 Spring이 후속 호출 | 추가 테이블 없이 MVP 정상 흐름 우선. 복수 승인 버전 병행·반영 시도 전체 이력·영속 이벤트 전달 복구는 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
 | S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
 | S07 | 최초 평가30건(개발18/보류12), 시스템·의도·대표 예외 분포와 게이트는 아래 검증 기준. prompt/profile/catalog 해시로 동결 | 미래 해결·정답은 KB와 모델 입력에서 분리. 일정은 D1 계약→D2 선정값 적용→통합→동결→시연 순서로 고정하며 완료 날짜를 실행 전 실적으로 기록하지 않음 |
 | S08 | 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB·AI 전용 권한. RunLedger PK=runId, 입력 digest 불변·동일 ID 새 모델 실행 금지. index job은 (jobId,attempt) 유일 | AI 계정은 Spring 업무 원본 쓰기 권한 없음. 검색 조각 권한과 ledger 권한은 각각 제한. 재시작 후 진행 중 실행은 UNKNOWN, 중간 checkpoint 자동 재개 없음. 안전한 실패 뒤 새 runId. 상세24시간·사용 ID/digest 표식 유지 |
@@ -87,7 +87,7 @@ PR #68에 위 채택값을 제출한다. 팀원은 빈 항목을 대신 설계�
 
 ## 5. 완성 ERD 반영 상태
 
-**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 실제 컬럼/관계·DB↔wire 상태/버전·JSONB 대응을 기록했다. 원본22개 테이블에서 누락된 처리 확인 주기·CASE 버전·반영 시도·outbox는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)의4개 추가 테이블로 보완한다. 이 추가 설계는 이번 PR의 리뷰 대상이며 #69에 이미 포함된 것으로 보고하지 않는다.
+**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 기존 컬럼·DB↔wire 상태·JSONB 대응을 기록했다. 현재 MVP는 원본22개 테이블로 진행하고 4개 추가 테이블 제안은 반영하지 않는다. 확인은 기존 이벤트·메시지 메타데이터, 사례는 현재 행·승인 뒤 읽기 전용, 반영은 기존 두 상태 컬럼을 사용한다. 상세 매핑과 후순위 범위는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)을 따른다.
 
 현재 PRIMARY DTO, 실패 처리 기록과 원인/적용 버전, CASE 문제 설명/종류, 공통 POLICY의 null systemId, ticketRevision=DB version+1을 채택한다. 프론트는 wire 상태를 사용하고 기존 디자인·경로/메뉴를 재사용한다. FK를 유지하기 위해 지식 검색은 같은 PostgreSQL DB의 hops_knowledge schema에 두며 AI 계정의 업무 원본 쓰기는 금지한다.
 
@@ -97,10 +97,10 @@ PR #68에 위 채택값을 제출한다. 팀원은 빈 항목을 대신 설계�
 
 | 범위 | 작업 결정값 | 구현·승인과의 구분 |
 |---|---|---|
-| Contract | 기존 hops-system-1의 필드/null·상태·버전·권한·HTTP/SSE·명령/복구·AI wire 유지 | 서비스 구현과 DB 적용 완료를 뜻하지 않음 |
-| Spec | F001~F011의 전체 MVP·관찰 조건·예외와 기존 CONTRACT 시나리오 유지 | 현재 코드의 이전 AC 검사로 신규 기능 완료를 대신하지 않음 |
+| Contract | 외부 DTO·권한·HTTP/SSE·AI wire 형식 유지. 저장은 기존22개 테이블, 사례는 현재 초안 편집·승인 후 읽기 전용 | 서비스 구현과 DB 적용 완료를 뜻하지 않음 |
+| Spec | F001~F011의 MVP 정상 흐름과 기본 상태 검증 우선. 복수 승인 버전·반영 전체 이력·영속 전달 복구는 후순위 | 현재 코드의 이전 AC 검사로 신규 기능 완료를 대신하지 않음 |
 | UI | develop d896fae의 실제 프론트 UI와 공통 컴포넌트를 기준으로 기능 확장. 새 Figma를 구현 기준에서 제외 | 화면 세부 구현/접근성/브라우저 검증은 실제 작업에서 수행 |
 | Frontend 구조 | app→pages→features→shared, auth/realtime/chat/inquiry/ticket/case의 책임·데이터 소유·프로필 경계 | 목표 파일/폴더는 구현 때 생성하고 현재 frontend 소스/Mock을 유지 |
-| 물리 저장 보완 | ERD6절의4개 추가 구조와 제약은 백엔드 리뷰 대상으로 유지 | UI 구조 결정과 별도로 검토·승인하며 이미 DB에 적용된 것으로 보고하지 않음 |
+| 물리 저장 | 원본22개 테이블과 ERD6절의 기존 컬럼·DTO 대응 사용. 새 테이블 없음 | 기존 컬럼 보완도 실제 DB 적용·코드 구현과 구분하며 예외 복구·이력 확장은 후순위 |
 
 이 결정은 이번 브랜치에서 사용할 구체 기준이며 팀 공통 기준의 효력은 PR 리뷰/병합 절차를 따른다. 이번 단계에서는 신규 필드·엔드포인트·물리 테이블·모델 기본값을 추가 선택하지 않고, 현재 계약과 구현 범위를 기준으로 다음 프론트 작업을 진행한다.

@@ -12,7 +12,7 @@
 | [에이전트 계약 신규 절](../../contracts/agents/README.md#hops-system-1-실행-계약안) | Spring↔AI wire·내부 역할·검색·실행 한도 |
 | [AI State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) | 내부 State·실행/색인/검색 권한 DTO의 기계 검증 |
 | [F001~F011](../README.md) | 화면·조작·AC·계약 검증 시나리오 |
-| [DATA](../../docs/DATA.md)·[ERD](../../docs/ERD_설명.md) | 업무 저장 관계·유일성·잠금·outbox 제안 |
+| [DATA](../../docs/DATA.md)·[ERD](../../docs/ERD_설명.md) | 기존22개 테이블의 업무 저장 관계·유일성·잠금·commit 뒤 후속 호출 |
 | [QUESTIONS](../QUESTIONS.md) | 채택한 계약·모델·저장·예산·검증 기준과 팀 승인/구현 상태 |
 
 공통 상태·오류·필드 표를 각 spec에 다시 정의하지 않는다. spec은 해당 정본을 참조하고 사용자에게 관찰되는 동작·완료 조건을 적는다. 제품 범위의 정본은 PRD다.

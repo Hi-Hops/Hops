@@ -1,6 +1,6 @@
 # ERD (물리 테이블·컬럼)
 
-상태: PRD 1.44 공통 계약 정합 보완안 · 병합 원본(#69)은 테이블22개/FK45개, 본 PR6절은 테이블4개/FK10개 추가(총26개/FK55개) · 보완안 팀 리뷰·실제 DB 적용 전. 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
+상태: PRD 1.44 MVP 공통 계약 정합안 · 병합 원본(#69)의 22개 테이블을 사용하고 추가 테이블은 만들지 않는다. 기존 컬럼·DTO 대응은 6절에서 보완하며 팀 리뷰·실제 DB 적용 전이다. 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
 
 이 문서는 테이블·컬럼·타입·FK를 적은 **물리 설계**다. ERD Cloud import와 Flyway 마이그레이션 작성의 기준으로 쓴다. 엔터티의 의미·관계·저장 불변식(**논리 모델**)은 [ERD 설명](ERD_설명.md)과 [DATA](DATA.md)를 따른다. 두 문서가 다르면 논리 모델을 먼저 맞추고 이 문서를 고친다.
 
@@ -38,11 +38,11 @@
 | 항목 | 규칙 |
 |---|---|
 | 기본키 | 모든 테이블 `id` UUID (UUIDv7 권장). 화면에는 Q-0142·TK-0001·CASE-0001 같은 표시 번호를 따로 씀 |
-| 시간 컬럼 | 바뀌는 테이블: 생성일시·수정일시·삭제일시 / 원본 이력·기록9개는 생성일시만. 신규 journal은 operation/tombstone 갱신, CASE 버전은 불변 내용과 승인 메타데이터를 구분(6절) / AI 실행: 생성일시·수정일시 |
+| 시간 컬럼 | 바뀌는 테이블: 생성일시·수정일시·삭제일시 / 원본 이력·기록9개는 생성일시만. journal은 operation/tombstone 갱신, CASE는 현재 초안 편집 후 승인하면 읽기 전용(6절) / AI 실행: 생성일시·수정일시 |
 | 이력·기록 테이블 | 메시지 수정 이력, 표준 요청서, 티켓 변경 이력, 티켓 처리 기록, AI 실행 단계, 중복 요청 방지 기록, 알림, 문서 버전, 검색 조각 |
 | 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약 |
 | 업무 데이터 쓰기 | Spring이 REST 변경 요청을 저장·확정하고 권한별 SSE를 전달. AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
-| 관계선 | 실제 DB는 6절 보완을 포함한 FK55개를 구현에서 적용. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
+| 관계선 | 원본 FK45개를 기준으로 기존 테이블의 컬럼 보완을 구현 시 대조한다. 추가 테이블의 FK는 만들지 않는다. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
 | 중복 방지 | REST `Idempotency-Key`는 중복 요청 방지 기록에 업무 변경과 같은 트랜잭션으로 저장. 문의 1:N 문제 → 문제당 티켓 최대 1개 (`ticket.inquiry_problem_id` 중복 불가) |
 | 삭제 | 문의·티켓·처리 기록·해결 사례는 지우지 않고 보존 (최종기획서 8.3). 신규 프로필의 만료된 journal 응답 본문은 정리하되 키/digest/tombstone은 유지(6절). 전환 전 프로필의 정책과 구분 |
 | 저장소 경계 | PostgreSQL은 사용자·시스템·주담당자·문의·티켓·승인·상태의 정본. 관계 탐색은 Neo4j, 의미 검색은 Vector 저장소, 로그인 세션·Refresh는 Redis. 신규 hops-system-1 SSE는 replay 없이 REST 재동기화, 전환 전 replay 프로필은 별도 Redis (최종기획서 9.1, 팀 합의 2026-10-28) |
@@ -514,7 +514,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
 
 - **초안 → 승인:** Curator가 `DRAFT`로 저장하고 담당자가 확인·수정한다. Spring은 사례 시스템의 주담당자인지, 해결 사례면 문의자 해결 확인이 끝났는지, 기능 구현 사례면 `IMPLEMENTED` 기록인지 확인한 뒤 `APPROVED`로 바꾼다 (최종기획서 8.2). 별도 지식 검수자는 없고 주담당자의 자기 승인을 허용한다.
-- **검색 공개:** 신규 프로필은 6절 resolved_case_version의 같은 승인 버전과 case_index_job의 저장소별 최신 attempt/digest 성공을 검증한다. 헤더의 두 상태 컬럼만으로 공개하지 않는다. 한쪽이라도 실패하면 양쪽 검색에서 모두 제외한다. 초안 생성·업무 완료·승인·검색 반영은 서로 다른 사실이라 상태를 따로 둔다 (최종기획서 8.2).
+- **검색 공개:** MVP는 현재 resolved_case가 승인됐고 원 처리 기록의 문의자 해결 확인과 vector_status/graph_status의 양쪽 성공을 확인해야 검색에 공개한다. 승인 후 내용은 읽기 전용이며 결과의 caseVersion을 현재 승인 버전과 대조한다. 한쪽이 실패·대기·미확인이면 양쪽 검색에서 제외한다. 승인 후 새 초안과 이전 공개 버전의 병행 관리는 후순위다.
 - **이번 범위:** PRD1.44에 따라 실패한 저장소의 수동 재실행과 UNKNOWN 결과 확인을 제공한다. 승인 취소·자동 재검토·자동 비활성화·자동 색인 재시도·전용 복구 화면은 제외한다. 반영이 실패하면 `FAILED`로 남기고 성공으로 바꾸지 않는다 (7.3).
 - 작성자는 원 처리 기록의 작성 담당자다. 처리 기록 하나에서 사례는 최대 하나만 만든다.
 
@@ -540,7 +540,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 
 ## 6. hops-system-1 공통 계약 보완
 
-이 절은 병합된22개 테이블을 대조해 선택한 **이번 PR의 추가 물리 설계**다. 네 테이블은 각각 원 기록 확인 주기·불변 사례 버전·색인 시도 이력·업무 commit 뒤 서비스 전달을 보존한다. 별도 WorkItem·담당 관계·AI State 전체 저장 테이블을 만들지 않는다. 이 절은 테이블/필드/제약의 정의이며 Entity/Flyway/실제 DB 변경은 수행하지 않았다.
+MVP는 병합된 22개 테이블을 재사용한다. 별도 해결 확인·사례 버전·반영 작업·이벤트 전달 테이블을 추가하지 않는다. 아래는 기존 컬럼과 조회 DTO를 연결하기 위한 정의이며 Entity/Flyway/실제 DB 변경은 수행하지 않았다. 승인 후 복수 버전 병행, 반영 시도 전체 이력, 프로세스 재시작 뒤 후속 호출 자동 복구는 후순위다.
 
 ### 6.1 기존 컬럼과 제약 보완
 
@@ -548,7 +548,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |---|---|---|
 | member | policy_revision INT NOT NULL DEFAULT1 | 현재 권한 문맥 버전. 시스템 PRIMARY/역할 변경 때 영향 회원 행과 같은 거래에서 증가 |
 | it_system | ownership_version INT NOT NULL DEFAULT1 | 현재 PRIMARY 변경 세대. 권한 검증에 사용하며 과거 티켓 assignee를 바꾸지 않음 |
-| inquiry | current_run_id UUID NULL FK→agent_run.id, result_revision INT NOT NULL DEFAULT1 | current_run은 상담 실행만. 현재 입력 버전과 둘 다 맞는 결과만 적용 |
+| inquiry | current_run_id UUID NULL FK→agent_run.id, result_revision INT NOT NULL DEFAULT1. inquiry_status CHECK에 CLOSED 추가 | current_run은 상담 실행만. 현재 입력 버전과 둘 다 맞는 결과만 적용. 상태는 IN_PROGRESS/WAITING_USER/RESOLVED/CLOSED이며 CLOSED는 모든 문제의 범위 밖 안내 저장 후에만 집계. 무응답 자동 종료에 사용하지 않음 |
 | message | revision INT NOT NULL DEFAULT1, payload JSONB NOT NULL DEFAULT{} | revision≥1, 신규 최종 저장 행의 message_status=COMPLETED. payload의 문제/원문 구간/질문 번들 구조는 DATA11.3절 |
 | inquiry_problem | creation_outcome VARCHAR(30) NULL, creation_input_version INT NULL | NULL은 작업 없음. PENDING/STORED/NOT_CREATED/UNKNOWN, STORED에만 같은 문제의 ticket 존재. 상태 확인과 행 잠금 후만 변경 |
 | standard_request | agent_run_id는 신규 프로필에서 NOT NULL, UNIQUE(inquiry_problem_id,inquiry_version,agent_run_id) | 같은 문의 버전의 새 run도 새 스냅샷. 옛 스냅샷을 덮어쓰지 않음 |
@@ -557,73 +557,18 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 | ticket_work_log | 완료 RESOLVED/IMPLEMENTED이면 verification_result 비공백 CHECK | FAILED_ATTEMPT는 Curator/해결 확인을 만들지 않음. confirmed_cause·applied_version은 실제 담당자 입력만 저장 |
 | agent_run | input_snapshot JSONB NOT NULL, QUEUED 상태 추가, started_at NULL 허용 | 입력은 AiRunRequest. result와 validation_result를 분리. CURATION이면 trigger_work_log_id 필수·UNIQUE(trigger_work_log_id) WHERE task=CURATION, 상담이면 처리 기록 없음 |
 | idempotency_key | contract_version VARCHAR(50), operation_id UUID UNIQUE, operation_state VARCHAR(30), resource_type VARCHAR(30) NULL, resource_id UUID NULL, tombstoned_at TIMESTAMPTZ NULL | 신규 필수 키는 NOT NULL, UNIQUE(actor_member_id,contract_version,idempotency_key). operation_state=PENDING/SUCCEEDED/REJECTED/UNKNOWN. 메서드/경로/본문 해시를 재확인 후 버전 비교 |
-| idempotency_key | response_status/response_body는 tombstone 정리 뒤 NULL 허용 | 상세 최소24시간. 만료 뒤410, 기존 키/해시/operation/resource는 보존. 같은 키 새 실행 금지. PENDING 접수는202 receipt, 실제 업무 반영+최종 journal+outbox는 한 거래 |
+| idempotency_key | response_status/response_body는 tombstone 정리 뒤 NULL 허용 | 상세 최소24시간. 만료 뒤410, 기존 키/해시/operation/resource는 보존. 같은 키 새 실행 금지. PENDING 접수는202 receipt이며 업무 반영+최종 journal은 한 거래로 저장 |
 | knowledge_document_version | content_digest CHAR(64) NOT NULL, source_metadata JSONB NOT NULL, review_status VARCHAR(30) NOT NULL DEFAULT PENDING | 승인 원문 UTF-8 바이트 SHA-256과 origin/출처/적용 조건을 버전 고정. 승인된 문서/버전만 검색하며 현재 ACL·data_split도 검사 |
-| hops_knowledge.knowledge_chunk | embedding VECTOR(1536), knowledge_document_version_id NULL, case_version_id UUID NULL FK→resolved_case_version.id, content_digest/chunk_digest CHAR(64) NOT NULL | 두 출처 FK 중 정확히 하나. 문서는 UNIQUE(knowledge_document_version_id,chunk_no), CASE는 UNIQUE(case_version_id,chunk_no), 각각 NULL 제외. 출처 버전/content_digest와 실제 조각의 chunk_digest 확인 후 모델 입력에 사용 |
+| knowledge_document | document_type에 CASE 허용 | 승인된 현재 사례의 검색용 문서. 원본과 승인 여부는 resolved_case에서 확인하며 직원 공개 범위도 재검사 |
+| hops_knowledge.knowledge_chunk | embedding VECTOR, 차원은 모델 선정 후 정의. 기존 knowledge_document_version_id FK 유지, content_digest/chunk_digest CHAR(64) NOT NULL | 문서와 승인 CASE 모두 기존 문서 버전 경로로 검색 조각 저장. UNIQUE(knowledge_document_version_id,chunk_no). source_metadata의 원 사례 ID/버전과 실제 승인 내용을 대조 |
 
 검색 조각은 별도 PostgreSQL **DB**로 옮기지 않고 같은 DB의 hops_knowledge **schema**에 둬 실제 FK를 유지한다. AI 계정은 이 schema의 조각 DML과 FK 검사용 REFERENCES만 허용하며 업무 원본 쓰기 권한을 주지 않는다. 같은 계정으로 Spring 업무 저장을 수행하지 않는다. AI RunLedger는 기존 결정대로 별도 hops_ai_runtime DB다. 임베딩/CASE 저장소 작업은 별도 서비스 계약을 사용한다.
 
-### 6.2 resolution_request
+### 6.2 기존 테이블을 사용하는 MVP 범위
 
-| 컬럼 | 타입·제약 | 의미 |
-|---|---|---|
-| id | UUID PK | 외부 ResolutionRequest.id |
-| inquiry_problem_id | UUID NOT NULL FK→inquiry_problem.id | 원 문의/티켓은 이 문제와 원 기록에서 검증 |
-| source_message_id | UUID NULL FK→message.id | 무티켓 GUIDE의 저장된 안내 메시지 |
-| source_message_revision | INT NULL | GUIDE의 불변 출처 revision |
-| source_work_log_id | UUID NULL FK→ticket_work_log.id | WORK_RECORD의 실제 검증 기록 |
-| request_revision | INT NOT NULL DEFAULT1 | 응답 시2. expected 버전 불일치409 |
-| state | VARCHAR(30) NOT NULL DEFAULT PENDING | PENDING/RESOLVED/UNRESOLVED |
-| result_summary | TEXT NOT NULL | 원 조치/가이드의 안전한 결과 요약 |
-| confirmation_origin | VARCHAR(30) NOT NULL | SYNTHETIC_PRESET/HOPS_USER. 운영 출처와 혼동 금지 |
-| responded_by_member_id | UUID NULL FK→member.id | 문의 소유자만 응답 |
-| created_at / responded_at | TIMESTAMPTZ NOT NULL / NULL | 대기에는 응답 시각 없음 |
+- **해결 확인:** 가이드는 inquiry_problem.confirm_requested_at/resolved_at과 message.payload, 티켓은 ticket.confirm_requested_at/resolved_at과 ticket_event를 사용한다. 요청의 원 메시지·처리 기록·현재 확인 상태·revision은 기존 JSONB 메타데이터에 연결해 ResolutionRequest DTO로 투영한다. 새 테이블이나 그 테이블의 FK를 요구하지 않는다.
+- **사례 편집과 승인:** resolved_case의 현재 초안과 version_no를 사용한다. 초안을 고칠 때 현재 행의 버전을 증가시키며 과거 초안 전체를 별도 행으로 보존하지 않는다. 승인 후에는 내용 편집을 막고, 현재 승인 버전과 두 반영 결과만 검증한다. 승인 후 새 초안·과거 승인 버전의 병행 관리는 MVP에 넣지 않는다.
+- **반영과 검색:** resolved_case.vector_status/graph_status를 PENDING/SUCCEEDED/FAILED로 관리한다. 진행 중이거나 결과를 모르면 DB의 PENDING을 유지해 비공개로 두고, 조회 DTO는 확인 가능한 실행 상태를 표현한다. jobId/attempt/digest는 서비스 요청·결과 대조와 기존 journal의 현재 결과에 사용하며 별도 시도 이력 테이블은 만들지 않는다. 반영 결과의 버전이 현재 승인 버전과 다르면 성공으로 적용하지 않는다.
+- **후속 실행:** 처리·승인 DB commit 뒤 Spring이 Curator·색인·SSE 전달을 호출한다. 외부 호출을 DB 거래 안에서 기다리지 않는다. 호출 실패는 저장된 업무를 취소하지 않으며, 서버 종료 사이의 전달 누락을 자동 복구하는 영속 큐는 이번 MVP 범위에서 제외한다.
 
-CHECK는 source_message_id/source_work_log_id의 정확히 하나와 GUIDE revision 필수, PENDING이면 응답자/시각 없음, 최종 응답이면 둘 다 존재다. UNIQUE(inquiry_problem_id) WHERE state=PENDING, UNIQUE(source_work_log_id) WHERE NOT NULL, UNIQUE(inquiry_problem_id,source_message_id,source_message_revision) WHERE source_message_id IS NOT NULL을 둔다. 같은 원 기록에 다른 응답을 덮어쓰지 않는다. WORK_RECORD.sourceVersion=1, GUIDE.sourceVersion=source_message_revision이다.
-
-### 6.3 resolved_case_version
-
-| 컬럼 | 타입·제약 | 의미 |
-|---|---|---|
-| id | UUID PK | 내부 버전 행 키. 외부 caseId와 다름 |
-| case_id | UUID NOT NULL FK→resolved_case.id | 안정적인 논리 CASE |
-| version_no | INT NOT NULL | 외부 caseVersion, UNIQUE(case_id,version_no) |
-| source_resolution_request_id | UUID NOT NULL FK→resolution_request.id | 해당 원 처리 기록의 문의자 확인 |
-| content | JSONB NOT NULL | CaseVersion의 불변 내용 필드와 limitations/entityLinks. state는 별도 행 컬럼에서 투영. 생성 후 내용 불변 |
-| content_digest | CHAR(64) NULL | 승인 전 null, 승인 시 {caseId,caseVersion,approvedCase} canonical SHA-256 확정. APPROVED에는 필수이며 승인 후 불변 |
-| state | VARCHAR(30) NOT NULL DEFAULT DRAFT | DRAFT/APPROVED |
-| approved_by_member_id | UUID NULL FK→member.id | 현재 PRIMARY의 승인 |
-| approved_at / created_at | TIMESTAMPTZ NULL / NOT NULL | APPROVED에는 승인자/시각 필수 |
-
-초안 편집은 새 version_no 행을 추가하며 승인자는 기존 행의 승인 메타데이터만 확정한다. content의 caseType은 원 work log RESOLVED→RESOLUTION/IMPLEMENTED→IMPLEMENTATION, confirmedCause는 같은 원 기록의 confirmed_cause를 투영한다. 원 기록과 확인 요청이 일치하고 RESOLVED인 경우만 승인한다. 기존 공개 버전의 내용/승인을 새 초안으로 덮지 않는다. 헤더의 title/version_no/case_status/vector_status/graph_status는 최신 버전 캐시이며 버전별 검색 공개 정본으로 사용하지 않는다.
-
-### 6.4 case_index_job
-
-| 컬럼 | 타입·제약 | 의미 |
-|---|---|---|
-| id | UUID PK | 내부 시도 행 키 |
-| job_id | UUID NOT NULL | caseVersion/store별 안정적인 논리 jobId |
-| case_version_id | UUID NOT NULL FK→resolved_case_version.id | 승인된 불변 버전 |
-| store / attempt | VARCHAR(30) NOT NULL / INT NOT NULL | VECTOR/NEO4J, attempt≥1 |
-| content_digest | CHAR(64) NOT NULL | IndexApplyRequest의 store 포함 canonical 해시 |
-| state | VARCHAR(30) NOT NULL | PENDING/RUNNING/SUCCEEDED/FAILED/UNKNOWN |
-| error | JSONB NULL | 안전한 AiError. FAILED에 필수·SUCCEEDED에는 null |
-| created_at / updated_at | TIMESTAMPTZ NOT NULL | 접수/최종 확인 시각 |
-
-UNIQUE(job_id,attempt)·UNIQUE(case_version_id,store,attempt). 한 버전·store의 모든 attempt는 같은 job_id를 유지하고 반영 본문은 같은 버전 내용이다. 실패한 저장소만 현재 담당자의 수동 명령으로 다음 attempt를 추가한다. UNKNOWN은 GET 확인 전 재실행하지 않는다. Spring은 같은 승인 버전의 각 store 최신 attempt/digest가 SUCCEEDED일 때만 공개한다. 과거 attempt의 늦은 성공은 현재 상태를 덮지 않는다.
-
-### 6.5 outbox_event
-
-| 컬럼 | 타입·제약 | 의미 |
-|---|---|---|
-| id | UUID PK | 전달 이벤트 ID |
-| aggregate_type / aggregate_id | VARCHAR(30) NOT NULL / UUID NOT NULL | INQUIRY/TICKET/CASE 등 원 업무 참조. 다형 참조는 업무 거래에서 검사 |
-| event_type | VARCHAR(50) NOT NULL | AI_RUN_REQUESTED/CASE_DRAFT_REQUESTED/INDEX_APPLY_REQUESTED/STATE_CHANGED/POLICY_CHANGED |
-| dedupe_key | VARCHAR(200) NOT NULL UNIQUE | 같은 업무 이벤트 중복 방지 |
-| payload | JSONB NOT NULL | 검증된 서비스 DTO 또는 공개 조회 무효화 정보 |
-| delivery_state | VARCHAR(30) NOT NULL DEFAULT PENDING | PENDING/DELIVERED |
-| created_at / delivered_at | TIMESTAMPTZ NOT NULL / NULL | 업무 commit 이후 전달 |
-
-업무 변경과 같은 트랜잭션으로 기록한다. 외부 응답 유실 후 같은 이벤트 재전달은 기존 runId/jobId/attempt 재확인이며 새 모델 호출/업무 시도를 만들지 않는다. 소비자는 영속 멱등 키로 중복을 막는다. 내부 outbox에는 비밀값이나 모델 내부 사고 과정을 넣지 않고, 공개 SSE에는 현재 권한과 입력 버전 검증을 통과한 payload만 전달한다.
-
-추가 FK는 resolution_request4개·resolved_case_version3개·case_index_job1개·inquiry.current_run_id1개·knowledge_chunk.case_version_id1개로10개다. outbox의 다형 참조는 FK로 세지 않는다. 원본45개에 이10개를 더한 설계가 총55개이며 실제 제약 생성/동작 확인은 migration 검증에서 수행한다.
+resolution_request, resolved_case_version, case_index_job, outbox_event의 추가 DDL·FK 정의는 이번 범위에서 제외한다. 사용자 해결 확인, 승인 전 비공개, 같은 승인 버전의 양쪽 반영 성공 후 공개라는 제품 조건은 기존 테이블과 서버 검증으로 유지한다. 실제 migration·동시성·외부 호출 검증은 구현 PR에서 기록한다.

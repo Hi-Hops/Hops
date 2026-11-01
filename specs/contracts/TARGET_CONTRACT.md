@@ -47,7 +47,7 @@
 | ANALYZING | 질문 5회·보고 시스템 미확인 | WAITING_SYSTEM; 추가 자유 질문 금지 |
 | WAITING_SYSTEM | 소유자가 지원 시스템 선택 | ANALYZING; 새 입력 버전, 질문 수 유지 |
 | ANALYZING | 승인 직원 가이드 안내 저장 | WAITING_CONFIRMATION; GUIDE 확인 요청 생성 |
-| ANALYZING | 지원 범위 밖 | OUT_OF_SCOPE; 티켓 없음 |
+| ANALYZING | 지원 범위 밖 안내 저장 | OUT_OF_SCOPE; 티켓 없음 |
 | ANALYZING | 생성 작업이 존재 | TICKET_PENDING; 작업 결과는 별도 표시 |
 | TICKET_PENDING | 티켓·배정 저장 확인 | IN_SERVICE |
 | IN_SERVICE | 담당자 검증 완료 기록 | WAITING_CONFIRMATION |
@@ -56,7 +56,15 @@
 
 재분석·SSE 재전달은 같은 `questionBundleId`를 다시 세지 않는다. 복합 문제에 보낸 같은 메시지가 서로 다른 문제의 질문을 포함하면 각 문제에 번들 하나씩 연결한다. 5회 도달 후 시스템 선택은 질문 횟수에 포함하지 않으며 저장된 대기를 화면 종료 후에도 복원한다.
 
-문의 표시 상태는 문제들의 집계다. 최초 분석 전 문제 목록이 비어 있으면 IN_PROGRESS다. 하나라도 ANALYZING/TICKET_PENDING/IN_SERVICE이면 IN_PROGRESS, 그 외 미완료 문제는 WAITING_USER, 모두 RESOLVED/OUT_OF_SCOPE이고 하나 이상 RESOLVED면 RESOLVED, 모두 OUT_OF_SCOPE면 CLOSED다. 집계는 문제별 상태·작업 결과를 숨기지 않는다. 무응답 종료 상태는 새 프로필에 두지 않는다.
+문의 표시 상태는 Spring이 저장된 문제들을 다음 순서로 집계한다.
+
+1. 최초 분석 전 문제 목록이 비어 있으면 IN_PROGRESS다.
+2. 하나라도 ANALYZING/TICKET_PENDING/IN_SERVICE이면 IN_PROGRESS다.
+3. 그 외 미완료 문제가 있으면 WAITING_USER다. 시스템 선택 대기와 문의자 해결 확인 대기도 포함한다.
+4. 모든 문제가 OUT_OF_SCOPE이면 CLOSED다. 범위 밖 안내가 저장된 문의를 화면에서 '지원 범위 밖 안내 종료'로 표시한다.
+5. 모든 문제가 RESOLVED/OUT_OF_SCOPE이고 하나 이상 RESOLVED이면 RESOLVED다. 범위 밖 문제는 그대로 OUT_OF_SCOPE로 보존한다.
+
+CLOSED는 모든 문제가 지원 범위 밖인 문의에만 사용한다. PRD 3.1절의 범위 안내와 3.4절의 문의자 해결 확인을 구분하기 위한 계약 선택이며, PRD가 이 상태 코드 자체를 지정한 것은 아니다. RESOLVED는 지원 대상 문제의 해결 확인을 전제로 하며 범위 안내만으로 만들지 않는다. 무응답이나 화면 종료는 문의·문제를 CLOSED/RESOLVED로 바꾸지 않고 기존 대기를 유지한다. 집계는 문제별 상태·작업 결과를 숨기지 않는다.
 
 배정된 문제의 메시지·정정은 관련 기존 티켓의 보완 정보다. 기존 티켓 생성 작업은 다시 만들지 않는다. 완료 티켓의 이후 같은 현상은 새 문의 진입을 안내하고 재오픈하지 않는다. 여러 문제 중 대상이 불명확한 보완 정보는 어느 티켓에도 자동 배포하지 않고 대상 선택을 요청한다. 이는 추가 질문 한도를 늘리는 자유 질문으로 사용하지 않는다.
 
@@ -79,7 +87,7 @@
 
 - 티켓은 WAITING → IN_PROGRESS → WAITING_CONFIRMATION → RESOLVED다. PROGRESS/FAILED_ATTEMPT 기록은 WAITING을 IN_PROGRESS로, 검증 완료 기록은 WAITING/IN_PROGRESS를 WAITING_CONFIRMATION으로 바꾼다.
 - 일반 요청은 VERIFIED_RESOLUTION, 기능 추가·개선은 IMPLEMENTED_VERIFIED 기록만 해결 확인을 요청한다. 실제 조치·검증 내용이 필요하다. PROGRESS/실패 시도만으로 사례를 생성하지 않는다.
-- 검증 완료 기록·확인 요청·Curator 실행 예약은 같은 업무 저장 경계에서 연결한다. 실제 AI 실행과 성공 여부는 분리한다. 초안 실패가 업무 기록을 취소하지 않는다.
+- 검증 완료 기록·현재 확인 상태를 기존 테이블에 저장하고 commit 뒤 Curator를 호출한다. 실제 AI 실행과 성공 여부는 분리하며 초안 실패가 업무 기록을 취소하지 않는다. 영속 이벤트 전달 큐와 재시작 자동 복구는 후순위다.
 - 확인 요청은 GUIDE 메시지 또는 특정 WorkRecord 하나를 참조한다. WAITING_CONFIRMATION 중 새 검증 기록으로 요청을 교체하지 않고, 문의자의 미해결 응답 후 다음 처리 주기를 시작한다.
 - 소유자는 PENDING 요청에 한 번 RESOLVED/UNRESOLVED 응답한다. 같은 키·본문은 기존 결과를 반환하고 다른 응답·오래된 requestRevision은 409다. 같은 문의의 다른 문제는 바뀌지 않는다.
 - 미해결이면 같은 티켓을 IN_PROGRESS로 돌린다. 무응답은 계속 대기한다. 기존 실패/미해결 기록을 CASE로 게시하지 않는다. GUIDE 해결은 티켓 없이 종료하고 Curator를 실행하지 않는다.
@@ -98,11 +106,11 @@
 | 반영 | 승인 버전별 VECTOR·NEO4J 각각 PENDING/RUNNING/SUCCEEDED/FAILED/UNKNOWN | 두 성공 전 양쪽 비공개 |
 | 공개 | 같은 승인 버전의 두 성공을 Spring DB에서 확인하고 현재 ACL 검증 | 권한 있는 검색만 허용 |
 
-초안 편집은 낙관적 버전 검증 후 새 caseVersion을 만든다. 승인된 내용을 바꾸려면 기존 승인을 수정하지 않고 새 초안 버전을 만든다. 새 버전은 재승인·재반영하며 이전 공개 버전은 자동 삭제·차단하지 않는다. 최초 신규 초안과 승인된 버전 편집을 같은 저장으로 취급하지 않는다.
+MVP는 기존 resolved_case의 현재 DRAFT만 편집하고 낙관적 버전 검증 후 version_no를 증가시킨다. 승인 후 내용은 읽기 전용이며 승인된 사례의 편집 요청은409 INVALID_STATE다. 승인 후 새 초안과 과거 공개 버전의 병행 관리·전체 초안 이력은 후순위다. 같은 승인 버전의 두 반영 성공과 현재 권한 확인 후 공개하는 정책은 유지한다.
 
 CASE 버전은 원 WorkRecord·확인 요청·원문 출처에 고정한다. 미해결 응답을 받은 처리 기록의 초안은 승인하지 않는다. 이후 검증 완료 기록은 별도 Curator 작업과 새 사례 후보를 만든다. 초안이 재사용할 내용이 없으면 승인 대상을 만들지 않는다.
 
-승인 commit 뒤 저장소별 반영 작업을 outbox로 전달한다. 외부 저장소와 분산 트랜잭션을 가정하지 않는다. `(caseId, caseVersion, store)`별 작업·중복 키를 사용한다. 승인 버전의 공개 가능 상태 갱신은 Spring DB의 잠금/버전 검사로 원자화한다. Vector/Neo4j 결과는 Spring을 통한 현재 승인·공개·ACL 검증을 통과한 항목만 반환한다.
+승인 commit 뒤 Spring이 저장소별 반영을 호출한다. 기존 resolved_case.vector_status/graph_status를 현재 승인 버전의 결과로 사용하고 요청/응답의 caseVersion·작업 참조를 대조한다. 별도 반영 이력 테이블과 영속 전달 큐는 만들지 않는다. Vector/Neo4j 결과는 Spring을 통한 현재 승인·공개·ACL 검증을 통과한 항목만 반환한다.
 
 실패 반영은 담당자가 원인을 수정한 뒤 수동 재실행한다. UNKNOWN은 먼저 상태 확인으로 성공/실패를 판정하며 그대로 재실행하지 않는다. 성공한 저장소는 유지한다. 사용자에게 원시 예외·비밀값을 보여 주지 않는다. 자동 재시도·전용 복구 화면·새 지식 검토자 역할은 추가하지 않는다.
 
@@ -134,9 +142,9 @@ CASE 버전은 원 WorkRecord·확인 요청·원문 출처에 고정한다. 미
 
 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 DB↔wire 변환을 Spring 경계에서 수행한다. DB OPEN/WAITING_CONFIRM을 프론트 상태로 직접 사용하지 않는다. 원문 revision1과 ticketRevision1(DB0)을 혼동하지 않고 같은 입력 버전의 새 run은 새 표준 요청 스냅샷으로 보존한다.
 
-FAILED_ATTEMPT는 실패한 처리 이력이며 검증 완료·최종 해결·Curator 실행을 만들지 않는다. 확인된 원인/적용 버전은 원 WorkRecord에 고정하고 CASE의 caseType/confirmedCause는 그 기록에서만 투영한다. 모델이 확인된 원인을 새로 확정하지 않는다. 최초 CASE에도 문제 설명을 기록하고 편집은 새 불변 버전으로 만든다.
+FAILED_ATTEMPT는 실패한 처리 이력이며 검증 완료·최종 해결·Curator 실행을 만들지 않는다. 확인된 원인/적용 버전은 원 WorkRecord에 고정하고 CASE의 caseType/confirmedCause는 그 기록에서만 투영한다. 모델이 확인된 원인을 새로 확정하지 않는다. 최초 CASE에도 문제 설명을 기록하고 현재 초안만 편집하며 승인 뒤 읽기 전용으로 유지한다.
 
-문제별 확인 이력·CASE 불변 버전·저장소별 attempt/digest·outbox는 ERD6절의 resolution_request/resolved_case_version/case_index_job/outbox_event로 보존한다. 현재 승인 버전 두 성공 확인과 수동 실패 재실행은 PRD1.44의 기존 범위다. notification 테이블은 기존 문의/티켓/사례 화면의 상태 전달에 연결하며 별도 알림함·자동 재알림 화면을 추가하지 않는다.
+MVP는 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 기존22개 테이블 대응을 사용한다. 확인 상태는 기존 메시지·이벤트, 사례는 현재 행, 반영은 두 상태 컬럼에서 투영한다. 추가4개 테이블과 이를 전제로 한 복수 승인 버전·반영 전체 이력·영속 전달 복구는 이번 구현에 넣지 않는다. notification은 기존 화면의 상태 전달에 연결하며 별도 알림함·자동 재알림 화면을 추가하지 않는다.
 
 현상 확인의 최초 AI 티켓 제안은 INVESTIGATION이며 INCIDENT는 담당자가 관측 근거·사유를 남기는 ProcessingTypeCorrectionCommand로 확정한다. 반대 정정도 같은 근거/버전 규칙을 적용하고 최종 완료 티켓은 바꾸지 않는다. 저장된 표준 요청의 원 분류는 보존하고 현재 처리 유형과 변경 이력을 함께 보여준다.
 

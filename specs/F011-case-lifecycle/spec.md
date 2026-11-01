@@ -51,7 +51,7 @@
 | 검토 진입 | 목표 /cases 목록·/cases/:caseId 상세. 담당 시스템·상태·페이지, 원 티켓 case 탭과 연결 |
 | 초안 생성 | CaseGeneration은 원 검증 WorkRecord당 한 작업. FAILED는 담당자 수동 재시도, NO_REUSABLE_CASE는 사례 없음 |
 | 편집·승인 | CaseEditCommand/CaseApproveCommand. 현재 담당 관계·원 기록 해결 응답·기능 검증·caseVersion 검사 |
-| 승인 후 편집 | 새 DRAFT 버전 생성·재승인. 기존 승인/공개 버전은 자동 삭제·차단하지 않음 |
+| 편집 범위 | MVP는 현재 DRAFT만 편집·버전 증가. 승인 후 내용은 읽기 전용이며 복수 승인 버전 병행은 후순위 |
 | 반영·확인 | CaseDetail.indexes의 저장소별 버전·상태와 Publication 표시. UNKNOWN은 index-checks로 확인 |
 | 실패 반영 | FAILED 저장소만 index-retries. 성공한 반영·승인·업무 기록은 유지 |
 
@@ -68,7 +68,7 @@
 - **F011-CONTRACT-01:** 같은 WorkRecord 이벤트 중복은 Curator 작업·초안을 중복 생성하지 않는다.
 - **F011-CONTRACT-02:** 해당 원 기록의 문의자 응답이 미해결이면 초안을 승인하지 못한다.
 - **F011-CONTRACT-03:** 한쪽 실패/UNKNOWN/다른 버전 성공에서는 Vector와 Neo4j 양쪽 검색 모두 해당 승인 버전을 반환하지 않는다.
-- **F011-CONTRACT-04:** 승인된 v1을 편집해 v2 초안을 만들더라도 v1 공개를 무조건 끄거나 v2를 자동 승인하지 않는다.
+- **F011-CONTRACT-04:** 현재 DRAFT 편집은 version_no를 증가시키고, 승인된 사례 편집은409 INVALID_STATE로 거부한다. 기존 승인 내용과 반영 성공 상태는 바꾸지 않는다.
 - **F011-CONTRACT-05:** 권한 없는 관리자는 사례를 승인하지 못하고 현재 시스템 담당자의 자기 승인은 가능하다.
 
 문서/JSON 검사·Mock·실제 서버 저장/권한·실제 AI/검색·브라우저 E2E를 분리해 결과를 기록한다. 기존 테스트의 이전 AC 번호를 새 시나리오 통과로 간주하지 않는다.
@@ -99,4 +99,4 @@
 
 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
 
-- **F011-CONTRACT-08:** CASE v1 승인/공개 후 v2 초안 편집은 다른 resolved_case_version을 만든다. 같은 승인 버전/store의 최신 attempt/digest가 모두 성공해야 공개하고 헤더 캐시나 과거 성공을 재사용하지 않는다.
+- **F011-CONTRACT-08:** 기존 resolved_case의 현재 승인 버전과 vector_status/graph_status 두 성공을 확인한 경우에만 공개한다. 추가 버전·반영 이력 테이블 없이 다른 버전의 응답은 적용하지 않는다.
