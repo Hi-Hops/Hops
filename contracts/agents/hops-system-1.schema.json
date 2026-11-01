@@ -305,7 +305,7 @@
         "title": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4000
+          "maxLength": 200
         },
         "excerpt": {
           "type": "string",
@@ -313,16 +313,23 @@
           "maxLength": 4000
         },
         "systemId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "appliesToSystemVersion": {
           "anyOf": [
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 4000
+              "maxLength": 100
             },
             {
               "type": "null"
@@ -363,7 +370,25 @@
         "accessScope",
         "origin"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "systemId": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "kind": {
+                "const": "POLICY"
+              }
+            }
+          }
+        }
+      ]
     },
     "EvidenceStatement": {
       "type": "object",
@@ -668,7 +693,7 @@
         "summary": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4000
+          "maxLength": 200
         },
         "intent": {
           "type": "string",
@@ -745,6 +770,16 @@
               "type": "null"
             }
           ]
+        },
+        "resolutionContext": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ResolutionContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -756,7 +791,8 @@
         "reportedFeatureId",
         "state",
         "questionCount",
-        "standardRequest"
+        "standardRequest",
+        "resolutionContext"
       ],
       "additionalProperties": false
     },
@@ -893,6 +929,30 @@
             "RESOLVED",
             "UNRESOLVED"
           ]
+        },
+        "confirmedCause": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "appliesToSystemVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -905,7 +965,9 @@
         "verification",
         "createdAt",
         "resolutionRequestId",
-        "confirmationState"
+        "confirmationState",
+        "confirmedCause",
+        "appliesToSystemVersion"
       ],
       "additionalProperties": false
     },
@@ -1139,7 +1201,7 @@
         "summary": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4000
+          "maxLength": 200
         },
         "intent": {
           "type": "string",
@@ -1287,18 +1349,15 @@
         "title": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4000
+          "maxLength": 200
         },
         "processingType": {
           "type": "string",
           "enum": [
-            "KNOWLEDGE_QA",
             "SERVICE_REQUEST",
             "INVESTIGATION",
-            "INCIDENT",
             "CHANGE_REQUEST",
-            "REVIEW_REQUIRED",
-            "OUT_OF_SCOPE"
+            "REVIEW_REQUIRED"
           ]
         },
         "responsibleSystemCandidateId": {
@@ -1371,7 +1430,7 @@
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 4000
+              "maxLength": 200
             },
             {
               "type": "null"
@@ -1427,7 +1486,7 @@
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 4000
+              "maxLength": 100
             },
             {
               "type": "null"
@@ -1461,6 +1520,18 @@
           "items": {
             "$ref": "#/definitions/EntityLink"
           }
+        },
+        "problemStatement": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1473,7 +1544,8 @@
         "appliesToSystemVersion",
         "accessScope",
         "sourceMessageIds",
-        "entityLinks"
+        "entityLinks",
+        "problemStatement"
       ],
       "additionalProperties": false,
       "allOf": [
@@ -1513,6 +1585,11 @@
                   "EMPLOYEE",
                   "SYSTEM_STAFF"
                 ]
+              },
+              "problemStatement": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
               }
             }
           }
@@ -1553,6 +1630,9 @@
               },
               "entityLinks": {
                 "maxItems": 0
+              },
+              "problemStatement": {
+                "type": "null"
               }
             }
           }
@@ -2333,7 +2413,7 @@
         "title": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4000
+          "maxLength": 200
         },
         "action": {
           "type": "string",
@@ -2363,7 +2443,7 @@
             {
               "type": "string",
               "minLength": 1,
-              "maxLength": 4000
+              "maxLength": 100
             },
             {
               "type": "null"
@@ -2410,6 +2490,30 @@
           "type": "string",
           "format": "uuid",
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "confirmedCause": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "problemStatement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "caseType": {
+          "type": "string",
+          "enum": [
+            "RESOLUTION",
+            "IMPLEMENTATION"
+          ]
         }
       },
       "required": [
@@ -2428,7 +2532,10 @@
         "confirmationOrigin",
         "sourceMessageIds",
         "entityLinks",
-        "systemId"
+        "systemId",
+        "confirmedCause",
+        "problemStatement",
+        "caseType"
       ],
       "additionalProperties": false
     },
@@ -2595,6 +2702,49 @@
           }
         }
       ]
+    },
+    "ResolutionContext": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "GUIDE",
+            "WORK_RECORD"
+          ]
+        },
+        "sourceId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "sourceVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "RESOLVED",
+            "UNRESOLVED"
+          ]
+        }
+      },
+      "required": [
+        "requestId",
+        "source",
+        "sourceId",
+        "sourceVersion",
+        "state"
+      ],
+      "additionalProperties": false
     }
   }
 }

@@ -33,3 +33,22 @@ PRD 1.44의 전체 MVP에 대한 구체 계약·화면안은 [공통 계약](../
 필드/상태는 DATA_TYPES 신규 절, 경로/오류/SSE는 WIRE_CONTRACT 12절, 업무 전이는 TARGET_CONTRACT를 정본으로 삼는다. docs/frontend에는 동일 표를 복제하지 않는다. 새 DTO·API adapter를 연결할 때 기존 /api·hops-mock-1과 신규 /api/v2·hops-system-1을 명시적으로 분리한다. 현재 폴더 레이어·공통 UI·상태 도구를 재사용하며 새 프레임워크는 추가하지 않는다.
 
 기존 프론트 테스트·Mock 통과를 신규 계약 통과로 기록하지 않는다. 문서/예시 검사와 실제 화면·서버 저장/권한·AI/검색·E2E를 구분한다. 실제 router·구현 현황은 코드 전환 뒤 갱신한다.
+
+
+## ERD 대조 후 프론트 구현 범위
+
+아래는 새 hops-system-1 구현 작업의 범위·순서다. 현재 프론트 코드를 문서만으로 전환하지 않는다. 저장 설계는 [병합 ERD와 보완](../ERD.md#6-hops-system-1-공통-계약-보완), wire 변환은 [DATA11절](../DATA.md#11-완성-erd-대조-결과와-병합-기준)을 따른다.
+
+| 순서·기존 위치 | 구현할 내용 | 완료 조건 |
+|---|---|---|
+| 1 shared/api/types·client 및 기능 API | 신규 DTO/프로필 어댑터로 /api/v2 명령 receipt·후속 GET·오류를 연결. 기존 /api/Mock 타입을 직접 덮어쓰지 않음 | PrimaryAssignment2필드, inquiryNumber, WorkRecord 새 필드/종류, CaseVersion 새 필드·POLICY null systemId 검증 |
+| 2 auth·ticket/model/permissions·메뉴 | department.isRoutable/AGENT_OPS_ADMIN 기반을 신규 CurrentUser.primarySystemIds/BIZ_ADMIN으로 전환 | 서버의 현재 PRIMARY와 관리자 제한 DTO 사용. 복수 시스템 담당·권한 회수 검사 |
+| 3 inquiry/model/status·채팅·결과 카드 | wire TicketState/ProblemState 표시, 서버 전달 ticketRevision 그대로 왕복, Q 표시 번호/UUID 경로 구분 | DB OPEN/WAITING_CONFIRM/version0을 직접 해석하지 않음. UNKNOWN과 확정 미생성을 구분 |
+| 4 정정·관련 대화·담당 상세 | message revision1/원문 이력·보완 대상 연결, 허용 구간 조회, 새 run 뒤 최신 표준 요청 스냅샷 | 입력 보존·409 재조회·다른 문제 원문 제외·기존 성공 티켓 유지 |
+| 5 ticket/components/TicketDetail 처리 영역 | 공통 입력/모달로 PROGRESS·FAILED_ATTEMPT·검증 완료·구현 검증을 기록. confirmedCause/appliesToSystemVersion은 모르면 null | 실패 시도는 이력만, 완료 두 종류는 검증 필수·문의자 확인 요청 생성. 같은 티켓의 처리 주기 구분 |
+| 6 기존 상세의 사례 탭·목표 /cases | caseType/문제 설명/원 기록의 확인된 원인, 새 불변 버전 편집·승인·같은 버전 양쪽 반영 상태 | 원 기록의 확인 요청 RESOLVED 검사·부분 실패/UNKNOWN 확인·실패 저장소만 수동 재실행 |
+| 7 realtime·실제 서비스 검증 | 진행/답변 조각과 저장 완료를 분리하고 현재 GET으로 재동기화. 기존 문의/티켓/사례 화면에서 상태 전달 | 신규 replay 없음·권한 회수·문서/Schema/Mock/실제 저장/AI/검색/E2E를 별도로 검증 |
+
+기존 Button/TextField/StatusBadge/RouteModal·디자인 토큰·목표 경로를 재사용한다. notification 테이블은 기존 화면 상태와 진입 링크에 연결하며 별도 알림함·통계·복구 전용 화면을 이번 작업에 추가하지 않는다. 공통 POLICY는 시스템 배지에 '공통 정책'으로 표시하고 임의 시스템명을 채우지 않는다. 무응답 종료·CS 검토·선점 UI는 신규 프로필에 포함하지 않는다.
+
+담당 상세에는 기존 정정 모달을 재사용하는 조사/장애 처리 유형 정정 입력을 추가한다. ProcessingTypeCorrectionCommand로 근거·사유·expectedTicketRevision을 보내고 현재 담당자만 조작한다. 해당 변경은 상태를 자동 완료하지 않는다.

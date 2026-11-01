@@ -263,8 +263,8 @@ questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 �
 ### S5. 저장·재시작·적용 경계
 
 - Spring은 AiRun 입력·상태·최종 결과 digest와 실제 업무 결과를 보존한다. AI의 내부 State는 한 run용이며 업무 DB 정본을 대체하지 않는다.
-- 완성 Spring ERD와의 run/kind·입력/정책 버전·원 기록·결과 적용 매핑은 [DATA11절 E04/E07~E10](../../docs/DATA.md#11-완성-erd-대조와-문서-pr-병합-기준)에서 확인한다. Entity의 컬럼을 AI State에 그대로 복제하지 않으며 wire 필드 의미가 바뀌면 이 문서·Schema·예시·영향 spec을 함께 갱신한다.
-- AI 실행 접수 기록(runId·입력 digest·상태·최종 결과/seq)은 RunLedger로 중복을 차단해야 한다. 저장은 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB로 채택한다. AI 계정에 업무 DB 권한을 주지 않는다. runId PK·입력 digest·원자적 접수/비용 예약·결과/순번·24시간 상세와 ID 표식을 보존한다. 재시작 뒤 같은 ID로 새 모델 호출을 시작하지 않는다.
+- 병합된 ERD와의 run/kind·입력/정책 버전·원 기록·결과 적용 매핑은 [DATA11절 E04/E07~E10](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 대조 완료했다. Entity의 컬럼을 AI State에 그대로 복제하지 않으며 wire 필드 의미가 바뀌면 이 문서·Schema·예시·영향 spec을 함께 갱신한다.
+- AI 실행 접수 기록(runId·입력 digest·상태·최종 결과/seq)은 RunLedger로 중복을 차단해야 한다. 저장은 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB로 채택한다. AI 계정에 업무 원본 쓰기 권한을 주지 않는다. 검색 schema 권한은 별도로 제한한다. runId PK·입력 digest·원자적 접수/비용 예약·결과/순번·24시간 상세와 ID 표식을 보존한다. 재시작 뒤 같은 ID로 새 모델 호출을 시작하지 않는다.
 - MVP는 중간 그래프 checkpoint에서 자동 재개하지 않는다. 접수됐지만 실행 상태를 복원할 수 없으면 snapshot UNKNOWN으로 반환한다. Spring은 이를 공개 RunSummary.status=FAILED·error.code=AI_RUN_STATE_UNKNOWN으로 변환해 새 runId 재분석을 제공한다. 기존 workItem·성공 티켓은 유지하고 이전 run의 늦은 결과는 적용하지 않는다.
 - 최종 결과 적용은 Spring의 최신 inquiryVersion·activeRunId·policyRevision·원 출처 검증 후 수행한다. 동일 runId·최종 digest는 한 번만 적용하고 같은 ID·다른 결과는 거부한다.
 - 상담 AI는 티켓 저장 commit을 기다리는 무제한 내부 루프를 만들지 않는다. 최종 제안을 반환한 뒤 Spring이 생성/배정 결과를 확인해 사용자 결과를 구성한다. 진행 문구에서 저장 성공을 선행 확정하지 않는다.
@@ -299,7 +299,7 @@ questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 �
 
 ### I1. 승인 CASE 반영
 
-IndexApplyRequest는 contractVersion/jobId/caseId/caseVersion/store/attempt/contentDigest/approvedCase를 가진다. approvedCase는 systemId·원 workRecordId/resolutionRequestId·승인자/시각·실제 조치/검증·조건/한계·적용 버전·공개 범위·출처·기존 엔티티 연결이다. Spring이 현재 승인·같은 원 기록의 해결 확인·기능 검증을 확인한 스냅샷만 보낸다. AI는 승인·공개를 확정하지 않는다.
+IndexApplyRequest는 contractVersion/jobId/caseId/caseVersion/store/attempt/contentDigest/approvedCase를 가진다. approvedCase는 systemId·caseType·problemStatement·원 기록의 confirmedCause·원 workRecordId/resolutionRequestId·승인자/시각·실제 조치/검증·조건/한계·적용 버전·공개 범위·출처·기존 엔티티 연결이다. Spring이 현재 승인·같은 원 기록의 해결 확인·기능 검증을 확인한 스냅샷만 보낸다. AI는 승인·공개를 확정하지 않는다.
 
 digest는 `{caseId,caseVersion,store,approvedCase}` 객체를 키 오름차순·UTF-8·공백 없는 JSON·Unicode 원문·배열 순서 유지로 직렬화한 SHA-256 소문자 hex다. Java/Python의 기본 key 순서나 Unicode escape 설정에 의존하지 않는다. 숫자는 양의 정수 버전만 사용한다. AI는 받는 시점에 digest를 재계산해 불일치 시409로 거부한다.
 
@@ -309,13 +309,13 @@ Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되�
 
 ### K1. 검색 후보의 최신 권한
 
-AI는 전달받은 목적/systemIds/scopes로 pgvector·Neo4j에서 최대20개 ID/버전 후보를 찾는다. 원문을 모델에 넣기 전에 Spring의 authorization API를 호출한다. 요청은 contractVersion/requestId/runId/policyRevision/candidates, 후보는 documentId/documentVersion/kind다. Spring은 전달된 사용자 역할을 신뢰하지 않고 저장된 AiRun의 문맥과 현재 권한을 사용한다.
+AI는 전달받은 목적/systemIds/scopes로 pgvector·Neo4j에서 최대20개 ID/버전 후보를 찾는다. 시스템 후보 조건은 허용 systemId 또는 systemId=null인 공통 POLICY이며 현재 접근 범위로 다시 거른다. 원문을 모델에 넣기 전에 Spring의 authorization API를 호출한다. 요청은 contractVersion/requestId/runId/policyRevision/candidates, 후보는 documentId/documentVersion/kind다. Spring은 전달된 사용자 역할을 신뢰하지 않고 저장된 AiRun의 문맥과 현재 권한을 사용한다.
 
 응답은 같은 request/run/policyRevision과 허용된 documentId/documentVersion/kind/accessScope/contentDigest 목록이다. CASE는 같은 승인 버전의 두 반영 성공·현재 ACL을 확인한다. GUIDE/POLICY/RUNBOOK도 현재 승인·공개 범위를 확인한다. 없는 항목·비공개 항목은 제외하며 거부 원문/존재 상세를 반환하지 않는다. policyRevision이 달라졌으면403으로 실행을 중단한다.
 
 AI는 허용된 참조의 본문만 가져오고 정렬한 상위5건을 KnowledgeEvidence로 전달한다. GUIDE/POLICY/RUNBOOK은 승인된 UTF-8 원문 바이트의 SHA-256, CASE는 승인 CaseVersion의 canonical JSON SHA-256으로 contentDigest를 확인한다. CASE의 digest 대상은 caseId/caseVersion/approvedCase이며 저장소별 IndexApplyRequest digest와 구분한다. 청크는 같은 원문의 digest·버전과 청크 위치를 보존한다. 읽은 버전/digest가 바뀌면 다시 확인하거나 안전한 ERROR로 끝낸다. 최종 결과를 Spring에 적용할 때도 출처/공개/현재 권한을 재검사한다. gate 통신 실패를 검색 EMPTY로 바꾸거나 cached 허용을 계속 쓰지 않는다.
 
-GUIDE/POLICY/RUNBOOK의 권한 정본은 Spring이 공통 데이터 릴리스에서 읽는 승인 manifest다. documentId/documentVersion/kind/systemId/accessScope/contentDigest/sourceRef/reviewPr을 필수로 두고 sourceRef는 저장소 상대 경로 또는 공개 출처 URL이다. 작성자 외 팀원 리뷰를 거친 버전만 manifest에 포함한다. AI는 같은 manifest 해시의 본문을 적재하며 임의 승인 자료를 추가하지 않는다. 별도 운영 콘텐츠 관리 화면·승인 취소·자동 폐기 기능은 이번 PRD 범위에 추가하지 않는다.
+GUIDE/POLICY/RUNBOOK의 권한 정본은 Spring 업무 DB의 knowledge_document/knowledge_document_version이다. 승인 manifest는 버전 고정 반입 자료다. documentId/documentVersion/kind/systemId/accessScope/contentDigest/sourceRef/reviewPr을 필수로 두고 sourceRef는 저장소 상대 경로 또는 공개 출처 URL이다. 작성자 외 팀원 리뷰를 거친 버전만 manifest에 포함한다. Spring이 반입 자료의 출처/해시/문서 버전을 검증한다. 검색 시 문서와 버전의 APPROVED·data_split=RAG·현재 ACL을 검사하고 DEV/EVAL은 제외한다. AI는 허용된 버전의 조각만 같은 DB의 hops_knowledge schema에서 처리하며 업무 원본을 쓰지 않는다. 별도 운영 콘텐츠 관리 화면·승인 취소·자동 폐기 기능은 이번 PRD 범위에 추가하지 않는다.
 
 ### M1. 모델 출력과 wire Schema의 경계
 
@@ -331,3 +331,16 @@ JSON Schema Draft-07 파일은 서비스 wire의 검증 정본이다. OpenAI Str
 | KnowledgeAuthorizationRequest/Response | F001/F003/F009/F011 | 현재 run/policy/ACL 확인 전 본문을 모델에 넣지 않음 |
 
 F006의 해결 응답과 F007의 수동 정정은 Spring의 업무 명령이며 AI를 통해 저장하지 않는다. 그 결과가 다음 AI 입력·승인·권한 검증에 반영된다.
+
+
+### E1. 병합 ERD의 역할·자료 매핑
+
+runId=agent_run.id, 외부 CASE_DRAFT=DB task CURATION, 외부 role INQUIRY=DB agent_type INQUERY로 Spring이 변환한다. 작업 ID와 source_work_log_id·resolution_request를 함께 검사한다. INQUERY나 CURATION을 wire Schema에 별도 역할/kind로 추가하지 않는다. QUEUED는 실행 시작 전이며 DB started_at=null, CANCELLED는 외부 SUPERSEDED다.
+
+WorkRecordContext에는 실제 담당자가 입력한 confirmedCause와 appliesToSystemVersion을 nullable로 전달한다. Curator는 모델 추정을 확인된 원인으로 확정하지 않으며 서버가 원 기록에서 CASE의 confirmedCause/caseType을 투영한다. 재사용 가능한 CaseProposal에는 problemStatement가 필수이고 reusable=false에는 null이다. 신규 TicketProposal은 SERVICE_REQUEST/INVESTIGATION/CHANGE_REQUEST/REVIEW_REQUIRED만 허용하며 같은 problemRef의 ProblemProposal.processingType과 일치해야 한다. 실제 INCIDENT 확정은 현재 담당자의 처리 유형 정정 명령으로 수행한다. 제목은200자·적용 버전은100자 제한이다.
+
+공통 POLICY만 KnowledgeEvidence.systemId=null을 허용한다. 시스템 없는 직원 정책은 EMPLOYEE 문맥에, STAFF 공통 정책은 현재 PRIMARY가 있는 담당자 문맥에만 허용한다. null을 특정 시스템 후보로 바꾸지 않는다. chunk의 source content_digest는 authorization 응답과, chunk_digest는 실제 조각 바이트의 SHA-256과 각각 대조한다. 기존 승인 버전/문서의 출처 메타데이터는 버전 스냅샷으로 읽고 현재 ACL은 다시 검사한다.
+
+승인 CASE 반영은 resolved_case_version·case_index_job·outbox_event의 저장 키를 사용한다. Source CASE 해시는 store 없는 approvedCase 스냅샷, 반영 요청 해시는 store 포함 스냅샷이며 혼용하지 않는다. AI 내부 State/별도 RunLedger는 업무 Entity와 구분한다.
+
+InputProblem.resolutionContext는 같은 문제의 최신 resolution_request에서 requestId/source/sourceId/sourceVersion/state를 투영하며 없으면 null이다. GUIDE 미해결 후에는 이 문맥을 같은 문제·누적 질문 수와 함께 새 run으로 보낸다. 문의 입력 버전은 유지하고 activeRunId를 바꿔 옛 결과를 차단한다. 모델이 원 확인 상태나 다른 문제의 출처를 만들어내지 못하도록 Spring이 소속을 검증한다.

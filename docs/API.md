@@ -40,3 +40,10 @@ Spring은 기존 저장 결과·원문·현재 입력/정책 버전·모델 prof
 모델·임베딩·Vector·기한/토큰/비용·RunLedger·개발 origin·평가 게이트는 [결정 대장](../specs/QUESTIONS.md#실행검색-기본값)에 값이 기입돼 있다. 공용 도메인·키·비밀번호는 배포 환경 입력이며 계약을 비워 둔 항목이 아니다. 새 공급자·유료 관리형 인프라로 자동 대체하지 않는다.
 
 현재 /api·hops-mock-1·agent-1의 코드/Mock은 그대로 보존한다. 신규 경로와 DTO가 실제 서버에 등록됐다는 뜻은 아니다. 문서/JSON 검사·Mock·실제 저장/권한·실제 모델/검색·브라우저 E2E를 분리해 기록한다.
+
+
+## 5. 병합 ERD 반영
+
+[PR #69](https://github.com/Hi-Hops/Hops/pull/69)의 물리 ERD를 기준으로 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 상태/버전·원문/표준 요청·CASE/색인·실행/명령 매핑을 확정했다. 현재 PRIMARY DTO는 관계 ID 없이 반환하고 처리 기록의 FAILED_ATTEMPT·확인된 원인/적용 버전·CASE 문제 설명을 포함한다. 저장 보완은 ERD6절의 이번 PR 추가 설계다. 실제 프론트/서버 전환 전까지 기존 프로필을 유지한다.
+
+담당자의 실제 장애 확정은 POST /api/v2/tickets/{ticketId}/processing-type-corrections로 INVESTIGATION↔INCIDENT만 변경한다. 자동 AI 확정과 관리자 역할만으로의 변경은 허용하지 않으며 상태·확인 요청과 분리한다.

@@ -85,3 +85,10 @@
 | 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |
 
 - **F001-CONTRACT-05:** 검색 후보에 CASE가 있어도 현재 policyRevision·승인/양쪽 반영·ACL 검증에서 거부되면 원문이 모델 입력에 포함되지 않는다.
+
+
+## 병합 ERD 적용 조건
+
+[DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
+
+- **F001-CONTRACT-06:** 현재 PRIMARY 조회는 it_system에서 systemId/primaryUser만 투영한다. 담당/역할 변경 뒤 policyRevision이 다른 AI 실행·열린 구독은 새 비공개 데이터를 받지 못한다.

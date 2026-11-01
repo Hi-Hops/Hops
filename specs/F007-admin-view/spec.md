@@ -81,3 +81,10 @@
 | Frontend↔Spring | 관리 상세 투영·수동 정정·ticketRevision. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
 | Spring↔AI | AI 정정 명령 없음. Spring이 새 시스템/PRIMARY·현재 권한을 확정. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
 | 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |
+
+
+## 병합 ERD 적용 조건
+
+[DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
+
+- **F007-CONTRACT-04:** DB ticket.version=0의 최초 응답은 ticketRevision=1이며 같은 값을 expected로 보낸다. 서버는 expected-1을 비교하고 충돌 시409, 원 배정 이력은 보존한다.

@@ -93,3 +93,10 @@
 
 - **F011-CONTRACT-06:** IndexApplySnapshot의 caseVersion/store/attempt/digest 중 하나라도 현재 승인 작업과 다르면 성공 반영·검색 공개에 적용하지 않는다.
 - **F011-CONTRACT-07:** Vector/Neo4j 후보를 읽었어도 Spring의 knowledge authorization이 거부·실패하면 CASE 원문을 모델에 전달하지 않는다.
+
+
+## 병합 ERD 적용 조건
+
+[DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
+
+- **F011-CONTRACT-08:** CASE v1 승인/공개 후 v2 초안 편집은 다른 resolved_case_version을 만든다. 같은 승인 버전/store의 최신 attempt/digest가 모두 성공해야 공개하고 헤더 캐시나 과거 성공을 재사용하지 않는다.

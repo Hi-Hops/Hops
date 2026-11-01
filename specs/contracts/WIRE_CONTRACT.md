@@ -329,6 +329,7 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 | GET /management/tickets/{ticketId} | 없음 | TicketManagementDetail | 업무 관리자 |
 | GET /tickets/{ticketId}/related-messages | size,cursor | RelatedMessagePage | 현재 책임 시스템 담당자 |
 | POST /tickets/{ticketId}/work-records | WorkRecordCommand | CommandReceipt · TICKET | 현재 책임 시스템 담당자 |
+| POST /tickets/{ticketId}/processing-type-corrections | ProcessingTypeCorrectionCommand | CommandReceipt · TICKET | 현재 PRIMARY·조사/장애 유형만 |
 | POST /tickets/{ticketId}/assignment-corrections | AssignmentCorrectionCommand | CommandReceipt · TICKET | 현재 담당자 또는 업무 관리자 |
 | GET /resolution-requests/{resolutionRequestId} | 없음 | ResolutionRequest | 본인 또는 해당 티켓 담당자 |
 | POST /resolution-requests/{resolutionRequestId}/responses | ResolutionResponse | CommandReceipt · RESOLUTION_REQUEST | 문의 소유자 |
@@ -410,3 +411,13 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 보완 메시지의 대상이 불명확하면 pendingTargetMessageIds에 저장하고 기존 문제 선택 UI를 제공한다. problem-links는 저장된 원문을 바꾸지 않고 같은 문의의 기존 문제와 연결한다. 최신 문의 버전 검사 후 입력 버전을1 올리고 배정된 티켓에는 보완만 연결한다. 질문 횟수 증가·자동 새 티켓·자동 재배정은 없다. 이미 연결된 메시지의 임의 재연결은409 INVALID_STATE다.
 
 프론트가 받는 오류/상태·조작은 이 표와 각 spec, 서비스 간 실행/색인/검색 권한은 에이전트 계약과 JSON Schema를 정본으로 한다. 동일 규칙을 spec마다 복사하지 않는다.
+
+### 12.7 병합 ERD와 외부 계약의 경계
+
+REST 경로와 필터 state는 신규 wire enum을 유지한다. Spring이 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 DB 상태와 version을 변환하며 프론트에 OPEN/WAITING_CONFIRM·DB version0을 노출하지 않는다. 현재 PRIMARY 조회는 systemId/primaryUser만 반환한다.
+
+WorkRecordCommand의 FAILED_ATTEMPT는 진행 이력 저장이며 해결 확인·CASE 초안을 예약하지 않는다. confirmedCause/appliesToSystemVersion은 nullable 실제 입력이다. CaseEditCommand의 problemStatement는 새 버전의 문제 설명이며 원 기록/확인된 원인은 변경하지 않는다. 구체 필드·길이는 DATA_TYPES 신규 절을 따른다.
+
+알림 테이블 신설은 REST/SSE 경로나 메뉴 신설을 뜻하지 않는다. 본 프로필은 기존 INQUIRY/TICKET/SYSTEM_TICKETS/CASE 구독과 현재 GET 결과로 화면을 갱신한다. 응답 본문·같은 요청 키의 만료 뒤 tombstone 및 410 동작은 이 절의 원 규칙을 유지한다.
+
+처리 유형 정정은 현재 담당자만 INVESTIGATION↔INCIDENT 사이에서 수행한다. reason·허용 메시지 또는 직접 관측한 evidenceNote를 검증하고 ticket.version 증가와 WORK_TYPE_CHANGED 이벤트를 같은 거래로 저장한다. 상태/확인 요청은 바꾸지 않는다. 완료 티켓·다른 처리 유형·관리자 역할만 가진 사용자는409 INVALID_STATE 또는403이다.

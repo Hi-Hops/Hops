@@ -77,7 +77,7 @@
 
 ## 6. 처리·해결 확인·수동 정정
 
-- 티켓은 WAITING → IN_PROGRESS → WAITING_CONFIRMATION → RESOLVED다. PROGRESS 기록은 WAITING을 IN_PROGRESS로, 검증 완료 기록은 WAITING/IN_PROGRESS를 WAITING_CONFIRMATION으로 바꾼다.
+- 티켓은 WAITING → IN_PROGRESS → WAITING_CONFIRMATION → RESOLVED다. PROGRESS/FAILED_ATTEMPT 기록은 WAITING을 IN_PROGRESS로, 검증 완료 기록은 WAITING/IN_PROGRESS를 WAITING_CONFIRMATION으로 바꾼다.
 - 일반 요청은 VERIFIED_RESOLUTION, 기능 추가·개선은 IMPLEMENTED_VERIFIED 기록만 해결 확인을 요청한다. 실제 조치·검증 내용이 필요하다. PROGRESS/실패 시도만으로 사례를 생성하지 않는다.
 - 검증 완료 기록·확인 요청·Curator 실행 예약은 같은 업무 저장 경계에서 연결한다. 실제 AI 실행과 성공 여부는 분리한다. 초안 실패가 업무 기록을 취소하지 않는다.
 - 확인 요청은 GUIDE 메시지 또는 특정 WorkRecord 하나를 참조한다. WAITING_CONFIRMATION 중 새 검증 기록으로 요청을 교체하지 않고, 문의자의 미해결 응답 후 다음 처리 주기를 시작한다.
@@ -122,9 +122,22 @@ CASE 버전은 원 WorkRecord·확인 요청·원문 출처에 고정한다. 미
 ## 9. 전환·리뷰·완료 조건
 
 1. 생산자·소비자가 신규 타입·상태·경로·오류·권한·동시성·예시를 함께 리뷰한다. 모델·예산·저장·검증 기준의 채택값은 [결정 대장](../QUESTIONS.md)에 모두 기입했다. 팀 승인과 실제 적용/검증을 별도로 기록한다.
-   문서 PR의 물리 저장 근거는 [완성 ERD 대조·병합 기준](../../docs/DATA.md#11-완성-erd-대조와-문서-pr-병합-기준)으로 확인한다. 채택 매핑의 작성과 실제 ERD 대조 완료를 구분한다.
+   문서 PR의 물리 저장 근거는 [완성 ERD 대조·병합 기준](../../docs/DATA.md#11-완성-erd-대조와-문서-pr-병합-기준)으로 확인한다. PR #69 원본 대조는 완료했으며 ERD6절의 저장 보완안·DTO 변환을 함께 리뷰한다.
 2. 새 `/api/v2`·AI wire·DB 마이그레이션을 구현하고 신규 프로필용 DTO/어댑터를 연결한다. legacy 프로필을 필드명 일괄 치환해 변환하지 않는다.
 3. 신규 프로필은 배포 설정으로 한 번에 선택한다. 기능별로 구/신규 프로필의 저장 결과를 섞거나 통신 실패 시 Mock으로 대체하지 않는다.
 4. 기존 가상 데이터는 고정 보존한다. 전환 리허설은 별도 신규 가상 데이터로 진행한다. 실제 데이터 이관·롤백은 별도 마이그레이션 검토를 통과한다.
 5. 권한 회수, 질문 5회, 시스템 대기 재진입, 복합 일부 성공, 응답 유실·동시 재시도, 오래된 결과, 처리·미해결·무응답, 사례 부분 반영·버전 불일치·양쪽 비공개를 검증한다.
 6. 문서·예시 검사, Mock, 서비스 저장·권한, 실제 모델·검색, 브라우저 E2E 결과를 따로 기록한다. 문서 작성만으로 어떤 구현도 완료 처리하지 않는다.
+
+
+## 10. 병합 ERD에 따른 구현 결정
+
+[DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 DB↔wire 변환을 Spring 경계에서 수행한다. DB OPEN/WAITING_CONFIRM을 프론트 상태로 직접 사용하지 않는다. 원문 revision1과 ticketRevision1(DB0)을 혼동하지 않고 같은 입력 버전의 새 run은 새 표준 요청 스냅샷으로 보존한다.
+
+FAILED_ATTEMPT는 실패한 처리 이력이며 검증 완료·최종 해결·Curator 실행을 만들지 않는다. 확인된 원인/적용 버전은 원 WorkRecord에 고정하고 CASE의 caseType/confirmedCause는 그 기록에서만 투영한다. 모델이 확인된 원인을 새로 확정하지 않는다. 최초 CASE에도 문제 설명을 기록하고 편집은 새 불변 버전으로 만든다.
+
+문제별 확인 이력·CASE 불변 버전·저장소별 attempt/digest·outbox는 ERD6절의 resolution_request/resolved_case_version/case_index_job/outbox_event로 보존한다. 현재 승인 버전 두 성공 확인과 수동 실패 재실행은 PRD1.44의 기존 범위다. notification 테이블은 기존 문의/티켓/사례 화면의 상태 전달에 연결하며 별도 알림함·자동 재알림 화면을 추가하지 않는다.
+
+현상 확인의 최초 AI 티켓 제안은 INVESTIGATION이며 INCIDENT는 담당자가 관측 근거·사유를 남기는 ProcessingTypeCorrectionCommand로 확정한다. 반대 정정도 같은 근거/버전 규칙을 적용하고 최종 완료 티켓은 바꾸지 않는다. 저장된 표준 요청의 원 분류는 보존하고 현재 처리 유형과 변경 이력을 함께 보여준다.
+
+무티켓 GUIDE의 미해결 응답은 같은 문제의 재분석으로 이어지며 원 안내·확인 이력을 보존한다. 새 run의 resolutionContext로 미해결을 전달하고 inquiryVersion/질문 횟수는 유지한다. 문의자 자유 입력의 새 메시지는 기존 버전 증가 규칙을 따른다.

@@ -81,3 +81,10 @@
 | Frontend↔Spring | 정정·문의/메시지 버전·보완 연결. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
 | Spring↔AI | 현재 run 취소·늦은 결과 SUPERSEDED·최신 입력 스냅샷. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
 | 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |
+
+
+## 병합 ERD 적용 조건
+
+[DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 E01~E10 대조와 [ERD6절](../../docs/ERD.md#6-hops-system-1-공통-계약-보완)의 저장 보완을 이 기능에 적용한다. 외부 필드/상태는 DATA_TYPES·WIRE12절을 정본으로 유지하며 DB 코드를 UI에 직접 노출하지 않는다.
+
+- **F004-CONTRACT-04:** 같은 inquiryVersion의 새 run이 표준 요청을 다시 만들면 새 불변 스냅샷과 출처를 보존하고 현재 적용 run의 스냅샷만 선택한다. 이전 실행/티켓의 원 스냅샷은 유지한다.

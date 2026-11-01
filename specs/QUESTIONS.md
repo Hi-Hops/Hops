@@ -38,12 +38,12 @@
 | S01 | modelProfileId=hops-mvp-20261101, 모든 역할 gpt-5.6-luna, reasoning.effort=none, Responses API·역할별 Structured Outputs, store=false | 비용 우선의 단일 모델 설정. 역할마다 모델을 승격하거나 다른 공급자로 fallback하지 않음 |
 | S01-E | text-embedding-3-small, dimensions=1536, 코사인 거리, 입력 청크 512토큰·겹침64, 상위5건·후보20건 | 문서·CASE 모두 같은 모델/차원. 재임베딩은 별도 버전 컬렉션으로 생성·검증 후 전환 |
 | S02 | 아래 실행 한도 표와 요청 전 토큰/비용 예약. SDK 자동 재시도 0, 429/형식 오류 포함 자동 모델 재호출 0 | 호출 수·기한·입출력 토큰·도구·비용을 실행 전체에서 누적 |
-| S03 | 기존 PostgreSQL 인스턴스에 pgvector 0.8.7, 지식 DB=hops_knowledge, collection=hops_knowledge_v1, vector(1536) 정확 코사인 검색. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
+| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, vector(1536) 정확 코사인 검색. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
 | S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [공용 예시](mocks/hops-system-1.examples.json)의 systems/users/primaryAssignments | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
-| S05 | #66의 시스템·문제·티켓 명칭으로 논리 키 매핑, READ COMMITTED + 문의→문제→티켓 순서 행 잠금, 낙관 버전 충돌은409. journal 상세24시간·키 표식/업무 이력 유지, DB outbox·공개 gate 원자화 | DDL 적용·migration 파일 작성은 백엔드 구현 작업. 테이블 수가 달라도 같은 외부 키·불변식 유지. 추가 엔티티 사전 생성 없음 |
+| S05 | #66의 시스템·문제·티켓 명칭으로 논리 키 매핑, READ COMMITTED + 문의→문제→티켓 순서 행 잠금, 낙관 버전 충돌은409. journal 상세24시간·키 표식/업무 이력 유지, DB outbox·공개 gate 원자화 | DDL 적용·migration 파일 작성은 백엔드 구현 작업. 테이블 수가 달라도 같은 외부 키·불변식 유지. ERD6절에 resolution_request/resolved_case_version/case_index_job/outbox_event 추가 설계. 별도 엔티티 사전 생성 없음 |
 | S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
 | S07 | 최초 평가30건(개발18/보류12), 시스템·의도·대표 예외 분포와 게이트는 아래 검증 기준. prompt/profile/catalog 해시로 동결 | 미래 해결·정답은 KB와 모델 입력에서 분리. 일정은 D1 계약→D2 선정값 적용→통합→동결→시연 순서로 고정하며 완료 날짜를 실행 전 실적으로 기록하지 않음 |
-| S08 | 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB·AI 전용 권한. RunLedger PK=runId, 입력 digest 불변·동일 ID 새 모델 실행 금지. index job은 (jobId,attempt) 유일 | AI 계정은 Spring 업무 DB 권한 없음. 재시작 후 진행 중 실행은 UNKNOWN, 중간 checkpoint 자동 재개 없음. 안전한 실패 뒤 새 runId. 상세24시간·사용 ID/digest 표식 유지 |
+| S08 | 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB·AI 전용 권한. RunLedger PK=runId, 입력 digest 불변·동일 ID 새 모델 실행 금지. index job은 (jobId,attempt) 유일 | AI 계정은 Spring 업무 원본 쓰기 권한 없음. 검색 조각 권한과 ledger 권한은 각각 제한. 재시작 후 진행 중 실행은 UNKNOWN, 중간 checkpoint 자동 재개 없음. 안전한 실패 뒤 새 runId. 상세24시간·사용 ID/digest 표식 유지 |
 
 ### 실행 한도
 
@@ -87,6 +87,8 @@ PR #68에 위 채택값을 제출한다. 팀원은 빈 항목을 대신 설계�
 
 ## 5. 완성 ERD 반영 상태
 
-C09의 저장 방식과 외부 계약값은 작성돼 있다. **완성 ERD 대조는 아직 수행하지 않았다.** 파일·고정 revision·검토 PR을 확보한 뒤 [DATA11절](../docs/DATA.md#11-완성-erd-대조와-문서-pr-병합-기준)의 E01~E10을 따라 실제 PK/FK·null·유일성·저장 enum과 외부 필드/상태를 대응시킨다. 기존 논리 ERD·#66 작업 계획을 완성 물리 ERD로 간주하지 않는다.
+**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 실제 컬럼/관계·DB↔wire 상태/버전·JSONB 대응을 기록했다. 원본22개 테이블에서 누락된 처리 확인 주기·CASE 버전·반영 시도·outbox는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)의4개 추가 테이블로 보완한다. 이 추가 설계는 이번 PR의 리뷰 대상이며 #69에 이미 포함된 것으로 보고하지 않는다.
 
-반영 시 DATA를 먼저 갱신하고 의미가 달라지는 DATA_TYPES/TARGET/WIRE·해당 기능 spec·AI Schema/예시를 함께 수정한다. 완료 ERD 대조와 백엔드 리뷰를 마친 뒤 같은 절의 문서 병합 조건을 확인한다. 이는 값 선택을 구현자에게 넘기는 항목이 아니라, 채택한 계약이 실제 저장 설계와 일치하는지 확인하는 완료 조건이다.
+현재 PRIMARY DTO, 실패 처리 기록과 원인/적용 버전, CASE 문제 설명/종류, 공통 POLICY의 null systemId, ticketRevision=DB version+1을 채택한다. 프론트는 wire 상태를 사용하고 기존 디자인·경로/메뉴를 재사용한다. FK를 유지하기 위해 지식 검색은 같은 PostgreSQL DB의 hops_knowledge schema에 두며 AI 계정의 업무 원본 쓰기는 금지한다.
+
+남은 절차는 보완 설계의 백엔드 리뷰·팀원 승인과 실제 코드/DB/검색/E2E 구현 검증이다. ERD 대조를 다시 기다리는 상태로 두지 않는다. 문서 병합 조건은 DATA11.4절, 실제 구현 우선순위는 프론트 README를 따른다.

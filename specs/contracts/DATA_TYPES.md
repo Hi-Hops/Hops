@@ -27,16 +27,17 @@
 | Role | BIZ_ADMIN. 일반 임직원·담당자는 roles=[]도 가능하며 담당 능력은 primarySystemIds에서 확인 |
 | InquiryIntent | HOW_TO, ACCESS_REQUEST, OBSERVED_SYMPTOM, FEATURE_REQUEST, IMPROVEMENT_REQUEST, UNKNOWN, OUT_OF_SCOPE |
 | ProcessingType | KNOWLEDGE_QA, SERVICE_REQUEST, INVESTIGATION, INCIDENT, CHANGE_REQUEST, REVIEW_REQUIRED, OUT_OF_SCOPE |
-| InquiryStatus | IN_PROGRESS, WAITING_USER, RESOLVED, CLOSED |
+| InquiryStatus | IN_PROGRESS, WAITING_USER, RESOLVED |
 | ProblemState | ANALYZING, WAITING_USER, WAITING_SYSTEM, TICKET_PENDING, IN_SERVICE, WAITING_CONFIRMATION, RESOLVED, OUT_OF_SCOPE |
 | TicketState | WAITING, IN_PROGRESS, WAITING_CONFIRMATION, RESOLVED |
 | CreationOutcome | PENDING, STORED, NOT_CREATED, UNKNOWN |
 | OperationState | PENDING, SUCCEEDED, REJECTED, UNKNOWN |
 | RunStatus | QUEUED, RUNNING, SUCCEEDED, FAILED, TIMED_OUT, SUPERSEDED |
-| WorkRecordKind | PROGRESS, VERIFIED_RESOLUTION, IMPLEMENTED_VERIFIED |
+| WorkRecordKind | PROGRESS, FAILED_ATTEMPT, VERIFIED_RESOLUTION, IMPLEMENTED_VERIFIED |
 | ResolutionSource | GUIDE, WORK_RECORD |
 | ResolutionState | PENDING, RESOLVED, UNRESOLVED |
 | GenerationState | PENDING, RUNNING, SUCCEEDED, FAILED, NO_REUSABLE_CASE |
+| CaseType | RESOLUTION, IMPLEMENTATION |
 | CaseVersionState | DRAFT, APPROVED |
 | IndexStore | VECTOR, NEO4J |
 | IndexState | PENDING, RUNNING, SUCCEEDED, FAILED, UNKNOWN |
@@ -55,7 +56,7 @@
 | CurrentUser | id:Uuid, employeeNo:string, name:string, department:Department, roles:Role[], primarySystemIds:Uuid[] | 메뉴용 스냅샷. 서버는 요청마다 현재 관계 재검사 |
 | SupportedSystem | id:Uuid, code:SystemCode, name:string, features:SystemFeature[] | 이름은 전자결재·공통 로그인·파일 공유. 직원 목록에 내부 담당 정보 없음 |
 | SystemFeature | id:Uuid, name:string | 부모 시스템 안의 기능 |
-| PrimaryAssignment | assignmentId:Uuid, systemId:Uuid, primaryUser:UserSummary, validFrom:time, validTo:time? | 담당자/관리자가 정정 대상 검토 시에만 조회 |
+| PrimaryAssignment | systemId:Uuid, primaryUser:UserSummary | it_system의 현재 PRIMARY 투영. 별도 담당 관계 ID/유효 구간 없음. 담당자/관리자만 조회 |
 | LoginRequest | loginId:string, password:string | 본문·비밀값을 로그에 남기지 않음 |
 | LoginResponse | accessToken:string, expiresAt:time, user:CurrentUser | Refresh는 HttpOnly cookie |
 
@@ -84,8 +85,8 @@
 | EvidenceStatement | text:string, sourceMessageIds:Uuid[], knowledgeEvidenceIds:Uuid[] | 확인 사실에는 실제 출처가 하나 이상 필요. 추정은 출처 없음을 허용 |
 | RequestDetails | taskOrScreen:string?, requestedAccess:string?, businessPurpose:string?, expectedBehavior:string?, actualBehavior:string?, occurredAt:string?, currentWorkflow:string?, desiredChange:string?, acceptanceCriteria:AcceptanceCriterion[] | 유형별 미확인도 null로 보존. 모르는 값을 접수 차단에 사용하지 않음 |
 | AcceptanceCriterion | text:string, confirmation:PROPOSED 또는 CONFIRMED, confirmedBy:Uuid? | PROPOSED이면 confirmedBy=null. 명시적 사람 확인 없이 CONFIRMED로 승격하지 않음 |
-| InquirySummary | id:Uuid, title:string, status:InquiryStatus, problemCount:int, ticketCount:int, pendingConfirmationCount:int, createdAt:time, updatedAt:time | 목록에서 담당자 내부 근거 제외 |
-| InquiryResult | id:Uuid, inquiryVersion:int, status:InquiryStatus, problems:Problem[], currentRun:RunSummary?, pendingTargetMessageIds:Uuid[], resultRevision:int, createdAt:time, updatedAt:time | resultRevision은 문제별 생성 결과 변경 시 증가. 모달 확인용이며 inquiryVersion과 다름 |
+| InquirySummary | id:Uuid, inquiryNumber:string, title:string, status:InquiryStatus, problemCount:int, ticketCount:int, pendingConfirmationCount:int, createdAt:time, updatedAt:time | 목록에서 담당자 내부 근거 제외 |
+| InquiryResult | id:Uuid, inquiryNumber:string, inquiryVersion:int, status:InquiryStatus, problems:Problem[], currentRun:RunSummary?, pendingTargetMessageIds:Uuid[], resultRevision:int, createdAt:time, updatedAt:time | resultRevision은 문제별 생성 결과 변경 시 증가. 모달 확인용이며 inquiryVersion과 다름 |
 | RunSummary | id:Uuid, inquiryId:Uuid, inquiryVersion:int, status:RunStatus, error:ApiError? | 새 재분석은 새 runId; 기존 성공 업무 유지. 내부 snapshot UNKNOWN은 FAILED·AI_RUN_STATE_UNKNOWN으로 변환 |
 
 ### 티켓·처리·확인
@@ -97,7 +98,7 @@
 | TicketDetail | TicketSummary의 필드 + currentPrimary:UserSummary, standardRequest:StandardRequest, assignmentHistory:AssignmentHistory[], workRecords:WorkRecord[], activeResolutionRequest:ResolutionRequest?, caseGeneration:CaseGeneration? | 담당자 전용. assignee는 저장 배정, currentPrimary는 현재 권한 관계. 관리자 투영은 TicketManagementDetail |
 | TicketManagementDetail | TicketSummary의 필드 + currentPrimary:UserSummary, assignmentHistory:AssignmentHistory[] | 원문·표준 요청·내부 지식·처리 내용은 관리 역할만으로 반환하지 않음 |
 | AssignmentHistory | id:Uuid, previousSystemId:Uuid?, previousAssigneeId:Uuid?, systemId:Uuid, assignee:UserSummary, reason:string, evidenceMessageIds:Uuid[], evidenceNote:string?, actorId:Uuid?, createdAt:time | 최초 자동 배정 actorId=null, 정정은 실제 행위자 |
-| WorkRecord | id:Uuid, ticketId:Uuid, kind:WorkRecordKind, action:string, verification:string?, author:UserSummary, createdAt:time | 완료 종류는 verification 필수. 원본 불변 |
+| WorkRecord | id:Uuid, ticketId:Uuid, kind:WorkRecordKind, action:string, verification:string?, confirmedCause:string?, appliesToSystemVersion:string?, author:UserSummary, createdAt:time | 완료 두 종류는 verification 필수. PROGRESS/FAILED_ATTEMPT는 해결 확인·Curator 실행 없음. 원인·적용 버전은 실제 담당자 입력만 저장 |
 | ResolutionRequest | id:Uuid, inquiryId:Uuid, problemId:Uuid, ticketId:Uuid?, source:ResolutionSource, sourceId:Uuid, sourceVersion:int, requestRevision:int, state:ResolutionState, resultSummary:string, confirmationOrigin:ConfirmationOrigin, createdAt:time, respondedAt:time? | GUIDE는 저장된 안내 메시지·revision, WORK_RECORD는 불변 처리 기록·1. 새 요청 revision=1, 응답 저장 시 2 |
 | ResolutionResponse | requestId:Uuid, expectedRequestRevision:int, decision:RESOLVED 또는 UNRESOLVED | 문의 소유자만 응답 |
 
@@ -105,11 +106,11 @@
 
 | 타입 | 필드·자료형 | 조건 |
 |---|---|---|
-| KnowledgeEvidence | id:Uuid, documentId:Uuid, documentVersion:int, kind:GUIDE 또는 POLICY 또는 RUNBOOK 또는 CASE, title:string, excerpt:string, systemId:Uuid, appliesToSystemVersion:string?, applicability:string, accessScope:AccessScope, origin:KnowledgeOrigin | 직원 응답에는 허용된 EMPLOYEE 항목만. CASE는 공개 버전 재검증 |
+| KnowledgeEvidence | id:Uuid, documentId:Uuid, documentVersion:int, kind:GUIDE 또는 POLICY 또는 RUNBOOK 또는 CASE, title:string, excerpt:string, systemId:Uuid?, appliesToSystemVersion:string?, applicability:string, accessScope:AccessScope, origin:KnowledgeOrigin | systemId=null은 공통 POLICY만. 직원 응답에는 허용된 EMPLOYEE 항목만. CASE는 공개 버전 재검증 |
 | SearchResult | state:SearchState, evidence:KnowledgeEvidence[], error:ApiError? | EMPTY는 error=null·evidence=[]; ERROR는 error 필수. 부분 저장소 오류는 전체 ERROR로 보수 처리 |
 | CaseGeneration | id:Uuid, workRecordId:Uuid, state:GenerationState, caseId:Uuid?, error:ApiError? | SUCCEEDED에만 caseId 필수; 원 처리 기록당 한 작업 |
 | CaseSummary | id:Uuid, title:string, systemId:Uuid, latestCaseVersion:int, latestState:CaseVersionState, publishedVersions:int[], generationState:GenerationState, updatedAt:time | 담당 시스템 범위의 검토 목록 |
-| CaseVersion | id:Uuid, caseVersion:int, state:CaseVersionState, ticketId:Uuid, problemId:Uuid, workRecordId:Uuid, resolutionRequestId:Uuid, systemId:Uuid, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string?, accessScope:AccessScope, origin:KnowledgeOrigin, confirmationOrigin:ConfirmationOrigin, sourceMessageIds:Uuid[], createdAt:time | source 원 기록 고정. 초안 편집은 새 버전 |
+| CaseVersion | id:Uuid, caseVersion:int, state:CaseVersionState, ticketId:Uuid, problemId:Uuid, workRecordId:Uuid, resolutionRequestId:Uuid, systemId:Uuid, caseType:CaseType, problemStatement:string, confirmedCause:string?, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string?, accessScope:AccessScope, origin:KnowledgeOrigin, confirmationOrigin:ConfirmationOrigin, sourceMessageIds:Uuid[], createdAt:time | source 원 기록 고정. caseType/confirmedCause는 원 WorkRecord에서 투영. 초안 편집은 새 버전. id는 resolved_case.id이며 버전 행 PK와 다름 |
 | CaseApproval | caseId:Uuid, caseVersion:int, approvedBy:UserSummary, approvedAt:time | 해당 시스템 주담당자. 승인 내용 불변 |
 | IndexResult | jobId:Uuid, caseId:Uuid, caseVersion:int, store:IndexStore, state:IndexState, attempt:int, error:ApiError?, updatedAt:time | attempt≥1. 저장소별 같은 승인 버전 추적 |
 | CaseDetail | version:CaseVersion, approval:CaseApproval?, indexes:IndexResult[], publication:Publication | DRAFT에는 approval=null·indexes=[] |
@@ -128,14 +129,21 @@
 | SystemConfirmCommand | expectedInquiryVersion:int, systemId:Uuid | WAITING_SYSTEM 또는 아직 미확정인 분석 전 문제에만 허용 |
 | RunRetryCommand | expectedInquiryVersion:int | FAILED/TIMED_OUT이며 현재 활성 run일 때 새 run 생성 |
 | CreationRetryCommand | expectedInquiryVersion:int | NOT_CREATED 작업만, 같은 workItemId 유지 |
-| WorkRecordCommand | expectedTicketRevision:int, kind:WorkRecordKind, action:string, verification:string? | PROGRESS 외 verification 필수. CHANGE_REQUEST는 IMPLEMENTED_VERIFIED만 완료 가능 |
+| WorkRecordCommand | expectedTicketRevision:int, kind:WorkRecordKind, action:string, verification:string?, confirmedCause:string?, appliesToSystemVersion:string? | PROGRESS/FAILED_ATTEMPT 외 verification 필수. CHANGE_REQUEST는 IMPLEMENTED_VERIFIED만 완료 가능 |
+| ProcessingTypeCorrectionCommand | expectedTicketRevision:int, processingType:INVESTIGATION 또는 INCIDENT, reason:string, evidenceMessageIds:Uuid[], evidenceNote:string? | 현재 담당자만, 미완료 티켓의 INVESTIGATION↔INCIDENT만 변경. reason과 출처/관측 근거 하나 이상 필수 |
 | AssignmentCorrectionCommand | expectedTicketRevision:int, responsibleSystemId:Uuid, reason:string, evidenceMessageIds:Uuid[], evidenceNote:string? | reason 필수·근거 하나 이상. 관리자는 무권한 메시지 ID 대신 evidenceNote 사용 |
-| CaseEditCommand | expectedCaseVersion:int, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string?, accessScope:AccessScope | 출처·원 기록·적용 시스템을 이 API로 바꾸지 않음 |
+| CaseEditCommand | expectedCaseVersion:int, problemStatement:string, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string?, accessScope:AccessScope | 출처·원 기록·적용 시스템을 이 API로 바꾸지 않음 |
 | CaseApproveCommand | expectedCaseVersion:int | 최신 DRAFT의 확인된 버전에만 승인 |
 | IndexRetryCommand | expectedCaseVersion:int, store:IndexStore | FAILED 저장소만 재실행. UNKNOWN은 먼저 확인 |
 | IndexCheckCommand | expectedCaseVersion:int, store:IndexStore | UNKNOWN/PENDING/RUNNING의 저장소별 결과 확인. 새 반영 생성 아님 |
 
 각 명령의 응답은 CommandReceipt이며 resource로 관련 문의(메시지 포함)·실행·티켓·작업·확인 요청·사례를 재조회한다. 생성 결과·AI 실행 완료·검색 공개는 receipt의 성공과 별개다. 신규 문의자 DTO에는 전체 표준 요청·내부 근거·다른 문제의 원문을 포함하지 않는다.
+
+### ERD 대조로 고정한 표현
+
+물리 필드와 외부 enum·버전은 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에서 변환한다. ticketRevision은 DB version+1이고 프론트는 변환하지 않은 양의 버전을 왕복한다. Problem.state는 문제 저장 상태와 연결 티켓/확인/생성 결과를 합친 서버 투영이다.
+
+inquiryNumber/ticketNumber는 서버가 생성한 표시 번호(각 최대20자)이며 라우팅·멱등·권한 ID 대신 쓰지 않는다. Inquiry/Problem/Ticket/CASE title은 최대200 코드 포인트, reason/evidenceNote는 최대1,000, appliesToSystemVersion은 최대100이다. confirmedCause는 null 또는 최대4,000이며 추정 원인을 확인된 원인으로 저장하지 않는다. 새 필드도 모든 키 존재·nullable 규칙을 따른다.
 
 ## 전환 전 데이터 프로필
 
