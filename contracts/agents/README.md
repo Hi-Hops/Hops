@@ -1,6 +1,6 @@
 # 에이전트 공통 입출력 계약 — PRD 1.44
 
-상태: 팀 합의 제품 방향에 따른 논리 계약 초안 · 상세 필드·모델·서비스 인증 및 구현은 미확정. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 기존 코드·Fake의 `agent-1` 계약은 [현재 Python 타입](../../ai/src/hops_ai/contracts/agent_1.py)과 [AI 서버 안내](../../ai/README.md)에서 확인한다.
+상태: 팀 합의 제품 방향에 따른 논리 계약 초안 · 상세 필드·모델·서비스 인증 및 구현은 미확정. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 새 역할 골격만 제공하며 상세 입출력과 실행 연결은 미구현이다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)에서 현재 범위를 확인한다. 내부 타입은 Spring 전송 계약을 대신하지 않는다.
 
 입력·검색 결과·도구 결과와 모델 출력을 다룰 때는 [보안 개발 명세](../../docs/SECURITY.md)의 신뢰 경계와 검증 사례를 함께 적용한다.
 

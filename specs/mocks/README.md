@@ -16,7 +16,7 @@
 4. [scenarios.json](scenarios.json)의 fixtureSequence 순서로 REST request/result·SSE·AI 결과·조회 결과를 테스트 어댑터에 공급한다. expected와 acceptanceCriteria를 테스트 이름·검증에 사용한다. fixtureSequence 자체가 실행 서버는 아니다.
 5. [타입 문서](../contracts/DATA_TYPES.md)와 [입출력 규칙](../contracts/WIRE_CONTRACT.md)을 읽고 각 서비스의 테스트에서 공용 예시를 사용한다. 언어별 DTO·공통 코드 생성·별도 언어 왕복 검사는 제공하지 않는다.
 
-프론트는 Mock REST/SSE 또는 테스트용 HTTP SSE 서버에서 응답을 공급한다. Spring은 JSON 역직렬화·REST 멱등성·SSE 이벤트 테스트, Python은 입출력 어댑터 테스트에 같은 파일을 사용한다. 언어별 서비스가 아직 없으면 fixture 검사까지만 완료로 기록한다.
+프론트는 Mock REST/SSE 또는 테스트용 HTTP SSE 서버에서 응답을 공급한다. Spring은 기존 프로필의 JSON 역직렬화·REST 멱등성·SSE 이벤트 테스트에 사용할 수 있다. 현재 Python 골격은 이 fixture를 읽지 않으며 기존 부서 기반 실행·SSE 어댑터를 제공하지 않는다. 새 AI 계약을 합의할 때 소비 코드·예시·계약 테스트를 함께 연결한다.
 
 ## 계정·관계
 

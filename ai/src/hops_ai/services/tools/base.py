@@ -9,7 +9,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, runtime_checkable
 
-from hops_ai.contracts.agent_1 import AgentRole, Evidence
+from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.evidence import Evidence
 
 ToolStatus = Literal["OK", "DENIED", "TIMEOUT", "ERROR"]
 

@@ -1,6 +1,6 @@
 # F011 해결 사례 초안·승인·검색 공개
 
-상태: PRD 1.44 목표 · 상세 계약·화면·구현·통합 검증 전. 관련 문서: [PRD](../../docs/PRD.md), [API](../../docs/API.md), [데이터](../../docs/DATA.md), [지식 수명주기](../../docs/knowledge/KNOWLEDGE_LIFECYCLE.md).
+상태: PRD 1.44 목표 · 상세 계약·화면·구현·통합 검증 전. 관련 문서: [PRD](../../docs/PRD.md), [API](../../docs/API.md), [데이터](../../docs/DATA.md), [데이터 구축 계획](../../docs/knowledge/DATASETS.md#저장검색과-사례-공개).
 
 ## 목표와 사용자
 
