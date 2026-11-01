@@ -1,6 +1,6 @@
 # F010 티켓 생성 부분 실패·재시도
 
-상태: PRD 1.44 목표 명세 · 팀 기획 합의 / hops-system-1 구체 계약안 추가·팀 리뷰/구현/검증 별도.
+상태: PRD 1.44 목표 명세 · PRD 정책 유지 / PR #68 계약 결정값 작성 완료·팀 승인/구현/검증 별도.
 
 ## 1. 목표와 범위
 
@@ -41,7 +41,7 @@
 
 ## 계약·화면 상태
 
-신규 `hops-system-1` 팀 리뷰용 구체 계약안이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
+신규 `hops-system-1`의 PR #68 제출 결정값이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
 
 | 조작 | 계약·검증 |
 |---|---|
@@ -77,3 +77,11 @@
 기존 코드·테스트의 인수 조건 번호는 이전 기준이며 목표 조건과 구분한다. 목표 AC는 실제 구현·검증 완료를 뜻하지 않는다. 실제 구현 범위는 서비스 코드와 실행 안내에서 확인한다.
 
 기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. hops-system-1 계약안의 담당자 리뷰·승인 후 코드·테스트를 전환한다. 현재 구현을 문서만으로 완료 처리하지 않는다.
+
+## 서비스 간 계약 추적
+
+| 경계 | 이 기능에 적용할 계약 |
+|---|---|
+| Frontend↔Spring | workItemId=problemId·생성 결과 조회/동일 작업 재시도. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
+| Spring↔AI | 재분석 새 runId·최신 기존 작업 전달. AI 제안을 미저장 증거로 쓰지 않음. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
+| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |

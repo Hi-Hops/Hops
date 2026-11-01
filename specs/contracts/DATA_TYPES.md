@@ -9,13 +9,13 @@
 
 ## 신규 계약 hops-system-1
 
-상태: PRD 1.44 팀 리뷰용 구체 계약안. 이 절은 `/api/v2`용이며 아래의 전환 전 타입과 이름이 같아도 상호 교환하지 않는다. 의미·전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md), 전송은 [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따른다. 현재 런타임 타입·Mock은 변경하지 않았다.
+상태: PRD 1.44 PR #68 제출 결정안·필드/상태/명령 정의 완료. 이 절은 `/api/v2`용이며 아래의 전환 전 타입과 이름이 같아도 상호 교환하지 않는다. 의미·전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md), 전송은 [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따른다. 현재 런타임 타입·Mock은 변경하지 않았다.
 
 ### 공통 표현과 버전
 
 - `Uuid`는 소문자 하이픈 UUID, `time`은 UTC RFC 3339 `Z` 시각, `int`는 JSON 정수다. JSON 필드는 camelCase다. 양의 정수 버전·순번은 1~2,147,483,647이며 page·질문 수는 0부터다.
 - 아래에 열거한 응답 키는 모두 존재한다. `?`는 키 생략이 아니라 `null` 허용을 뜻한다. 배열의 빈 값은 `[]`다. 권한 거부·조회 오류를 `null`/빈 배열 성공으로 바꾸지 않는다. 비공개 필드가 필요한 객체는 해당 API 자체를 거부한다.
-- 표의 `string`은 공백만인 값을 허용하지 않는 비어 있지 않은 문자열이다. 명시한 nullable 문자열의 미확인은 null이다. 사용자 입력은 1~4,000 Unicode 코드 포인트, 단독 surrogate·공백만인 입력은 거부하고 원문을 trim/절단하지 않는다. 공백 집합은 아래 기존 UserContent와 동일하게 유지하는 제안이다.
+- 표의 `string`은 공백만인 값을 허용하지 않는 비어 있지 않은 문자열이다. 명시한 nullable 문자열의 미확인은 null이다. 사용자 입력은 1~4,000 Unicode 코드 포인트, 단독 surrogate·공백만인 입력은 거부하고 원문을 trim/절단하지 않는다. 공백 집합은 아래 기존 UserContent와 동일하게 유지한다.
 - 추가 응답 필드는 무시할 수 있지만 필수 키·형식 오류는 INVALID_RESPONSE다. 미등록 상태는 안전한 미확인으로 표시하고 해당 변경 버튼을 비활성화한다. 없는 enum을 기존 성공 값으로 바꾸지 않는다.
 - 분석 입력 버전은 inquiryVersion, 메시지 정정은 revision, 업무 변경은 ticketRevision, 해결 응답은 requestRevision, 사례 문서는 caseVersion이다. 적용 시스템 버전은 별도 문자열 appliesToSystemVersion이다.
 
@@ -85,15 +85,15 @@
 | RequestDetails | taskOrScreen:string?, requestedAccess:string?, businessPurpose:string?, expectedBehavior:string?, actualBehavior:string?, occurredAt:string?, currentWorkflow:string?, desiredChange:string?, acceptanceCriteria:AcceptanceCriterion[] | 유형별 미확인도 null로 보존. 모르는 값을 접수 차단에 사용하지 않음 |
 | AcceptanceCriterion | text:string, confirmation:PROPOSED 또는 CONFIRMED, confirmedBy:Uuid? | PROPOSED이면 confirmedBy=null. 명시적 사람 확인 없이 CONFIRMED로 승격하지 않음 |
 | InquirySummary | id:Uuid, title:string, status:InquiryStatus, problemCount:int, ticketCount:int, pendingConfirmationCount:int, createdAt:time, updatedAt:time | 목록에서 담당자 내부 근거 제외 |
-| InquiryResult | id:Uuid, inquiryVersion:int, status:InquiryStatus, problems:Problem[], currentRun:RunSummary?, resultRevision:int, createdAt:time, updatedAt:time | resultRevision은 문제별 생성 결과 변경 시 증가. 모달 확인용이며 inquiryVersion과 다름 |
-| RunSummary | id:Uuid, inquiryId:Uuid, inquiryVersion:int, status:RunStatus, error:ApiError? | 새 재분석은 새 runId; 기존 성공 업무 유지 |
+| InquiryResult | id:Uuid, inquiryVersion:int, status:InquiryStatus, problems:Problem[], currentRun:RunSummary?, pendingTargetMessageIds:Uuid[], resultRevision:int, createdAt:time, updatedAt:time | resultRevision은 문제별 생성 결과 변경 시 증가. 모달 확인용이며 inquiryVersion과 다름 |
+| RunSummary | id:Uuid, inquiryId:Uuid, inquiryVersion:int, status:RunStatus, error:ApiError? | 새 재분석은 새 runId; 기존 성공 업무 유지. 내부 snapshot UNKNOWN은 FAILED·AI_RUN_STATE_UNKNOWN으로 변환 |
 
 ### 티켓·처리·확인
 
 | 타입 | 필드·자료형 | 조건 |
 |---|---|---|
-| TicketCreationResult | workItemId:Uuid, problemId:Uuid, inquiryVersion:int, outcome:CreationOutcome, ticketId:Uuid?, error:ApiError?, updatedAt:time | STORED에만 ticketId 필수. UNKNOWN과 NOT_CREATED 구별 |
-| TicketSummary | id:Uuid, inquiryId:Uuid, problemId:Uuid, workItemId:Uuid, ticketNumber:string, title:string, processingType:ProcessingType, reportedSystem:SupportedSystem, responsibleSystem:SupportedSystem, assignee:UserSummary, state:TicketState, ticketRevision:int, createdAt:time, updatedAt:time | 저장된 시스템·담당자만 반환 |
+| TicketCreationResult | workItemId:Uuid, problemId:Uuid, inquiryVersion:int, outcome:CreationOutcome, ticketId:Uuid?, error:ApiError?, updatedAt:time | workItemId=problemId. STORED에만 ticketId 필수. UNKNOWN과 NOT_CREATED 구별 |
+| TicketSummary | id:Uuid, inquiryId:Uuid, problemId:Uuid, workItemId:Uuid, ticketNumber:string, title:string, processingType:ProcessingType, reportedSystem:SupportedSystem, responsibleSystem:SupportedSystem, assignee:UserSummary, state:TicketState, ticketRevision:int, createdAt:time, updatedAt:time | workItemId=problemId이며 저장된 시스템·담당자만 반환 |
 | TicketDetail | TicketSummary의 필드 + currentPrimary:UserSummary, standardRequest:StandardRequest, assignmentHistory:AssignmentHistory[], workRecords:WorkRecord[], activeResolutionRequest:ResolutionRequest?, caseGeneration:CaseGeneration? | 담당자 전용. assignee는 저장 배정, currentPrimary는 현재 권한 관계. 관리자 투영은 TicketManagementDetail |
 | TicketManagementDetail | TicketSummary의 필드 + currentPrimary:UserSummary, assignmentHistory:AssignmentHistory[] | 원문·표준 요청·내부 지식·처리 내용은 관리 역할만으로 반환하지 않음 |
 | AssignmentHistory | id:Uuid, previousSystemId:Uuid?, previousAssigneeId:Uuid?, systemId:Uuid, assignee:UserSummary, reason:string, evidenceMessageIds:Uuid[], evidenceNote:string?, actorId:Uuid?, createdAt:time | 최초 자동 배정 actorId=null, 정정은 실제 행위자 |
@@ -124,6 +124,7 @@
 | InquiryCreateCommand | content:string, reportedSystemId:Uuid? | 선택하지 않아도 시작 가능 |
 | MessageSendCommand | expectedInquiryVersion:int, content:string, problemIds:Uuid[] | []는 분석으로 대상 식별. 이미 배정된 문제의 대상 불명확 메시지는 보완 대상을 확인 |
 | MessageReviseCommand | expectedInquiryVersion:int, expectedMessageRevision:int, content:string | URL의 messageId와 현재 문의 일치 |
+| MessageProblemLinkCommand | expectedInquiryVersion:int, problemIds:Uuid[] | 비어 있지 않은 기존 문제 목록. 아직 연결되지 않은 본인 메시지의 보완 대상만 확정 |
 | SystemConfirmCommand | expectedInquiryVersion:int, systemId:Uuid | WAITING_SYSTEM 또는 아직 미확정인 분석 전 문제에만 허용 |
 | RunRetryCommand | expectedInquiryVersion:int | FAILED/TIMED_OUT이며 현재 활성 run일 때 새 run 생성 |
 | CreationRetryCommand | expectedInquiryVersion:int | NOT_CREATED 작업만, 같은 workItemId 유지 |

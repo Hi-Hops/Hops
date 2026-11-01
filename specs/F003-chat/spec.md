@@ -1,6 +1,6 @@
 # F003 문의 시작·채팅·추가 질문
 
-상태: PRD 1.44 목표 명세 · 팀 기획 합의 / hops-system-1 구체 계약안 추가·팀 리뷰/구현/검증 별도.
+상태: PRD 1.44 목표 명세 · PRD 정책 유지 / PR #68 계약 결정값 작성 완료·팀 승인/구현/검증 별도.
 
 ## 1. 목표와 범위
 
@@ -33,7 +33,7 @@
 
 ## 상세 인수 조건과 예외
 
-- **F003-DETAIL-01 첫 저장과 입력:** 현재 프론트 입력 프로필은 1~4,000 Unicode 코드 포인트, 공백만 있는 내용과 범위 초과 거부다. 원문은 잘라서 저장하지 않는다. 새 공통 계약 전환 시 이 기준의 유지 여부를 확인한다.
+- **F003-DETAIL-01 첫 저장과 입력:** 현재 프론트 입력 프로필은 1~4,000 Unicode 코드 포인트, 공백만 있는 내용과 범위 초과 거부다. 원문은 잘라서 저장하지 않는다. 신규 계약에서도 이 기준을 유지한다.
 - **F003-DETAIL-02 결과 미확인:** 저장 요청 후 응답이 유실되면 내용을 보존하고 미확인으로 표시한다. 같은 업무 요청의 결과 확인 전 새 문의를 중복 생성하지 않는다.
 - **F003-DETAIL-03 대화 조회:** 기존 프로필은 최신 30개를 오름차순으로 표시하고 이전 커서로 과거 30개를 추가한다. 과거 조회 실패는 이미 보이는 대화를 지우지 않으며 현재 스크롤 위치를 보존한다.
 - **F003-DETAIL-04 질문 5회:** 문제별로 보낸 질문 묶음 수를 서버 값으로 관리한다. 5회 후 시스템이 확인됐다면 누락 항목을 표시해 담당자에게 넘긴다.
@@ -45,14 +45,14 @@
 
 ## 계약·화면 상태
 
-신규 `hops-system-1` 팀 리뷰용 구체 계약안이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
+신규 `hops-system-1`의 PR #68 제출 결정값이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
 
 | 조작 | 계약·검증 |
 |---|---|
 | 시작·전송 | InquiryCreateCommand/MessageSendCommand → CommandReceipt. 저장 확인 후 문의로 이동하며 분석 성공까지 기다리지 않음 |
 | 대화 조회 | 소유자 MessagePage 최신 30개·이전 배타적 커서. 이미 보이는 대화·스크롤 유지 |
 | 질문·시스템 선택 | 서버 questionCount=0~5. SystemConfirmCommand는 현재 문의 버전 검사·시스템 대기 저장 후 재진입 복원 |
-| 가이드 | 승인 EMPLOYEE 근거 표시·GUIDE ResolutionRequest에 해결/미해결 응답. 미해결은 담당자 연결 검토 |
+| 가이드 | 승인 EMPLOYEE 근거 표시·GUIDE ResolutionRequest에 해결/미해결 응답. 미해결은 시스템 확인 후 담당자 연결 |
 | 실행 재시도 | 현재 FAILED/TIMED_OUT Run에 RunRetryCommand. 티켓 생성 재시도와 별도 |
 | 배정 후 보완 | problemIds로 관련 티켓 연결. 대상 불명확은 선택 요청; 자동 새 티켓·재배정 없음 |
 
@@ -84,3 +84,14 @@
 기존 코드·테스트의 인수 조건 번호는 이전 기준이며 목표 조건과 구분한다. 목표 AC는 실제 구현·검증 완료를 뜻하지 않는다. 실제 구현 범위는 서비스 코드와 실행 안내에서 확인한다.
 
 기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. hops-system-1 계약안의 담당자 리뷰·승인 후 코드·테스트를 전환한다. 현재 구현을 문서만으로 완료 처리하지 않는다.
+
+## 서비스 간 계약 추적
+
+| 경계 | 이 기능에 적용할 계약 |
+|---|---|
+| Frontend↔Spring | 문의/메시지/system-confirmation/problem-links·Run 재분석. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
+| Spring↔AI | AiRunRequest/Result·KnowledgeAuthorization·고정 profile/예산. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
+| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |
+
+- **F003-CONTRACT-05:** 배정 뒤 대상이 불명확한 메시지는 보존하고 problem-links로 기존 문제를 확정한다. 질문 수 증가·새 티켓·자동 재배정 없이 같은 메시지의 보완 연결만 저장한다.
+- **F003-CONTRACT-06:** 요청이 결정 profile의 기한/토큰/호출/비용을 높이거나 일일 예산을 초과하면 모델을 호출하지 않고 안전한 한도 오류와 입력 보존을 제공한다.

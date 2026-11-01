@@ -1,6 +1,6 @@
 # F011 해결 사례 초안·승인·검색 공개
 
-상태: PRD 1.44 목표 · hops-system-1 구체 계약·화면안 추가 / 팀 리뷰·구현·통합 검증 별도. 관련 문서: [PRD](../../docs/PRD.md), [API](../../docs/API.md), [데이터](../../docs/DATA.md), [지식 수명주기](../../docs/knowledge/KNOWLEDGE_LIFECYCLE.md).
+상태: PRD 1.44 목표 · PR #68 계약·화면 결정값 작성 완료 / 팀 승인·구현·통합 검증 별도. 관련 문서: [PRD](../../docs/PRD.md), [API](../../docs/API.md), [데이터](../../docs/DATA.md), [지식 수명주기](../../docs/knowledge/KNOWLEDGE_LIFECYCLE.md).
 
 ## 목표와 사용자
 
@@ -44,7 +44,7 @@
 
 ## 계약·화면 상태
 
-신규 `hops-system-1` 팀 리뷰용 구체 계약안이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
+신규 `hops-system-1`의 PR #68 제출 결정값이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·팀 승인·통합 완료 표시가 아니다.
 
 | 조작 | 계약·검증 |
 |---|---|
@@ -82,3 +82,14 @@
 담당자 기록·Curator·승인·두 검색 저장소 반영의 실제 연동 및 통합 검증은 별도다.
 
 기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. hops-system-1 계약안의 담당자 리뷰·승인 후 코드·테스트를 전환한다. 현재 구현을 문서만으로 완료 처리하지 않는다.
+
+## 서비스 간 계약 추적
+
+| 경계 | 이 기능에 적용할 계약 |
+|---|---|
+| Frontend↔Spring | 초안/버전/승인/index-checks/index-retries/공개. 필드·응답·오류·멱등성은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
+| Spring↔AI | CASE_DRAFT·IndexApplyRequest/Snapshot·KnowledgeAuthorization, 승인/attempt/digest 검증. 실제 wire 필드는 [에이전트 계약](../../contracts/agents/README.md#반영검색-권한-서비스-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) |
+| 기본값 | [결정 대장](../QUESTIONS.md#실행검색-기본값)의 모델·저장·기한/토큰/비용·검증 게이트를 사용. 비밀값은 배포 환경 주입 |
+
+- **F011-CONTRACT-06:** IndexApplySnapshot의 caseVersion/store/attempt/digest 중 하나라도 현재 승인 작업과 다르면 성공 반영·검색 공개에 적용하지 않는다.
+- **F011-CONTRACT-07:** Vector/Neo4j 후보를 읽었어도 Spring의 knowledge authorization이 거부·실패하면 CASE 원문을 모델에 전달하지 않는다.

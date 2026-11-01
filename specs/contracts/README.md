@@ -1,6 +1,6 @@
 # 공통 데이터·전송 계약
 
-기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 팀 리뷰용 구현 계약안이며 승인·구현·통합 완료와 구분한다. 현재 코드의 `hops-mock-1`과 Python `agent-1`을 보존하고 프로필을 섞지 않는다.
+기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 PR #68 제출 결정안·계약값 작성 완료이며 승인·구현·통합 완료와 구분한다. 현재 코드의 `hops-mock-1`과 Python `agent-1`을 보존하고 프로필을 섞지 않는다.
 
 ## 정본과 읽는 순서
 
@@ -10,10 +10,10 @@
 | [DATA_TYPES 신규 절](DATA_TYPES.md#신규-계약-hops-system-1) | 데이터 타입·enum·필드·필수성·nullable·명령 본문 |
 | [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1) | /api/v2 REST·오류·SSE·멱등성·복구 |
 | [에이전트 계약 신규 절](../../contracts/agents/README.md#hops-system-1-실행-계약안) | Spring↔AI wire·내부 역할·검색·실행 한도 |
-| [AI State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) | 내부 State 작성/병합·실행 전이·외부 DTO의 기계 검증 |
+| [AI State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약)·[JSON Schema](../../contracts/agents/hops-system-1.schema.json) | 내부 State·실행/색인/검색 권한 DTO의 기계 검증 |
 | [F001~F011](../README.md) | 화면·조작·AC·계약 검증 시나리오 |
 | [DATA](../../docs/DATA.md)·[ERD](../../docs/ERD_설명.md) | 업무 저장 관계·유일성·잠금·outbox 제안 |
-| [QUESTIONS](../QUESTIONS.md) | 계약 제안의 리뷰 상태와 실제 선정해야 할 모델·인프라·예산 |
+| [QUESTIONS](../QUESTIONS.md) | 채택한 계약·모델·저장·예산·검증 기준과 팀 승인/구현 상태 |
 
 공통 상태·오류·필드 표를 각 spec에 다시 정의하지 않는다. spec은 해당 정본을 참조하고 사용자에게 관찰되는 동작·완료 조건을 적는다. 제품 범위의 정본은 PRD다.
 

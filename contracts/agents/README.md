@@ -1,6 +1,6 @@
 # 에이전트 공통 입출력 계약 — PRD 1.44
 
-상태: 팀 합의 제품 방향에 따른 논리 계약 초안 · 상세 필드·모델·서비스 인증 및 구현은 미확정. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 기존 코드·Fake의 `agent-1` 계약은 [현재 Python 타입](../../ai/src/hops_ai/contracts/agent_1.py)과 [AI 서버 안내](../../ai/README.md)에서 확인한다.
+상태: PR #68 제출 결정안 · 역할/State/wire/모델/저장/예산 값 기입 완료 · 팀 승인·실제 구현·통합 검증은 별도. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 기존 코드·Fake의 `agent-1` 계약은 [현재 Python 타입](../../ai/src/hops_ai/contracts/agent_1.py)과 [AI 서버 안내](../../ai/README.md)에서 확인한다.
 
 ## 역할과 최소 입출력
 
@@ -24,7 +24,7 @@
 
 ## 구현 전 계약
 
-실행·문의·문제·작업·사례의 식별자와 버전, 역할별 필수/선택 필드·형식·오류, 서비스 간 인증, 시간·호출·토큰·비용 한도, SSE 이벤트와 재연결, 중복 방지, 공개 상태 검증은 기능별로 합의한다. 이 문서는 새 역할이 구현되거나 실제 통합이 검증됐다는 뜻이 아니다.
+실행·문의·문제·작업·사례의 식별자/버전·역할별 필드·실패·인증·예산·이벤트·중복 방지·공개 검증은 이 문서 신규 계약·JSON Schema·결정 대장의 채택값을 사용한다. 이 문서는 새 역할이 구현되거나 실제 통합이 검증됐다는 뜻이 아니다.
 
 ## 공통 실행 문맥과 결과 — 설계 제안
 
@@ -97,11 +97,11 @@
 2. 사용자·시스템·권한·문서/사례 버전과 기존 성공 업무는 서버가 제공·검증한다. 임시 문제 참조를 실제 DB 키나 저장 성공으로 사용하지 않는다.
 3. 테스트용 Fake는 역할 교체·오류·경로 검증에 사용한다. 실제 모델·검색·Spring DB 저장 및 문의자 확인 E2E 완료의 근거는 아니다.
 4. 사례 생성·승인·반영의 상태는 실제 서버 결과로 확인한다. 역할 호출 결과만으로 사례 공개를 확정하지 않는다.
-5. 모델·임베딩·시간·호출·비용 한도와 서비스 인증은 실제 선택·구현·검증이 남았다. 코드에 존재하는 과거 예산을 새 제품 목표로 재확정하지 않는다.
+5. 모델·임베딩·시간·호출·비용·서비스 인증의 채택값은 결정 대장과 신규 실행 계약에 기입했다. 실제 구현·실행 검증은 별도다. 코드에 존재하는 과거 예산을 새 제품 목표로 재확정하지 않는다.
 
 ## hops-system-1 실행 계약안
 
-상태: 2026-10-31 팀 리뷰용 구체 제안. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 기존 agent-1 Python 모델·Fake endpoint는 그대로 보존한다. 현재 구현·팀 승인과 구분한다.
+상태: 2026-11-01 PR #68 제출 결정안. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 기존 agent-1 Python 모델·Fake endpoint는 그대로 보존한다. 현재 구현·팀 승인과 구분한다.
 
 실제 필드 타입·nullable·조건부 필수성과 wire 형식은 [JSON Schema](hops-system-1.schema.json), 내부 State의 작성/병합/수명과 적용 조건은 [내부 State 계약](#내부-state와-wire-검증-계약), 가상 전송 예시는 [공용 wire 예시](../../specs/mocks/hops-system-1.examples.json)를 정본으로 한다. 아래 표는 역할·호출 경계 요약이며 Entity·외부 DTO·내부 State를 하나의 객체로 공유하지 않는다.
 
@@ -112,9 +112,9 @@
 | POST /internal/v2/runs | AiRunRequest → 202 AiAccepted | Spring 발급 runId를 멱등 키로 사용. 동일 ID·같은 payload는 기존 실행, 다른 payload는 409 |
 | GET /internal/v2/runs/{runId} | AiRunSnapshot | 진행·종료·최종 결과 재확인. AI 프로세스 재시작으로 확인 불가면 UNKNOWN |
 | GET /internal/v2/runs/{runId}/events | SSE progress, answer.delta, result | Python→Spring 전용. seq 단조 증가·중복 제거; final result 후 진행 무시 |
-| POST /internal/v2/runs/{runId}/cancel | 202 취소 접수 | 최선 노력 취소. Spring의 최신 입력 버전 검증은 별도로 항상 수행 |
+| POST /internal/v2/runs/{runId}/cancel | 본문 없는 요청 → 202 빈 본문 | 최선 노력 취소. 반복 접수도 202이며 상태는 snapshot으로 확인. Spring의 최신 입력 버전 검증은 별도로 항상 수행 |
 
-모든 호출은 환경의 AI_SERVICE_TOKEN을 사용하는 서비스 Bearer 인증이다. 사용자 JWT·쿠키·API 키는 payload에 넣지 않는다. 운영은 접근이 제한된 TLS 경로, 로컬 개발만 loopback HTTP를 허용하는 제안이다. 인증 실패는 401, runId 없음은 404, 잘못된 payload는 422, 과부하는 429와 Retry-After다. 내부 원시 오류는 브라우저에 전달하지 않는다.
+위 Spring→AI 호출은 환경의 AI_SERVICE_TOKEN을 사용하는 서비스 Bearer 인증이다. AI→Spring 검색 권한 요청은 별도의 SPRING_SERVICE_TOKEN을 사용한다. 사용자 JWT·쿠키·API 키는 payload에 넣지 않는다. 공용 환경은 접근이 제한된 TLS 경로, 개발은 지정 서비스 origin의 HTTP를 사용한다. 배포 domain과 secret의 입력/검증 규칙은 결정 대장에 고정한다. 인증 실패는 401, runId 없음은 404, 잘못된 payload는 422, 과부하는 429와 Retry-After다. 내부 원시 오류는 브라우저에 전달하지 않는다.
 
 실행 상태가 AI 프로세스 메모리에만 존재해 사라진 경우 성공으로 만들지 않는다. Spring은 업무 DB의 runId·입력 버전·기존 저장 결과를 보존하고 UNKNOWN/안전한 실패로 확인한다. 재분석은 새 runId이며 기존 성공 티켓·작업 ID를 전달한다. Python이 업무 저장을 재실행하지 않는다.
 
@@ -145,7 +145,7 @@ GuideProposal은 messageText,evidenceIds,problemRef를 가지며 승인된 EMPLO
 
 Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검색에서 반환된 참조만 가능하다. 담당자 보완 대화의 대상이 불명확하면 확인 필요를 제안하고 임의의 티켓에 복사하지 않는다. Curator는 INQUIRY_ANALYSIS의 매 메시지 경로에 넣지 않고 검증 완료 WorkRecord의 outbox로 CASE_DRAFT를 실행한다.
 
-### 검색·관계 스키마 제안
+### 검색·관계 스키마
 
 검색 결과는 [신규 KnowledgeEvidence/SearchResult](../../specs/contracts/DATA_TYPES.md#지식사례반영)를 사용한다. Vector와 Neo4j는 후보 검색이며 Spring이 문서/CASE 버전의 승인·공개·현재 ACL을 다시 검증한다. 내부 Knowledge가 검색 저장소를 직접 호출하더라도 서버의 권한 필터를 통과하지 않은 원문을 모델·직원에게 제공하지 않는다. 한 경로라도 실패하면 해당 검색은 ERROR로 기록하고 정상 0건과 구분한다.
 
@@ -155,13 +155,13 @@ Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검
 | Symptom, Cause, Check | 검수한 카탈로그 ID·label·sourceDocumentId·sourceVersion·accessScope |
 | Case | caseId와 caseVersion의 복합 키·systemId·accessScope·승인 버전 출처 |
 
-허용 방향은 System-HAS_FEATURE→Feature, System-DEPENDS_ON→System, Feature-SHOWS_SYMPTOM→Symptom, Symptom-MAY_HAVE_CAUSE→Cause, Cause-CHECKED_BY→Check, Case-APPLIES_TO→System, Case-ADDRESSES→Symptom, Case-USES_CHECK→Check다. 모든 관계는 출처 문서/버전 또는 승인 CASE 버전을 가진다. Curator는 기존 엔티티 ID에 CASE를 연결하며 임의 label·relationship·Cypher를 실행하지 않는다. 조회는 파라미터 바인딩한 읽기 전용 허용 템플릿, 최대 2홉·50노드·100관계·3초의 리뷰 기준이다. 관계는 원인 확정이 아니다.
+허용 방향은 System-HAS_FEATURE→Feature, System-DEPENDS_ON→System, Feature-SHOWS_SYMPTOM→Symptom, Symptom-MAY_HAVE_CAUSE→Cause, Cause-CHECKED_BY→Check, Case-APPLIES_TO→System, Case-ADDRESSES→Symptom, Case-USES_CHECK→Check다. 모든 관계는 출처 문서/버전 또는 승인 CASE 버전을 가진다. Curator는 기존 엔티티 ID에 CASE를 연결하며 임의 label·relationship·Cypher를 실행하지 않는다. 조회는 파라미터 바인딩한 읽기 전용 허용 템플릿, 최대 2홉·50노드·100관계·3초의 채택 한도다. 관계는 원인 확정이 아니다.
 
 ### 실행 제한·진행·실패
 
-expiresAt은 Spring이 정한 실행 전체 기한이며 역할 전환 시 다시 시작하지 않는다. maxModelCalls·토큰·도구·비용·재시도는 모든 역할에 걸쳐 누적한다. 형식 오류 재시도도 같은 한도에서 계산한다. 공급자 응답이 timeout 뒤 도착해도 기한·현재 입력 버전을 다시 검사한다.
+expiresAt은 Spring이 정한 실행 전체 기한이며 역할 전환 시 다시 시작하지 않는다. maxModelCalls·토큰·도구·비용은 모든 역할에 걸쳐 누적한다. maxRetries=0이며 형식 오류도 자동 재호출하지 않고 INVALID_OUTPUT으로 끝낸다. 공급자 응답이 timeout 뒤 도착해도 기한·현재 입력 버전을 다시 검사한다.
 
-실제 OpenAI 모델·임베딩·Vector 제품·호출/토큰/비용 수치는 [QUESTIONS의 적용 전 선정 항목](../../specs/QUESTIONS.md#적용-전-선정-항목)에 둔다. 선정 manifest의 modelProfileId·모델·가격 기준일·각 한도가 없으면 real 모드를 시작하지 않는다. 기존 코드의 과거 제한값을 새 계약 확정값으로 복사하지 않는다. API 키는 AI 서버 환경에만 둔다.
+모델은 gpt-5.6-luna·reasoning none, 임베딩은 text-embedding-3-small/1536, profileId는 hops-mvp-20261101로 채택한다. 실행/저장/비용 기본값은 [결정 대장](../../specs/QUESTIONS.md#실행검색-기본값)이 정본이다. 요청이 그 상한을 높이거나 다른 profile을 주장하면 거부한다. API 키는 AI 서버 환경에만 주입한다. 문서 변경으로 유료 호출을 실행하지 않는다.
 
 AiEvent는 contractVersion/runId/seq/eventType/payload envelope다. progress payload는 role/displaySummary, answer.delta는 messageRef/chunkSeq/text, result는 AiResult다. seq는 실행 전체에서 증가하고 final result는 한 논리 결과로 고정한다. Spring은 원본 AI seq와 별도로 공개 eventId를 발급한다. seq 누락·연결 종료 시 snapshot을 재확인하며 업무 저장을 AI 이벤트 재생으로 재실행하지 않는다.
 
@@ -169,7 +169,7 @@ AiEvent는 contractVersion/runId/seq/eventType/payload envelope다. progress pay
 
 ## 내부 State와 wire 검증 계약
 
-상태: PRD 1.44 팀 리뷰용 상세 제안. 기존 runtime·Entity·DTO를 이 문서 변경으로 구현하지 않는다. State 설명은 이 문서에 통합하고 외부 형식의 정본은 JSON Schema에 둔다.
+상태: PRD 1.44 PR #68 제출 결정안·State 필드/병합/수명 정의 완료. 기존 runtime·Entity·DTO를 이 문서 변경으로 구현하지 않는다. State 설명은 이 문서에 통합하고 외부 형식의 정본은 JSON Schema에 둔다.
 
 ### S1. 구분할 세 가지 데이터
 
@@ -263,8 +263,8 @@ questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 �
 ### S5. 저장·재시작·적용 경계
 
 - Spring은 AiRun 입력·상태·최종 결과 digest와 실제 업무 결과를 보존한다. AI의 내부 State는 한 run용이며 업무 DB 정본을 대체하지 않는다.
-- AI 실행 접수 기록(runId·입력 digest·상태·최종 결과/seq)은 RunLedger로 중복을 차단해야 한다. 실제 저장 방식은 담당자가 선정하되 재시작 후 같은 ID를 새 모델 호출로 무조건 실행하는 메모리 전용 방식은 real 통합 완료 기준이 아니다.
-- MVP는 중간 그래프 checkpoint에서 자동 재개하지 않는다. 접수됐지만 실행 상태를 복원할 수 없으면 snapshot UNKNOWN으로 반환한다. Spring은 확인 불가를 성공으로 저장하지 않고 공개 Run을 안전한 실패로 처리해 새 runId 재분석을 제공한다. 기존 workItem·성공 티켓은 유지한다.
+- AI 실행 접수 기록(runId·입력 digest·상태·최종 결과/seq)은 RunLedger로 중복을 차단해야 한다. 저장은 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB로 채택한다. AI 계정에 업무 DB 권한을 주지 않는다. runId PK·입력 digest·원자적 접수/비용 예약·결과/순번·24시간 상세와 ID 표식을 보존한다. 재시작 뒤 같은 ID로 새 모델 호출을 시작하지 않는다.
+- MVP는 중간 그래프 checkpoint에서 자동 재개하지 않는다. 접수됐지만 실행 상태를 복원할 수 없으면 snapshot UNKNOWN으로 반환한다. Spring은 이를 공개 RunSummary.status=FAILED·error.code=AI_RUN_STATE_UNKNOWN으로 변환해 새 runId 재분석을 제공한다. 기존 workItem·성공 티켓은 유지하고 이전 run의 늦은 결과는 적용하지 않는다.
 - 최종 결과 적용은 Spring의 최신 inquiryVersion·activeRunId·policyRevision·원 출처 검증 후 수행한다. 동일 runId·최종 digest는 한 번만 적용하고 같은 ID·다른 결과는 거부한다.
 - 상담 AI는 티켓 저장 commit을 기다리는 무제한 내부 루프를 만들지 않는다. 최종 제안을 반환한 뒤 Spring이 생성/배정 결과를 확인해 사용자 결과를 구성한다. 진행 문구에서 저장 성공을 선행 확정하지 않는다.
 - Curator run은 해당 원 WorkRecord만 대상으로 하고 상담 currentRun과 분리한다. 사용자 미해결 응답·권한 변경이 뒤늦게 발생해도 초안은 업무 이력으로만 유지하고 승인·공개 검증을 다시 통과해야 한다.
@@ -280,3 +280,53 @@ questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 �
 | 업무 순환 | 질문/배정 → 실제 처리/확인 → Curator/승인 → 같은 버전 양쪽 반영/재검색 |
 
 스키마/예시 검사는 실제 Java/JPA·Pydantic·LangGraph 구현·모델 품질·Spring 저장·E2E를 대신하지 않는다. 생산자와 소비자가 같은 스키마 예제를 통과하고 상태·경합·권한 검사를 함께 검토해야 계약 적용을 완료한다.
+
+
+## 반영·검색 권한 서비스 계약
+
+상담/Curator 실행과 저장소 반영을 구분한다. 업무 상태·필드 값은 결정 완료이며 실제 배포/호출은 구현 PR의 검증 대상이다. 아래 타입은 같은 [wire JSON Schema](hops-system-1.schema.json)와 [공용 예시](../../specs/mocks/hops-system-1.examples.json)에 포함한다.
+
+| 방향·API | 요청 → 결과 | 상태·멱등·오류 |
+|---|---|---|
+| Spring→AI POST /internal/v2/index-jobs | IndexApplyRequest → 202 IndexApplySnapshot | 승인 후 outbox의 jobId/attempt, 동일 키·같은 digest는 기존 결과, 다른 내용409 |
+| Spring→AI GET /internal/v2/index-jobs/{jobId}?attempt={n} | 없음 → 200 IndexApplySnapshot | job/attempt/승인 버전/store/digest 대조. 404·timeout은 실패 확정이 아님 |
+| AI→Spring POST /internal/v2/knowledge/authorizations | KnowledgeAuthorizationRequest → 200 KnowledgeAuthorizationResponse | 조회 성격. 현재 run·policyRevision·사용자 범위 검증. 무권한 후보는 allowedRefs에서 제외 |
+
+모든 내부 API는 고정된 Spring/AI origin·서비스 Bearer만 사용한다. 브라우저에 노출하지 않으며 모델이 임의 URL·토큰·runId를 구성하지 못한다. 401은 서비스 인증, 403은 현재 접근/정책 문맥 무효, 409는 동일 작업 내용/버전 충돌, 422는 필드/조건 오류, 429는 한도, 503은 저장소/서비스 불가다. 원격 malformed/다른 job 결과는 UPSTREAM_PROTOCOL_ERROR로 차단한다.
+
+내부 HTTP 오류 본문은 Schema의 AiError(code,message,retryable) 객체다. 401/403=AUTH_CONTEXT_INVALID, 404=NOT_FOUND, 409=CONFLICT, 422=INVALID_REQUEST, 429=RATE_LIMITED 또는 BUDGET_EXCEEDED, 503=SERVICE_UNAVAILABLE 또는 해당 MODEL/SEARCH/INDEX_UNAVAILABLE을 사용한다. retryable=true도 자동 모델 재시도나 새 업무 실행을 허용하지 않으며 같은 작업의 상태 확인·수동 재분석 조건을 따른다.
+
+### I1. 승인 CASE 반영
+
+IndexApplyRequest는 contractVersion/jobId/caseId/caseVersion/store/attempt/contentDigest/approvedCase를 가진다. approvedCase는 systemId·원 workRecordId/resolutionRequestId·승인자/시각·실제 조치/검증·조건/한계·적용 버전·공개 범위·출처·기존 엔티티 연결이다. Spring이 현재 승인·같은 원 기록의 해결 확인·기능 검증을 확인한 스냅샷만 보낸다. AI는 승인·공개를 확정하지 않는다.
+
+digest는 `{caseId,caseVersion,store,approvedCase}` 객체를 키 오름차순·UTF-8·공백 없는 JSON·Unicode 원문·배열 순서 유지로 직렬화한 SHA-256 소문자 hex다. Java/Python의 기본 key 순서나 Unicode escape 설정에 의존하지 않는다. 숫자는 양의 정수 버전만 사용한다. AI는 받는 시점에 digest를 재계산해 불일치 시409로 거부한다.
+
+VECTOR는 caseId/caseVersion 청크를 upsert하고 NEO4J는 승인된 기존 노드/관계만 같은 버전 키로 upsert한다. 결과는 jobId/caseId/caseVersion/store/attempt/contentDigest/state/error/updatedAt다. 성공은 원격 저장 검증 후 SUCCEEDED, 실패는 FAILED, 확인 불가는 UNKNOWN이다. Spring은 현재 승인 버전·최신 attempt·digest가 모두 맞는 성공만 기록한다. 이전 attempt의 늦은 성공이 새 반영 상태를 덮지 못한다.
+
+Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되지 않으면 UNKNOWN으로 유지한다. 확인 조작은 같은 attempt를 GET하며 새 반영을 생성하지 않는다. FAILED의 다음 attempt는 현재 담당자의 수동 명령으로만 만든다. UNKNOWN은 확인 전 재실행하지 않는다. 성공한 저장소를 실패 저장소 재실행 때문에 지우지 않는다. 두 성공 전 Spring의 공개 gate는 PRIVATE다.
+
+### K1. 검색 후보의 최신 권한
+
+AI는 전달받은 목적/systemIds/scopes로 pgvector·Neo4j에서 최대20개 ID/버전 후보를 찾는다. 원문을 모델에 넣기 전에 Spring의 authorization API를 호출한다. 요청은 contractVersion/requestId/runId/policyRevision/candidates, 후보는 documentId/documentVersion/kind다. Spring은 전달된 사용자 역할을 신뢰하지 않고 저장된 AiRun의 문맥과 현재 권한을 사용한다.
+
+응답은 같은 request/run/policyRevision과 허용된 documentId/documentVersion/kind/accessScope/contentDigest 목록이다. CASE는 같은 승인 버전의 두 반영 성공·현재 ACL을 확인한다. GUIDE/POLICY/RUNBOOK도 현재 승인·공개 범위를 확인한다. 없는 항목·비공개 항목은 제외하며 거부 원문/존재 상세를 반환하지 않는다. policyRevision이 달라졌으면403으로 실행을 중단한다.
+
+AI는 허용된 참조의 본문만 가져오고 정렬한 상위5건을 KnowledgeEvidence로 전달한다. GUIDE/POLICY/RUNBOOK은 승인된 UTF-8 원문 바이트의 SHA-256, CASE는 승인 CaseVersion의 canonical JSON SHA-256으로 contentDigest를 확인한다. CASE의 digest 대상은 caseId/caseVersion/approvedCase이며 저장소별 IndexApplyRequest digest와 구분한다. 청크는 같은 원문의 digest·버전과 청크 위치를 보존한다. 읽은 버전/digest가 바뀌면 다시 확인하거나 안전한 ERROR로 끝낸다. 최종 결과를 Spring에 적용할 때도 출처/공개/현재 권한을 재검사한다. gate 통신 실패를 검색 EMPTY로 바꾸거나 cached 허용을 계속 쓰지 않는다.
+
+GUIDE/POLICY/RUNBOOK의 권한 정본은 Spring이 공통 데이터 릴리스에서 읽는 승인 manifest다. documentId/documentVersion/kind/systemId/accessScope/contentDigest/sourceRef/reviewPr을 필수로 두고 sourceRef는 저장소 상대 경로 또는 공개 출처 URL이다. 작성자 외 팀원 리뷰를 거친 버전만 manifest에 포함한다. AI는 같은 manifest 해시의 본문을 적재하며 임의 승인 자료를 추가하지 않는다. 별도 운영 콘텐츠 관리 화면·승인 취소·자동 폐기 기능은 이번 PRD 범위에 추가하지 않는다.
+
+### M1. 모델 출력과 wire Schema의 경계
+
+JSON Schema Draft-07 파일은 서비스 wire의 검증 정본이다. OpenAI Structured Outputs에는 역할별 단일 object의 호환 스키마를 사용하고 wire 파일 전체의 oneOf/if/then을 그대로 넣지 않는다. 필수 키·additionalProperties=false·nullable를 유지하고 조건부 규칙은 runtime이 wire/역할 검증으로 재확인한다. 모델 refusal·불완전 JSON·시간/예산 초과는 새 저장 제안 없는 안전한 실패다. [공식 Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)를 따른다.
+
+### X1. spec 추적
+
+| 서비스 계약 | 관련 spec | 관찰 조건 |
+|---|---|---|
+| Run 접수/조회/이벤트/취소·State | F002/F003/F004/F005/F008/F010 | 늦은 버전·중복 결과·순번 누락·종료 뒤 patch를 차단 |
+| CASE_DRAFT | F009/F011 | 실제 검증 기록과 상담 실행 분리·초안 실패가 업무 기록을 취소하지 않음 |
+| IndexApplyRequest/Snapshot | F011 | 승인 버전/attempt/digest 일치·두 성공 전 양쪽 비공개 |
+| KnowledgeAuthorizationRequest/Response | F001/F003/F009/F011 | 현재 run/policy/ACL 확인 전 본문을 모델에 넣지 않음 |
+
+F006의 해결 응답과 F007의 수동 정정은 Spring의 업무 명령이며 AI를 통해 저장하지 않는다. 그 결과가 다음 AI 입력·승인·권한 검증에 반영된다.

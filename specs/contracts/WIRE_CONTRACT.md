@@ -285,11 +285,11 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 ## 12. 신규 계약 hops-system-1
 
-상태: PRD 1.44 팀 리뷰용 API·SSE 계약안. 이 절만 `/api/v2`에 적용한다. 1~11절·기존 `/api`·실행 Mock의 구현 상태를 변경하지 않는다. 타입은 [신규 데이터 계약](DATA_TYPES.md#신규-계약-hops-system-1), 상태 전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md)가 정본이다.
+상태: PRD 1.44 PR #68 제출 결정안·API/SSE/오류 정의 완료. 이 절만 `/api/v2`에 적용한다. 1~11절·기존 `/api`·실행 Mock의 구현 상태를 변경하지 않는다. 타입은 [신규 데이터 계약](DATA_TYPES.md#신규-계약-hops-system-1), 상태 전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md)가 정본이다.
 
 ### 12.1 인증·명령·공통 응답
 
-- 로그인/갱신 외 API는 Bearer Access Token을 사용한다. 토큰 수명·회전 정책은 기존 10절의 Access 15분·Refresh 최초 로그인부터 절대 7일·매 갱신 회전을 유지하는 제안이다. refresh/logout은 HttpOnly cookie와 허용 Origin 검증을 사용한다. 운영 HTTPS에서 Secure, SameSite=Lax, Path=/api/v2/auth이며 로컬 개발 예외는 환경 설정으로만 분리한다.
+- 로그인/갱신 외 API는 Bearer Access Token을 사용한다. 토큰 수명·회전 정책은 기존 10절의 Access 15분·Refresh 최초 로그인부터 절대 7일·매 갱신 회전을 유지한다. refresh/logout은 HttpOnly cookie와 허용 Origin 검증을 사용한다. 운영 HTTPS에서 Secure, SameSite=Lax, Path=/api/v2/auth이며 로컬 개발 예외는 환경 설정으로만 분리한다.
 - 허용 프론트 Origin을 정확히 나열하고 credentials를 허용한다. Authorization·Idempotency-Key·Last-Event-ID 요청 헤더와 Retry-After 응답 헤더를 CORS에 반영한다. 쿠키 사용 변경은 Origin 검증 실패 시 403이다. 토큰·비밀번호를 URL/로그에 넣지 않는다.
 - auth 외 변경 요청은 JSON의 requestId와 같은 Idempotency-Key를 보낸다. 200은 업무 저장 또는 기존 결과가 확정된 CommandReceipt, 202는 PENDING/UNKNOWN receipt다. 200 SUCCEEDED는 해당 명령 저장만 뜻하며 AI 실행·해결·검색 공개 완료를 뜻하지 않는다. 4xx/5xx는 ApiError를 반환한다.
 - 로그인·갱신은 200 LoginResponse, logout은 204다. GET은 200·데이터 타입을 직접 반환한다. 응답 envelope는 추가하지 않는다.
@@ -316,6 +316,7 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 | GET /inquiries/{inquiryId}/messages | size,beforeSequenceNo | MessagePage | 본인 |
 | POST /inquiries/{inquiryId}/messages | MessageSendCommand | CommandReceipt · INQUIRY | 본인 |
 | POST /inquiries/{inquiryId}/messages/{messageId}/revisions | MessageReviseCommand | CommandReceipt · INQUIRY | 본인 USER 메시지 |
+| POST /inquiries/{inquiryId}/messages/{messageId}/problem-links | MessageProblemLinkCommand | CommandReceipt · INQUIRY | 본인·미연결 보완 메시지 |
 | POST /inquiries/{inquiryId}/problems/{problemId}/system-confirmations | SystemConfirmCommand | CommandReceipt · INQUIRY | 본인·미확정 시스템 |
 | GET /runs/{runId} | 없음 | RunSummary | 원 문의 소유자 |
 | POST /runs/{runId}/retries | RunRetryCommand | CommandReceipt · RUN | 본인·현재 실패/시간 초과 실행 |
@@ -358,8 +359,8 @@ scope 기본은 ASSIGNED_SYSTEMS이며 ADMIN은 BIZ_ADMIN만 허용한다. syste
 | 409 | IDEMPOTENCY_KEY_REUSED | 같은 키의 다른 의도 거부 |
 | 409 | RUN_NOT_RETRYABLE, WORK_ITEM_NOT_RETRYABLE, INVALID_STATE, APPROVAL_PRECONDITION_FAILED, INDEX_NOT_RETRYABLE | 최신 상태 확인; 허용 조작만 제공 |
 | 410 | OPERATION_RESULT_EXPIRED | 상세 재확인 기간 만료. 원 업무 조회·재조정 없이 새 키 실행 금지 |
-| 429 | RATE_LIMITED | Retry-After 초 단위; 해당 시간까지 버튼 비활성·입력 보존 |
-| 503 | SERVICE_UNAVAILABLE, ASSIGNMENT_UNAVAILABLE, SEARCH_UNAVAILABLE, MODEL_UNAVAILABLE | 성공으로 표시하지 않음. 저장 여부 불명은 receipt UNKNOWN 또는 재확인 |
+| 429 | RATE_LIMITED, AI_BUDGET_EXHAUSTED | Retry-After 초 단위; 해당 시간까지 버튼 비활성·입력 보존. 일일 모델 예산 소진은 다음 UTC 자정까지 새 실행 차단 |
+| 503 | SERVICE_UNAVAILABLE, ASSIGNMENT_UNAVAILABLE, SEARCH_UNAVAILABLE, MODEL_UNAVAILABLE, AI_RUN_STATE_UNKNOWN | 성공으로 표시하지 않음. 저장 여부 불명은 receipt UNKNOWN 또는 재확인. AI 실행 확인 불가는 공개 Run FAILED로 표시하고 새 run 재분석 제공 |
 | 504 | DEADLINE_EXCEEDED | 분석 실패와 업무 저장 미확인을 구분 |
 
 retryable은 수동 재시도 후보임을 뜻하며 상태·권한 검사를 생략하거나 자동 재전송하라는 뜻이 아니다. timeout·연결 오류는 프론트 로컬 오류이며 서버 DB 미저장 코드로 바꾸지 않는다. 검색 EMPTY와 ERROR, 모델 오류와 OUT_OF_SCOPE를 구분한다. 서비스 내부 오류는 에이전트 계약의 안전한 코드로 변환한다.
@@ -383,7 +384,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 업무 저장·outbox commit 뒤만 stored/state 이벤트를 만든다. 이벤트 도착 순서는 HTTP 응답과 독립이다. 이벤트는 GET 무효화 신호이며 AI 답변 조각·알림만으로 티켓·해결·사례 공개를 확정하지 않는다.
 
-첫 신규 프로필의 replay는 제공하지 않는 안이다. Last-Event-ID가 오면 권한 확인 후 resync.required를 보내고 종료한다. 클라이언트는 REST 조회 성공 뒤 마지막 ID·임시 조각을 비우고 ID 없이 연결한다. 실패 시 복구 중 상태를 유지한다. 재접속 간격은 1/2/5/10/30초 상한이며 화면 이탈·권한 거부 시 중단한다. 15초 comment heartbeat는 상태를 변경하지 않는다.
+첫 신규 프로필의 replay는 제공하지 않는다. Last-Event-ID가 오면 권한 확인 후 resync.required를 보내고 종료한다. 클라이언트는 REST 조회 성공 뒤 마지막 ID·임시 조각을 비우고 ID 없이 연결한다. 실패 시 복구 중 상태를 유지한다. 재접속 간격은 1/2/5/10/30초 상한이며 화면 이탈·권한 거부 시 중단한다. 15초 comment heartbeat는 상태를 변경하지 않는다.
 
 담당 관계 변경 시 서버는 기존 구독의 전송 권한도 즉시 무효화한다. 메시지를 보내기 전에 현재 권한 세대를 검증하고 오래된 구독에 내부 payload를 보내지 않는다. 무효화 신호가 유실돼도 새 GET은 거부한다. 화면은 연결을 잃으면 보호 영역을 가리고 재조회 후 복원한다.
 
@@ -391,4 +392,21 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 ### 12.5 전환 확인
 
-새 경로·응답은 계약안이다. 현행 프론트 요청과 Spring의 로그인/부서 SSE는 기존 프로필을 따른다. 신규 경로가 등록되지 않은 환경을 빈 결과·Mock 성공으로 처리하지 않는다. 새 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 확인한 뒤 배포 설정에서 신규 프로필을 선택한다.
+새 경로·응답은 이번 PR의 채택값이다. 현행 프론트 요청과 Spring의 로그인/부서 SSE는 기존 프로필을 따른다. 신규 경로가 등록되지 않은 환경을 빈 결과·Mock 성공으로 처리하지 않는다. 새 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 확인한 뒤 배포 설정에서 신규 프로필을 선택한다.
+
+### 12.6 계약 범위와 spec 연결
+
+| API 묶음 | 계약 자료 | spec |
+|---|---|---|
+| auth·시스템/PRIMARY | Login/CurrentUser/SupportedSystem, 401/403·권한 회수 | F001/F002 |
+| 문의·메시지·정정·시스템 선택·problem-links | 명령/receipt·입력 버전·커서·보완 대상 | F003/F004/F008 |
+| Run 조회/재분석·operation 결과 | RunSummary·CommandReceipt·키 재확인·예산 오류 | F002/F003/F004 |
+| 작업 결과·티켓 생성 재시도 | TicketCreationResult·workItemId=problemId·미생성 선확인 | F005/F010 |
+| 티켓·관리 상세·관련 메시지·수동 정정 | 권한별 DTO·티켓 버전·실제 PRIMARY·원문 구간 | F007/F009 |
+| 처리 기록·해결 확인 | WorkRecord/ResolutionRequest·문제별 처리 주기 | F003/F006/F009 |
+| 사례/초안/승인/반영 확인·재실행 | CaseDetail/Generation/Publication·같은 버전/attempt | F009/F011 |
+| SSE·재접속·REST 복구 | 12.4 이벤트와 현재 권한 검사 | F002 및 업무별 spec |
+
+보완 메시지의 대상이 불명확하면 pendingTargetMessageIds에 저장하고 기존 문제 선택 UI를 제공한다. problem-links는 저장된 원문을 바꾸지 않고 같은 문의의 기존 문제와 연결한다. 최신 문의 버전 검사 후 입력 버전을1 올리고 배정된 티켓에는 보완만 연결한다. 질문 횟수 증가·자동 새 티켓·자동 재배정은 없다. 이미 연결된 메시지의 임의 재연결은409 INVALID_STATE다.
+
+프론트가 받는 오류/상태·조작은 이 표와 각 spec, 서비스 간 실행/색인/검색 권한은 에이전트 계약과 JSON Schema를 정본으로 한다. 동일 규칙을 spec마다 복사하지 않는다.

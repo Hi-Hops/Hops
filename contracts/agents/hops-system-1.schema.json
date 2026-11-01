@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "HOPS hops-system-1 Spring-AI wire review draft",
-  "description": "PRD 1.44 검토용 스키마. 현재 런타임·팀 승인·실제 서비스 구현을 뜻하지 않음. 의미·출처·권한 검증은 STATE_CONTRACT.md를 함께 적용한다.",
+  "description": "PRD 1.44 PR #68 제출 결정안. 실행·반영·검색 권한 wire의 필드/조건을 정의한다. 팀 승인·runtime 구현·실제 검증은 별도다.",
   "oneOf": [
     {
       "$ref": "#/definitions/AiRunRequest"
@@ -17,6 +17,21 @@
     },
     {
       "$ref": "#/definitions/AiEvent"
+    },
+    {
+      "$ref": "#/definitions/KnowledgeAuthorizationRequest"
+    },
+    {
+      "$ref": "#/definitions/KnowledgeAuthorizationResponse"
+    },
+    {
+      "$ref": "#/definitions/IndexApplyRequest"
+    },
+    {
+      "$ref": "#/definitions/IndexApplySnapshot"
+    },
+    {
+      "$ref": "#/definitions/AiError"
     }
   ],
   "definitions": {
@@ -33,7 +48,14 @@
             "DEADLINE_EXCEEDED",
             "BUDGET_EXCEEDED",
             "AUTH_CONTEXT_INVALID",
-            "SUPERSEDED"
+            "SUPERSEDED",
+            "INDEX_UNAVAILABLE",
+            "UPSTREAM_PROTOCOL_ERROR",
+            "NOT_FOUND",
+            "CONFLICT",
+            "INVALID_REQUEST",
+            "RATE_LIMITED",
+            "SERVICE_UNAVAILABLE"
           ]
         },
         "message": {
@@ -181,9 +203,7 @@
           "maximum": 2147483647
         },
         "maxRetries": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 2147483647
+          "const": 0
         },
         "maxCostUsd": {
           "type": "number",
@@ -971,9 +991,7 @@
           "$ref": "#/definitions/ExecutionLimits"
         },
         "modelProfileId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
+          "const": "hops-mvp-20261101"
         }
       },
       "required": [
@@ -1039,6 +1057,70 @@
                 "properties": {
                   "purpose": {
                     "const": "CASE_DRAFT"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "INQUIRY_ANALYSIS"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "limits": {
+                "properties": {
+                  "maxModelCalls": {
+                    "maximum": 8
+                  },
+                  "maxInputTokens": {
+                    "maximum": 20000
+                  },
+                  "maxOutputTokens": {
+                    "maximum": 4000
+                  },
+                  "maxToolCalls": {
+                    "maximum": 8
+                  },
+                  "maxCostUsd": {
+                    "maximum": 0.02
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "CASE_DRAFT"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "limits": {
+                "properties": {
+                  "maxModelCalls": {
+                    "maximum": 3
+                  },
+                  "maxInputTokens": {
+                    "maximum": 12000
+                  },
+                  "maxOutputTokens": {
+                    "maximum": 2500
+                  },
+                  "maxToolCalls": {
+                    "maximum": 4
+                  },
+                  "maxCostUsd": {
+                    "maximum": 0.01
                   }
                 }
               }
@@ -2073,6 +2155,444 @@
             "payload"
           ],
           "additionalProperties": false
+        }
+      ]
+    },
+    "KnowledgeCandidate": {
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "GUIDE",
+            "POLICY",
+            "RUNBOOK",
+            "CASE"
+          ]
+        }
+      },
+      "required": [
+        "documentId",
+        "documentVersion",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "AuthorizedKnowledgeRef": {
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "documentVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "GUIDE",
+            "POLICY",
+            "RUNBOOK",
+            "CASE"
+          ]
+        },
+        "accessScope": {
+          "type": "string",
+          "enum": [
+            "EMPLOYEE",
+            "SYSTEM_STAFF"
+          ]
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "documentId",
+        "documentVersion",
+        "kind",
+        "accessScope",
+        "contentDigest"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeAuthorizationRequest": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "policyRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/definitions/KnowledgeCandidate"
+          }
+        }
+      },
+      "required": [
+        "contractVersion",
+        "requestId",
+        "runId",
+        "policyRevision",
+        "candidates"
+      ],
+      "additionalProperties": false
+    },
+    "KnowledgeAuthorizationResponse": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "policyRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "allowedRefs": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/definitions/AuthorizedKnowledgeRef"
+          }
+        }
+      },
+      "required": [
+        "contractVersion",
+        "requestId",
+        "runId",
+        "policyRevision",
+        "allowedRefs"
+      ],
+      "additionalProperties": false
+    },
+    "ApprovedCaseBody": {
+      "type": "object",
+      "properties": {
+        "workRecordId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "resolutionRequestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "approvedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "verification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "applicability": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "appliesToSystemVersion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accessScope": {
+          "type": "string",
+          "enum": [
+            "EMPLOYEE",
+            "SYSTEM_STAFF"
+          ]
+        },
+        "origin": {
+          "type": "string",
+          "enum": [
+            "SYNTHETIC",
+            "DEMO_VERIFIED",
+            "OPERATIONAL"
+          ]
+        },
+        "confirmationOrigin": {
+          "type": "string",
+          "enum": [
+            "SYNTHETIC_PRESET",
+            "HOPS_USER"
+          ]
+        },
+        "sourceMessageIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "entityLinks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/EntityLink"
+          }
+        },
+        "systemId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": [
+        "workRecordId",
+        "resolutionRequestId",
+        "approvedBy",
+        "approvedAt",
+        "title",
+        "action",
+        "verification",
+        "applicability",
+        "limitations",
+        "appliesToSystemVersion",
+        "accessScope",
+        "origin",
+        "confirmationOrigin",
+        "sourceMessageIds",
+        "entityLinks",
+        "systemId"
+      ],
+      "additionalProperties": false
+    },
+    "IndexApplyRequest": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "caseId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "caseVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "store": {
+          "type": "string",
+          "enum": [
+            "VECTOR",
+            "NEO4J"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "approvedCase": {
+          "$ref": "#/definitions/ApprovedCaseBody"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "jobId",
+        "caseId",
+        "caseVersion",
+        "store",
+        "attempt",
+        "contentDigest",
+        "approvedCase"
+      ],
+      "additionalProperties": false
+    },
+    "IndexApplySnapshot": {
+      "type": "object",
+      "properties": {
+        "contractVersion": {
+          "const": "hops-system-1"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "caseId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "caseVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "store": {
+          "type": "string",
+          "enum": [
+            "VECTOR",
+            "NEO4J"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "RUNNING",
+            "SUCCEEDED",
+            "FAILED",
+            "UNKNOWN"
+          ]
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AiError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      },
+      "required": [
+        "contractVersion",
+        "jobId",
+        "caseId",
+        "caseVersion",
+        "store",
+        "attempt",
+        "state",
+        "contentDigest",
+        "error",
+        "updatedAt"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "SUCCEEDED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "FAILED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "error": {
+                "$ref": "#/definitions/AiError"
+              }
+            }
+          }
         }
       ]
     }
