@@ -9,6 +9,7 @@
 1. [AGENTS.md](AGENTS.md): 팀과 AI의 공통 작업 규칙.
 2. [PRD](docs/PRD.md): 제품 목적·사용자·기능·범위·성공 기준.
 3. [Git 컨벤션](GIT_CONVENTION.md): 브랜치·커밋·PR·리뷰 방법.
+4. [보안 개발 명세](docs/SECURITY.md): AI와 서비스 개발의 신뢰 경계·OWASP 대응·검증 기준.
 
 Claude Code의 진입점은 [CLAUDE.md](CLAUDE.md)이며 AGENTS.md를 먼저 읽도록 안내합니다.
 
