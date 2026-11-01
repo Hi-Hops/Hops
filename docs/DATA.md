@@ -75,3 +75,37 @@ PostgreSQL 격리는 READ COMMITTED, 잠금 순서는 Inquiry → problemId 정�
 #66의 시스템 PRIMARY 컬럼·문제 행 생성 상태 방식을 채택했다. wire DTO·State가 1:1 테이블을 요구하지 않는다. #66에서 작성할 DDL과 Entity는 위의 키·유일성·원 기록·권한 세대·반영 버전 조건을 구현한다. 기술 outbox/ledger·확인 이력을 기존 표에 합치더라도 동일 제약을 보장해야 한다. 이 결정과 다른 물리안을 적용하려면 공통 계약부터 변경 PR로 갱신한다.
 
 현재 V1·논리 ERD 문서·실제 Entity를 이 문서 변경으로 수정하지 않는다. migration 생성·FK/UK/CHECK·실제 경합/권한/공개 gate 검사는 백엔드 구현 완료 조건이며 계약 결정을 남겨 둔 항목이 아니다.
+
+## 11. 완성 ERD 대조와 문서 PR 병합 기준
+
+대조 상태: **완성 물리 ERD의 파일·기준 revision·검토 PR이 아직 연결되지 않아 대조 전**이다. 9/10절은 공통 계약의 채택 저장 방식이며 완성 ERD를 이미 확인했다는 뜻이 아니다. 기존 논리 ERD 설명과 #66의 작업 범위만으로 실제 FK·컬럼·제약의 일치를 완료 표시하지 않는다. 대조 대상은 검토할 ERD 파일과 고정 revision으로 식별하고, GitHub에 게시되면 해당 PR/commit을 기준으로 연결한다.
+
+### 11.1 대조 항목과 구체화할 spec
+
+각 행은 이미 채택한 업무 규칙을 실제 저장 위치에 대응시키는 작업이다. 완성 ERD에서 보이는 테이블/컬럼·PK/FK·관계·null·유일성·저장 enum을 기록한다. 그림에 없는 제약은 ERD 설명 또는 스키마 정의에 명시해 검토하며 존재한다고 추정하지 않는다.
+
+| ID·범위 | ERD에서 확인·기록할 내용 | 더 구체화할 계약·spec |
+|---|---|---|
+| E01 시스템·현재 담당·배정 이력 | 시스템/기능 키, 현재 PRIMARY FK·필수성, 담당 변경 이력/권한 세대 저장 위치. ticket의 당시 배정과 현재 PRIMARY의 구분 | DATA9절 매핑, DATA_TYPES의 SupportedSystem/PrimaryAssignment/TicketDetail. F001/F007/F009의 현재 권한·수동 정정 |
+| E02 문의·문제·생성 작업·티켓 | 문의→문제 FK, problemId=workItemId 대응, 티켓의 문제 FK 유일성, 생성 outcome·오류 저장 위치, 문제별 질문 수≤5의 저장/제약 | TicketCreationResult·Problem·InquiryResult, F003/F005/F008/F010의 일부 성공·중복 생성 방지·동일 작업 복구 |
+| E03 원문·정정·문제 연결 | 메시지/revision 복합 참조, 원문 이력·현재 포인터, 같은 메시지와 여러 문제의 관계, 관련 원문 구간·보완 대상 대기 저장 | ChatMessage/RelatedMessage·MessageProblemLinkCommand, F003/F004/F009의 원문 보존·버전 충돌·허용 구간 조회 |
+| E04 표준 요청 | 불변 스냅샷의 문제·문의 입력 버전·runId FK/참조, 현재 스냅샷 선택 방식, 사실/추정/미확인·출처의 JSON 또는 관계 저장 위치 | StandardRequest·AiRunRequest/TicketProposal의 저장·투영 매핑, F003/F008/F009 |
+| E05 상태·버전 | 문의/문제/티켓 저장 enum과 wire enum의 대응, inquiryVersion/ticketRevision/resultRevision 저장 위치·초기값·증가 조건 | DATA_TYPES·TARGET의 상태/버전, WIRE의 409·최신 조회, F002/F004/F005/F007/F009 |
+| E06 처리·문의자 확인 | 불변 WorkRecord 키/종류, 확인 요청의 원 기록 또는 가이드 revision 참조, 문제별 PENDING 한 개·응답 한 번의 제약, 미해결 후 다음 처리 주기 이력 | WorkRecord/ResolutionRequest/Response, F006/F009와 F011 승인 전제 |
+| E07 CASE 초안·버전·승인 | 원 ticket/problem/workRecord/resolutionRequest 연결, caseId와 버전 행 PK의 구분, 같은 논리 CASE의 버전 유일성, 승인자·승인 버전·공개 범위·출처 | CaseVersion/CaseApproval·CASE_DRAFT 원 기록·ApprovedCaseBody의 투영, F009/F011의 불변 버전·재승인 |
+| E08 저장소별 반영·공개 | (caseId,caseVersion,store)의 논리 작업, jobId/attempt/digest·각 결과 이력·최신 시도, 동일 승인 버전 두 성공과 publication의 연결 | IndexResult/Publication·IndexApplyRequest/Snapshot, F011의 부분 실패·확인·수동 재실행·공개 gate |
+| E09 Spring 실행·AI 입력/결과 | agent_run의 runId/kind·입력/정책 버전·현재 실행·최종 digest·적용 여부, role step 참조. Spring 업무 실행 기록과 별도 AI RunLedger의 구분 | RunSummary·AiRunRequest/Result/Snapshot·State 저장 경계, F002/F003/F004/F010/F011의 늦은 결과·재시작 처리 |
+| E10 명령 journal·outbox | requestId/actor/profile·본문 digest·operationId와 업무 참조, 키/이벤트 중복 제약, 상세24시간 이후 사용 키 보존 위치 | CommandReceipt·WIRE의 재확인/410·내부 outbox 전달, F002/F005/F010/F011의 응답 유실·중복 적용 방지 |
+
+물리 컬럼명이 wire 필드명과 다르면 Spring의 DTO 투영/변환으로 대응한다. DB의 UUID 생성 방식이나 CASE 버전 행 PK가 달라도 외부 논리 ID의 안정성과 관계를 유지한다. 관계 테이블/JSON 저장 방식의 차이만으로 API 경로·화면·AI 내부 State를 변경하지 않는다.
+
+DB enum/길이/null 제약이 외부 의미에 영향을 주면 해당 필드의 DB 값↔wire 값, 생성 전/후 null 조건, 버전 증가와 충돌 응답을 명시한다. 원문 1~4,000 코드 포인트를 조용히 절단하거나 새 DB 상태를 기존 성공으로 치환하지 않는다. 공통 계약의 의미를 바꿔야 하는 경우 DATA_TYPES·TARGET·WIRE·영향받는 spec을 같은 PR에서 수정하고, AI wire까지 영향이 있으면 Schema·공용 예시·에이전트 문서도 함께 갱신한다. PRD 정책 변경은 별도 기획 리뷰가 필요하다.
+
+### 11.2 반영 순서와 병합 완료 조건
+
+1. ERD 기준 파일/revision·검토 PR을 이 절에 연결하고 E01~E10 각각의 실제 저장 위치와 제약 근거를 기록한다. 자료가 별도 ERD PR에 있다면 변경 가능한 브랜치 링크만 쓰지 않고 확인한 commit을 함께 남긴다. 문서 PR은 그 ERD가 develop에 먼저 병합되거나 두 문서의 기준 revision을 일치시킨 뒤 병합한다.
+2. DATA9/10절의 매핑을 대조 결과로 갱신하고 차이가 있는 외부 필드/상태만 DATA_TYPES·TARGET·WIRE에 반영한다. 백엔드가 작성 중인 ERD/Entity 산출물의 정본은 해당 작업에서 유지한다.
+3. 영향받는 기능 spec에 저장 제약에 대응하는 관찰 조건을 보완한다. 물리 제약명만 추가하는 경우 기존 CONTRACT 시나리오의 근거를 연결하며 같은 동작의 시나리오를 중복 생성하지 않는다. AI 입력/결과 필드가 바뀌면 Schema·공용 예시도 함께 검사한다.
+4. 문서 링크/앵커·타입/상태·예시·spec 연결·기존 프로필 보존·diff 검사를 통과하고, 백엔드 담당자가 저장 매핑과 보장 방식을 리뷰한다. 마지막 변경 기준 작성자 외 팀원 최소1명 승인, 리뷰 이슈 해결, 필수 CI 또는 해당 문서의 로컬 검증, 충돌 없음까지 확인한다.
+
+위 문서 병합 조건에 실제 Entity/Flyway·API 구현·DB 경합·OpenAI/검색·브라우저 E2E의 완료를 포함하지 않는다. 해당 구현은 별도 PR에서 검증한다. ERD는 관계/저장 제약의 설계 근거이며 트랜잭션·실시간 중계·권한 회수·중복 방지가 실행됐다는 증거가 아니다. API 경로·모델/예산·프론트 공통 UI는 이 대조만으로 다시 선택하는 항목이 아니다.

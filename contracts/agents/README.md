@@ -263,6 +263,7 @@ questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 �
 ### S5. 저장·재시작·적용 경계
 
 - Spring은 AiRun 입력·상태·최종 결과 digest와 실제 업무 결과를 보존한다. AI의 내부 State는 한 run용이며 업무 DB 정본을 대체하지 않는다.
+- 완성 Spring ERD와의 run/kind·입력/정책 버전·원 기록·결과 적용 매핑은 [DATA11절 E04/E07~E10](../../docs/DATA.md#11-완성-erd-대조와-문서-pr-병합-기준)에서 확인한다. Entity의 컬럼을 AI State에 그대로 복제하지 않으며 wire 필드 의미가 바뀌면 이 문서·Schema·예시·영향 spec을 함께 갱신한다.
 - AI 실행 접수 기록(runId·입력 digest·상태·최종 결과/seq)은 RunLedger로 중복을 차단해야 한다. 저장은 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB로 채택한다. AI 계정에 업무 DB 권한을 주지 않는다. runId PK·입력 digest·원자적 접수/비용 예약·결과/순번·24시간 상세와 ID 표식을 보존한다. 재시작 뒤 같은 ID로 새 모델 호출을 시작하지 않는다.
 - MVP는 중간 그래프 checkpoint에서 자동 재개하지 않는다. 접수됐지만 실행 상태를 복원할 수 없으면 snapshot UNKNOWN으로 반환한다. Spring은 이를 공개 RunSummary.status=FAILED·error.code=AI_RUN_STATE_UNKNOWN으로 변환해 새 runId 재분석을 제공한다. 기존 workItem·성공 티켓은 유지하고 이전 run의 늦은 결과는 적용하지 않는다.
 - 최종 결과 적용은 Spring의 최신 inquiryVersion·activeRunId·policyRevision·원 출처 검증 후 수행한다. 동일 runId·최종 digest는 한 번만 적용하고 같은 ID·다른 결과는 거부한다.
