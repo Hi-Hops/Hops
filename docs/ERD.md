@@ -1,6 +1,6 @@
 # ERD (물리 테이블·컬럼)
 
-상태: PRD 1.44 MVP 공통 계약 정합안 · 병합 원본(#69)의 22개 테이블을 사용하고 추가 테이블은 만들지 않는다. 기존 컬럼·DTO 대응은 6절에서 보완하며 팀 리뷰·실제 DB 적용 전이다. 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
+상태: PRD 1.44 MVP 공통 계약 정합안 · 병합 원본(#69)의 22개 테이블을 사용하고 추가 테이블은 만들지 않는다. 기존 컬럼·DTO 대응은 6절에서 보완하며 실제 DB 적용은 별도다. 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
 
 이 문서는 테이블·컬럼·타입·FK를 적은 **물리 설계**다. ERD Cloud import와 Flyway 마이그레이션 작성의 기준으로 쓴다. 엔터티의 의미·관계·저장 불변식(**논리 모델**)은 [ERD 설명](ERD_설명.md)과 [DATA](DATA.md)를 따른다. 두 문서가 다르면 논리 모델을 먼저 맞추고 이 문서를 고친다.
 
@@ -535,7 +535,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 
 - 실제 DB에 적용된 테이블은 V1의 `department`·`member`·`member_role`뿐이다. 나머지 19개 테이블과 `is_routable`·`AGENT_OPS_ADMIN` 제거는 새 Flyway 마이그레이션(V2 이후)과 코드·계약 전환 이슈에서 적용한다.
 - JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다. 실제 CHECK/인덱스/migration 적용은 백엔드 구현 PR의 검증 대상이다.
-- 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다. 본 문서6절은 이번 PR의 추가 설계이며 #69에서 이미 승인·적용한 구조로 간주하지 않는다.
+- 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다. 본 문서 6절은 #69 원본 이후의 보완 설계이며 실제 DB 적용은 별도다.
 
 
 ## 6. hops-system-1 공통 계약 보완
