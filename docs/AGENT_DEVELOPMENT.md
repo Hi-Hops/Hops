@@ -27,7 +27,7 @@ Curator 실패가 업무 저장을 취소하지 않는다. 승인과 양쪽 반�
 ## 4. 작업 책임과 미결정
 
 - AI: [에이전트 계약](../contracts/agents/README.md)의 목표 경계와 실제 코드 간 차이를 정리한다.
-- Knowledge·데이터: [지식 수명주기](knowledge/KNOWLEDGE_LIFECYCLE.md), 가상 시스템, 스키마·시나리오의 출처와 리뷰를 관리한다.
+- Knowledge·데이터: [데이터 구축 계획](knowledge/DATASETS.md)을 기준으로 가상 시스템, 상담 대화·지식·평가 데이터의 출처와 리뷰를 관리한다.
 - Spring: [데이터](DATA.md)·[API](API.md)의 승인되지 않은 물리 계약을 구체화하고 저장·권한·부분 실패를 검증한다.
 - Frontend: [기능 명세](../specs/README.md)와 실제 화면을 구분하고 처리·확인·사례 승인 흐름을 연결한다.
 - 공통: API·상태·그래프 스키마·예산·담당·평가 데이터 분할을 정하고 실제 통합/E2E와 Mock 검사를 별도로 보고한다.

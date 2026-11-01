@@ -20,7 +20,7 @@
 | 문의·문제·표준 요청 | 사실·추정·미확인, 질문 횟수·보고/책임 시스템, 문의 버전과 원문 출처 | [목표 공통 계약](contracts/TARGET_CONTRACT.md), [F003](F003-chat/spec.md), [F008](F008-split-consent/spec.md) · AI/Spring |
 | 생성·부분 복구 | 업무 작업의 식별·티켓 유일성, 저장 결과 확인·실패/미확인, 재시도와 버전 충돌 | [F005](F005-result-cards/spec.md), [F010](F010-creation-failures/spec.md), [DATA](../docs/DATA.md) · Spring/AI/Frontend |
 | 처리·사용자 확인 | 처리·구현 검증 기록과 문의자의 대상별 해결/미해결, 무응답 대기 | [F006](F006-my-inquiries/spec.md), [F009](F009-department-tickets/spec.md) · Spring/Frontend |
-| 사례 승인·공개 | 원 기록·사례/적용 버전, 확인·승인, 양쪽 반영·실패 복구·권한별 공개 | [F011](F011-case-lifecycle/spec.md), [지식 수명주기](../docs/knowledge/KNOWLEDGE_LIFECYCLE.md) · AI/데이터/Spring/Frontend |
-| 공통 실행·평가 | 모델·예산·인증·실행/오류·근거와 가상 데이터·검색 평가 | [에이전트 계약](../contracts/agents/README.md), [시나리오](../docs/knowledge/INCIDENT_SCENARIOS.md) · AI/데이터 |
+| 사례 승인·공개 | 원 기록·사례/적용 버전, 확인·승인, 양쪽 반영·실패 복구·권한별 공개 | [F011](F011-case-lifecycle/spec.md), [데이터 구축 계획](../docs/knowledge/DATASETS.md#저장검색과-사례-공개) · AI/데이터/Spring/Frontend |
+| 공통 실행·평가 | 모델·예산·인증·실행/오류·근거와 가상 데이터·검색 평가 | [에이전트 계약](../contracts/agents/README.md), [데이터 검수·평가](../docs/knowledge/DATASETS.md#검수와-평가) · AI/데이터 |
 
 구현 순서와 담당은 팀 작업 상황에 맞게 정한다. 목록에 적힌 초안은 새 경로·DB 스키마가 배포됐다는 뜻이 아니다. 기존 코드·Mock을 전환할 때는 소비자와 테스트에 미치는 영향 및 각 서비스의 실제 상태를 함께 확인한다.
