@@ -1,6 +1,6 @@
 # 공통 데이터·전송 계약
 
-기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 PR #68 제출 결정안·계약값 작성 완료이며 승인·구현·통합 완료와 구분한다. 현재 코드의 `hops-mock-1`과 Python `agent-1`을 보존하고 프로필을 섞지 않는다.
+기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 PR #68 제출 결정안·계약값 작성 완료이며 승인·구현·통합 완료와 구분한다. 현재 프론트의 hops-mock-1과 새 Python 골격·신규 목표 계약을 구분한다. 옛 Python agent-1 실행 API는 제거됐으며 프로필을 혼용하지 않는다.
 
 ## 정본과 읽는 순서
 
@@ -25,7 +25,7 @@
 |---|---|---|
 | hops-system-1 | PRD 1.44 전체 MVP의 /api/v2·신규 AI wire 계약안 | 이 문서 변경은 코드·DB·새 경로를 구현하지 않음 |
 | hops-mock-1 | DATA_TYPES 전환 전 절·WIRE 1~11절·기존 mock-profile.json과 공용 Mock | 현재 프론트/테스트가 읽는 이전 부서 기반 데이터 |
-| agent-1 | 현재 Python 내부 타입·Fake | Inquiry/Knowledge/Curator 신규 역할이 구현됐다는 의미가 아님 |
+| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 업무 실행·모델·검색·새 wire 어댑터는 미구현. 옛 agent-1 실행 API는 제거됨 |
 
 새 프로필은 시스템·주담당자, 5회 질문·대기, 무티켓 안내·문제별 해결 확인, 처리 기록, 사례 승인·동일 버전 두 저장소 반영을 모두 포함한다. 선점·수락·자동 재배정·무응답 종료·전용 복구 화면은 신규 필수 기능으로 추가하지 않는다.
 

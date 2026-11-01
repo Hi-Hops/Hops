@@ -7,7 +7,7 @@
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 
-from hops_ai.contracts.agent_1 import AgentRole
+from hops_ai.contracts.domain import AgentRole
 from hops_ai.harness.errors import PolicyDenied
 
 
@@ -20,7 +20,7 @@ class ToolPolicy:
         return cls({role: frozenset(tools) for role, tools in allowed.items()})
 
     def allowed_tools(self, role: AgentRole) -> list[str]:
-        """agent-1 context.allowedTools에 담을 목록."""
+        """실행기가 사용할 역할별 허용 도구 목록."""
         return sorted(self.allowed_by_role.get(role, frozenset()))
 
     def authorize(self, role: AgentRole, tool_name: str) -> None:

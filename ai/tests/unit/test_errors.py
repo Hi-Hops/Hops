@@ -1,6 +1,6 @@
 import pytest
 
-from hops_ai.contracts.agent_1 import AgentError
+from hops_ai.contracts.runtime import AgentError
 from hops_ai.harness.errors import (
     BudgetExceeded,
     CallTimeoutError,
@@ -75,7 +75,7 @@ def test_unknown_exception_becomes_internal_error_without_leaking_details() -> N
 
 
 def test_detail_is_for_logs_and_is_not_put_into_the_contract_error() -> None:
-    error = PolicyDenied("INTAKE 역할은 read_logs 도구를 쓸 수 없다")
+    error = PolicyDenied("INQUIRY 역할은 read_logs 도구를 쓸 수 없다")
 
     failure = describe_failure(error)
 

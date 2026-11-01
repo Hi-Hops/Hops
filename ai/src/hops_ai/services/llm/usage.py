@@ -5,7 +5,7 @@
 
 from dataclasses import dataclass, field
 
-from hops_ai.contracts.agent_1 import AgentMeta
+from hops_ai.contracts.runtime import AgentMeta
 from hops_ai.services.llm.client import LLMUsage
 
 
@@ -35,7 +35,7 @@ class UsageRecorder:
         )
 
     def to_meta(self, duration_ms: int) -> AgentMeta:
-        """agent-1 결과의 meta. 모델을 쓰지 않았으면 modelId·promptVersion은 null이다."""
+        """하네스 내부 사용량 메타데이터. 모델을 쓰지 않았으면 modelId·promptVersion은 null이다."""
         summary = self.summary()
         return AgentMeta(
             durationMs=duration_ms,

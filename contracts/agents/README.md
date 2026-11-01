@@ -1,6 +1,8 @@
 # 에이전트 공통 입출력 계약 — PRD 1.44
 
-상태: PR #68 제출 결정안 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. 팀 승인·실제 구현·통합 검증은 별도다. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 기존 코드·Fake의 `agent-1` 계약은 [현재 Python 타입](../../ai/src/hops_ai/contracts/agent_1.py)과 [AI 서버 안내](../../ai/README.md)에서 확인한다.
+상태: PR #68 제출 결정안 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. 팀 승인·실제 구현·통합 검증은 별도다. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 새 역할·서비스의 미구현 골격이다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)를 확인하며 옛 agent-1 실행 모델은 활성 코드에서 제거됐다.
+
+AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURITY.md)의 해당 SEC 요구사항을 적용한다. Markdown 형식 일치만으로 현재 권한·안전한 표시·저장 성공을 확정하지 않는다.
 
 ## 역할과 최소 입출력
 
@@ -115,7 +117,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 ## hops-system-1 실행 계약안
 
-상태: 2026-11-01 PR #68 제출 결정안. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 기존 agent-1 Python 모델·Fake endpoint는 그대로 보존한다. 현재 구현·팀 승인과 구분한다.
+상태: 2026-11-01 PR #68 제출 결정안. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 이 계약은 현재 Python 골격에 아직 연결되지 않았고 옛 agent-1 실행 endpoint는 제공하지 않는다. 현재 구현·팀 승인과 구분한다.
 
 실제 필드 타입·nullable·조건부 필수성과 wire 형식은 [외부 전송 형식](#s2-외부-wire-형식), 내부 State의 작성/병합/수명과 적용 조건은 [내부 State 계약](#내부-state와-wire-검증-계약)을 정본으로 한다. [호출과 진행 예시](#호출과-진행-예시)는 Markdown 안의 코드로 제공한다. 아래 표는 역할·호출 경계 요약이며 Entity·외부 DTO·내부 State를 하나의 객체로 공유하지 않는다.
 
