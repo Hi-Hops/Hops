@@ -490,13 +490,13 @@ PostgreSQL에 pgvector를 쓰는 경우의 구조다. Vector 저장소·임베�
 |  | 시스템 기능 ID | `system_feature_id` | UUID |  |  | 시스템 기능 | 어느 기능의 사례인지 (특정 기능이 아니면 NULL) |
 |  | 사례 종류 | `case_type` | VARCHAR(30) | ● |  |  | 해결 사례와 기능 구현 사례를 구분하려고. 승인 전제 조건이 다름 (RESOLUTION / IMPLEMENTATION) |
 |  | 제목 | `title` | VARCHAR(200) | ● |  |  | 검색 결과·담당자 참고자료에 보여줄 제목 |
-|  | 증상·변경 목적 | `problem_statement` | TEXT | ● |  |  | 해결 사례는 증상, 기능 구현 사례는 변경 목적. 다음 문의와 비교하는 기준 |
-|  | 발생 상황·전제조건 | `preconditions` | TEXT |  |  |  | 어떤 상황에서 생긴 일인지. 비슷해 보여도 조건이 다른 문의에 잘못 쓰지 않으려고 |
-|  | 확인한 사실·근거 | `confirmed_facts` | JSONB | ● | '[]' |  | 사례를 뒷받침하는 확인 사실과 출처 |
+|  | 증상 | `problem_statement` | TEXT | ● |  |  | 해결 사례는 증상, 기능 구현 사례는 변경 목적. 다음 문의와 비교하는 기준 |
+|  | 발생 상황 | `preconditions` | TEXT |  |  |  | 어떤 상황에서 생긴 일인지. 비슷해 보여도 조건이 다른 문의에 잘못 쓰지 않으려고 |
+|  | 확인한 사실 | `confirmed_facts` | JSONB | ● | '[]' |  | 사례를 뒷받침하는 확인 사실과 출처 |
 |  | 확인된 원인 | `confirmed_cause` | TEXT |  |  |  | 담당자가 확인한 원인 (확인하지 못했으면 NULL) |
-|  | 실제 조치·변경 | `action_detail` | TEXT | ● |  |  | 실제로 한 조치·변경 |
+|  | 실제 조치 | `action_detail` | TEXT | ● |  |  | 실제로 한 조치·변경 |
 |  | 검증 결과 | `verification_result` | TEXT | ● |  |  | 해결·구현을 확인한 결과. 검증되지 않은 조치를 사례로 만들지 않으려고 |
-|  | 적용 조건·한계 | `applicability` | TEXT |  |  |  | 이 사례를 쓸 수 있는 조건과 쓸 수 없는 경우. 승인 때 반드시 확인 |
+|  | 적용 조건 | `applicability` | TEXT |  |  |  | 이 사례를 쓸 수 있는 조건과 쓸 수 없는 경우. 승인 때 반드시 확인 |
 |  | 적용 버전 | `applied_version` | VARCHAR(100) |  |  |  | 기능 구현 사례가 반영된 시스템 버전 |
 |  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 직원에게 보여줄 수 있는 사례와 담당자만 볼 사례를 나누려고 (EMPLOYEE / STAFF) |
 |  | 출처 구분 | `origin_type` | VARCHAR(30) | ● |  |  | 합성·데모 검증·실제 운영 사례를 구분하려고. 사람이 승인한 합성 사례를 운영 사례로 표시하지 않음 (SYNTHETIC / DEMO_VERIFIED / PRODUCTION) |
