@@ -1,5 +1,7 @@
 # IT 용어집 v0
 
+> **PRD 1.44 전환 전 자료:** 이 문서는 기존 v0 카탈로그의 자동 생성본이다. 후보 시스템·담당 경계 등은 새 기획에 맞게 재검토해야 하며 과거 검수만으로 새 공통 데이터로 승인된 것은 아니다. [자료 전환 검토](../DATA_MIGRATION_REVIEW.md)
+
 JSON 정본은 `datasets/knowledge/v0/catalogs/it_glossary.json`이다. 이 문서는 팀 검토용 자동 생성본이므로 직접 수정하지 않는다.
 
 - 전체 50건

@@ -36,6 +36,23 @@ CHUNK_DIR = ROOT / "chunks"
 MANIFEST_DIR = ROOT / "manifests"
 SCHEMA_DIR = ROOT / "schemas"
 
+# v0 Markdown은 기존 JSON을 그대로 표시하므로, 문서만 따로 열어도
+# 새 기획에 맞춘 정책으로 오인하지 않도록 전환 상태를 함께 렌더링한다.
+V0_TRANSITION_NOTICE = (
+    "> **PRD 1.44 전환 전 자료:** 이 문서는 기존 v0 데이터의 자동 생성본이다. "
+    "파일명의 `.v1`은 해당 문서의 버전이며 새 기획용 데이터셋 v1을 뜻하지 않는다. "
+    "부서 배정·질문 한도·해결 정책 등은 현재 기획과 다를 수 있으므로 "
+    "새 기획의 검색 정본으로 사용하지 않는다. "
+    "[새 정책](../policies/POLICY-PRD-1.44.md) · "
+    "[자료 전환 검토](../DATA_MIGRATION_REVIEW.md)\n\n"
+)
+V0_REFERENCE_NOTICE = (
+    "> **PRD 1.44 전환 전 자료:** 이 문서는 기존 v0 카탈로그의 자동 생성본이다. "
+    "후보 시스템·담당 경계 등은 새 기획에 맞게 재검토해야 하며 "
+    "과거 검수만으로 새 공통 데이터로 승인된 것은 아니다. "
+    "[자료 전환 검토](../DATA_MIGRATION_REVIEW.md)\n\n"
+)
+
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -423,6 +440,7 @@ def render_guide_markdown(path: Path, guide: dict[str, Any]) -> None:
         f"team_review_status: {guide['review']['team_review_status']}\n"
         f"source_content_sha256: {source_hash}\n"
         "---\n\n"
+        f"{V0_TRANSITION_NOTICE}"
         f"# {guide['title']}\n\n"
         f"## 적용 상황\n\n{bullet(guide['applies_when'])}\n\n"
         f"## 사용자 표현\n\n{bullet(guide['user_phrases'])}\n\n"
@@ -515,6 +533,7 @@ def render_policy_markdown(path: Path, policy: dict[str, Any]) -> None:
         f"team_review_status: {policy['review']['team_review_status']}\n"
         f"source_content_sha256: {source_hash}\n"
         "---\n\n"
+        f"{V0_TRANSITION_NOTICE}"
         f"# {policy['title']}\n\n"
         f"## 목적\n\n{policy['purpose']}\n\n"
         f"## 규칙\n\n{policy_rules_markdown(policy['rules'])}\n\n"
@@ -576,6 +595,7 @@ def render_glossary_catalog(catalog: dict[str, Any]) -> None:
         rows.append("| " + " | ".join(markdown_cell(value) for value in values) + " |")
     markdown = (
         "# IT 용어집 v0\n\n"
+        f"{V0_REFERENCE_NOTICE}"
         "JSON 정본은 `datasets/knowledge/v0/catalogs/it_glossary.json`이다. 이 문서는 "
         "팀 검토용 자동 생성본이므로 직접 수정하지 않는다.\n\n"
         f"- 전체 {len(catalog['terms'])}건\n"
@@ -605,6 +625,7 @@ def render_signal_catalog(catalog: dict[str, Any]) -> None:
         rows.append("| " + " | ".join(markdown_cell(value) for value in values) + " |")
     markdown = (
         "# 오류·관측 신호 사전 v0\n\n"
+        f"{V0_REFERENCE_NOTICE}"
         "JSON 정본은 `datasets/knowledge/v0/catalogs/error_signals.json`이다. 이 문서는 "
         "팀 검토용 자동 생성본이므로 직접 수정하지 않는다.\n\n"
         "- 전체 55건: PORTAL 27건, IDENTITY·VPN·FILE_SHARE 28건\n"
@@ -670,6 +691,7 @@ def build_runbook_assets(
         f"scenario_validation_status: {runbook['scenario_validation']['status']}\n"
         f"source_content_sha256: {source_hash}\n"
         "---\n\n"
+        f"{V0_TRANSITION_NOTICE}"
     )
     markdown = frontmatter + f"# {runbook['title']}\n\n" + "\n\n---\n\n".join(
         f"## {title}\n\n{content}" for _, title, content, _, _, _, _ in sections

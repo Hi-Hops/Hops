@@ -1,5 +1,7 @@
 # Hops Knowledge 데이터셋 v0 후보
 
+> **PRD 1.44 전환:** 이 디렉터리의 JSON·schema·catalog·생성 데이터는 기존 부서·CS·독립 Diagnosis·기존 사례 정책의 v0 스냅샷이다. 새 기획과 충돌할 수 있으므로 변환·소유자 검수 및 팀 리뷰 전 검색에 적재하지 않는다. [새 목표 정책](../../../docs/knowledge/policies/POLICY-PRD-1.44.md), [새 가상 기업](../../../docs/knowledge/VIRTUAL_COMPANY.md), [수명주기](../../../docs/knowledge/KNOWLEDGE_LIFECYCLE.md)를 참조한다. 아래 기존 승인·검수 수량은 새 자료의 승인이 아니다.
+
 팀원이 Agent·검색·읽기 Tool을 구현하기 전에 함께 검토할 **다중 서비스 지식 후보**다. 첫 실제 재현 범위는 PORTAL이며, IDENTITY·REMOTE_ACCESS·FILE_SHARE는 지식 답변·이관 범위다. 전체 범위는 [`docs/knowledge/DATASETS.md`](../../../docs/knowledge/DATASETS.md)를 따른다.
 
 ## 현재 상태

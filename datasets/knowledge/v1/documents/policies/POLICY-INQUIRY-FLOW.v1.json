@@ -1,0 +1,88 @@
+{
+  "schema_version": "knowledge_policy.v0",
+  "policy_id": "POLICY-INQUIRY-FLOW",
+  "version_no": 1,
+  "title": "문의 분석·질문·복합 문의",
+  "language": "ko",
+  "status": "DRAFT",
+  "document_type": "POLICY",
+  "access": {
+    "access_scope": "STAFF",
+    "exposure_policy": "INTERNAL_ONLY",
+    "ingest_status": "PENDING"
+  },
+  "purpose": "문의 의도와 시스템을 확인하고 독립된 요구를 구분한다.",
+  "rules": [
+    {
+      "rule_id": "RULE-NEW-INQUIRY-QUESTIONS",
+      "priority": 10,
+      "trigger": "문제의 필수 정보나 보고 시스템이 불명확함",
+      "agent_action": "문제당 최대 5회 질문 묶음으로 사실을 확인한다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 문제별 질문 수와 문의 버전을 관리한다.",
+      "required_evidence": [
+        "확인된 내용",
+        "누락 정보"
+      ],
+      "user_visible_behavior": "지원 시스템 선택과 추가 질문을 안내한다.",
+      "prohibited_outcomes": [
+        "확인 사실 반복",
+        "비밀번호·인증 코드 요구",
+        "질문 상한 우회"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-INQUIRY-SYSTEM",
+      "priority": 20,
+      "trigger": "질문 한도 후에도 보고 시스템을 확인하지 못함",
+      "agent_action": "시스템 선택을 요청한다.",
+      "final_authority": "SPRING",
+      "enforcement": "서버는 확인 대기를 저장하고 임의 배정하지 않는다.",
+      "required_evidence": [
+        "시스템 미확인"
+      ],
+      "user_visible_behavior": "선택하지 않고 닫아도 확인 대기를 유지한다.",
+      "prohibited_outcomes": [
+        "CS 임의 배정",
+        "시스템 없이 배정 성공 확정"
+      ]
+    },
+    {
+      "rule_id": "RULE-NEW-INQUIRY-MULTI",
+      "priority": 30,
+      "trigger": "독립 요청과 완료 조건이 한 문의에 포함됨",
+      "agent_action": "문제별로 요구와 근거를 나눈다.",
+      "final_authority": "SPRING",
+      "enforcement": "Spring은 저장된 문제·티켓 및 중복 여부를 검증한다.",
+      "required_evidence": [
+        "독립 완료 조건"
+      ],
+      "user_visible_behavior": "문제별 결과를 구분한다.",
+      "prohibited_outcomes": [
+        "성공 티켓 취소",
+        "원인 후보만으로 독립 문제 생성"
+      ]
+    }
+  ],
+  "prohibitions": [
+    "Agent의 실제 시스템 변경·원격 제어",
+    "모델 문구만으로 저장·배정·해결 성공 확정"
+  ],
+  "related_artifacts": {
+    "guide_ids": [],
+    "runbook_ids": [],
+    "scenario_ids": []
+  },
+  "provenance": {
+    "source_policy_ids": [
+      "PRD-1.44"
+    ],
+    "created_at": "2026-10-31"
+  },
+  "review": {
+    "content_status": "AI_DRAFT",
+    "reviewer": null,
+    "reviewed_at": null,
+    "team_review_status": "PENDING"
+  }
+}

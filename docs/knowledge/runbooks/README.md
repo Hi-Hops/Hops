@@ -1,22 +1,12 @@
-# 담당자 런북 검토 목록
+# 담당자 런북 목록
 
-JSON 정본은 `datasets/knowledge/v0/documents/staff_runbooks/`, RAG 청크는
-`datasets/knowledge/v0/chunks/`에 있다. 이 폴더의 개별 Markdown은 사람이 읽기 위한
-자동 생성본이므로 직접 수정하지 않는다.
+PRD 1.44 기준 합성 초안 2건이다. 모든 문서는 내용·권한·출처 검수 전이며 검색 적재 금지다. 기계 판독 JSON·청크·manifest는 아직 생성하지 않았다. 실제 운영 기록이나 특정 제품의 확인된 동작으로 간주하지 않는다.
 
-| 서비스 | 런북 | 내용 상태 | 팀 상태 | Tool | 시나리오 |
-|---|---|---|---|---|---|
-| IDENTITY | [MFA 인증 수단 복구](RB-IDENTITY-MFA-RECOVERY.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| REMOTE_ACCESS | [VPN 오류 코드](RB-REMOTE-VPN-CODES.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| REMOTE_ACCESS | [VPN 오류 720](RB-REMOTE-VPN-720.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| FILE_SHARE | [SMB 접근 거부](RB-FILE-SMB-ACCESS.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| FILE_SHARE | [파일 서버 이벤트 1020](RB-FILE-EVENT-1020.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| FILE_SHARE | [공유 폴더 경로 오류](RB-FILE-PATH.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| PORTAL | [API 500](RB-PORTAL-API-500.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| PORTAL | [HikariCP 풀 고갈](RB-PORTAL-HIKARI-POOL.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| PORTAL | [PostgreSQL 연결 한도](RB-PORTAL-DB-CONNECTION-LIMIT.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| PORTAL | [PostgreSQL Lock·Deadlock](RB-PORTAL-DB-LOCK.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
-| PORTAL | [PostgreSQL Slow Query](RB-PORTAL-DB-SLOW-QUERY.v1.md) | 담당자 확정 | 대기 | 미연결 | 미실행 |
+## 신규 작성 후보
 
-Wi-Fi·802.1X 런북은 근거가 `hold`이므로 생성하지 않았다. 일반 영역 6건은 데이터 담당자의
-내용 확인을 반영했으며, 팀 리뷰와 RAG 적재 승인은 별도다.
+- [결재 문서 조회 문의 검토](v1/RUNBOOK-DRAFT-결재-문서-조회.md)
+- [로그인 반복 현상 검토](v1/RUNBOOK-DRAFT-로그인-반복.md)
+
+## 기존 v0 자료
+
+이전 생성 문서는 기존 JSON과 코드 검증용으로 보존한다. [전환 검토 목록](../DATA_MIGRATION_REVIEW.md)에서 개별 자료의 재사용·수정·제외 후보를 확인한다. 기존 자료의 검수 이력은 새 초안의 승인이 아니다.

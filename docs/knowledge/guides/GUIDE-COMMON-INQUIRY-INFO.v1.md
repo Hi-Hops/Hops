@@ -11,6 +11,8 @@ team_review_status: PENDING
 source_content_sha256: e240a06a4834764cebf1a537fae9bf11187e178cf14a9a5aeec34769de47c0cf
 ---
 
+> **PRD 1.44 전환 전 자료:** 이 문서는 기존 v0 데이터의 자동 생성본이다. 파일명의 `.v1`은 해당 문서의 버전이며 새 기획용 데이터셋 v1을 뜻하지 않는다. 부서 배정·질문 한도·해결 정책 등은 현재 기획과 다를 수 있으므로 새 기획의 검색 정본으로 사용하지 않는다. [새 정책](../policies/POLICY-PRD-1.44.md) · [자료 전환 검토](../DATA_MIGRATION_REVIEW.md)
+
 # IT 문의 전에 준비할 정보
 
 ## 적용 상황

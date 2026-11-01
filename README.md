@@ -1,8 +1,8 @@
 # Hops — 사내 IT 장애·문의 대응 에이전트
 
-사내 IT 문의를 대화로 분석하고, 해결을 안내하거나 진단 근거를 담은 티켓으로 만들어 담당 부서에 연결하는 프로젝트입니다.
+사내 IT 문의를 대화로 구체화하고 책임 시스템의 주담당자에게 연결하며, 검증된 해결 사례를 축적해 재사용하는 프로젝트입니다.
 
-4명이 MVP 1주와 후속 2주를 계획합니다. MVP는 실제 단일 에이전트 기반 서비스 연결·복수 티켓 생성·부서 배정·관리자 조회와 기준선 평가입니다. 최종 구조는 Supervisor와 4개 전문 에이전트이며, 동일 조건의 평가 수치를 비교해 개선 성과를 설명합니다.
+4명·약 10일을 출발 조건으로 계획합니다. MVP는 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator, 시스템별 담당자 배정, 해결 확인과 승인된 사례의 Vector·Neo4j 재검색을 포함합니다. 실제 구현과 통합 검증은 별도입니다.
 
 ## 읽는 순서
 
@@ -14,13 +14,13 @@ Claude Code의 진입점은 [CLAUDE.md](CLAUDE.md)이며 AGENTS.md를 먼저 읽
 
 ## 첫 작업
 
-팀이 PRD와 MVP 범위를 함께 검토하고 역할을 나눕니다. 전체 데이터 관계는 [데이터 설계](docs/DATA.md), React·Spring·Python 연결은 [API 설계](docs/API.md)를 읽고 기능별 계약을 리뷰합니다. 두 문서는 구현 전 검토할 설계안입니다. 합의한 API는 OpenAPI와 JSON Schema로 구체화합니다.
+팀이 합의한 PRD를 바탕으로 구현 세부 계약과 역할을 정합니다. 전체 데이터 관계는 [데이터 설계](docs/DATA.md), React·Spring·Python 연결은 [API 설계](docs/API.md)를 읽고 기능별 계약을 리뷰합니다. 두 문서는 구현 전 검토할 설계안입니다. 합의한 API는 OpenAPI와 JSON Schema로 구체화합니다.
 
 목표 기술 구성은 React·Java 21 기반 Spring·Python 3.13 + LangGraph + FastAPI·PostgreSQL입니다. Node.js는 React 개발·빌드 런타임으로 사용하며 별도의 실시간 중계 서버는 두지 않습니다. Spring은 JWT 발급·인증·권한, 메시지·업무 저장과 브라우저 SSE 스트림을 담당합니다. JWT에는 사번과 소속 부서명을 포함하며 상세 클레임·인증·이벤트 계약은 API 설계에서 정리합니다. 로그인·조회·문의·티켓 업무는 React–Spring REST, 진행 상태·답변 조각·저장 결과 알림은 Spring–React SSE, AI 진행 전달은 Python–Spring SSE를 사용합니다.
 
-프론트 빌드용 Node.js 24.22.0, React 19.3.0, Spring Boot 4.1.1, Gradle Wrapper 9.8.1, LangGraph 1.2.16, FastAPI 0.143.5, Uvicorn 0.53.0을 개발 기준으로 사용합니다. 전체 버전과 검증 범위는 [개발 안내](docs/AGENT_DEVELOPMENT.md)의 9~11장을 따릅니다. OpenAI API 기반 LLM과 비용 최소화를 적용하며, 정확한 모델·공용 환경·실행 명령은 구현과 실측을 통해 정합니다. Spring의 PostgreSQL 계정·부서 저장 기반, JWT 로그인·내 정보 조회와 부서 SSE를 구현했습니다. 프론트에서 실제 Spring·PostgreSQL의 로그인·내 정보·부서 SSE 연결 및 재동기화 알림 수신을 검증했습니다. 문의·티켓 업무 API와 AI 전체 통합은 미완료이며, 담당별 구현·검증 범위는 [공통 계약 11절](specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
+프론트 빌드용 Node.js 24.22.0, React 19.3.0, Spring Boot 4.1.1, Gradle Wrapper 9.8.1, LangGraph 1.2.16, FastAPI 0.143.5, Uvicorn 0.53.0을 개발 기준으로 사용합니다. 서비스별 실제 실행·버전과 검증 범위는 각 서비스 개발 안내와 설정 파일을 따릅니다. OpenAI API 기반 LLM과 비용 최소화를 적용하며, 정확한 모델·공용 환경·실행 명령은 구현과 실측을 통해 정합니다. Spring의 PostgreSQL 계정·부서 저장 기반, JWT 로그인·내 정보 조회와 부서 SSE를 구현했습니다. 프론트에서 실제 Spring·PostgreSQL의 로그인·내 정보·부서 SSE 연결 및 재동기화 알림 수신을 검증했습니다. 문의·티켓 업무 API와 AI 전체 통합은 미완료이며, 담당별 구현·검증 범위는 [공통 계약 11절](specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
 
-에이전트별 개발을 시작할 때는 [공통 입출력 계약](contracts/agents/README.md)을 읽고, [개발·통합 준비 안내](docs/AGENT_DEVELOPMENT.md)에서 본인의 준비물과 통합 완료 조건을 확인합니다. Python 내부 역할 계약과 기존 MVP 서비스 API를 구분하며, MVP에서는 실제 단일 에이전트를 연결해 평가하고, 후속 단계에서 전문 에이전트들을 통합합니다. Fake는 개발 중 연결 테스트에만 사용합니다.
+에이전트별 개발을 시작할 때는 [공통 입출력 계약](contracts/agents/README.md)을 읽고, [개발·통합 준비 안내](docs/AGENT_DEVELOPMENT.md)에서 본인의 준비물과 통합 완료 조건을 확인합니다. Python 내부 역할 계약과 기존 서비스 API를 구분합니다. MVP에는 실제 멀티 에이전트를 연결하며 단일 에이전트 기준선은 필수가 아닙니다. Fake는 개발 중 연결 테스트에만 사용합니다.
 
 ## 구성별 개발 안내
 
