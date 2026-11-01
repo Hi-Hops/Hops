@@ -117,7 +117,7 @@ CASE 버전은 원 WorkRecord·확인 요청·원문 출처에 고정한다. 미
 | 업무 관리·정정 | /admin/tickets, /admin/tickets/:ticketId | F007·F009 |
 | 사례 검토 목록·상세 | /cases, /cases/:caseId | F011 |
 
-담당자 상세는 독립 페이지, 관리자 상세는 같은 상세 화면을 관리자 권한의 제한된 데이터로 표시한다. 정정·접수 안내는 모달이다. 기존 버튼·입력·배지·토큰·모달의 공통 UI를 재사용한다. 이는 실제 router 등록 상태가 아니며 [ROUTES](../../docs/frontend/ROUTES.md)의 현재 경로와 구분한다.
+담당자 상세는 독립 페이지, 관리자 상세는 같은 상세 화면을 관리자 권한의 제한된 데이터로 표시한다. 정정·접수 안내는 모달이다. 화면 구현은 [현재 frontend UI 기준](../../docs/frontend/README.md#ui-기준과-이번-작업-범위)에 따라 기존 헤더/사이드바·채팅·티켓 UI·공통 컴포넌트를 확장한다. 기능 배치는 [목표 구조](../../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)를 따른다. 이는 실제 router 등록 상태가 아니며 [ROUTES](../../docs/frontend/ROUTES.md)의 현재 경로와 구분한다.
 
 ## 9. 전환·리뷰·완료 조건
 

@@ -4,6 +4,19 @@
 
 상태: 팀 리뷰 전 초안. 이 폴더는 프론트 코드를 함께 작성하기 위한 기준이다. 실행 방법·환경 변수는 [프론트 실행 안내](../../frontend/README.md), 기능과 데이터 계약은 [스펙](../../specs/README.md)에서 관리한다.
 
+## UI 기준과 이번 작업 범위
+
+UI 기준은 develop `d896faeb2a0b132da2c3212cba408bf880d797cf`의 현재 frontend 구현이다. 기존에 새로 작성한 Figma 화면은 이번 구현의 기준에서 제외한다. 화면 기능·상태·권한은 PRD와 공통 계약/spec을 따르고 화면 배치·스타일·상호작용은 아래 기존 구현을 확장한다.
+
+- 공통 헤더·사이드바·최근 채팅·로그아웃: [AppLayout](../../frontend/src/app/layouts/AppLayout.tsx).
+- 새 문의·채팅·입력·원문 이력: [HomePage](../../frontend/src/pages/home/HomePage.tsx)·[ChatView](../../frontend/src/features/chat/components/ChatView.tsx)·[MessageComposer](../../frontend/src/features/chat/components/MessageComposer.tsx).
+- 담당 업무 보드·목록·상세: [TicketBoard](../../frontend/src/features/ticket/components/TicketBoard.tsx)·[TicketKanban](../../frontend/src/features/ticket/components/TicketKanban.tsx)·[TicketDetail](../../frontend/src/features/ticket/components/TicketDetail.tsx).
+- 버튼·입력·상태·모달·색/간격: [공통 UI](../../frontend/src/shared/ui)·[디자인 토큰](../../frontend/src/shared/styles/tokens.css).
+
+기존 말풍선·결과 카드·상세/모달의 표현을 재사용하고, 시스템 선택·해결 확인·처리 기록·CASE 검토에 필요한 영역과 입력만 같은 구성 안에 추가한다. 목표 경로는 ROUTES, 기능 책임과 데이터 소유는 STRUCTURE를 정본으로 삼는다. 새 Figma와의 일치 작업이나 전체 레이아웃 재설계는 구현 선행 조건으로 두지 않는다.
+
+이번 단계의 산출물은 계약·spec·목표 프론트 구조의 결정 문서와 검토 예시다. 현재 `frontend/` 소스·실행 Mock·router가 신규 기획에 맞게 구현됐다는 뜻이 아니다. 문서 PR 승인 뒤 신규 계약용 어댑터/Mock과 기능을 의존 순서대로 구현하고 실제 서버 준비 후 서비스 연결을 검증한다.
+
 ## 읽는 순서
 
 1. [프로젝트 공통 지침](../../AGENTS.md), [PRD](../PRD.md), [Git 컨벤션](../../GIT_CONVENTION.md).

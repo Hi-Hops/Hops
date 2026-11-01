@@ -23,7 +23,7 @@
 | C05 | 검증 완료 WorkRecord별 PENDING 확인 요청 하나. 해결·미해결은 문제별 한 번, 무응답 대기·미해결 같은 티켓 계속 | [F006](F006-my-inquiries/spec.md)·[F009](F009-department-tickets/spec.md) |
 | C06 | 원 기록에 고정한 불변 사례 버전·버전별 승인. VECTOR/NEO4J 두 반영 성공 전 양쪽 비공개. 실패만 수동 다음 attempt | [F011](F011-case-lifecycle/spec.md) |
 | C07 | AiRunRequest/Result/Event + IndexApplyRequest/Snapshot + KnowledgeAuthorizationRequest/Response, 서비스 Bearer 인증 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
-| C08 | 기존 UI 재사용, 독립 티켓 상세와 사례 최소 목록, 채팅 안 해결 확인. 모든 기능에 로딩/오류/권한/충돌/미확인 조작 정의 | [기능 목록](README.md)·[ROUTES](../docs/frontend/ROUTES.md) |
+| C08 | 현재 frontend UI를 구현 기준으로 채택. 독립 티켓 상세와 사례 최소 목록·채팅 안 해결 확인을 기존 구성/토큰으로 확장하고 기능 책임·상태 소유를 고정 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[목표 구조](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
 | C09 | workItemId=problemId, 생성 상태는 inquiry_problem, 티켓은 ticket.inquiry_problem_id UNIQUE. 현재 PRIMARY는 it_system의 FK, 당시 배정은 ticket_assignment 이력 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안) |
 | C10 | AI input 읽기 전용·State 단일 작성자·검증된 patch 병합, 종료 결과 불변. JSON Schema Draft-07로 서비스 wire 검증 | [State 계약](../contracts/agents/README.md#내부-state와-wire-검증-계약) |
 
@@ -92,3 +92,15 @@ PR #68에 위 채택값을 제출한다. 팀원은 빈 항목을 대신 설계�
 현재 PRIMARY DTO, 실패 처리 기록과 원인/적용 버전, CASE 문제 설명/종류, 공통 POLICY의 null systemId, ticketRevision=DB version+1을 채택한다. 프론트는 wire 상태를 사용하고 기존 디자인·경로/메뉴를 재사용한다. FK를 유지하기 위해 지식 검색은 같은 PostgreSQL DB의 hops_knowledge schema에 두며 AI 계정의 업무 원본 쓰기는 금지한다.
 
 남은 절차는 보완 설계의 백엔드 리뷰·팀원 승인과 실제 코드/DB/검색/E2E 구현 검증이다. ERD 대조를 다시 기다리는 상태로 두지 않는다. 문서 병합 조건은 DATA11.4절, 실제 구현 우선순위는 프론트 README를 따른다.
+
+## 6. 이번 단계에서 고정한 적용 기준
+
+| 범위 | 작업 결정값 | 구현·승인과의 구분 |
+|---|---|---|
+| Contract | 기존 hops-system-1의 필드/null·상태·버전·권한·HTTP/SSE·명령/복구·AI wire 유지 | 서비스 구현과 DB 적용 완료를 뜻하지 않음 |
+| Spec | F001~F011의 전체 MVP·관찰 조건·예외와 기존 CONTRACT 시나리오 유지 | 현재 코드의 이전 AC 검사로 신규 기능 완료를 대신하지 않음 |
+| UI | develop d896fae의 실제 프론트 UI와 공통 컴포넌트를 기준으로 기능 확장. 새 Figma를 구현 기준에서 제외 | 화면 세부 구현/접근성/브라우저 검증은 실제 작업에서 수행 |
+| Frontend 구조 | app→pages→features→shared, auth/realtime/chat/inquiry/ticket/case의 책임·데이터 소유·프로필 경계 | 목표 파일/폴더는 구현 때 생성하고 현재 frontend 소스/Mock을 유지 |
+| 물리 저장 보완 | ERD6절의4개 추가 구조와 제약은 백엔드 리뷰 대상으로 유지 | UI 구조 결정과 별도로 검토·승인하며 이미 DB에 적용된 것으로 보고하지 않음 |
+
+이 결정은 이번 브랜치에서 사용할 구체 기준이며 팀 공통 기준의 효력은 PR 리뷰/병합 절차를 따른다. 이번 단계에서는 신규 필드·엔드포인트·물리 테이블·모델 기본값을 추가 선택하지 않고, 현재 계약과 구현 범위를 기준으로 다음 프론트 작업을 진행한다.

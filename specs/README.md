@@ -29,6 +29,8 @@ F008/F009 디렉터리 이름은 기존 참조 경로를 보존한다. 새 문�
 
 전체 MVP 계약을 먼저 설계하며 구현은 의존 순서대로 진행한다. 공통 규칙을 기능별로 중복 정의하지 않는다. 목표 경로는 ROUTES의 구현 경로와 구분한다. 기존 UI·토큰·메시지 이력·입력 보존·SSE 기반을 재사용한다.
 
+F001~F011의 화면 구현은 [현재 frontend UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)과 [목표 기능 구조](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)를 공통으로 따른다. 새 Figma 화면을 구현 기준으로 삼지 않는다. 기능별 CONTRACT 시나리오·필드·상태는 기존 신규 계약을 유지하며 이번 UI 기준 선택으로 기능 구현 완료를 표시하지 않는다.
+
 ## 구현·검증 구분
 
 각 spec의 기존 TARGET/DETAIL 조건은 보존하고 신규 계약 검증에는 Fxxx-CONTRACT 번호를 사용한다. 이전 코드의 AC 테스트 통과를 신규 시나리오 통과로 옮겨 적지 않는다. 문서/예시·Mock·HTTP/SSE 대역·실제 Spring/DB·AI/검색·브라우저 E2E를 따로 기록한다. [신규 JSON 예시](mocks/hops-system-1.examples.json)는 가상 검토 자료이며 실행 Mock 대체물이 아니다.
