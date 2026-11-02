@@ -11,8 +11,8 @@ module.exports = async function postReview({ github, context, core, review }) {
     ...repo,
     pull_number: expected.number,
   });
-  if (current.state !== 'open' || current.draft || current.base.ref !== 'develop' ||
-      current.head.sha !== expected.head.sha || current.base.sha !== expected.base.sha) {
+  if (current.state !== 'open' || current.draft || current.base.ref !== expected.base.ref ||
+      current.head.sha !== expected.head.sha) {
     core.info('PR 상태 또는 커밋이 바뀌어 오래된 리뷰를 게시하지 않습니다.');
     return;
   }
@@ -23,9 +23,12 @@ module.exports = async function postReview({ github, context, core, review }) {
   });
   const previous = comments.find(comment =>
     comment.user?.login === 'github-actions[bot]' && comment.body?.startsWith(MARKER));
-  const truncated = review.length > 48000;
-  const body = `${MARKER}\n## Codex 코드 리뷰\n\n대상 커밋: \`${expected.head.sha}\`\n\n` +
-    review.slice(0, 48000) +
+  // UTF-16 길이 한도를 지키면서 경계의 surrogate pair를 분리하지 않는다.
+  const excerpt = review.slice(0, 48000).replace(/[\uD800-\uDBFF]$/, '');
+  const truncated = excerpt.length < review.length;
+  const body = `${MARKER}\n## Codex 코드 리뷰\n\n대상 커밋: \`${expected.head.sha}\`\n` +
+    `검토 기준: \`${expected.base.ref}\` / \`${expected.base.sha}\`\n\n` +
+    excerpt +
     (truncated ? '\n\n출력 길이 제한으로 일부 결과가 생략되었습니다.' : '') +
     '\n\n---\nAI 검토 결과이며 팀원 리뷰 승인을 대신하지 않습니다.';
   if (previous) {

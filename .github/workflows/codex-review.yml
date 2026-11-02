@@ -16,7 +16,9 @@ jobs:
     # fork에는 Secret을 전달하지 않는다.
     if: >-
       !github.event.pull_request.draft &&
-      github.event.pull_request.head.repo.full_name == github.repository
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot' &&
+      !endsWith(github.actor, '[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -49,18 +51,23 @@ jobs:
           fi
 
       - name: Check review configuration
+        id: configuration
         if: steps.instructions.outputs.ready == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REVIEW_MODEL: ${{ vars.CODEX_REVIEW_MODEL }}
         run: |
-          test -n "$OPENAI_API_KEY" || { echo '::error::OPENAI_API_KEY Secret을 설정하세요.'; exit 1; }
-          test -n "$REVIEW_MODEL" || { echo '::error::합의한 모델을 CODEX_REVIEW_MODEL 변수에 설정하세요.'; exit 1; }
+          if test -z "$OPENAI_API_KEY" || test -z "$REVIEW_MODEL"; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::OPENAI_API_KEY Secret과 CODEX_REVIEW_MODEL 변수를 설정하면 자동 리뷰가 활성화됩니다.'
+          else
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
 
       # Codex 뒤에 같은 runner에서 다른 작업을 실행하지 않는다.
       - name: Review with Codex skill
         id: codex
-        if: steps.instructions.outputs.ready == 'true'
+        if: steps.configuration.outputs.ready == 'true'
         uses: openai/codex-action@1d82a3dba7c7988ec71ecae1ed5b8e8db96495c5 # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
