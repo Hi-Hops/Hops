@@ -226,3 +226,19 @@ def test_backoff_grows_exponentially_up_to_the_cap() -> None:
 def test_backoff_applies_full_jitter() -> None:
     assert backoff_delay(2, rng=lambda: 0.0) == 0.0
     assert backoff_delay(2, rng=lambda: 0.5) == 1.0
+
+
+async def test_run_wide_retry_limit_is_shared_across_calls(clock, make_settings, sleeper) -> None:
+    # 호출당 2회까지 허용해도 실행 전체 누적 1회를 넘지 않는다.
+    budget = budget_for(clock, make_settings, max_auto_retries=2)
+    budget.max_run_retries = 1
+    first = Script(TransientError(), "ok")
+    assert await call_with_retry(first, budget, sleep=sleeper, rng=lambda: 0.0) == "ok"
+
+    second = Script(TransientError("again"), "ok")
+    with pytest.raises(TransientError, match="again"):
+        await call_with_retry(second, budget, sleep=sleeper, rng=lambda: 0.0)
+
+    assert second.calls == 1
+    assert budget.retries_used == 1
+    assert budget.llm_calls_used == 3

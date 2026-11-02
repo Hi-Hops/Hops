@@ -25,6 +25,14 @@ class AdmissionRejected(ValueError):
     """새 실행의 기한 또는 요청 한도가 서버 기준을 충족하지 않는다."""
 
 
+class AdmissionExpired(AdmissionRejected):
+    """실행 기한이 이미 지났다. 같은 입력으로 다시 보내도 접수되지 않는다."""
+
+
+class LimitsExceeded(AdmissionRejected):
+    """요청한 실행 한도가 서버가 허용하는 상한을 넘는다."""
+
+
 class RunAdmissionService:
     def __init__(
         self,
@@ -64,8 +72,10 @@ class RunAdmissionService:
         except ValueError as exc:
             raise AdmissionRejected("만료 시각이 올바르지 않습니다") from exc
         now = self._clock()
-        if expiry.utcoffset() is None or now.utcoffset() is None or expiry <= now:
-            raise AdmissionRejected("만료된 실행은 접수할 수 없습니다")
+        if expiry.utcoffset() is None or now.utcoffset() is None:
+            raise AdmissionRejected("만료 시각이 올바르지 않습니다")
+        if expiry <= now:
+            raise AdmissionExpired("만료된 실행은 접수할 수 없습니다")
 
         limits = ExecutionLimits(
             **{name: getattr(request.limits, name) for name in ExecutionLimits.__dataclass_fields__}
@@ -75,6 +85,6 @@ class RunAdmissionService:
             getattr(limits, name) > getattr(self._ceilings, name)
             for name in ExecutionLimits.__dataclass_fields__
         ):
-            raise AdmissionRejected("요청 실행 한도가 서버 허용 범위를 초과했습니다")
+            raise LimitsExceeded("요청 실행 한도가 서버 허용 범위를 초과했습니다")
         # 실제 원자적 접수와 경쟁 요청의 digest 비교는 DB 유일 제약이 담당한다.
         return await self._ledger.accept(run_id, payload)
