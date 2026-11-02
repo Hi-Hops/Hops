@@ -4,24 +4,24 @@
 
 ## 처음 실행
 
-아래 명령은 저장소 루트에서 실행한다.
+설정 예시는 루트 [.env.example](../.env.example) 하나다. 저장소 루트에서 `.env`가 없을 때 한 번만 복사한다.
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-macOS/Linux는 `cp .env.example .env`를 사용한다. 기존 `.env`는 유지한다. `POSTGRES_PASSWORD`와 ASCII 32자 이상의 `HOPS_JWT_SECRET`을 채운다. 루트 `.env`만 사용하며 각 서비스의 개인 `.env`나 DB 설정은 이미지에 포함하지 않는다.
+macOS/Linux는 `cp .env.example .env`를 사용한다. 기존 `.env`는 유지하고 새 항목만 추가한다. 복사한 파일에서 필수 값인 `POSTGRES_PASSWORD`와 ASCII 32자 이상의 `HOPS_JWT_SECRET`을 채우고, 나머지는 필요한 항목만 변경한다. 프론트·백엔드·AI·DB의 Docker 설정은 모두 이 파일에 입력한다. 서비스 폴더에 예시 파일을 따로 복사할 필요가 없다. 각 컨테이너에는 필요한 변수만 전달하며 `.env`와 개인 DB 설정은 Git·이미지에서 제외한다.
 
 ```sh
 docker compose up --build -d
 docker compose ps
 ```
 
-기본 주소는 프론트 `http://localhost:5173`, Spring Swagger `http://localhost:8080/swagger-ui/index.html`, AI `http://localhost:8000/healthz`다. DB는 `localhost:5432`, 사용자·DB 이름은 `hops`다. 모든 포트는 로컬 PC에만 공개한다.
+기본 주소는 프론트 `http://localhost:5173`, Spring Swagger `http://localhost:8080/swagger-ui/index.html`, AI `http://localhost:8000/healthz`다. DB는 `localhost:5432`이며 이름과 계정은 루트 `.env`의 `POSTGRES_DB`, `POSTGRES_USER`를 사용한다. 모든 포트는 로컬 PC에만 공개한다.
 
-포트가 겹치면 루트 `.env`의 `FRONTEND_PORT`, `BACKEND_PORT`, `AI_PORT`, `POSTGRES_PORT`를 바꾸고 `docker compose up -d`를 실행한다. 프론트 API 주소와 Spring CORS도 해당 포트에 맞춰 설정된다.
+포트가 겹치면 루트 `.env`의 `FRONTEND_PORT`, `BACKEND_PORT`, `AI_PORT`, `POSTGRES_PORT`를 바꾸고 `docker compose up -d`를 실행한다. `VITE_API_BASE_URL`과 `HOPS_CORS_ALLOWEDORIGINS`를 비워두면 포트에 맞춰 로컬 주소를 만들며, 별도 주소가 필요하면 직접 입력한다. AI 모드와 실행 예산도 `HOPS_AI_*` 항목으로 설정한다.
 
-PostgreSQL 18의 `hops` DB에 Spring Flyway가 테이블과 개발용 가상 데이터를 적용한다. 테스트 DB가 필요하면 [Spring 안내](../backend/spring/hops/README.md#처음-설치-mac--windows)에 따라 별도로 준비한다.
+PostgreSQL 18의 업무 DB에 Spring Flyway가 테이블과 개발용 가상 데이터를 적용한다. 테스트 DB가 필요하면 [Spring 안내](../backend/spring/hops/README.md#처음-설치-mac--windows)에 따라 별도로 준비한다.
 
 루트 Compose는 현재 develop 프론트를 `live` 모드로 실행해 Spring의 기존 `/api`에 연결한다. 신규 `/api/v2` 전환과 해당 업무 API 구현은 별도 작업이다. AI는 골격 상태이며 `/healthz`는 200, `/readyz`는 503이다. 기동 확인과 업무 연동 완료는 구분한다. 자세한 구현 범위는 [Frontend](../frontend/README.md)·[Spring](../backend/spring/hops/README.md)·[AI](../ai/README.md)를 따른다.
 
@@ -35,4 +35,6 @@ docker compose logs -f backend ai
 docker compose down
 ```
 
-일반 종료·재빌드 후에도 DB 볼륨은 유지된다. `docker compose down --volumes`는 DB 데이터를 삭제한다. `.env`의 비밀번호를 바꿔도 기존 DB 계정의 비밀번호는 자동 변경되지 않는다.
+프론트 단독 Compose도 루트 설정을 사용한다. 저장소 루트에서 `docker compose --env-file .env -f frontend/compose.yaml up --build -d`로 실행한다. 전체 환경과 단독 환경의 같은 호스트 포트를 동시에 사용하지 않는다.
+
+일반 종료·재빌드 후에도 DB 볼륨은 유지된다. `docker compose down --volumes`는 DB 데이터를 삭제한다. `.env`의 DB 이름·계정·비밀번호는 새 볼륨의 초기 설정이며, 기존 DB의 값은 자동 변경되지 않는다.

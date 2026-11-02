@@ -35,14 +35,18 @@ def test_invalid_or_retired_configuration_is_rejected(make_settings, overrides) 
         make_settings(**overrides)
 
 
-def test_env_example_contains_only_current_defaults(monkeypatch, make_settings) -> None:
+def test_root_env_example_contains_all_current_ai_defaults(monkeypatch, make_settings) -> None:
     known = {f"HOPS_AI_{name.upper()}" for name in Settings.model_fields}
     defaults = make_settings().model_dump()
-    example = Path(__file__).resolve().parents[2] / ".env.example"
-    for line in example.read_text().splitlines():
+    example = Path(__file__).resolve().parents[3] / ".env.example"
+    seen = set()
+    for line in example.read_text(encoding="utf-8").splitlines():
         line = line.strip()
-        if line and not line.startswith("#"):
+        if line.startswith("HOPS_AI_"):
             name, value = line.split("=", 1)
             assert name in known
+            assert name not in seen
+            seen.add(name)
             monkeypatch.setenv(name, value)
+    assert seen == known
     assert make_settings().model_dump() == defaults
