@@ -145,14 +145,14 @@ class AuthControllerTest {
         assertThat(cookie)
                 .contains("HttpOnly") // 프론트 JS가 읽지 못한다 (XSS로 훔칠 수 없음)
                 .contains("SameSite=Lax")
-                .contains("Path=/api/auth") // 로그인·refresh·로그아웃 요청에만 따라간다
+                .contains("Path=/api/v2/auth") // 로그인·refresh·로그아웃 요청에만 따라간다
                 .contains("Max-Age=" + Duration.ofDays(7).toSeconds());
         assertThat(response.getContentAsString()).doesNotContain(value);
     }
 
     @Test
     void Refresh_쿠키로_갱신하면_새_액세스_토큰과_회전된_Refresh_쿠키를_받는다() throws Exception {
-        // WIRE_CONTRACT 2절: POST /api/auth/refresh 본문 없음·Refresh 쿠키 → 200 LoginResponse
+        // WIRE_CONTRACT 2절: POST /api/v2/auth/refresh 본문 없음·Refresh 쿠키 → 200 LoginResponse
         // WIRE_CONTRACT 10절: 갱신 때 회전(새 값)한다. DATA_TYPES: Refresh 원문은 JSON에 넣지 않는다.
         String oldRefresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
 
@@ -167,7 +167,7 @@ class AuthControllerTest {
 
         String newRefresh = refreshValue(response);
         assertThat(newRefresh).isNotBlank().isNotEqualTo(oldRefresh);
-        assertThat(refreshCookie(response)).contains("HttpOnly").contains("SameSite=Lax").contains("Path=/api/auth");
+        assertThat(refreshCookie(response)).contains("HttpOnly").contains("SameSite=Lax").contains("Path=/api/v2/auth");
         assertThat(response.getContentAsString()).doesNotContain(newRefresh);
     }
 
@@ -191,13 +191,13 @@ class AuthControllerTest {
 
     @Test
     void 받은_토큰으로_내_정보를_조회하면_현재_사용자_정보를_반환한다() throws Exception {
-        // 계약: GET /api/auth/me → 200 CurrentUser (WIRE_CONTRACT 2절). 프론트는 이 응답으로 사용자·부서·역할을 확정한다.
+        // 계약: GET /api/v2/auth/me → 200 CurrentUser (WIRE_CONTRACT 2절). 프론트는 이 응답으로 사용자·부서·역할을 확정한다.
         jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
         String body = mockMvc.perform(login("requester", "hops1234!"))
                 .andReturn().getResponse().getContentAsString();
         String accessToken = objectMapper.readTree(body).get("accessToken").asString();
 
-        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(MEMBER_ID.toString()))
                 .andExpect(jsonPath("$.employeeNo").value("20260001"))
@@ -224,7 +224,7 @@ class AuthControllerTest {
         String accessToken = objectMapper.readTree(body).get("accessToken").asString();
         jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
 
-        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -236,7 +236,7 @@ class AuthControllerTest {
         String accessToken = objectMapper.readTree(body).get("accessToken").asString();
         jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
 
-        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
 
         assertThat(output).contains("내 정보 조회 실패: 토큰은 유효하지만 회원이 없거나 차단됨 memberId=" + MEMBER_ID);
         assertThat(output).doesNotContain(accessToken);
@@ -270,14 +270,14 @@ class AuthControllerTest {
     }
 
     private static MockHttpServletRequestBuilder login(String loginId, String password) {
-        return post("/api/auth/login")
+        return post("/api/v2/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"loginId\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password));
     }
 
     // 브라우저처럼 Refresh 쿠키만 붙여 본문 없이 갱신을 요청한다.
     private static MockHttpServletRequestBuilder refresh(String refreshToken) {
-        return post("/api/auth/refresh").cookie(new Cookie("hops_refresh", refreshToken));
+        return post("/api/v2/auth/refresh").cookie(new Cookie("hops_refresh", refreshToken));
     }
 
     private static String refreshValue(MockHttpServletResponse response) {
@@ -285,7 +285,7 @@ class AuthControllerTest {
         return cookie.substring("hops_refresh=".length(), cookie.indexOf(';'));
     }
 
-    // Set-Cookie 헤더 중 Refresh 쿠키 한 줄을 찾는다. 예: "hops_refresh=값; Path=/api/auth; Max-Age=604800; HttpOnly; SameSite=Lax"
+    // Set-Cookie 헤더 중 Refresh 쿠키 한 줄을 찾는다. 예: "hops_refresh=값; Path=/api/v2/auth; Max-Age=604800; HttpOnly; SameSite=Lax"
     private static String refreshCookie(MockHttpServletResponse response) {
         return response.getHeaders(HttpHeaders.SET_COOKIE).stream()
                 .filter(value -> value.startsWith("hops_refresh="))
@@ -296,7 +296,7 @@ class AuthControllerTest {
     @Test
     void 비밀번호가_틀리면_401과_공통_오류_형식으로_응답한다() throws Exception {
         // 프론트 계약(specs/contracts): 로그인 실패는 401 UNAUTHENTICATED. 아이디가 없는지 비밀번호가 틀렸는지는 알려주지 않는다.
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v2/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"loginId": "requester", "password": "wrong-password"}
@@ -311,7 +311,7 @@ class AuthControllerTest {
     @Test
     void 로그인ID가_비어_있으면_DB를_조회하지_않고_400으로_응답한다() throws Exception {
         // 계약(specs/contracts/DATA_TYPES.md LoginRequest): loginId·password는 최소 1글자.
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v2/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"loginId": "", "password": "hops1234!"}

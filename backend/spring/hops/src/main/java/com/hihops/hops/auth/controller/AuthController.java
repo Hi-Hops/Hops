@@ -33,7 +33,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth") // 실제 주소는 /api/v2/auth (ApiPathConfig)
 @RequiredArgsConstructor
 public class AuthController {
 

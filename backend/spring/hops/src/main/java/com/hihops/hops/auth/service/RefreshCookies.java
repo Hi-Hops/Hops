@@ -3,6 +3,7 @@ package com.hihops.hops.auth.service;
 import org.springframework.http.ResponseCookie;
 
 import com.hihops.hops.auth.service.RefreshTokenService.IssuedRefreshToken;
+import com.hihops.hops.global.config.ApiPathConfig;
 
 /**
  * Refresh Token을 담는 쿠키 모양을 한 곳에서 정한다. 로그인·refresh·로그아웃이 같은 이름·경로를 써야
@@ -14,8 +15,8 @@ public final class RefreshCookies {
 
     public static final String NAME = "hops_refresh";
 
-    // 이 경로 아래(/api/auth/login·refresh·logout) 요청에만 브라우저가 쿠키를 붙인다. 업무 API에는 따라가지 않는다.
-    private static final String PATH = "/api/auth";
+    // 이 경로 아래(/api/v2/auth/login·refresh·logout) 요청에만 브라우저가 쿠키를 붙인다. 업무 API에는 따라가지 않는다 (WIRE_CONTRACT 12절).
+    private static final String PATH = ApiPathConfig.PREFIX + "/auth";
 
     private RefreshCookies() {
     }

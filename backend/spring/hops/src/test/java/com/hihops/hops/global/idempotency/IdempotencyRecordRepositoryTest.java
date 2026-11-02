@@ -35,7 +35,7 @@ class IdempotencyRecordRepositoryTest {
     private static final UUID DEPARTMENT_ID = UUID.fromString("d0000000-0000-7000-8000-000000000099");
     private static final UUID MEMBER_ID = UUID.fromString("a0000000-0000-7000-8000-000000000099");
     private static final String CONTRACT = "hops-system-1";
-    private static final String PATH = "/api/inquiries/e0000000-0000-7000-8000-000000000099/messages";
+    private static final String PATH = "/api/v2/inquiries/e0000000-0000-7000-8000-000000000099/messages";
     private static final String KEY = "0f8fad5b-d9cb-469f-a165-70867728950e";
     private static final String HASH = "a".repeat(64);
 

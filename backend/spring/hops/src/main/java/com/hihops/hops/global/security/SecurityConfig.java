@@ -15,6 +15,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.hihops.hops.global.config.ApiPathConfig;
+
 /**
  * Spring Security 설정: 누가 어떤 주소에 접근할 수 있는지 정한다.
  *
@@ -46,9 +48,9 @@ public class SecurityConfig {
                 // JWT는 요청마다 토큰으로 사용자를 확인하므로 서버가 로그인 상태(세션)를 저장하지 않는다.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll() // 로그인 전에는 토큰이 없다
+                        .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/login").permitAll() // 로그인 전에는 토큰이 없다
                         // Access가 만료된 뒤에 부르는 곳이라 Bearer 대신 Refresh 쿠키로 확인한다 (AuthController)
-                        .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/refresh").permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated())
                 // Bearer 토큰 검증. 토큰이 틀리거나 만료되면 errorResponder가 401 공통 오류로 응답한다.

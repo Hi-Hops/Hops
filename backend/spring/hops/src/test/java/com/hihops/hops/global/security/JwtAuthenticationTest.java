@@ -50,7 +50,7 @@ class JwtAuthenticationTest {
 
     @Test
     void 올바른_토큰이면_통과하고_사번을_꺼낼_수_있다() throws Exception {
-        mockMvc.perform(get("/test/jwt/me").header(HttpHeaders.AUTHORIZATION, bearer(token(SECRET, "hops", "hops-api", 60))))
+        mockMvc.perform(get("/api/v2/test/jwt/me").header(HttpHeaders.AUTHORIZATION, bearer(token(SECRET, "hops", "hops-api", 60))))
                 .andExpect(status().isOk())
                 .andExpect(content().string("E1001"));
     }
@@ -84,15 +84,15 @@ class JwtAuthenticationTest {
     @Test
     void roles_클레임이_권한으로_바뀐다() throws Exception {
         String agentToken = bearer(token(SECRET, "hops", "hops-api", 60));
-        mockMvc.perform(get("/test/jwt/agent-only").header(HttpHeaders.AUTHORIZATION, agentToken))
+        mockMvc.perform(get("/api/v2/test/jwt/agent-only").header(HttpHeaders.AUTHORIZATION, agentToken))
                 .andExpect(status().isOk());
-        mockMvc.perform(get("/test/jwt/admin-only").header(HttpHeaders.AUTHORIZATION, agentToken))
+        mockMvc.perform(get("/api/v2/test/jwt/admin-only").header(HttpHeaders.AUTHORIZATION, agentToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
 
     private void expectUnauthorized(String token) throws Exception {
-        mockMvc.perform(get("/test/jwt/me").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+        mockMvc.perform(get("/api/v2/test/jwt/me").header(HttpHeaders.AUTHORIZATION, bearer(token)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
