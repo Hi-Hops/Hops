@@ -143,6 +143,24 @@ describe('hops-system-1 HTTP 오류·취소·저장 경계', () => {
       body: { code: 'NETWORK_ERROR' },
     });
   });
+  it.each([400, 403, 409])(
+    'F003-CONTRACT-04 비계약 HTTP %s는 업무 거절이 아닌 저장 결과 미확인으로 처리한다',
+    async (httpStatus) => {
+      handle = (_req, res) => {
+        res.writeHead(httpStatus, { 'Content-Type': 'text/html' }).end('<html>proxy error</html>');
+      };
+      await expect(
+        sendSystemCommand(
+          createInquiryCommand({
+            requestId: crypto.randomUUID(),
+            content: '문의',
+            reportedSystemId: null,
+          }),
+        ),
+      ).rejects.toMatchObject({ status: 0, body: { code: 'INVALID_RESPONSE' } });
+      expect(token).toBe('synthetic-current');
+    },
+  );
   it('F009-CONTRACT-01 취소를 네트워크 오류로 바꾸지 않는다', async () => {
     const controller = new AbortController();
     controller.abort();

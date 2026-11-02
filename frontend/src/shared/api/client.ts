@@ -136,8 +136,9 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
     try {
       body = await response.json();
     } catch {
+      // 비계약 응답의 HTTP 상태만으로 업무 거절을 확정하거나 원 요청 키를 버리지 않는다.
       throw new ApiError(
-        response.status,
+        0,
         localError(
           'INVALID_RESPONSE',
           '서버 응답 형식이 계약과 달라요. JSON 응답을 확인해 주세요.',
