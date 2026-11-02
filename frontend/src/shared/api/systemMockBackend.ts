@@ -10,11 +10,12 @@ import type { SubscriptionTarget } from './types';
 
 type Workspace = { ownerId: string; result: D.InquiryResult; messages: D.ChatMessage[] };
 type Journal = { digest: string; userId: string; createdAt: number; receipt: D.CommandReceipt };
+type MockSession = { userId: string; expiresAt: number; preview: boolean };
 const now = () => new Date().toISOString();
 const clone = <T>(value: T): T => structuredClone(value);
 export class SystemMockBackend {
-  private sessions = new Map<string, { userId: string; expiresAt: number }>();
-  private refresh: { userId: string; expiresAt: number } | null = null;
+  private sessions = new Map<string, MockSession>();
+  private refresh: MockSession | null = null;
   private inquiries = new Map<string, Workspace>();
   private details = new Map<string, D.TicketDetail>();
   private journal = new Map<string, Journal>();
@@ -236,7 +237,9 @@ export class SystemMockBackend {
       mockError(401, 'ACCESS_TOKEN_EXPIRED', '로그인이 만료됐어요.');
     const user = this.people.find((p) => p.id === session.userId);
     if (!user) mockError(401, 'UNAUTHENTICATED', '로그인이 필요해요.');
-    return clone(user);
+    const current = clone(user);
+    if (session.preview) current.roles = ['BIZ_ADMIN'];
+    return current;
   }
   private workspace(user: D.CurrentUser, id: string) {
     const item = this.inquiries.get(id);
@@ -510,6 +513,7 @@ export class SystemMockBackend {
     const parts = route.split('/').filter(Boolean);
     if (route === '/auth/login' || route === '/auth/refresh') {
       let userId: string;
+      let preview: boolean;
       if (route.endsWith('login')) {
         const config = readMockAuth();
         if (!config || !isRecord(body))
@@ -520,19 +524,19 @@ export class SystemMockBackend {
         const index = (
           { PREVIEW: 1, REQUESTER: 0, SYSTEM_STAFF: 1, FILE_STAFF: 3, ADMIN: 2 } as const
         )[account.role];
-        const user = clone(this.people[index]);
-        if (account.role === 'PREVIEW') user.roles = ['BIZ_ADMIN'];
-        if (account.role === 'PREVIEW') this.people[index] = user;
+        const user = this.people[index];
         userId = user.id;
-        this.refresh = { userId, expiresAt: Date.now() + 604800000 };
+        preview = account.role === 'PREVIEW';
+        this.refresh = { userId, preview, expiresAt: Date.now() + 604800000 };
       } else {
         if (!this.refresh || this.refresh.expiresAt <= Date.now())
           mockError(401, 'REFRESH_TOKEN_EXPIRED', '인증이 만료됐어요.');
         userId = this.refresh.userId;
+        preview = this.refresh.preview;
       }
       const accessToken = `system-mock:${crypto.randomUUID()}`;
       const expiresAt = Date.now() + 900000;
-      this.sessions.set(accessToken, { userId, expiresAt });
+      this.sessions.set(accessToken, { userId, expiresAt, preview });
       return {
         accessToken,
         expiresAt: new Date(expiresAt).toISOString(),
