@@ -1,0 +1,102 @@
+name: Codex PR review
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: codex-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # fork에는 Secret을 전달하지 않는다.
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.type != 'Bot' &&
+      !endsWith(github.actor, '[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      final_message: ${{ steps.codex.outputs.final-message }}
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Fetch PR history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use trusted base instructions
+        id: instructions
+        run: |
+          git cat-file -e "$HEAD_SHA^{commit}"
+          git checkout --detach "$BASE_SHA"
+          if test -f .agents/skills/pr-review/SKILL.md &&
+             test -f .github/codex/review-prompt.md &&
+             test -f .github/scripts/post-codex-review.cjs; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::base에 리뷰 설정이 없습니다. 도입 PR은 건너뛰며 develop 병합 후 활성화됩니다.'
+          fi
+
+      - name: Check review configuration
+        id: configuration
+        if: steps.instructions.outputs.ready == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REVIEW_MODEL: ${{ vars.CODEX_REVIEW_MODEL }}
+        run: |
+          if test -z "$OPENAI_API_KEY" || test -z "$REVIEW_MODEL"; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::OPENAI_API_KEY Secret과 CODEX_REVIEW_MODEL 변수를 설정하면 자동 리뷰가 활성화됩니다.'
+          else
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      # Codex 뒤에 같은 runner에서 다른 작업을 실행하지 않는다.
+      - name: Review with Codex skill
+        id: codex
+        if: steps.configuration.outputs.ready == 'true'
+        uses: openai/codex-action@1d82a3dba7c7988ec71ecae1ed5b8e8db96495c5 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          model: ${{ vars.CODEX_REVIEW_MODEL }}
+          effort: low
+          sandbox: read-only
+          safety-strategy: drop-sudo
+          prompt-file: .github/codex/review-prompt.md
+
+  post-review:
+    needs: review
+    if: needs.review.outputs.final_message != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out trusted posting script
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Publish current review
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          CODEX_REVIEW: ${{ needs.review.outputs.final_message }}
+        with:
+          script: |
+            const postReview = require('./.github/scripts/post-codex-review.cjs');
+            await postReview({ github, context, core, review: process.env.CODEX_REVIEW });
