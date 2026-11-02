@@ -21,6 +21,8 @@ docker compose ps
 
 포트가 겹치면 루트 `.env`의 `FRONTEND_PORT`, `BACKEND_PORT`, `AI_PORT`, `POSTGRES_PORT`를 바꾸고 `docker compose up -d`를 실행한다. `VITE_API_BASE_URL`과 `HOPS_CORS_ALLOWEDORIGINS`를 비워두면 포트에 맞춰 로컬 주소를 만들며, 별도 주소가 필요하면 직접 입력한다. AI 모드와 실행 예산도 `HOPS_AI_*` 항목으로 설정한다.
 
+[OpenAI](https://developers.openai.com/api/docs/quickstart)의 `OPENAI_API_KEY`와 [Langfuse](https://langfuse.com/docs/observability/sdk/troubleshooting-and-faq)의 `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`도 루트 `.env`에 미리 입력할 수 있다. Langfuse 주소는 사용하는 프로젝트의 리전 또는 자체 호스팅 주소로 설정한다. 이 값들은 AI 컨테이너에만 전달하며 선택 항목이다. 현재 OpenAI 호출과 Langfuse 추적 연동은 미구현이므로 키 입력만으로 외부 호출·추적 전송이 시작되지는 않는다.
+
 DB는 [pgvector 프로젝트 이미지](https://github.com/pgvector/pgvector#docker)의 PostgreSQL 18·pgvector 0.8.7을 사용한다. Spring Flyway가 확장 활성화, 테이블과 개발용 가상 데이터를 적용하므로 Docker 실행 시 pgvector를 따로 설치하지 않는다. 기존 PostgreSQL 18 볼륨도 유지한다. 테스트 DB가 필요하면 [Spring 안내](../backend/spring/hops/README.md#처음-설치-mac--windows)에 따라 별도로 준비한다.
 
 루트 Compose는 현재 develop 프론트를 `live` 모드로 실행해 Spring의 기존 `/api`에 연결한다. 신규 `/api/v2` 전환과 해당 업무 API 구현은 별도 작업이다. AI는 골격 상태이며 `/healthz`는 200, `/readyz`는 503이다. 기동 확인과 업무 연동 완료는 구분한다. 자세한 구현 범위는 [Frontend](../frontend/README.md)·[Spring](../backend/spring/hops/README.md)·[AI](../ai/README.md)를 따른다.
