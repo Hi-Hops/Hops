@@ -198,7 +198,8 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 - 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD](../../../docs/ERD.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
 - **Refresh 쿠키:** `HttpOnly`, `SameSite=Lax`, `Path=/api/v2/auth`, HTTPS에서만 `Secure`. 원문은 JSON에 넣지 않고 Redis에는 SHA-256 해시만 키로 둡니다. 갱신할 때마다 새 값으로 바꾸고(이전 값은 즉시 폐기), 만료는 최초 로그인부터 7일로 늘어나지 않습니다.
-- **아직 없음:** 회전 재사용 검출, `POST /api/v2/auth/logout`.
+- **재사용 검출:** 회전으로 이미 쓴 Refresh가 10초 안에 다시 오면 탭 두 개의 동시 갱신 경합으로 보고 그 요청만 401입니다. 10초가 지나서 오면 탈취로 보고 그 로그인 세션 전체를 폐기합니다(정상 사용자도 재로그인).
+- **아직 없음:** `POST /api/v2/auth/logout`.
 
 ### 토큰 직접 확인하기
 
