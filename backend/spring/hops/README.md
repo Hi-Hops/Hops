@@ -10,7 +10,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/v2/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -29,11 +29,11 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE는 구현했습니다. refresh·로그아웃, 문의 변경 REST·문의/티켓 조회와 문의·개별 티켓 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 실제 서버 연결 검사 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE는 구현했습니다. refresh·로그아웃, 문의 변경 REST·문의/티켓 조회와 문의·개별 티켓 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 실제 서버 연결 검사 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
-- React는 `GET /api/realtime/events?targetType={type}&targetId={id}`로 Spring SSE에 직접 연결합니다. Spring은 연결마다 JWT와 현재 소유자·부서·역할을 검사하고 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`를 허용된 대상에만 전달합니다.
+- React는 `GET /api/v2/realtime/events?targetType={type}&targetId={id}`로 Spring SSE에 직접 연결합니다. Spring은 연결마다 JWT와 현재 소유자·부서·역할을 검사하고 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`를 허용된 대상에만 전달합니다.
 - `agent`는 Python HTTP 실행 요청과 내부 SSE 진행·결과 수신을 담당합니다. 공개 가능한 진행·답변 조각은 Spring이 검증해 React SSE로 전달하고 최종 메시지·업무 변경은 DB 저장 결과로 확정합니다. heartbeat·`Last-Event-ID`·`resync.required`·REST 복구의 상세 계약은 API 설계를 따릅니다.
 
 ## 처음 설치 (Mac · Windows)
@@ -95,7 +95,7 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 | `20260020` | 20260020 | 경영지원팀 | `BIZ_ADMIN`, `AGENT_OPS_ADMIN` | 역할 두 개 확인용 |
 | `20260005`~`20260019` (15명) | 로그인 ID와 같음 | 처리 부서별 담당자·일반 직원 | 없음 | 부서별 테스트 |
 
-- 이 계정으로 `POST /api/auth/login`에 로그인할 수 있습니다(아래 [인증](#인증)). DB에서 직접 보려면:
+- 이 계정으로 `POST /api/v2/auth/login`에 로그인할 수 있습니다(아래 [인증](#인증)). DB에서 직접 보려면:
   ```bash
   psql -U hops -d hops -c "SELECT login_id, employee_no, name FROM member;"
   ```
@@ -135,11 +135,12 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 | 기능 | 위치 | 쓰는 방법 |
 |---|---|---|
+| API 주소 접두사 | `global/config/ApiPathConfig` | 우리 `@RestController`의 주소 앞에 `/api/v2`가 자동으로 붙습니다. 컨트롤러에는 `@RequestMapping("/tickets")`처럼 접두사 뒤 주소만 적습니다. Swagger·`/error`에는 붙지 않습니다. `SecurityConfig`처럼 전체 주소가 필요하면 `ApiPathConfig.PREFIX + "/auth/login"`으로 씁니다. |
 | 공통 오류 응답 | `global/exception` | Controller·Service에서 `throw new BusinessException(ErrorCode.NOT_FOUND)`처럼 던지면 `{code, message, requestId, retryable}` 형식으로 응답합니다 ([API 설계](../../../docs/API.md) §1). try-catch는 쓰지 않습니다. |
 | 요청 추적 번호 | `global/filter/RequestIdFilter` | 모든 응답 헤더와 로그 줄에 `X-Request-Id`(requestId)가 붙습니다. 오류 문의 시 이 값으로 로그를 찾습니다. |
 | API 호출 로그 | `global/filter/RequestLoggingFilter` | 요청 전 `→ GET /path`, 요청 후 `← GET /path 200 (12ms)`를 남깁니다. 본문·헤더·쿼리는 기록하지 않습니다. |
 | 시각 | `application.properties` | API 응답과 DB 모두 UTC입니다. 한국 시간 표시는 화면에서 합니다. |
-| 접근 규칙 | `global/security/SecurityConfig` | `POST /api/auth/login`, Swagger, `/error`만 토큰 없이 접근할 수 있고 나머지는 인증이 필요합니다. 새 공개 주소가 필요하면 이 파일에 추가합니다. |
+| 접근 규칙 | `global/security/SecurityConfig` | `POST /api/v2/auth/login`, Swagger, `/error`만 토큰 없이 접근할 수 있고 나머지는 인증이 필요합니다. 새 공개 주소가 필요하면 이 파일에 추가합니다. |
 | JWT 검증 | `global/security/JwtConfig` | `Authorization: Bearer 토큰`의 서명(HS256)·만료·발급자(`hops.jwt.issuer`)·대상(`hops.jwt.audience`)을 검사합니다. Controller에서 `@AuthenticationPrincipal Jwt jwt`로 클레임을 꺼내고, `roles`는 `hasRole('BIZ_ADMIN')`처럼 씁니다. `hops.jwt.secret`은 개발용 값이며 공용·운영 서버에서는 `HOPS_JWT_SECRET` 환경변수로 바꿉니다. 발급은 `auth/service/AccessTokenIssuer`가 같은 키로 합니다. |
 | CORS | `hops.cors.allowed-origins` | 기본값은 Vite 개발 서버 `http://localhost:5173`, `http://127.0.0.1:5173`입니다 (브라우저는 둘을 다른 주소로 봅니다). 로그인 쿠키를 위해 `allowCredentials`를 켰습니다. |
 | Swagger UI | `global/config/OpenApiConfig` | 서버 실행 후 `http://localhost:8080/swagger-ui/index.html`. 오른쪽 위 Authorize에 JWT를 넣어 호출합니다. 계약 기준은 Swagger가 아니라 저장소의 OpenAPI YAML입니다. |
@@ -165,33 +166,33 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
-| `POST /api/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` | 400 `INVALID_INPUT`(빈 값·형식 오류), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
-| `GET /api/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles}` | 401 `UNAUTHENTICATED`(토큰 없음·위조·만료, 회원 없음·차단) |
+| `POST /api/v2/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` | 400 `INVALID_INPUT`(빈 값·형식 오류), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
+| `GET /api/v2/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles}` | 401 `UNAUTHENTICATED`(토큰 없음·위조·만료, 회원 없음·차단) |
 
 - **동작 순서:** 로그인 ID로 회원·부서·역할을 DB에서 찾고(삭제된 회원 제외) → BCrypt로 비밀번호 해시 비교 → `AccessTokenIssuer`가 토큰 발급 (`auth/service`).
 - **토큰 클레임:** `sub`(회원 UUID), `employeeNo`, `departmentId`·`departmentCode`·`departmentName`, `roles`, `iss`·`aud`·`iat`·`exp`(발급 후 15분). 토큰 내용은 누구나 읽을 수 있으므로 비밀번호 등은 넣지 않습니다.
 - **`/me`는 토큰이 아니라 DB를 다시 읽습니다.** 토큰 발급 뒤 역할 회수·부서 변경·계정 차단이 있었을 수 있기 때문입니다.
 - 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD](../../../docs/ERD.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
-- **아직 없음:** refresh 토큰(HttpOnly 쿠키), `POST /api/auth/logout`.
+- **아직 없음:** refresh 토큰(HttpOnly 쿠키), `POST /api/v2/auth/logout`.
 
 ### 토큰 직접 확인하기
 
 ```bash
 # 1) 로그인해서 토큰 저장
-TOKEN=$(curl -s -H 'Content-Type: application/json' -d '{"loginId":"bizadmin","password":"hops1234!"}' http://localhost:8080/api/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
+TOKEN=$(curl -s -H 'Content-Type: application/json' -d '{"loginId":"bizadmin","password":"hops1234!"}' http://localhost:8080/api/v2/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
 # 2) 토큰 내용(클레임) 보기 — 서명 검증은 하지 않고 읽기만 한다
 echo "$TOKEN" | python3 -c 'import sys,base64,json; p=sys.stdin.read().strip().split(".")[1]; print(json.dumps(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))),ensure_ascii=False,indent=2))'
 # 3) 서버가 유효하다고 보는지 확인 — 200이면 서명·만료·발급자·대상 통과
-curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/auth/me
+curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v2/auth/me
 ```
 
-Swagger에서는 `POST /api/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
+Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
 
 ## Spring SSE 공통 기반
 
 [전송 계약](../../../specs/contracts/WIRE_CONTRACT.md#5-sse-연결이벤트복구)에 따라
-`GET /api/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
+`GET /api/v2/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
 `Authorization: Bearer <accessToken>`과 `Accept: text/event-stream`을 전달합니다.
 프론트는 Bearer 헤더를 지정할 수 있는 fetch 기반 SSE 소비자가 필요합니다.
 

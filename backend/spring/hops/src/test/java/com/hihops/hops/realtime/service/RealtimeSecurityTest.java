@@ -36,7 +36,7 @@ class RealtimeSecurityTest {
 
     @Test
     void 인증_없는_스트림은_401이다() throws Exception {
-        mvc.perform(get("/api/realtime/events").param("targetType", "DEPARTMENT_TICKETS")
+        mvc.perform(get("/api/v2/realtime/events").param("targetType", "DEPARTMENT_TICKETS")
                         .param("targetId", UUID.randomUUID().toString()))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -44,14 +44,14 @@ class RealtimeSecurityTest {
     @Test
     void 대상_권한_거부는_SSE_연결_전_JSON으로_반환한다() throws Exception {
         doThrow(new BusinessException(ErrorCode.ACCESS_DENIED)).when(realtime).connect(any(), any(), any());
-        mvc.perform(get("/api/realtime/events").with(jwt()).header(HttpHeaders.ACCEPT, "text/event-stream").param("targetType", "DEPARTMENT_TICKETS")
+        mvc.perform(get("/api/v2/realtime/events").with(jwt()).header(HttpHeaders.ACCEPT, "text/event-stream").param("targetType", "DEPARTMENT_TICKETS")
                         .param("targetId", UUID.randomUUID().toString()))
                 .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
 
     @Test
     void 브라우저의_재접속_헤더를_허용한다() throws Exception {
-        mvc.perform(options("/api/realtime/events").header(HttpHeaders.ORIGIN, "http://localhost:5173")
+        mvc.perform(options("/api/v2/realtime/events").header(HttpHeaders.ORIGIN, "http://localhost:5173")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Authorization,Last-Event-ID"))
                 .andExpect(status().isOk());

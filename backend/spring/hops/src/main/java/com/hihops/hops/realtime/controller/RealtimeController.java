@@ -24,7 +24,7 @@ public class RealtimeController {
         this.realtime = realtime;
     }
 
-    @GetMapping("/api/realtime/events")
+    @GetMapping("/realtime/events") // 실제 주소는 /api/v2/realtime/events (ApiPathConfig)
     public ResponseEntity<SseEmitter> events(@AuthenticationPrincipal Jwt jwt,
             @RequestParam RealtimeTarget.Type targetType, @RequestParam UUID targetId,
             @RequestHeader(value = "Last-Event-ID", required = false) String lastEventId) {

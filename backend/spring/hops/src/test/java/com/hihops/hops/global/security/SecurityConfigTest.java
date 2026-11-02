@@ -53,7 +53,7 @@ class SecurityConfigTest {
 
     @Test
     void 로그인하지_않고_API를_호출하면_401_공통_오류로_응답한다() throws Exception {
-        mockMvc.perform(get("/api/tickets"))
+        mockMvc.perform(get("/api/v2/tickets"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
                 .andExpect(jsonPath("$.requestId").value(matchesPattern(UUID_PATTERN)));
@@ -62,28 +62,28 @@ class SecurityConfigTest {
     @Test
     void 로그인_API는_로그인_없이_접근할_수_있다() throws Exception {
         // 본문이 없어 400(입력 오류)이지만, 401로 막히지 않고 로그인 API까지 도달했다는 것이 핵심이다.
-        mockMvc.perform(post("/api/auth/login"))
+        mockMvc.perform(post("/api/v2/auth/login"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @WithMockUser
     void 로그인한_사용자는_API에_접근할_수_있다() throws Exception {
-        mockMvc.perform(get("/test/security/scheme"))
+        mockMvc.perform(get("/api/v2/test/security/scheme"))
                 .andExpect(status().isOk());
     }
 
     @Test
     @WithMockUser
     void 권한이_없으면_403_공통_오류로_응답한다() throws Exception {
-        mockMvc.perform(get("/test/security/denied"))
+        mockMvc.perform(get("/api/v2/test/security/denied"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
     }
 
     @Test
     void 허용한_프론트_주소의_CORS_요청은_통과한다() throws Exception {
-        mockMvc.perform(options("/api/tickets")
+        mockMvc.perform(options("/api/v2/tickets")
                         .header(HttpHeaders.ORIGIN, "http://localhost:5173")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(status().isOk())
@@ -95,7 +95,7 @@ class SecurityConfigTest {
         // 프론트 README는 http://127.0.0.1:5173으로 접속하라고 안내한다. 브라우저는 localhost와 127.0.0.1을 다른 주소로 본다.
         // 로그인·refresh·로그아웃은 credentials: include(쿠키 포함)로 보내므로 Allow-Credentials가 있어야 브라우저가 응답을 넘겨준다
         // (WIRE_CONTRACT 9·10절).
-        mockMvc.perform(options("/api/auth/login")
+        mockMvc.perform(options("/api/v2/auth/login")
                         .header(HttpHeaders.ORIGIN, "http://127.0.0.1:5173")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type"))
@@ -106,7 +106,7 @@ class SecurityConfigTest {
 
     @Test
     void 허용하지_않은_주소의_CORS_요청은_거부한다() throws Exception {
-        mockMvc.perform(options("/api/tickets")
+        mockMvc.perform(options("/api/v2/tickets")
                         .header(HttpHeaders.ORIGIN, "http://evil.example.com")
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
                 .andExpect(status().isForbidden())
@@ -116,7 +116,7 @@ class SecurityConfigTest {
     @Test
     @WithMockUser
     void 프록시가_알려준_HTTPS를_원래_요청_방식으로_인식한다() throws Exception {
-        mockMvc.perform(get("/test/security/scheme").header("X-Forwarded-Proto", "https"))
+        mockMvc.perform(get("/api/v2/test/security/scheme").header("X-Forwarded-Proto", "https"))
                 .andExpect(content().string("https"));
     }
 

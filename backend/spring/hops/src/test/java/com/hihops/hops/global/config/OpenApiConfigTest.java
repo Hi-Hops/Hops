@@ -37,6 +37,14 @@ class OpenApiConfigTest {
     }
 
     @Test
+    void API_설명에_공통_접두사가_붙은_주소가_보인다() throws Exception {
+        // WIRE_CONTRACT 12절: 공개 API는 모두 /api/v2 아래. 컨트롤러에는 접두사 뒤 주소만 적는다 (ApiPathConfig)
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(jsonPath("$.paths['/api/v2/auth/login'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v2/realtime/events'].get").exists());
+    }
+
+    @Test
     void Swagger_화면을_로그인_없이_열_수_있다() throws Exception {
         mockMvc.perform(get("/swagger-ui/index.html"))
                 .andExpect(status().isOk());

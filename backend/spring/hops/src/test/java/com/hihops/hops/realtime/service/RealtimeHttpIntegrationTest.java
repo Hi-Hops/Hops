@@ -156,7 +156,7 @@ class RealtimeHttpIntegrationTest {
 
     private HttpRequest request(UUID target, String token, String cursor) {
         var builder = HttpRequest.newBuilder(URI.create("http://localhost:" + port
-                + "/api/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=" + target))
+                + "/api/v2/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=" + target))
                 .timeout(Duration.ofSeconds(5)).header("Accept", "text/event-stream");
         if (token != null) {
             builder.header("Authorization", "Bearer " + token);

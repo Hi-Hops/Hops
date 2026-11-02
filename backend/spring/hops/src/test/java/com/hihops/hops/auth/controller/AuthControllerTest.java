@@ -149,13 +149,13 @@ class AuthControllerTest {
 
     @Test
     void 받은_토큰으로_내_정보를_조회하면_현재_사용자_정보를_반환한다() throws Exception {
-        // 계약: GET /api/auth/me → 200 CurrentUser (WIRE_CONTRACT 2절). 프론트는 이 응답으로 사용자·부서·역할을 확정한다.
+        // 계약: GET /api/v2/auth/me → 200 CurrentUser (WIRE_CONTRACT 2절). 프론트는 이 응답으로 사용자·부서·역할을 확정한다.
         jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
         String body = mockMvc.perform(login("requester", "hops1234!"))
                 .andReturn().getResponse().getContentAsString();
         String accessToken = objectMapper.readTree(body).get("accessToken").asString();
 
-        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(MEMBER_ID.toString()))
                 .andExpect(jsonPath("$.employeeNo").value("20260001"))
@@ -182,7 +182,7 @@ class AuthControllerTest {
         String accessToken = objectMapper.readTree(body).get("accessToken").asString();
         jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
 
-        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
@@ -194,7 +194,7 @@ class AuthControllerTest {
         String accessToken = objectMapper.readTree(body).get("accessToken").asString();
         jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
 
-        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
 
         assertThat(output).contains("내 정보 조회 실패: 토큰은 유효하지만 회원이 없거나 차단됨 memberId=" + MEMBER_ID);
         assertThat(output).doesNotContain(accessToken);
@@ -228,7 +228,7 @@ class AuthControllerTest {
     }
 
     private static MockHttpServletRequestBuilder login(String loginId, String password) {
-        return post("/api/auth/login")
+        return post("/api/v2/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"loginId\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password));
     }
@@ -236,7 +236,7 @@ class AuthControllerTest {
     @Test
     void 비밀번호가_틀리면_401과_공통_오류_형식으로_응답한다() throws Exception {
         // 프론트 계약(specs/contracts): 로그인 실패는 401 UNAUTHENTICATED. 아이디가 없는지 비밀번호가 틀렸는지는 알려주지 않는다.
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v2/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"loginId": "requester", "password": "wrong-password"}
@@ -251,7 +251,7 @@ class AuthControllerTest {
     @Test
     void 로그인ID가_비어_있으면_DB를_조회하지_않고_400으로_응답한다() throws Exception {
         // 계약(specs/contracts/DATA_TYPES.md LoginRequest): loginId·password는 최소 1글자.
-        mockMvc.perform(post("/api/auth/login")
+        mockMvc.perform(post("/api/v2/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"loginId": "", "password": "hops1234!"}
