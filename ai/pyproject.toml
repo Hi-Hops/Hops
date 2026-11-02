@@ -3,7 +3,7 @@ name = "hops-ai"
 version = "0.1.0"
 description = "IT 문의 표준화·지식 검색·사례 재사용을 위한 Hops AI 서버 골격"
 requires-python = ">=3.13,<3.14"
-# 초기 직접 의존성은 docs/AGENT_DEVELOPMENT.md 9장의 고정 버전을 따른다.
+# 초기 직접 의존성은 루트 README.md 기술 스택의 개발 기준 버전을 따른다.
 dependencies = [
     "fastapi==0.143.5",
     "langgraph==1.2.16",
