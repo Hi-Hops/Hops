@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mode",
+    "base_sha",
+    "head_sha",
+    "complete",
+    "covered_files",
+    "unread_files",
+    "findings",
+    "resolved_previous",
+    "verified_behaviors",
+    "test_gaps",
+    "validation_summary",
+    "overall_correctness",
+    "overall_explanation"
+  ],
+  "properties": {
+    "mode": { "type": "string", "enum": ["fast", "deep"] },
+    "base_sha": { "type": "string" },
+    "head_sha": { "type": "string" },
+    "complete": { "type": "boolean" },
+    "covered_files": { "type": "array", "items": { "type": "string" } },
+    "unread_files": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["priority", "title", "path", "line", "end_line", "body", "fix", "test", "confidence"],
+        "properties": {
+          "priority": { "type": "integer", "enum": [0, 1, 2, 3] },
+          "title": { "type": "string" },
+          "path": { "type": "string" },
+          "line": { "type": "integer" },
+          "end_line": { "type": "integer" },
+          "body": { "type": "string" },
+          "fix": { "type": "string" },
+          "test": { "type": "string" },
+          "confidence": { "type": "number" }
+        }
+      }
+    },
+    "resolved_previous": { "type": "array", "items": { "type": "string" } },
+    "verified_behaviors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scenario", "evidence"],
+        "properties": {
+          "scenario": { "type": "string" },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "test_gaps": { "type": "array", "items": { "type": "string" } },
+    "validation_summary": { "type": "string" },
+    "overall_correctness": { "type": "string", "enum": ["correct", "incorrect", "incomplete"] },
+    "overall_explanation": { "type": "string" }
+  }
+}
