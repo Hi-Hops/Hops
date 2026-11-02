@@ -98,6 +98,14 @@ PostgreSQL 통합 검사는 별도 테스트 전용 DB `hops_ai_runtime_test`가
 HOPS_LEDGER_TEST_DSN='<테스트 전용 PostgreSQL 연결 문자열>' uv run pytest tests/integration/test_run_ledger.py
 ```
 
+최소 권한 검사는 격리된 테스트 PostgreSQL에 `hops_business_test` DB와 제한 로그인 계정 `hops_ai_test`를 별도로 준비하고 `HOPS_LEDGER_LIMITED_TEST_DSN`도 주입할 때 실행한다. 테스트 관리자 계정으로 두 마이그레이션을 적용한 뒤 제한 계정에 런타임 DB의 `CONNECT`, 스키마 `USAGE`, `ai_run_ledger`의 `SELECT`·`INSERT`·`UPDATE`만 부여한다. 이 검사의 전용 업무 DB는 `PUBLIC`을 포함해 해당 계정의 `CONNECT`가 없어야 한다. 검사는 제한 계정으로 접수·복구가 가능한지와 업무 DB 연결·테이블 `DELETE`·스키마 `CREATE`가 거부되는지 확인한다. 위 설정은 격리 테스트 환경의 예시이며 공유 DB의 권한을 임의로 변경하지 않는다.
+
+```bash
+HOPS_LEDGER_TEST_DSN='<테스트 관리자 연결 문자열>' \
+HOPS_LEDGER_LIMITED_TEST_DSN='<테스트 제한 계정 연결 문자열>' \
+uv run pytest tests/integration/test_run_ledger.py
+```
+
 DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 호출·Spring 업무 저장이 연결됐다는 뜻은 아니다.
 
 ## 구현 경계와 다음 작업

@@ -11,7 +11,7 @@ from uuid import uuid4
 import psycopg
 import pytest
 from psycopg import sql
-from psycopg.conninfo import conninfo_to_dict
+from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 from hops_ai.main import create_app
 from hops_ai.persistence.run_ledger import InvalidRunTransition, RunConflict, RunLedger
@@ -251,3 +251,57 @@ async def test_owner_migration_preserves_legacy_results_and_marks_unowned_runs_u
         finally:
             await conn.execute("SET search_path TO public")
             await conn.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
+
+
+async def test_limited_role_can_recover_without_business_database_access(ledger: RunLedger) -> None:
+    conninfo = os.environ.get("HOPS_LEDGER_LIMITED_TEST_DSN")
+    if not conninfo:
+        pytest.skip("제한된 테스트 계정의 연결 문자열이 설정되지 않았다")
+    if conninfo_to_dict(conninfo).get("dbname") != "hops_ai_runtime_test":
+        pytest.fail("제한 계정 테스트는 hops_ai_runtime_test DB에서만 실행한다")
+
+    async with await psycopg.AsyncConnection.connect(conninfo) as conn:
+        cursor = await conn.execute(
+            """SELECT current_user, r.rolsuper, r.rolcreatedb, r.rolcreaterole,
+                      has_table_privilege(current_user, 'public.ai_run_ledger', 'SELECT'),
+                      has_table_privilege(current_user, 'public.ai_run_ledger', 'INSERT'),
+                      has_table_privilege(current_user, 'public.ai_run_ledger', 'UPDATE'),
+                      has_table_privilege(current_user, 'public.ai_run_ledger', 'DELETE'),
+                      has_schema_privilege(current_user, 'public', 'CREATE'),
+                      has_database_privilege(current_user, 'hops_business_test', 'CONNECT')
+               FROM pg_roles r WHERE r.rolname = current_user"""
+        )
+        permissions = await cursor.fetchone()
+        assert permissions == (
+            "hops_ai_test",
+            False,
+            False,
+            False,
+            True,
+            True,
+            True,
+            False,
+            False,
+            False,
+        )
+
+    # 별도 업무 DB에 실제 접속을 시도해 권한 거부를 확인한다.
+    business_conninfo = make_conninfo(conninfo, dbname="hops_business_test")
+    with pytest.raises(psycopg.OperationalError, match="permission denied"):
+        await psycopg.AsyncConnection.connect(business_conninfo)
+
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        async with await psycopg.AsyncConnection.connect(conninfo) as conn:
+            await conn.execute("DELETE FROM public.ai_run_ledger WHERE run_id = %s", (uuid4(),))
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        async with await psycopg.AsyncConnection.connect(conninfo) as conn:
+            await conn.execute("CREATE TABLE public.hops_ai_privilege_test (id integer)")
+
+    run_id = uuid4()
+    payload = {"message": "제한 계정 테스트"}
+    async with RunLedger(conninfo) as owner:
+        assert (await owner.accept(run_id, payload)).created
+        assert await owner.start(run_id)
+    async with RunLedger(conninfo) as restarted:
+        assert (await restarted.get(run_id)).status == "UNKNOWN"
+        assert not (await restarted.accept(run_id, payload)).created
