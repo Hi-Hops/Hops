@@ -1,6 +1,6 @@
 # Hops Spring 백엔드
 
-Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 저장소 루트의 [로컬 개발 환경 안내](../../../docs/LOCAL_DEVELOPMENT.md)를 따릅니다. 아래 직접 설치 절차는 PC에서 Spring을 실행할 때 사용합니다.
+Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../../../README.md#docker-compose로-실행)를 따릅니다. 아래 직접 설치 절차는 PC에서 Spring을 실행할 때 사용합니다.
 
 > **PRD 1.44 전환:** 아래 부서·시드·SSE·API 내용은 현재 구현 설명이다. 새 목표의 시스템별 주담당자 배정·처리·확인·사례 승인·검색 반영은 이 문서 변경으로 구현되지 않았다. [PRD](../../../docs/PRD.md), [API](../../../docs/API.md), [데이터](../../../docs/DATA.md)를 기준으로 별도 계약·migration·구현이 필요하다.
 

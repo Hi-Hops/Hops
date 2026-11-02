@@ -6,11 +6,11 @@
 
 ## 1. 실행 환경
 
-Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 저장소 루트의 [로컬 개발 환경 안내](../docs/LOCAL_DEVELOPMENT.md)를 따른다. 아래 Compose는 프론트 단독 실행용이다.
+Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 Compose는 프론트 단독 실행용이다.
 
 Docker Engine과 Docker Compose **2.20 이상**을 준비한다. Windows/macOS는 Docker Desktop을 실행하고 Windows는 Linux 컨테이너 모드를 사용한다. 최초 실행은 이미지·npm 패키지를 내려받을 네트워크가 필요하다. 저장소의 `frontend/`와 `specs/`가 함께 있어야 한다.
 
-Docker 초기 설정은 [로컬 개발 환경 안내](../docs/LOCAL_DEVELOPMENT.md#처음-실행)에 따라 루트 `.env.example`을 `.env`로 한 번만 복사한다. 이후 프론트 설정도 같은 루트 `.env`에 입력한다. 아래 Docker 명령은 모두 **저장소 루트에서** 실행한다.
+Docker 초기 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)에 따라 루트 `.env.example`을 `.env`로 한 번만 복사한다. 이후 프론트 설정도 같은 루트 `.env`에 입력한다. 아래 Docker 명령은 모두 **저장소 루트에서** 실행한다.
 
 ## 2. 실행 모드와 .env
 
