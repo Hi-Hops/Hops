@@ -57,6 +57,15 @@ async def settled(ledger: MemoryLedger, run_id: str):
     raise AssertionError("실행이 종료 상태가 되지 않았다")
 
 
+async def eventually(condition) -> None:
+    """작업 종료 콜백은 다음 루프 차례에 돌므로 조건이 맞을 때까지 잠깐 기다린다."""
+    for _ in range(200):
+        if condition():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError("조건이 제한 시간 안에 충족되지 않았다")
+
+
 async def finished(ledger: MemoryLedger, run_id: str) -> dict:
     snapshot = await settled(ledger, run_id)
     assert snapshot.status in TERMINAL
@@ -205,7 +214,7 @@ async def test_result_returned_after_deadline_is_not_stored_as_success() -> None
     assert result["answer"] is None
 
 
-async def test_pipeline_that_never_honours_cancel_still_times_out_and_frees_slot() -> None:
+async def test_pipeline_that_never_honours_cancel_times_out_but_keeps_its_slot() -> None:
     stop = asyncio.Event()
 
     async def stubborn(req):
@@ -224,16 +233,44 @@ async def test_pipeline_that_never_honours_cancel_still_times_out_and_frees_slot
         result = await finished(ledger, req.runId)
         assert result["status"] == "TIMED_OUT"
         assert result["error"]["code"] == "DEADLINE_EXCEEDED"
-        assert executor.active_runs == 0
+        await eventually(lambda: executor.active_runs == 0)
         assert executor.stray_tasks == 1
-        # 슬롯이 비었으므로 동시 실행 1개 상한에서도 새 run을 받을 수 있다.
+        # 분리한 작업이 아직 돌고 있으므로 상한 1에서 새 run을 더 받지 않는다.
+        for _ in range(3):
+            with pytest.raises(ExecutorBusy):
+                await executor.submit(request())
+        assert executor.stray_tasks == 1
+        assert len(ledger.rows) == 1
+        # 작업이 실제로 끝나면 슬롯이 돌아온다.
+        stop.set()
+        await eventually(lambda: executor.occupied_slots == 0)
         assert (await executor.submit(request())).created
-        await executor.shutdown()  # 취소를 무시하는 작업이 있어도 종료가 멈추지 않는다
+        await executor.shutdown()
     finally:
         # 회귀로 실행이 끝나지 않아도 테스트가 멈추지 않고 실패하도록 항상 풀어 준다.
         stop.set()
         await asyncio.sleep(0.01)
-    assert executor.stray_tasks == 0
+    await eventually(lambda: executor.stray_tasks == 0)
+
+
+async def test_shutdown_does_not_hang_on_pipeline_that_ignores_cancel() -> None:
+    stop = asyncio.Event()
+
+    async def stubborn(req):
+        while not stop.is_set():
+            try:
+                await stop.wait()
+            except asyncio.CancelledError:
+                continue
+
+    executor, _ = make_executor(Pipeline(stubborn))
+    try:
+        await executor.submit(request())
+        await asyncio.sleep(0.05)
+        await asyncio.wait_for(executor.shutdown(), timeout=2)
+    finally:
+        stop.set()
+        await asyncio.sleep(0.01)
 
 
 async def test_transient_store_failures_are_retried_without_rerunning_pipeline() -> None:
@@ -264,7 +301,7 @@ async def test_persistent_store_failure_moves_run_to_unknown(failing) -> None:
     assert snapshot.status == "UNKNOWN"
     assert snapshot.result is None
     assert pipeline.calls == (0 if failing == "start_failures" else 1)
-    assert executor.active_runs == 0
+    await eventually(lambda: executor.active_runs == 0)
 
 
 async def test_busy_executor_rejects_new_runs_but_allows_replay() -> None:
@@ -282,7 +319,7 @@ async def test_busy_executor_rejects_new_runs_but_allows_replay() -> None:
     assert not (await executor.submit(first)).created
     release.set()
     assert (await finished(ledger, first.runId))["status"] == "SUCCEEDED"
-    assert executor.active_runs == 0
+    await eventually(lambda: executor.active_runs == 0)
 
 
 async def test_shutdown_stops_runs_without_storing_a_result() -> None:
@@ -297,7 +334,7 @@ async def test_shutdown_stops_runs_without_storing_a_result() -> None:
     snapshot = await ledger.get(UUID(req.runId))
     assert snapshot.status == "RUNNING"
     assert ledger.finish_calls == 0
-    assert executor.active_runs == 0
+    await eventually(lambda: executor.active_runs == 0)
 
 
 def test_server_ceilings_follow_settings() -> None:

@@ -180,7 +180,13 @@ class RunExecutor:
 
     @property
     def active_runs(self) -> int:
+        """아직 종료 상태를 저장하지 않은 run 수."""
         return len(self._tasks)
+
+    @property
+    def occupied_slots(self) -> int:
+        """동시 실행 상한에 세는 작업 수. 분리한 파이프라인 작업도 끝날 때까지 자원을 쓴다."""
+        return len(self._tasks) + len(self._stray)
 
     async def submit(self, request: AiRunRequest) -> RunAcceptance:
         """새 run이면 접수 후 실행을 시작한다. 같은 입력의 재전송은 기존 상태만 돌려준다."""
@@ -188,7 +194,8 @@ class RunExecutor:
         request = AiRunRequest.model_validate(request.model_dump(mode="json"))
         run_id = UUID(request.runId)
         async with self._submit_lock:
-            if self.active_runs >= self._settings.max_concurrent_runs:
+            # 취소에 응답하지 않아 분리한 작업도 실제로 끝나기 전까지는 슬롯을 차지한다.
+            if self.occupied_slots >= self._settings.max_concurrent_runs:
                 # 이미 접수된 run의 재전송은 상한과 무관하게 기존 상태를 확인할 수 있다.
                 if await self._ledger.get(run_id) is None:
                     raise ExecutorBusy
@@ -201,7 +208,7 @@ class RunExecutor:
 
     @property
     def stray_tasks(self) -> int:
-        """기한 뒤 취소에 응답하지 않아 실행 슬롯에서 분리한 파이프라인 작업 수."""
+        """기한 뒤 취소에 응답하지 않아 run에서 분리한 파이프라인 작업 수. 슬롯은 계속 차지한다."""
         return len(self._stray)
 
     async def shutdown(self) -> None:
