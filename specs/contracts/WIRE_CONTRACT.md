@@ -1,6 +1,6 @@
 # wire JSON·REST·SSE·AI 계약
 
-> **PRD 1.44 전환 안내:** 아래 타입·REST/SSE와 enum은 기존 부서 기반 구현·Mock의 호환 프로필이다. 시스템별 주담당자, 문제별 확인, Curator·사례 공개와 두 저장소 반영의 새 필드·상태·경로는 12절 hops-system-1 리뷰 계약안에 정의하며 팀 승인·구현은 별도다. 새 제품 정책은 [PRD](../../docs/PRD.md)와 [API 설계](../../docs/API.md)를 따르며, 이전 단일 MVP·CS 배정·무응답 종료는 새 목표가 아니다. 실제 코드와 계약은 전환 전까지 서로 구분해 유지한다.
+> **PRD 1.44 전환 안내:** 아래 타입·REST/SSE와 enum은 기존 부서 기반 구현·Mock의 호환 프로필이다. 시스템별 주담당자, 문제별 확인, Curator·사례 공개와 두 저장소 반영의 새 필드·상태·경로는 12절 hops-system-1 목표 계약에 정의하며 실제 구현은 별도다. 새 제품 정책은 [PRD](../../docs/PRD.md)와 [API 설계](../../docs/API.md)를 따르며, 이전 단일 MVP·CS 배정·무응답 종료는 새 목표가 아니다. 실제 코드와 계약은 전환 전까지 서로 구분해 유지한다.
 
 상태: 2026-10-27 개발 기준 확정 / 작성자 외 팀원 리뷰·실제 서비스 구현 및 통합 검증 별도. 현재 Mock·임시 Live Adapter와 확정 계약의 차이는 11절에 명시한다. 전체 필드와 타입은 [DATA_TYPES.md](DATA_TYPES.md), 작업별 입출력은 이 문서의 연결표를 따른다. 언어별 코드 생성은 제공하지 않는다.
 
@@ -285,7 +285,7 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 ## 12. 신규 계약 hops-system-1
 
-상태: PRD 1.44 PR #68 제출 결정안·API/SSE/오류 정의 완료. 이 절만 `/api/v2`에 적용한다. 1~11절·기존 `/api`·실행 Mock의 구현 상태를 변경하지 않는다. 타입은 [신규 데이터 계약](DATA_TYPES.md#신규-계약-hops-system-1), 상태 전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md)가 정본이다.
+상태: PRD 1.44 hops-system-1 목표 계약·API/SSE/오류 정의. 이 절만 `/api/v2`에 적용한다. 1~11절·기존 `/api`·실행 Mock의 구현 상태를 변경하지 않는다. 타입은 [신규 데이터 계약](DATA_TYPES.md#신규-계약-hops-system-1), 상태 전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md)가 정본이다.
 
 ### 12.1 인증·명령·공통 응답
 
@@ -395,7 +395,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 ### 12.5 전환 확인
 
-새 경로·응답은 이번 PR의 채택값이다. 현행 프론트 요청과 Spring의 로그인/부서 SSE는 기존 프로필을 따른다. 신규 경로가 등록되지 않은 환경을 빈 결과·Mock 성공으로 처리하지 않는다. 새 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 확인한 뒤 배포 설정에서 신규 프로필을 선택한다.
+새 경로·응답은 hops-system-1 목표 계약이다. 현행 프론트 요청과 Spring의 로그인/부서 SSE는 기존 프로필을 따른다. 신규 경로가 등록되지 않은 환경을 빈 결과·Mock 성공으로 처리하지 않는다. 새 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 확인한 뒤 배포 설정에서 신규 프로필을 선택한다.
 
 ### 12.6 계약 범위와 spec 연결
 

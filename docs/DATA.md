@@ -1,6 +1,6 @@
 # 데이터 저장 계약 — PRD 1.44
 
-상태: PR #68 제출 결정안 · 외부 ID/필드와 저장 매핑·거래 경계 기입 완료. 팀 PR 승인·Entity/DDL 작성·DB 적용·실행 검증은 별도다. [PRD](PRD.md)·[공통 계약](../specs/contracts/README.md)·[타입](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)을 따른다. 적용된 V1과 기존 계정/부서 데이터는 변경하지 않는다.
+상태: hops-system-1 목표 설계 · 외부 ID/필드와 저장 매핑·거래 경계 정의. Entity/DDL 작성·DB 적용·실행 검증은 별도다. [PRD](PRD.md)·[공통 계약](../specs/contracts/README.md)·[타입](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)을 따른다. 적용된 V1과 기존 계정/부서 데이터는 변경하지 않는다. [사례 복구·공개 중단 변경안](../specs/F011-case-lifecycle/RECOVERY_PROPOSAL.md)은 추가 저장 설계가 필요하다.
 
 ## 1. 데이터 정본
 
@@ -137,7 +137,7 @@ PostgreSQL 격리는 READ COMMITTED, 잠금 순서는 Inquiry → problemId 정�
 
 ## 10. 물리 ERD 적용 기준
 
-기준은 develop의 [PR #69](https://github.com/Hi-Hops/Hops/pull/69), merge commit `d896faeb2a0b132da2c3212cba408bf880d797cf`다. 원본 22개 테이블을 사용하고 추가 테이블 없이 기존 컬럼 보완과 DTO 투영을 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)에 정의한다. 원본 ERD 대조와 팀 승인·DDL/Entity/실제 DB 적용을 구분한다.
+기준은 develop의 [PR #69](https://github.com/Hi-Hops/Hops/pull/69), merge commit `d896faeb2a0b132da2c3212cba408bf880d797cf`다. 원본 22개 테이블을 사용하고 추가 테이블 없이 기존 컬럼 보완과 DTO 투영을 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)에 정의한다. 원본 ERD 대조와 DDL/Entity/실제 DB 적용을 구분한다.
 
 <a id="11-완성-erd-대조와-문서-pr-병합-기준"></a>
 
@@ -201,7 +201,7 @@ knowledge_document_version.id는 내부 FK이고, 외부 documentId는 knowledge
 
 ### 11.4 문서 병합과 실제 구현
 
-원본 ERD 대조는 완료했다. 추가 테이블 없이 기존 컬럼·DTO 변환을 백엔드와 함께 리뷰하고 작성자 외 팀원 최소1명 승인, 리뷰 이슈 해결, 문서/예시/spec 검사와 충돌 없음 확인 후 문서 PR을 병합한다. [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)의 컬럼·제약 보완은 ERD 3절 표와 Flyway V2~V21에 반영했다(#23). MVP 범위의 업무 동작은 구현 PR에서 적용한다.
+원본 ERD 대조 결과를 바탕으로 추가 테이블 없이 기존 컬럼과 DTO를 변환한다. [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)의 컬럼·제약 보완은 ERD 3절 표와 Flyway V2~V21에 반영했다(#23). MVP 범위의 업무 동작은 구현 PR에서 적용한다.
 
 Entity·Flyway의 저장·재조회·유일성·CHECK는 #23 Repository 테스트로 확인했다. DB 경합·서비스 권한·실제 모델/검색·브라우저 E2E는 구현 PR에서 검증한다. Spring이 중계하는 임시 답변 조각은 message의 저장 완료 행과 별개이며 ERD의 message_status만으로 실시간 연결이 구현됐다고 볼 수 없다. 현재 프론트/Mock은 legacy 프로필을 유지하고 전환 작업은 [프론트 기준](frontend/README.md#erd-대조-후-프론트-구현-범위)을 따른다.
 

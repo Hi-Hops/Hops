@@ -1,6 +1,6 @@
 # 공통 데이터·전송 계약
 
-기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 PR #68 제출 결정안·계약값 작성 완료이며 승인·구현·통합 완료와 구분한다. 현재 프론트의 hops-mock-1과 새 Python 골격·신규 목표 계약을 구분한다. 옛 Python agent-1 실행 API는 제거됐으며 프로필을 혼용하지 않는다.
+기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 목표 계약이며 실제 구현·통합 완료와 구분한다. 현재 프론트의 hops-mock-1과 새 Python 골격·신규 목표 계약을 구분한다. 옛 Python agent-1 실행 API는 제거됐으며 프로필을 혼용하지 않는다.
 
 ## 정본과 읽는 순서
 
@@ -13,7 +13,7 @@
 | [AI State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약) | 내부 State·실행/색인/검색 권한 DTO의 필드·검증 규칙 |
 | [F001~F011](../README.md) | 화면·조작·AC·계약 검증 시나리오 |
 | [DATA](../../docs/DATA.md)·[ERD](../../docs/ERD_설명.md) | 기존22개 테이블의 업무 저장 관계·유일성·잠금·commit 뒤 후속 호출 |
-| [QUESTIONS](../QUESTIONS.md) | 공통 계약·저장 기준과 모델·비용 선정 제외 범위·팀 승인/구현 상태 |
+| [QUESTIONS](../QUESTIONS.md) | 공통 계약·저장 기준과 모델·비용 선정 제외 범위·구현 상태 |
 
 공통 상태·오류·필드 표를 각 spec에 다시 정의하지 않는다. spec은 해당 정본을 참조하고 사용자에게 관찰되는 동작·완료 조건을 적는다. 제품 범위의 정본은 PRD다.
 
