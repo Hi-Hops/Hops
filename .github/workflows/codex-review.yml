@@ -256,9 +256,13 @@ jobs:
               if (report.headSha !== context.payload.pull_request.head.sha ||
                   report.baseSha !== context.payload.pull_request.base.sha ||
                   !Array.isArray(report.checks)) throw new Error('검증 보고서 커밋/형식 불일치');
-              for (const check of report.checks.slice(0, 30)) {
+              // 통과한 명령은 개수만 표시하고 확인이 필요한 명령만 나열한다.
+              const passed = report.checks.filter(check => check.status === 'passed').length;
+              const attention = report.checks.filter(check => check.status !== 'passed');
+              evidence += '- 통과 ' + passed + '개 / 전체 ' + report.checks.length + '개\n';
+              for (const check of attention.slice(0, 30)) {
                 const command = String(check.command).replace(/[`\r\n]/g, ' ').slice(0, 250);
-                const status = ['passed', 'failed', 'skipped'].includes(check.status) ? check.status : 'unknown';
+                const status = ['failed', 'skipped'].includes(check.status) ? check.status : 'unknown';
                 evidence += '- `' + command + '`: **' + status + '**\n';
               }
             } catch {

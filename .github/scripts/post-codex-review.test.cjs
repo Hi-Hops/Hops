@@ -128,8 +128,6 @@ function structured(overrides = {}) {
     ],
     resolved_previous: ['이전 결함'],
     verified_behaviors: [{ scenario: '정상 조회', evidence: 'A.java:8 소유권 확인' }],
-    test_gaps: ['만료 토큰 재시도'],
-    validation_summary: 'frontend test 통과',
     overall_correctness: 'incorrect',
     overall_explanation: 'P1 결함이 있다.',
     ...overrides,
@@ -146,7 +144,7 @@ test('구조화된 결과를 심각도 순으로 렌더링하고 head 링크를 
   assert.match(body, /발견 사항 \(2\)/);
   assert.match(body, /<details><summary>확신이 낮은 지적 \(1\)[\s\S]*불확실한 추정/);
   assert.match(body, /해결된 지적:\*\* 이전 결함/);
-  assert.match(body, /만료 토큰 재시도/);
+  assert.doesNotMatch(body, /테스트 공백|실행 검증 해석/);
   assert.doesNotMatch(body, /"findings"/);
 });
 

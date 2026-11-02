@@ -71,12 +71,6 @@ function renderReview(review, { repoUrl, headSha }) {
         `- **${inline(item.scenario, 300)}** — ${inline(item.evidence, 800)}`).join('\n') +
       '\n</details>\n';
   }
-  if (review.test_gaps?.length) {
-    body += '\n### 테스트 공백\n\n' + review.test_gaps.map(gap => `- ${inline(gap, 800)}`).join('\n') + '\n';
-  }
-  if (review.validation_summary) {
-    body += `\n### 실행 검증 해석\n\n${inline(review.validation_summary, 2000)}\n`;
-  }
   return body;
 }
 

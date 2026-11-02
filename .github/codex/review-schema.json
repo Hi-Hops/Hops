@@ -11,8 +11,6 @@
     "findings",
     "resolved_previous",
     "verified_behaviors",
-    "test_gaps",
-    "validation_summary",
     "overall_correctness",
     "overall_explanation"
   ],
@@ -55,8 +53,6 @@
         }
       }
     },
-    "test_gaps": { "type": "array", "items": { "type": "string" } },
-    "validation_summary": { "type": "string" },
     "overall_correctness": { "type": "string", "enum": ["correct", "incorrect", "incomplete"] },
     "overall_explanation": { "type": "string" }
   }
