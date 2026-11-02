@@ -1,15 +1,13 @@
 import { create } from 'zustand';
-import type { StoredCommand, StoredCommandName } from '@/shared/api/mutations';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
-
-export type PendingCommand = { event: StoredCommandName; command: StoredCommand };
-type Draft = { content: string; pending: PendingCommand | null };
+import type { PendingSystemCommand } from '@/shared/api/systemCommands';
+type Draft = { content: string; systemId: string | null; pending: PendingSystemCommand | null };
 type State = {
   drafts: Partial<Record<string, Draft>>;
   set: (key: string, draft: Draft) => void;
   clear: () => void;
 };
-export const useDrafts = create<State>((set) => ({
+export const useSystemDrafts = create<State>((set) => ({
   drafts: {},
   set: (key, draft) => {
     set((state) => ({ drafts: { ...state.drafts, [key]: draft } }));
@@ -19,5 +17,5 @@ export const useDrafts = create<State>((set) => ({
   },
 }));
 onSessionEvent((event) => {
-  if (event === 'logout' || event === 'switched') useDrafts.getState().clear();
+  if (event === 'logout' || event === 'switched') useSystemDrafts.getState().clear();
 });

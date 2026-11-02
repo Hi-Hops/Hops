@@ -1,9 +1,10 @@
 import { connectionMode } from '@/shared/config/connection';
-import { realtime as mock } from './mockTransport';
 import { SseTransport } from './sseTransport';
 import type { RealtimeTransport } from './types';
+import { systemMockTransport } from './systemMockTransport';
 const live = new SseTransport();
-const transport = (): RealtimeTransport => (connectionMode() === 'mock' ? mock : live);
+const transport = (): RealtimeTransport =>
+  connectionMode() === 'mock' ? systemMockTransport : live;
 export const realtime: RealtimeTransport = {
   connect: (token) => {
     transport().connect(token);

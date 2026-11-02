@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiRequest, ApiError } from '@/shared/api/client';
-import { mockBackend, MockHttpError } from '@/shared/api/mockBackend';
+import { systemMockBackend } from '@/shared/api/systemMockBackend';
+import { MockHttpError } from '@/shared/api/mockError';
 import { TEST_LOGINS } from '@/test/mockCredentials';
 import { login } from '../api/authApi';
 import { refreshSession, useSession } from './sessionStore';
 beforeEach(async () => {
-  mockBackend.reset();
+  systemMockBackend.reset();
   useSession.getState().logout();
   await login(TEST_LOGINS.requester);
 });
@@ -20,21 +21,22 @@ function token() {
   return value;
 }
 describe('F001 Refresh Token 갱신', () => {
-  it('F001-AC04 서버가 부서 변경을 알리면 refresh 반복 없이 재로그인한다', async () => {
-    const original = mockBackend.request.bind(mockBackend);
-    const request = vi.spyOn(mockBackend, 'request').mockImplementation((path, ...args) => {
-      if (path === '/api/auth/me')
+  it('F001-AC04 서버가 권한 변경을 알리면 refresh 반복 없이 재로그인한다', async () => {
+    const original = systemMockBackend.request.bind(systemMockBackend);
+    const request = vi.spyOn(systemMockBackend, 'request').mockImplementation((path, ...args) => {
+      if (path === '/api/v2/auth/me')
         throw new MockHttpError(403, {
           code: 'AUTH_CONTEXT_CHANGED',
-          message: '부서 변경',
+          message: '담당 시스템 변경',
           requestId: crypto.randomUUID(),
           retryable: false,
+          fieldErrors: [],
         });
       return original(path, ...args);
     });
-    await expect(apiRequest('/api/auth/me')).rejects.toMatchObject({ status: 403 });
+    await expect(apiRequest('/api/v2/auth/me')).rejects.toMatchObject({ status: 403 });
     expect(useSession.getState().token).toBeNull();
-    expect(request.mock.calls.some(([path]) => path === '/api/auth/refresh')).toBe(false);
+    expect(request.mock.calls.some(([path]) => path === '/api/v2/auth/refresh')).toBe(false);
   });
   it('F001-AC05 live refresh만 쿠키를 전달하고 업무 조회는 새 Bearer로 한 번 복구한다', async () => {
     const previous = token();
@@ -46,10 +48,11 @@ describe('F001 Refresh Token 갱신', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            code: 'UNAUTHENTICATED',
+            code: 'ACCESS_TOKEN_EXPIRED',
             message: '만료',
             requestId: crypto.randomUUID(),
             retryable: false,
+            fieldErrors: [],
           }),
           { status: 401 },
         ),
@@ -65,8 +68,8 @@ describe('F001 Refresh Token 갱신', () => {
       )
       .mockResolvedValueOnce(new Response(JSON.stringify(user)));
     vi.stubGlobal('fetch', request);
-    await apiRequest('/api/auth/me');
-    expect(request.mock.calls[1]?.[0]).toBe('http://localhost:8080/api/auth/refresh');
+    await apiRequest('/api/v2/auth/me');
+    expect(request.mock.calls[1]?.[0]).toBe('http://localhost:8080/api/v2/auth/refresh');
     expect(request.mock.calls[1]?.[1]?.credentials).toBe('include');
     expect(request.mock.calls[1]?.[1]?.headers).not.toHaveProperty('Authorization');
     expect(request.mock.calls[2]?.[1]).toMatchObject({
@@ -102,42 +105,43 @@ describe('F001 Refresh Token 갱신', () => {
   });
   it('F001-AC05 동시 401은 한 번 갱신하고 새 토큰으로 원래 조회를 복구한다', async () => {
     const previous = token();
-    mockBackend.expire(previous);
-    const request = vi.spyOn(mockBackend, 'request');
-    await Promise.all([apiRequest('/api/auth/me'), apiRequest('/api/auth/me')]);
+    systemMockBackend.expire(previous);
+    const request = vi.spyOn(systemMockBackend, 'request');
+    await Promise.all([apiRequest('/api/v2/auth/me'), apiRequest('/api/v2/auth/me')]);
     expect(token()).not.toBe(previous);
-    expect(request.mock.calls.filter(([path]) => path === '/api/auth/refresh')).toHaveLength(1);
+    expect(request.mock.calls.filter(([path]) => path === '/api/v2/auth/refresh')).toHaveLength(1);
     expect(useSession.getState().user).not.toBeNull();
   });
   it('F001-AC05 갱신 토큰 만료는 재로그인을 요청하고 이전 사용자 식별자를 보존한다', async () => {
     const previous = token();
-    mockBackend.expire(previous);
-    mockBackend.expireRefresh();
-    await expect(apiRequest('/api/auth/me')).rejects.toBeInstanceOf(ApiError);
+    systemMockBackend.expire(previous);
+    systemMockBackend.expireRefresh();
+    await expect(apiRequest('/api/v2/auth/me')).rejects.toBeInstanceOf(ApiError);
     expect(useSession.getState().token).toBeNull();
     expect(useSession.getState().previousUserId).not.toBeNull();
   });
   it('F001-AC05 갱신 통신 장애는 로그인 만료로 바꾸지 않는다', async () => {
     const previous = token();
-    mockBackend.failNext(503);
+    systemMockBackend.failNext(503);
     await expect(refreshSession(previous)).rejects.toBeInstanceOf(ApiError);
     expect(token()).toBe(previous);
   });
   it('F001-AC04 권한 거부 403에는 갱신이나 재로그인을 반복하지 않는다', async () => {
     const previous = token();
-    const original = mockBackend.request.bind(mockBackend);
-    const request = vi.spyOn(mockBackend, 'request').mockImplementation((path, ...args) => {
-      if (path === '/api/tickets')
+    const original = systemMockBackend.request.bind(systemMockBackend);
+    const request = vi.spyOn(systemMockBackend, 'request').mockImplementation((path, ...args) => {
+      if (path === '/api/v2/tickets')
         throw new MockHttpError(403, {
           code: 'ACCESS_DENIED',
           message: '권한 없음',
           requestId: crypto.randomUUID(),
           retryable: false,
+          fieldErrors: [],
         });
       return original(path, ...args);
     });
-    await expect(apiRequest('/api/tickets')).rejects.toMatchObject({ status: 403 });
+    await expect(apiRequest('/api/v2/tickets')).rejects.toMatchObject({ status: 403 });
     expect(token()).toBe(previous);
-    expect(request.mock.calls.some(([path]) => path === '/api/auth/refresh')).toBe(false);
+    expect(request.mock.calls.some(([path]) => path === '/api/v2/auth/refresh')).toBe(false);
   });
 });

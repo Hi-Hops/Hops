@@ -7,7 +7,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { retry: false, staleTime: 10_000, refetchOnWindowFocus: false },
+          queries: { retry: false, staleTime: 10_000, refetchOnWindowFocus: true },
           mutations: { retry: false },
         },
       }),

@@ -1,0 +1,2 @@
+# Match the existing Prettier endOfLine=lf setting, including Windows checkouts.
+* text=auto eol=lf

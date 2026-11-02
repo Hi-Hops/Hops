@@ -10,12 +10,10 @@
   align-items: center;
   justify-content: space-between;
   min-height: 83px;
-  padding: var(--space-4) var(--space-7);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+  padding: var(--space-7) var(--space-7) var(--space-6);
 }
 .head h1 {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   line-height: 1.4;
   font-weight: var(--font-weight-bold);
   overflow-wrap: anywhere;
@@ -38,7 +36,7 @@
   font-weight: var(--font-weight-semibold);
 }
 .log {
-  padding: var(--space-6) var(--space-8);
+  padding: 0 var(--space-7) var(--space-6);
   overflow-y: auto;
   overflow-anchor: none;
   flex: 1;
@@ -48,11 +46,11 @@
   gap: var(--space-6);
 }
 .divider {
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  margin-top: auto;
-  padding-bottom: var(--space-2);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .userRow {
   align-self: flex-end;
@@ -92,6 +90,10 @@
   color: var(--color-on-ink);
 }
 .aiBubble {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
   font-size: var(--font-size-body);
   line-height: 1.65;
   white-space: pre-wrap;
@@ -110,7 +112,7 @@
   vertical-align: middle;
 }
 .dock {
-  padding: var(--space-3) var(--space-8) var(--space-6);
+  padding: var(--space-3) var(--space-7) var(--space-7);
 }
 .runError {
   width: min(var(--answer-width), 100%);

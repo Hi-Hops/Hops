@@ -1,7 +1,9 @@
 import type { ApiErrorBody } from './types';
-import { MockHttpError, mockBackend } from './mockBackend';
+import { MockHttpError } from './mockError';
 import { connectionMode, liveConnection } from '@/shared/config/connection';
 import { isApiError, localError } from './wire';
+import { systemMockBackend } from './systemMockBackend';
+import { isSystemErrorBody } from './systemWire';
 
 export class ApiError extends Error {
   constructor(
@@ -52,6 +54,8 @@ type RequestOptions = {
 
 /** 화면은 모드에 관계없이 같은 REST 경계를 사용한다. live 장애를 Mock으로 대체하지 않는다. */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  if (!path.startsWith('/api/v2/'))
+    throw new ApiError(0, localError('INVALID_API_PATH', '지원하지 않는 API 경로예요.'));
   const controller = new AbortController();
   const abort = () => {
     controller.abort();
@@ -109,15 +113,13 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
           Accept: 'application/json',
           ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
-          ...(token && !['/api/auth/login', '/api/auth/refresh'].includes(path)
+          ...(token && !/^\/api\/v2\/auth\/(?:login|refresh)$/u.test(path)
             ? { Authorization: `Bearer ${token}` }
             : {}),
         },
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
         signal: options.signal,
-        credentials: ['/api/auth/login', '/api/auth/refresh', '/api/auth/logout'].includes(path)
-          ? 'include'
-          : 'omit',
+        credentials: /^\/api\/v2\/auth\/(?:login|refresh|logout)$/u.test(path) ? 'include' : 'omit',
       });
     } catch (error) {
       if (options.signal?.aborted) throw error;
@@ -143,18 +145,29 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
       );
     }
     if (!response.ok) {
+      if (!isSystemErrorBody(body))
+        throw new ApiError(
+          0,
+          localError(
+            'INVALID_RESPONSE',
+            '서버 오류 응답 형식이 계약과 달라요. 원 요청의 저장 결과를 확인해 주세요.',
+          ),
+        );
       if (isApiError(body) && body.code === 'AUTH_CONTEXT_CHANGED') reportUnauthorized(token);
-      else if (
-        response.status === 401 &&
-        !['/api/auth/login', '/api/auth/refresh'].includes(path)
-      ) {
-        if (!options.skipRefresh && (await recoverAuthorization(token)) && !options.idempotencyKey)
+      else if (response.status === 401 && !/^\/api\/v2\/auth\/(?:login|refresh)$/u.test(path)) {
+        if (
+          body.code === 'ACCESS_TOKEN_EXPIRED' &&
+          !options.skipRefresh &&
+          (await recoverAuthorization(token)) &&
+          !options.idempotencyKey
+        )
           return apiRequest<T>(path, {
             ...options,
             token: getToken() ?? undefined,
             skipRefresh: true,
           });
-        if (!options.idempotencyKey) reportUnauthorized(token);
+        if (!options.idempotencyKey || body.code !== 'ACCESS_TOKEN_EXPIRED')
+          reportUnauthorized(token);
       }
       throw new ApiError(
         response.status,
@@ -164,7 +177,20 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
         response.status === 429 ? Math.max(0, Number(response.headers.get('Retry-After')) || 0) : 0,
       );
     }
-    // HTTP JSON 역직렬화 경계. 서버는 DATA_TYPES의 응답 객체를 wrapper 없이 반환한다.
+    if (
+      options.idempotencyKey &&
+      (!body ||
+        typeof body !== 'object' ||
+        !('state' in body) ||
+        (response.status === 200
+          ? body.state !== 'SUCCEEDED'
+          : response.status !== 202 || !['PENDING', 'UNKNOWN'].includes(String(body.state))))
+    )
+      throw new ApiError(
+        0,
+        localError('INVALID_RESPONSE', '명령 응답의 HTTP 상태와 본문이 계약과 달라요.'),
+      );
+    // HTTP JSON 역직렬화 경계. 신규 DTO는 기능 API에서 검증한다.
     return body as T;
   }
   if (options.signal?.aborted) throw new DOMException('요청 취소', 'AbortError');
@@ -172,26 +198,32 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
   if (options.signal?.aborted) throw new DOMException('요청 취소', 'AbortError');
   try {
     // 공용 JSON/메모리 서버 대역의 응답 경계에서만 타입을 변환한다.
-    const result = mockBackend.request(
+    const result = systemMockBackend.request(
       path,
       options.method ?? 'GET',
       options.body,
       token,
       options.idempotencyKey,
     );
-    if (options.idempotencyKey && mockBackend.takeLostResponse())
+    if (options.idempotencyKey && systemMockBackend.takeLostResponse())
       throw new ApiError(0, localError('NETWORK_ERROR', '저장 응답을 확인하지 못했어요.'));
     return result as T;
   } catch (error) {
     if (error instanceof MockHttpError) {
-      if (error.status === 401 && !['/api/auth/login', '/api/auth/refresh'].includes(path)) {
-        if (!options.skipRefresh && (await recoverAuthorization(token)) && !options.idempotencyKey)
+      if (error.status === 401 && !/^\/api\/v2\/auth\/(?:login|refresh)$/u.test(path)) {
+        if (
+          error.body.code === 'ACCESS_TOKEN_EXPIRED' &&
+          !options.skipRefresh &&
+          (await recoverAuthorization(token)) &&
+          !options.idempotencyKey
+        )
           return apiRequest<T>(path, {
             ...options,
             token: getToken() ?? undefined,
             skipRefresh: true,
           });
-        if (!options.idempotencyKey) reportUnauthorized(token);
+        if (!options.idempotencyKey || error.body.code !== 'ACCESS_TOKEN_EXPIRED')
+          reportUnauthorized(token);
       }
       if (error.body.code === 'AUTH_CONTEXT_CHANGED') reportUnauthorized(token);
       throw new ApiError(error.status, error.body);

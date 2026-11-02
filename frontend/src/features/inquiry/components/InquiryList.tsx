@@ -5,7 +5,7 @@ import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { useInquiries } from '../api/inquiryApi';
-import { inquiryStatus } from '../model/status';
+import { systemStatus } from '../model/systemStatus';
 import styles from './InquiryList.module.css';
 
 export function InquiryList() {
@@ -31,13 +31,14 @@ export function InquiryList() {
         </div>
       ) : (
         <>
-          <p className={styles.count}>{query.data.totalElements}건 · 등록 최신순</p>
+          <p className={styles.count}>{query.data.totalElements}건 · 최근 변경순</p>
           <table>
             <thead>
               <tr>
                 <th>문의</th>
                 <th>상태</th>
                 <th>등록</th>
+                <th>해결 확인</th>
                 <th>
                   <span>대화</span>
                 </th>
@@ -50,12 +51,18 @@ export function InquiryList() {
                     <Link to={paths.inquiryChat(item.id)}>{item.title}</Link>
                   </td>
                   <td>
-                    <StatusBadge
-                      label={inquiryStatus[item.status].label}
-                      tone={inquiryStatus[item.status].tone}
-                    />
+                    <StatusBadge {...systemStatus(item.status)} />
                   </td>
                   <td>{displayDate(item.createdAt)}</td>
+                  <td>
+                    {item.pendingConfirmationCount > 0 ? (
+                      <Link to={paths.inquiryChat(item.id) + '#problem-confirmations'}>
+                        확인 대기 {item.pendingConfirmationCount}건
+                      </Link>
+                    ) : (
+                      '–'
+                    )}
+                  </td>
                   <td>
                     <Link to={paths.inquiryChat(item.id)}>대화 이어가기</Link>
                   </td>

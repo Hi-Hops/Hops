@@ -10,11 +10,14 @@ import {
 } from '@/shared/api/client';
 import { SseTransport } from './sseTransport';
 
-const target = { type: 'DEPARTMENT_TICKETS' as const, id: '00000000-0000-4000-8000-000000000001' };
+const target = { type: 'SYSTEM_TICKETS' as const, id: '00000000-0000-4000-8000-000000000001' };
 const value = (eventId = crypto.randomUUID()) => ({
   eventId,
-  target: { type: target.type, id: target.id },
-  inquiryVersion: null,
+  targetType: target.type,
+  targetId: target.id,
+  resourceType: 'TICKET',
+  resourceId: crypto.randomUUID(),
+  revision: 1,
 });
 let peers: ServerResponse[];
 let requests: IncomingMessage[];
@@ -47,7 +50,7 @@ beforeEach(async () => {
   });
   const address = server.address() as AddressInfo;
   vi.stubEnv('VITE_API_BASE_URL', `http://127.0.0.1:${address.port}`);
-  transport = new SseTransport(100, 300, 10);
+  transport = new SseTransport(1000, 10);
 });
 afterEach(async () => {
   transport.disconnect();
@@ -78,9 +81,13 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
     const event = value();
     send(peer, 'state.changed', event, event.eventId);
     await vi.waitFor(() => {
-      expect(received).toHaveBeenCalledWith(event);
+      expect(received).toHaveBeenCalledWith({
+        eventId: event.eventId,
+        target,
+        inquiryVersion: null,
+      });
     });
-    expect(transport.getState()).toBe('connected');
+    expect(transport.getState()).toBe('connecting');
     expect(requests).toHaveLength(1);
   });
   it('F002-AC01/02 Bearer·대상을 전달하고 같은 대상 연결을 공유하며 마지막 해제 때 취소한다', async () => {
@@ -92,7 +99,7 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
     });
     expect(requests[0]?.headers.authorization).toBe('Bearer test-access');
     expect(requests[0]?.headers.cookie).toBeUndefined();
-    expect(requests[0]?.url).toContain('targetType=DEPARTMENT_TICKETS');
+    expect(requests[0]?.url).toContain('/api/v2/realtime/events?targetType=SYSTEM_TICKETS');
     expect(requests[0]?.url).toContain(target.id);
     first();
     expect(transport.getState()).toBe('connected');
@@ -111,6 +118,7 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
           message: '거부',
           requestId: crypto.randomUUID(),
           retryable: false,
+          fieldErrors: [],
         }),
       );
     };
@@ -138,7 +146,7 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
     await vi.waitFor(() => {
       expect(received).toHaveBeenCalledOnce();
     });
-    expect(received).toHaveBeenCalledWith({ ...event, target });
+    expect(received).toHaveBeenCalledWith({ eventId: event.eventId, target, inquiryVersion: null });
   });
   it('F002-AC07 마지막 처리 커서로 재연결하고 연결마다 REST 동기화를 요청한다', async () => {
     const sync = vi.fn(() => Promise.resolve());
@@ -264,6 +272,7 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
             message: '만료',
             requestId: crypto.randomUUID(),
             retryable: false,
+            fieldErrors: [],
           }),
         );
       } else base(req, res);
@@ -290,7 +299,7 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
     });
     expect(requests).toHaveLength(1);
   });
-  it('F002-AC06 초기 503은 재시도 예산 후 멈추고 자동 저장 명령을 보내지 않는다', async () => {
+  it('F002-CONTRACT-03 초기 503은 지연 재연결하며 업무 POST를 보내지 않는다', async () => {
     handle = (_req, res) => {
       res.writeHead(503, { 'Content-Type': 'application/json' });
       res.end(
@@ -299,13 +308,14 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
           message: '준비 중',
           requestId: crypto.randomUUID(),
           retryable: true,
+          fieldErrors: [],
         }),
       );
     };
     transport.connect(token);
     transport.subscribe(target);
     await vi.waitFor(() => {
-      expect(transport.getState()).toBe('disconnected');
+      expect(requests.length).toBeGreaterThanOrEqual(4);
     });
     expect(requests.length).toBeGreaterThan(1);
     expect(requests.every((req) => req.method === 'GET')).toBe(true);

@@ -1,20 +1,24 @@
 import { apiRequest } from '@/shared/api/client';
-import type { CurrentUser, LoginRequest, LoginResponse } from '@/shared/api/types';
+import type { LoginRequest } from '@/shared/api/types';
 import { useSession } from '../model/sessionStore';
+import { apiPath } from '@/shared/config/api';
+import { readLogin, readUser } from '@/shared/api/systemWire';
 
 export async function login(credentials: LoginRequest) {
-  const result = await apiRequest<LoginResponse>('/api/auth/login', {
+  const raw = await apiRequest<unknown>(apiPath('/auth/login'), {
     method: 'POST',
     body: credentials,
   });
-  const user = await apiRequest<CurrentUser>('/api/auth/me', { token: result.accessToken });
+  const result = readLogin(raw);
+  const rawUser = await apiRequest<unknown>(apiPath('/auth/me'), { token: result.accessToken });
+  const user = readUser(rawUser);
   useSession.getState().activate({ ...result, user });
   return user;
 }
 
 export async function logout() {
   try {
-    await apiRequest<undefined>('/api/auth/logout', { method: 'POST' });
+    await apiRequest<undefined>(apiPath('/auth/logout'), { method: 'POST' });
   } finally {
     useSession.getState().logout();
   }
