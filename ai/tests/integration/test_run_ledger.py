@@ -2,43 +2,60 @@
 
 import asyncio
 import os
+import sys
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 import psycopg
 import pytest
+from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict
 
+from hops_ai.main import create_app
 from hops_ai.persistence.run_ledger import InvalidRunTransition, RunConflict, RunLedger
 from hops_ai.services.runs.admission import AdmissionRejected, ExecutionLimits, RunAdmissionService
+from hops_ai.settings import Settings
 from tests.doubles.run_requests import inquiry_request
 
 
 @pytest.fixture
-async def ledger() -> RunLedger:
+async def ledger() -> AsyncIterator[RunLedger]:
     conninfo = os.environ.get("HOPS_LEDGER_TEST_DSN")
     if not conninfo:
         pytest.skip("테스트 전용 HOPS_LEDGER_TEST_DSN이 설정되지 않았다")
     if conninfo_to_dict(conninfo).get("dbname") != "hops_ai_runtime_test":
         pytest.fail("RunLedger 통합 테스트는 hops_ai_runtime_test DB에서만 실행한다")
-    migration = Path(__file__).parents[2] / "migrations" / "001_run_ledger.sql"
+    migrations = Path(__file__).parents[2] / "migrations"
     async with await psycopg.AsyncConnection.connect(conninfo) as conn:
-        await conn.execute(migration.read_text(encoding="utf-8"))
-    return RunLedger(conninfo)
+        await conn.execute((migrations / "001_run_ledger.sql").read_text(encoding="utf-8"))
+        cursor = await conn.execute(
+            """SELECT EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema() AND table_name = 'ai_run_ledger'
+                 AND column_name = 'owner_id')"""
+        )
+        if not (await cursor.fetchone())[0]:
+            await conn.execute((migrations / "002_run_owner.sql").read_text(encoding="utf-8"))
+    async with RunLedger(conninfo) as instance:
+        yield instance
 
 
 async def test_same_run_is_atomic_and_conflicting_input_is_rejected(ledger: RunLedger) -> None:
     run_id = uuid4()
     payload = {"message": "가상 문의", "items": [1, 2]}
-    responses = await asyncio.gather(*(ledger.accept(run_id, payload) for _ in range(12)))
+    async with RunLedger(ledger._conninfo) as other:
+        responses = await asyncio.gather(
+            *(instance.accept(run_id, payload) for instance in (ledger, other) for _ in range(6))
+        )
+        owner = ledger if any(r.created for r in responses[:6]) else other
+        assert sum(await asyncio.gather(*(owner.start(run_id) for _ in range(8)))) == 1
     assert sum(response.created for response in responses) == 1
     assert all(response.snapshot.status == "QUEUED" for response in responses)
     assert len({response.snapshot.input_digest for response in responses}) == 1
     assert not (await ledger.accept(run_id, {"items": [1, 2], "message": "가상 문의"})).created
     with pytest.raises(RunConflict):
         await ledger.accept(run_id, {"message": "다른 문의", "items": [1, 2]})
-    assert sum(await asyncio.gather(*(ledger.start(run_id) for _ in range(8)))) == 1
 
 
 async def test_final_result_is_immutable_and_unknown_blocks_late_result(ledger: RunLedger) -> None:
@@ -52,15 +69,42 @@ async def test_final_result_is_immutable_and_unknown_blocks_late_result(ledger: 
         await ledger.finish(run_id, "SUCCEEDED", result | {"answer": "다른 안내"}, 2)
     snapshot = await ledger.get(run_id)
     assert snapshot is not None and snapshot.result == result and snapshot.last_seq == 2
-    assert not await ledger.mark_unknown(run_id)
-
     interrupted = uuid4()
     await ledger.accept(interrupted, {"message": "중단된 가상 문의"})
-    assert await ledger.mark_unknown(interrupted)
-    assert not (await ledger.accept(interrupted, {"message": "중단된 가상 문의"})).created
-    with pytest.raises(InvalidRunTransition):
-        await ledger.finish(interrupted, "SUCCEEDED", result | {"runId": str(interrupted)}, 1)
-    assert (await ledger.get(interrupted)).status == "UNKNOWN"
+    await ledger.start(interrupted)
+    await ledger.close()
+    # 재시작한 새 인스턴스가 잠금이 풀린 이전 실행을 자동 복구한다.
+    async with RunLedger(ledger._conninfo) as restarted:
+        assert not (await restarted.accept(interrupted, {"message": "중단된 가상 문의"})).created
+        with pytest.raises(InvalidRunTransition):
+            await restarted.finish(
+                interrupted, "SUCCEEDED", result | {"runId": str(interrupted)}, 1
+            )
+        assert (await restarted.get(interrupted)).status == "UNKNOWN"
+        assert (await restarted.get(run_id)).status == "SUCCEEDED"
+
+
+async def test_recovery_preserves_live_other_owner_and_rejects_stale_writer(
+    ledger: RunLedger,
+) -> None:
+    active = uuid4()
+    await ledger.accept(active, {"message": "다른 서버의 실행"})
+    await ledger.start(active)
+    async with RunLedger(ledger._conninfo) as sibling:
+        # 다른 인스턴스 시작·반복 복구는 살아 있는 소유자의 run을 유지한다.
+        assert await sibling.recover_abandoned() == 0
+        assert (await sibling.get(active)).status == "RUNNING"
+        assert not await sibling.start(active)
+        result = {"runId": str(active), "status": "SUCCEEDED", "answer": "안내"}
+        with pytest.raises(InvalidRunTransition):
+            await sibling.finish(active, "SUCCEEDED", result, 1)
+        await ledger.close()
+        assert await sibling.recover_abandoned() == 1
+        assert (await sibling.get(active)).status == "UNKNOWN"
+        with pytest.raises(InvalidRunTransition):
+            await ledger.finish(active, "SUCCEEDED", result, 1)
+        assert not (await sibling.accept(active, {"message": "다른 서버의 실행"})).created
+        assert await sibling.recover_abandoned() == 0
 
 
 async def test_detail_expiry_retains_id_and_digest(ledger: RunLedger) -> None:
@@ -120,3 +164,90 @@ async def test_admission_checks_limits_expiry_and_reuses_existing(ledger: RunLed
         await service.accept(
             request.model_copy(update={"runId": str(uuid4()), "limits": invalid_limits})
         )
+
+
+async def test_app_start_recovers_runs_after_process_crash(ledger: RunLedger) -> None:
+    active = uuid4()
+    await ledger.accept(active, {"message": "다른 인스턴스"})
+    await ledger.start(active)
+    abandoned = uuid4()
+    queued = uuid4()
+    # 별도 프로세스가 접수와 실행을 완료한 직후 정리 없이 종료한다.
+    script = """
+import asyncio, os, sys
+from uuid import UUID
+from hops_ai.persistence.run_ledger import RunLedger
+async def run():
+    ledger = RunLedger(os.environ['HOPS_LEDGER_TEST_DSN'])
+    await ledger.open()
+    await ledger.accept(UUID(sys.argv[1]), {'message': '중단된 실행'})
+    await ledger.start(UUID(sys.argv[1]))
+    await ledger.accept(UUID(sys.argv[2]), {'message': '중단된 대기'})
+    os._exit(0)
+asyncio.run(run())
+"""
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        script,
+        str(abandoned),
+        str(queued),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await process.communicate()
+    assert process.returncode == 0, stderr.decode()
+    restarted_ledger = RunLedger(ledger._conninfo)
+    app = create_app(Settings(_env_file=None), ledger=restarted_ledger)
+    async with app.router.lifespan_context(app):
+        assert app.state.run_ledger is restarted_ledger
+        assert (await restarted_ledger.get(abandoned)).status == "UNKNOWN"
+        assert (await restarted_ledger.get(queued)).status == "UNKNOWN"
+        assert (await restarted_ledger.get(active)).status == "RUNNING"
+        assert not await restarted_ledger.start(abandoned)
+        assert not (await restarted_ledger.accept(abandoned, {"message": "중단된 실행"})).created
+    with pytest.raises(InvalidRunTransition):
+        await restarted_ledger.start(active)
+
+
+async def test_owner_migration_preserves_legacy_results_and_marks_unowned_runs_unknown(
+    ledger: RunLedger,
+) -> None:
+    migrations = Path(__file__).parents[2] / "migrations"
+    schema = "ledger_test_" + uuid4().hex
+    async with await psycopg.AsyncConnection.connect(ledger._conninfo, autocommit=True) as conn:
+        await conn.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+        try:
+            await conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+            await conn.execute((migrations / "001_run_ledger.sql").read_text(encoding="utf-8"))
+            pending, completed = uuid4(), uuid4()
+            await conn.execute(
+                "INSERT INTO ai_run_ledger(run_id, input_digest, status) "
+                "VALUES (%s, %s, 'RUNNING')",
+                (pending, "a" * 64),
+            )
+            await conn.execute(
+                """INSERT INTO ai_run_ledger(run_id, input_digest, status, result, finished_at)
+                   VALUES (%s, %s, 'SUCCEEDED', '{}'::jsonb, CURRENT_TIMESTAMP)""",
+                (completed, "b" * 64),
+            )
+            await conn.execute((migrations / "002_run_owner.sql").read_text(encoding="utf-8"))
+            cursor = await conn.execute(
+                "SELECT status, input_digest, result FROM ai_run_ledger WHERE run_id = %s",
+                (pending,),
+            )
+            assert await cursor.fetchone() == ("UNKNOWN", "a" * 64, None)
+            cursor = await conn.execute(
+                "SELECT status, input_digest, result FROM ai_run_ledger WHERE run_id = %s",
+                (completed,),
+            )
+            assert await cursor.fetchone() == ("SUCCEEDED", "b" * 64, {})
+            with pytest.raises(psycopg.errors.CheckViolation):
+                await conn.execute(
+                    "INSERT INTO ai_run_ledger(run_id, input_digest, status) "
+                    "VALUES (%s, %s, 'QUEUED')",
+                    (uuid4(), "c" * 64),
+                )
+        finally:
+            await conn.execute("SET search_path TO public")
+            await conn.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
