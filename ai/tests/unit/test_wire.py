@@ -15,6 +15,7 @@ from hops_ai.contracts.wire import (
     InputMessage,
     KnowledgeEvidence,
     StandardRequestBody,
+    WorkRecordContext,
 )
 
 
@@ -569,3 +570,38 @@ def test_failed_snapshot_requires_matching_error() -> None:
         AiRunSnapshot.model_validate(snapshot | {"error": None})
     with pytest.raises(ValidationError):
         AiRunSnapshot.model_validate(snapshot | {"result": result | {"runId": OTHER_ID}})
+
+
+def test_guide_requires_employee_evidence_in_result() -> None:
+    guide = {"messageText": "가이드를 확인하세요", "evidenceIds": [RUN_ID], "problemRef": "new:two"}
+    result = inquiry_result() | {
+        "answer": "어느 화면인가요? 가이드를 확인하세요",
+        "guide": guide,
+        "evidence": [knowledge_evidence()],
+    }
+    assert AiResult.model_validate(result).guide is not None
+    for evidence in ([], [knowledge_evidence() | {"accessScope": "SYSTEM_STAFF"}]):
+        with pytest.raises(ValidationError):
+            AiResult.model_validate(result | {"evidence": evidence})
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(result | {"guide": guide | {"evidenceIds": []}})
+
+
+def test_work_record_confirmed_cause_length() -> None:
+    record = {
+        "id": RUN_ID,
+        "ticketId": RUN_ID,
+        "problemId": RUN_ID,
+        "systemId": RUN_ID,
+        "kind": "VERIFIED_RESOLUTION",
+        "action": "조치",
+        "verification": "확인",
+        "createdAt": "2026-11-02T01:00:00Z",
+        "resolutionRequestId": RUN_ID,
+        "confirmationState": "PENDING",
+        "confirmedCause": "가" * 4000,
+        "appliesToSystemVersion": None,
+    }
+    assert len(WorkRecordContext.model_validate(record).confirmedCause) == 4000
+    with pytest.raises(ValidationError):
+        WorkRecordContext.model_validate(record | {"confirmedCause": "가" * 4001})

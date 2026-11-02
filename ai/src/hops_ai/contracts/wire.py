@@ -325,7 +325,7 @@ class WorkRecordContext(WireModel):
     createdAt: WireTime
     resolutionRequestId: WireUuid
     confirmationState: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
-    confirmedCause: WireText | None
+    confirmedCause: Annotated[WireText, Field(max_length=4000)] | None
     appliesToSystemVersion: SystemVersion | None
 
 
@@ -510,6 +510,14 @@ class AiResult(WireModel):
                 self.answer.count(self.guide.messageText) != 1 or self.guide.problemRef in refs
             ):
                 raise ValueError("가이드와 답변 또는 질문이 일치하지 않습니다")
+            if self.guide:
+                # 허용된 근거의 최신 승인과 권한은 실행기·Spring이 다시 확인한다.
+                evidence_by_id = {item.id: item for item in self.evidence}
+                if not self.guide.evidenceIds or any(
+                    ref not in evidence_by_id or evidence_by_id[ref].accessScope != "EMPLOYEE"
+                    for ref in self.guide.evidenceIds
+                ):
+                    raise ValueError("가이드에는 직원에게 허용된 근거가 필요합니다")
             if any(
                 t.problemRef in refs or (self.guide and t.problemRef == self.guide.problemRef)
                 for t in self.ticketProposals
