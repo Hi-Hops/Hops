@@ -2,7 +2,7 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
 
-[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 실행 가능한 것은 생존·준비 상태 조회와 재사용한 기술 하네스다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
+[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증과 저장된 실행 상태 조회를 제공한다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
@@ -16,8 +16,9 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 역할·Supervisor | 역할 골격만 존재. 호출하면 `ComponentNotReady` 발생 |
 | OpenAI·pgvector·Neo4j | 내부 인터페이스와 연결 자리만 존재. 호출하면 미구현 오류 |
 | 실행 하네스 | 마감·모델 호출 상한·LLM 일시 오류 재시도·사용량·취소 확인·도구 허용 검사 |
-| RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소와 내부 접수 검증. 앱·Supervisor 미연결 |
-| 업무 실행·SSE·서비스 인증 | 상세 계약·실행 관리·어댑터 연결 전 |
+| RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 조회 연결, Supervisor 미연결 |
+| 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·저장된 실행 snapshot 조회. 실행 접수·취소·SSE는 503 |
+| 업무 실행·SSE | 실제 실행 관리와 어댑터 연결 전 |
 | Fake·Mock | 테스트 전용 LLM·도구 대역. 서버에 자동 연결하지 않음 |
 
 단일 baseline, 독립 Diagnosis, Intake 명칭, 규칙 기반 Supervisor, 부서/CS 배정과 옛 `agent-1` 실행 모델은 활성 코드에서 분리했다. 기존 `/internal/mock/v1/runs` 접수·이벤트 경로는 제공하지 않는다. 예전 Fake 모드의 실행 명령이나 프론트 공용 `hops-mock-1` fixture로 이 서버를 호출하지 않는다.
@@ -26,7 +27,8 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 
 ```text
 src/hops_ai/
-├── api/routes/health.py       생존·준비 상태; 업무 API는 계약 후 연결
+├── api/routes/health.py       생존·준비 상태
+├── api/routes/runs.py         서비스 인증된 내부 snapshot 조회; 실행기 미준비
 ├── contracts/                내부 자료형과 Spring↔AI 실행 wire DTO
 ├── supervisor/graph.py       모델 기반 조율 자리; 상담과 사후 실행 분리 예정
 ├── persistence/run_ledger.py AI 실행 ID·입력 digest·상태·결과 보존
@@ -49,7 +51,7 @@ tests/
 └── integration/              골격 앱의 생존·준비 상태와 옛 API 비노출 검증
 ```
 
-`contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 이 DTO는 아직 업무 API에 연결하지 않았다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
+`contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 내부 실행 API는 이 요청 형식과 저장된 snapshot을 검증하지만 새 업무 실행을 접수하지 않는다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
 
 ## 실행과 검사
 
@@ -69,7 +71,26 @@ curl -i http://127.0.0.1:8000/readyz
 
 Docker 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)에 따라 한 번 복사한 루트 `.env`의 `HOPS_AI_*` 항목에 입력한다. 같은 파일에 OpenAI·Langfuse 키와 주소를 입력하는 선택 항목도 제공하며 AI 컨테이너에만 전달한다. 실제 모델 호출·추적 연동은 구현 전이다. AI 폴더에서 예시 파일을 별도로 복사하지 않는다. 위 uv 직접 실행은 루트 `.env`를 자동으로 읽지 않으므로 변경할 `HOPS_AI_*` 값을 프로세스 환경변수로 설정한다. 기존 개인 `.env`의 `HOPS_AI_MODE=fake`, `HOPS_AI_AGENT_MODE`, `HOPS_AI_API_PREFIX`는 제거한다. 단일/멀티 선택 설정은 없다. 비밀값은 Git에 올리지 않는다.
 
-실행 예산의 초기 기술 기본값은 전체 60초, 모델 호출당 30초, 최대 8시도, LLM 일시 오류 재시도 2회, 호출당 출력 1,500토큰이다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한과 서비스 인증은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
+실행 예산의 초기 기술 기본값은 전체 60초, 모델 호출당 30초, 최대 8시도, LLM 일시 오류 재시도 2회, 호출당 출력 1,500토큰이다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
+
+### Spring 전용 내부 조회 API
+
+기본값 `HOPS_AI_INTERNAL_API_ENABLED=false`에서는 내부 경로를 등록하지 않는다. 로컬에서 명시적으로 켜려면 다음 세 환경변수를 서버 프로세스에 주입하고, 아래 RunLedger 안내대로 **AI 전용 DB `hops_ai_runtime`**에 마이그레이션을 먼저 적용한다.
+
+- `HOPS_AI_INTERNAL_API_ENABLED=true`: 인증된 내부 API 기반 활성화.
+- `HOPS_AI_RUNTIME_DSN`: `hops_ai_runtime` DB가 명시된 PostgreSQL 연결 문자열. 앱 실행용 최소 권한 계정 사용.
+- `AI_SERVICE_TOKEN`: Spring→AI 서비스 인증용 토큰. 최소 32바이트의 암호학적으로 안전한 난수를 base64url로 인코딩해 제공한다. 길이·형식은 검사하지만 난수성을 판별하지는 않는다. AI→Spring 토큰과 공유하지 않는다.
+
+값이 없거나 잘못됐거나 DB 접속·복구에 실패하면 활성 프로필의 시작을 거부한다. 토큰과 DB 비밀번호는 파일 예시·소스·로그에 넣지 않는다. 현재 루트 Docker Compose는 이 세 환경변수를 AI 컨테이너에 전달하지 않으므로 위 안내는 호스트 직접 실행의 명시적 설정이다. 내부 경로는 서비스 전용 네트워크에서만 접근하도록 별도 구성해야 한다.
+
+| 경로 | 현재 응답 |
+|---|---|
+| `GET /internal/v2/runs/{runId}` | Bearer 인증 후 저장된 snapshot 조회. 없는 실행은 404, DB/저장 형식 오류는 안전한 503 |
+| `POST /internal/v2/runs` | 형식 검증 후 실행기 미준비 503. 새 run을 접수하지 않음 |
+| `GET /internal/v2/runs/{runId}/events` | 실행기·SSE 미준비 503 |
+| `POST /internal/v2/runs/{runId}/cancel` | 취소 전파 미구현 503 |
+
+내부 실행 경로는 요청 본문을 읽기 전에 서비스 인증을 수행한다. 인증 실패는 안전한 오류 본문의 401이며 중복 Authorization 헤더도 거부한다. 생존·준비 상태 경로는 인증하지 않는다. `readyz`는 내부 조회 활성화 여부와 관계없이 503이며, 현재 프로필은 운영 배포·실제 모델 실행을 뜻하지 않는다.
 
 ```bash
 uv run pytest

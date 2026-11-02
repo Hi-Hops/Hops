@@ -1,8 +1,12 @@
 """골격 모드와 공통 실행 예산. 역할별 모델·서비스 인증은 연결 단계에서 설정한다."""
 
+import base64
+import binascii
 from enum import StrEnum
 
-from pydantic import Field, model_validator
+from psycopg import ProgrammingError
+from psycopg.conninfo import conninfo_to_dict
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,9 +21,15 @@ class Settings(BaseSettings):
         env_file=".env",
         extra="forbid",
         frozen=True,
+        populate_by_name=True,
+        hide_input_in_errors=True,
     )
 
     mode: RunMode = RunMode.SCAFFOLD
+    # 별도 활성화한 내부 API만 서비스 토큰과 AI 전용 DB를 요구한다.
+    internal_api_enabled: bool = False
+    runtime_dsn: SecretStr | None = None
+    ai_service_token: SecretStr | None = Field(default=None, validation_alias="AI_SERVICE_TOKEN")
     # 초기 기술 기본값이며 실제 모델·비용 측정 후 검토한다.
     run_deadline_seconds: int = Field(default=60, gt=0)
     llm_call_timeout_seconds: int = Field(default=30, gt=0)
@@ -32,4 +42,31 @@ class Settings(BaseSettings):
     def _call_timeout_fits_in_deadline(self) -> "Settings":
         if self.llm_call_timeout_seconds > self.run_deadline_seconds:
             raise ValueError("llm_call_timeout_seconds는 run_deadline_seconds보다 클 수 없다")
+        return self
+
+    @model_validator(mode="after")
+    def _internal_api_configuration(self) -> "Settings":
+        if not self.internal_api_enabled:
+            return self
+        token = self.ai_service_token.get_secret_value() if self.ai_service_token else ""
+        try:
+            encoded = token.encode("ascii")
+            decoded = base64.b64decode(
+                encoded + b"=" * (-len(encoded) % 4), altchars=b"-_", validate=True
+            )
+            if base64.urlsafe_b64encode(decoded).rstrip(b"=") != encoded.rstrip(b"="):
+                raise ValueError
+        except (ValueError, UnicodeEncodeError, binascii.Error):
+            raise ValueError("AI_SERVICE_TOKEN은 유효한 base64url 형식이어야 합니다") from None
+        if len(decoded) < 32:
+            raise ValueError("AI_SERVICE_TOKEN은 인코딩 전 최소 32바이트여야 합니다")
+
+        dsn = self.runtime_dsn.get_secret_value() if self.runtime_dsn else ""
+        try:
+            dbname = conninfo_to_dict(dsn).get("dbname") if dsn else None
+        except (ProgrammingError, ValueError):
+            # DSN 원문과 드라이버 오류를 외부에 노출하지 않는다.
+            raise ValueError("AI 런타임 DB 연결 설정이 올바르지 않습니다") from None
+        if dbname != "hops_ai_runtime":
+            raise ValueError("AI 런타임 DB는 hops_ai_runtime이어야 합니다")
         return self
