@@ -72,6 +72,8 @@ class MessageRepositoryTest {
         assertThat(found.getContent()).isEqualTo("문서 번호를 알려주세요.");
         assertThat(found.getMessageStatus()).isEqualTo(MessageStatus.COMPLETED);
         assertThat(found.getPayload()).isEqualToIgnoringWhitespace("{\"blocks\": [{\"type\": \"text\"}]}");
+        // 정정한 적 없는 메시지는 1차다
+        assertThat(found.getRevision()).isEqualTo(1);
 
         // 같은 문의 + 같은 순번 → DB의 중복 불가 제약이 막는다 (대화 순서가 꼬이지 않게)
         Inquiry sameInquiry = inquiryRepository.findById(INQUIRY_ID).orElseThrow();

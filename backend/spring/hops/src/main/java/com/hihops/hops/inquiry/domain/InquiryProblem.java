@@ -49,6 +49,14 @@ public class InquiryProblem extends BaseEntity {
     @Column(name = "clarify_count", nullable = false)
     private int clarifyCount = 0;
 
+    // 티켓 생성 작업 결과와 그 기준 문의 버전. 생성 작업이 없으면 둘 다 null이다.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "creation_outcome", length = 30)
+    private CreationOutcome creationOutcome;
+
+    @Column(name = "creation_input_version")
+    private Integer creationInputVersion;
+
     @Column(name = "ticket_error_code", length = 50)
     private String ticketErrorCode;
 
@@ -98,6 +106,14 @@ public class InquiryProblem extends BaseEntity {
 
     public int getClarifyCount() {
         return clarifyCount;
+    }
+
+    public CreationOutcome getCreationOutcome() {
+        return creationOutcome;
+    }
+
+    public Integer getCreationInputVersion() {
+        return creationInputVersion;
     }
 
     public String getTicketErrorCode() {

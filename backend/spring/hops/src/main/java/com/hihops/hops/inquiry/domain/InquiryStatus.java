@@ -11,5 +11,7 @@ public enum InquiryStatus {
     /** 문의자 답변·확인을 기다리는 중 */
     WAITING_USER,
     /** 해결됨 */
-    RESOLVED
+    RESOLVED,
+    /** 모든 문제가 지원 범위 밖이라 범위 안내를 저장하고 끝냄 (무응답 자동 종료가 아님) */
+    CLOSED
 }

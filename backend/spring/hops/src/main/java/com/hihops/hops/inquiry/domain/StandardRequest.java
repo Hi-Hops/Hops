@@ -21,7 +21,8 @@ import jakarta.persistence.UniqueConstraint;
 /**
  * 표준 요청서. 문제별 대화를 담당자가 바로 일할 수 있는 요청서로 정리한다 (docs/ERD.md "표준 요청서 standard_request").
  *
- * <p>대화 원문은 메시지에 그대로 두고, 문의 버전마다 새 행을 추가한다(추가만 하는 이력). 그래서 정정 전 정리도 남는다.
+ * <p>대화 원문은 메시지에 그대로 두고, 문의 버전·AI 실행마다 새 행을 추가한다(추가만 하는 불변 스냅샷).
+ * 같은 문의 버전이라도 재분석(새 실행)이면 새 행이 생기고, 옛 스냅샷은 덮어쓰지 않는다 (docs/ERD.md 6.1절).
  * 확인한 사실(confirmedFacts)·추정(assumptions)·미확인 항목(missingItems)을 나눠서,
  * 모델 추정을 사용자가 말한 사실처럼 담당자에게 넘기지 않는다.
  *
@@ -31,8 +32,8 @@ import jakarta.persistence.UniqueConstraint;
  */
 @Entity
 @Table(name = "standard_request",
-        uniqueConstraints = @UniqueConstraint(name = "uk_standard_request_problem_version",
-                columnNames = {"inquiry_problem_id", "inquiry_version"}))
+        uniqueConstraints = @UniqueConstraint(name = "uk_standard_request_problem_version_run",
+                columnNames = {"inquiry_problem_id", "inquiry_version", "agent_run_id"}))
 public class StandardRequest extends CreatedOnlyEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -42,8 +43,9 @@ public class StandardRequest extends CreatedOnlyEntity {
     @Column(name = "inquiry_version", nullable = false)
     private int inquiryVersion;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "agent_run_id")
+    // 이 요청서를 만든 AI 실행. 출처를 남기려고 필수다.
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "agent_run_id", nullable = false)
     private AgentRun agentRun;
 
     @Enumerated(EnumType.STRING)

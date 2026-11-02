@@ -16,5 +16,7 @@ CREATE TABLE notification (
     created_at          TIMESTAMPTZ    NOT NULL DEFAULT now(),
     CONSTRAINT fk_notification_recipient FOREIGN KEY (recipient_member_id) REFERENCES member (id),
     CONSTRAINT fk_notification_inquiry FOREIGN KEY (inquiry_id) REFERENCES inquiry (id),
-    CONSTRAINT fk_notification_ticket FOREIGN KEY (ticket_id) REFERENCES ticket (id)
+    CONSTRAINT fk_notification_ticket FOREIGN KEY (ticket_id) REFERENCES ticket (id),
+    CONSTRAINT ck_notification_type CHECK (notification_type IN ('TICKET_ASSIGNED', 'CONFIRM_REQUESTED',
+        'RESULT_NOTIFIED', 'CASE_APPROVAL_REQUESTED'))
 );

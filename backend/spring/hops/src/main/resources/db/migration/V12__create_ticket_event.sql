@@ -19,5 +19,8 @@ CREATE TABLE ticket_event (
     created_at      TIMESTAMPTZ    NOT NULL DEFAULT now(),
     CONSTRAINT fk_ticket_event_ticket FOREIGN KEY (ticket_id) REFERENCES ticket (id),
     CONSTRAINT fk_ticket_event_actor_member FOREIGN KEY (actor_member_id) REFERENCES member (id),
-    CONSTRAINT fk_ticket_event_agent_run FOREIGN KEY (agent_run_id) REFERENCES agent_run (id)
+    CONSTRAINT fk_ticket_event_agent_run FOREIGN KEY (agent_run_id) REFERENCES agent_run (id),
+    CONSTRAINT ck_ticket_event_type CHECK (event_type IN ('CREATED', 'STATUS_CHANGED', 'WORK_TYPE_CHANGED',
+        'CONTENT_CORRECTED', 'SUPPLEMENT_ADDED', 'USER_CONFIRMED', 'USER_NOT_RESOLVED')),
+    CONSTRAINT ck_ticket_event_actor_type CHECK (actor_type IN ('MEMBER', 'AI', 'SYSTEM'))
 );

@@ -7,5 +7,7 @@ public enum DocumentType {
     /** 업무 규칙·정책 */
     POLICY,
     /** 담당자용 처리 절차 */
-    STAFF_RUNBOOK
+    STAFF_RUNBOOK,
+    /** 승인된 현재 해결 사례의 검색용 문서 (원본·승인 여부는 resolved_case에서 확인) */
+    CASE
 }

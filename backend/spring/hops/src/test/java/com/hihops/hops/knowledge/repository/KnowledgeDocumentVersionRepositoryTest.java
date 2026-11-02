@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.knowledge.domain.KnowledgeDocument;
 import com.hihops.hops.knowledge.domain.KnowledgeDocumentVersion;
+import com.hihops.hops.knowledge.domain.ReviewStatus;
 
 import jakarta.persistence.EntityManager;
 
@@ -29,6 +30,8 @@ import jakarta.persistence.EntityManager;
 class KnowledgeDocumentVersionRepositoryTest {
 
     private static final UUID DOCUMENT_ID = UUID.fromString("f1000000-0000-7000-8000-000000000099");
+    // 원문 SHA-256 자리 (16진수 64자). 실제 계산은 저장 기능에서 한다
+    private static final String DIGEST = "b".repeat(64);
 
     @Autowired
     private KnowledgeDocumentVersionRepository knowledgeDocumentVersionRepository;
@@ -53,7 +56,7 @@ class KnowledgeDocumentVersionRepositoryTest {
     void 문서_버전을_저장하고_같은_문서에_같은_버전_번호는_막는다() {
         KnowledgeDocument document = knowledgeDocumentRepository.findById(DOCUMENT_ID).orElseThrow();
         KnowledgeDocumentVersion saved = knowledgeDocumentVersionRepository.save(
-                new KnowledgeDocumentVersion(document, 1, "비밀번호는 90일마다 바꾼다."));
+                new KnowledgeDocumentVersion(document, 1, "비밀번호는 90일마다 바꾼다.", DIGEST, "{\"origin\": \"SYNTHETIC\"}"));
         entityManager.flush();
         entityManager.clear();
 
@@ -61,12 +64,16 @@ class KnowledgeDocumentVersionRepositoryTest {
         assertThat(found.getKnowledgeDocument().getId()).isEqualTo(DOCUMENT_ID);
         assertThat(found.getVersionNo()).isEqualTo(1);
         assertThat(found.getContent()).isEqualTo("비밀번호는 90일마다 바꾼다.");
+        assertThat(found.getContentDigest()).isEqualTo(DIGEST);
+        assertThat(found.getSourceMetadata()).isEqualToIgnoringWhitespace("{\"origin\": \"SYNTHETIC\"}");
+        // 버전마다 따로 검수한다. 새 버전은 검수 대기로 시작한다
+        assertThat(found.getReviewStatus()).isEqualTo(ReviewStatus.PENDING);
         assertThat(found.getCreatedAt()).isNotNull();
 
         // 같은 문서 + 같은 버전 번호 → DB의 중복 불가 제약이 막는다 (내용을 고치면 새 버전 번호로 추가한다)
         KnowledgeDocument sameDocument = knowledgeDocumentRepository.findById(DOCUMENT_ID).orElseThrow();
         assertThatThrownBy(() -> knowledgeDocumentVersionRepository.saveAndFlush(
-                new KnowledgeDocumentVersion(sameDocument, 1, "덮어쓰기 시도")))
+                new KnowledgeDocumentVersion(sameDocument, 1, "덮어쓰기 시도", DIGEST, "{}")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

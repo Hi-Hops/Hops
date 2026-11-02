@@ -47,6 +47,7 @@ class TicketRepositoryTest {
     private static final UUID INQUIRY_ID = UUID.fromString("e0000000-0000-7000-8000-000000000099");
     private static final UUID PROBLEM_ID = UUID.fromString("e1000000-0000-7000-8000-000000000099");
     private static final UUID REQUEST_ID = UUID.fromString("e2000000-0000-7000-8000-000000000099");
+    private static final UUID RUN_ID = UUID.fromString("b1000000-0000-7000-8000-000000000099");
 
     @Autowired
     private TicketRepository ticketRepository;
@@ -84,9 +85,14 @@ class TicketRepositoryTest {
                 + "VALUES (?, 'Q-9999', ?, '결재 문서가 안 열려요', 'IN_PROGRESS')", INQUIRY_ID, MEMBER_ID);
         jdbcTemplate.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) "
                 + "VALUES (?, ?, 1, '결재 문서 열람 오류', 'TICKET_CREATED')", PROBLEM_ID, INQUIRY_ID);
-        jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, intent, work_type, "
-                + "responsible_system_id, summary) VALUES (?, ?, 1, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, '빈 화면')",
-                REQUEST_ID, PROBLEM_ID, SYSTEM_ID);
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
+                + "model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+                RUN_ID, INQUIRY_ID);
+        jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, "
+                + "work_type, responsible_system_id, summary) "
+                + "VALUES (?, ?, 1, ?, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, '빈 화면')",
+                REQUEST_ID, PROBLEM_ID, RUN_ID, SYSTEM_ID);
     }
 
     @Test

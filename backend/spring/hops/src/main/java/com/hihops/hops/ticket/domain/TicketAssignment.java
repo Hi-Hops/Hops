@@ -2,6 +2,9 @@ package com.hihops.hops.ticket.domain;
 
 import java.time.Instant;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.hihops.hops.global.entity.BaseEntity;
 import com.hihops.hops.itsystem.domain.ItSystem;
 import com.hihops.hops.user.domain.Member;
@@ -51,6 +54,11 @@ public class TicketAssignment extends BaseEntity {
     @Column(nullable = false, length = 1000)
     private String reason;
 
+    // 배정 근거로 본 메시지와 메모 {"messageIds": [...], "note": ...} (docs/DATA.md 11.3절). 비어 있으면 빈 근거로 저장한다.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private String evidence = "{\"messageIds\": [], \"note\": null}";
+
     @Column(name = "assigned_at", nullable = false)
     private Instant assignedAt;
 
@@ -93,6 +101,10 @@ public class TicketAssignment extends BaseEntity {
 
     public String getReason() {
         return reason;
+    }
+
+    public String getEvidence() {
+        return evidence;
     }
 
     public Instant getAssignedAt() {

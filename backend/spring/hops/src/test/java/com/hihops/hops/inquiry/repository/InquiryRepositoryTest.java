@@ -66,6 +66,9 @@ class InquiryRepositoryTest {
         assertThat(found.getTitle()).isEqualTo("결재 문서가 안 열려요");
         assertThat(found.getInquiryStatus()).isEqualTo(InquiryStatus.IN_PROGRESS);
         assertThat(found.getVersion()).isEqualTo(1);
+        // 아직 AI 결과를 적용하지 않아 결과 차수는 1이고 분석 중인 실행도 없다
+        assertThat(found.getResultRevision()).isEqualTo(1);
+        assertThat(found.getCurrentRun()).isNull();
         // AI 요약은 아직 만들어지지 않았다
         assertThat(found.getSummary()).isNull();
         assertThat(found.getSummaryUntilSeq()).isNull();

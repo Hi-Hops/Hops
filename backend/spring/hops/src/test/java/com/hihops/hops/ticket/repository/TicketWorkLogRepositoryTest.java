@@ -1,6 +1,7 @@
 package com.hihops.hops.ticket.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,7 @@ class TicketWorkLogRepositoryTest {
     private static final UUID INQUIRY_ID = UUID.fromString("e0000000-0000-7000-8000-000000000099");
     private static final UUID PROBLEM_ID = UUID.fromString("e1000000-0000-7000-8000-000000000099");
     private static final UUID REQUEST_ID = UUID.fromString("e2000000-0000-7000-8000-000000000099");
+    private static final UUID RUN_ID = UUID.fromString("b1000000-0000-7000-8000-000000000099");
     private static final UUID TICKET_ID = UUID.fromString("e3000000-0000-7000-8000-000000000099");
 
     @Autowired
@@ -79,9 +82,14 @@ class TicketWorkLogRepositoryTest {
                 + "VALUES (?, 'Q-9999', ?, '결재 문서가 안 열려요', 'IN_PROGRESS')", INQUIRY_ID, MEMBER_ID);
         jdbcTemplate.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) "
                 + "VALUES (?, ?, 1, '결재 문서 열람 오류', 'TICKET_CREATED')", PROBLEM_ID, INQUIRY_ID);
-        jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, intent, work_type, "
-                + "responsible_system_id, summary) VALUES (?, ?, 1, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, '빈 화면')",
-                REQUEST_ID, PROBLEM_ID, SYSTEM_ID);
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
+                + "model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+                RUN_ID, INQUIRY_ID);
+        jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, "
+                + "work_type, responsible_system_id, summary) "
+                + "VALUES (?, ?, 1, ?, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, '빈 화면')",
+                REQUEST_ID, PROBLEM_ID, RUN_ID, SYSTEM_ID);
         jdbcTemplate.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, "
                 + "title, detail, work_type, responsible_system_id, assignee_member_id) "
                 + "VALUES (?, 'TK-9999', ?, ?, ?, '결재 문서 열람 오류', '빈 화면', 'INVESTIGATION', ?, ?)",
@@ -112,7 +120,7 @@ class TicketWorkLogRepositoryTest {
         Ticket ticket = ticketRepository.findById(TICKET_ID).orElseThrow();
 
         AgentRun saved = agentRunRepository.save(new AgentRun(inquiry, ticket, workLog, RunStatus.RUNNING, 1,
-                "gpt-test", "prompt-v1", "schema-v1", Instant.now()));
+                "{}", "gpt-test", "prompt-v1", "schema-v1", Instant.now()));
         entityManager.flush();
         entityManager.clear();
 
@@ -122,6 +130,17 @@ class TicketWorkLogRepositoryTest {
         assertThat(found.getTriggerWorkLog().getId()).isEqualTo(workLog.getId());
         // Curator 실행에는 시작 메시지가 없다
         assertThat(found.getTriggerMessage()).isNull();
+    }
+
+    @Test
+    void 검증_결과가_없는_해결_기록은_DB가_거절한다() {
+        Ticket ticket = ticketRepository.findById(TICKET_ID).orElseThrow();
+        Member author = memberRepository.findById(MEMBER_ID).orElseThrow();
+
+        // 검증하지 않은 조치를 해결 완료로 남기지 않는다 (ck_ticket_work_log_verified)
+        assertThatThrownBy(() -> ticketWorkLogRepository.saveAndFlush(new TicketWorkLog(ticket, author,
+                WorkLogType.RESOLVED, "뷰어 캐시를 비움", null, "  ", null)))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private TicketWorkLog newResolvedLog() {

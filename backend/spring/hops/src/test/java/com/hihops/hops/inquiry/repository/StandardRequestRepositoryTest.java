@@ -28,8 +28,10 @@ import com.hihops.hops.itsystem.repository.SystemFeatureRepository;
 import jakarta.persistence.EntityManager;
 
 /**
- * 표준 요청서(standard_request)를 저장하고, 같은 문제의 같은 문의 버전 요청서가 두 번 들어가지 않는지 확인한다
- * (docs/ERD.md "표준 요청서 standard_request", 중복 불가 조합: 문제 ID + 문의 버전).
+ * 표준 요청서(standard_request)를 저장하고, 같은 문제·문의 버전·AI 실행의 요청서가 두 번 들어가지 않는지 확인한다
+ * (docs/ERD.md "표준 요청서 standard_request" 6.1절, 중복 불가 조합: 문제 ID + 문의 버전 + AI 실행 ID).
+ *
+ * <p>같은 문의 버전이라도 새 AI 실행(재분석)이면 새 스냅샷을 추가할 수 있다. 옛 스냅샷은 덮어쓰지 않는다.
  *
  * <p>JSONB 목록 컬럼은 따로 넣지 않으면 빈 목록([])·빈 객체({})로 저장돼야 한다.
  */
@@ -45,6 +47,7 @@ class StandardRequestRepositoryTest {
     private static final UUID INQUIRY_ID = UUID.fromString("e0000000-0000-7000-8000-000000000099");
     private static final UUID RUN_ID = UUID.fromString("b1000000-0000-7000-8000-000000000099");
     private static final UUID PROBLEM_ID = UUID.fromString("e1000000-0000-7000-8000-000000000099");
+    private static final UUID NEXT_RUN_ID = UUID.fromString("b2000000-0000-7000-8000-000000000099");
 
     @Autowired
     private StandardRequestRepository standardRequestRepository;
@@ -79,16 +82,16 @@ class StandardRequestRepositoryTest {
                 + "VALUES (?, ?, 'DOCUMENT_VIEW', '문서 조회')", FEATURE_ID, SYSTEM_ID);
         jdbcTemplate.update("INSERT INTO inquiry (id, inquiry_number, requester_member_id, title, inquiry_status) "
                 + "VALUES (?, 'Q-9999', ?, '결재 문서가 안 열려요', 'IN_PROGRESS')", INQUIRY_ID, MEMBER_ID);
-        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, model_version, "
-                + "prompt_version, schema_version, started_at) "
-                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'RUNNING', 1, 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
+                + "model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'RUNNING', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
                 RUN_ID, INQUIRY_ID);
         jdbcTemplate.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) "
                 + "VALUES (?, ?, 1, '결재 문서 열람 오류', 'CLARIFYING')", PROBLEM_ID, INQUIRY_ID);
     }
 
     @Test
-    void 요청서를_저장하고_같은_문제의_같은_문의_버전은_막는다() {
+    void 요청서를_저장하고_같은_문제_버전_실행의_요청서는_막는다() {
         InquiryProblem problem = inquiryProblemRepository.findById(PROBLEM_ID).orElseThrow();
         AgentRun run = agentRunRepository.findById(RUN_ID).orElseThrow();
         ItSystem system = itSystemRepository.findById(SYSTEM_ID).orElseThrow();
@@ -119,10 +122,30 @@ class StandardRequestRepositoryTest {
         assertThat(found.getTypeDetail()).isEqualTo("{}");
         assertThat(found.getRelatedKnowledge()).isEqualTo("[]");
 
-        // 같은 문제 + 같은 문의 버전 → DB의 중복 불가 제약이 막는다 (정정되면 새 버전 행을 추가한다)
+        // 같은 문제 + 같은 문의 버전 + 같은 AI 실행 → DB의 중복 불가 제약이 막는다
         InquiryProblem sameProblem = inquiryProblemRepository.findById(PROBLEM_ID).orElseThrow();
-        assertThatThrownBy(() -> standardRequestRepository.saveAndFlush(new StandardRequest(sameProblem, 1, null,
-                RequestIntent.UNKNOWN, WorkType.REVIEW_REQUIRED, null, null, null, "중복 버전")))
+        AgentRun sameRun = agentRunRepository.findById(RUN_ID).orElseThrow();
+        assertThatThrownBy(() -> standardRequestRepository.saveAndFlush(new StandardRequest(sameProblem, 1, sameRun,
+                RequestIntent.UNKNOWN, WorkType.REVIEW_REQUIRED, null, null, null, "중복 스냅샷")))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 같은_문의_버전이라도_새_AI_실행이면_새_스냅샷을_추가한다() {
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
+                + "model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'RUNNING', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+                NEXT_RUN_ID, INQUIRY_ID);
+        InquiryProblem problem = inquiryProblemRepository.findById(PROBLEM_ID).orElseThrow();
+        standardRequestRepository.saveAndFlush(new StandardRequest(problem, 1,
+                agentRunRepository.findById(RUN_ID).orElseThrow(), RequestIntent.UNKNOWN, WorkType.REVIEW_REQUIRED,
+                null, null, null, "첫 분석"));
+
+        StandardRequest reanalyzed = standardRequestRepository.saveAndFlush(new StandardRequest(problem, 1,
+                agentRunRepository.findById(NEXT_RUN_ID).orElseThrow(), RequestIntent.OBSERVED_SYMPTOM,
+                WorkType.INVESTIGATION, null, null, null, "재분석"));
+
+        assertThat(reanalyzed.getId()).isNotNull();
+        assertThat(standardRequestRepository.count()).isEqualTo(2);
     }
 }

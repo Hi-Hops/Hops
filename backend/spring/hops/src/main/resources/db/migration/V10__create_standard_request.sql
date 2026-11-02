@@ -1,12 +1,13 @@
--- 표준 요청서: 문제별 대화를 담당자가 바로 일할 수 있게 정리한 요청서 (docs/ERD.md "표준 요청서 standard_request")
--- 추가만 하는 이력 테이블이다. 정정되면 행을 고치지 않고 새 문의 버전 행을 추가해 정정 전 정리도 남긴다.
+-- 표준 요청서: 문제별 대화를 담당자가 바로 일할 수 있게 정리한 요청서 (docs/ERD.md "표준 요청서 standard_request", 6.1절)
+-- 추가만 하는 불변 스냅샷이다. 같은 문의 버전이라도 새 AI 실행이면 새 행을 추가하고 옛 스냅샷을 덮어쓰지 않는다.
 -- 이미 적용된 이 파일은 고치지 않는다. 바꿀 내용이 생기면 다음 번호 파일을 새로 추가한다.
 CREATE TABLE standard_request (
     id                    UUID          PRIMARY KEY DEFAULT uuidv7(),
     inquiry_problem_id    UUID          NOT NULL,
     -- 어느 문의 버전까지의 대화로 정리했는지
     inquiry_version       INT           NOT NULL,
-    agent_run_id          UUID,
+    -- 이 요청서를 만든 AI 실행 (출처 보존을 위해 필수)
+    agent_run_id          UUID          NOT NULL,
     -- HOW_TO / ACCESS_REQUEST / OBSERVED_SYMPTOM / FEATURE_REQUEST / IMPROVEMENT_REQUEST / UNKNOWN / OUT_OF_SCOPE
     intent                VARCHAR(30)   NOT NULL,
     -- KNOWLEDGE_QA / SERVICE_REQUEST / INVESTIGATION / INCIDENT / CHANGE_REQUEST / REVIEW_REQUIRED / OUT_OF_SCOPE
@@ -27,10 +28,14 @@ CREATE TABLE standard_request (
     type_detail           JSONB         NOT NULL DEFAULT '{}',
     related_knowledge     JSONB         NOT NULL DEFAULT '[]',
     created_at            TIMESTAMPTZ   NOT NULL DEFAULT now(),
-    CONSTRAINT uk_standard_request_problem_version UNIQUE (inquiry_problem_id, inquiry_version),
+    CONSTRAINT uk_standard_request_problem_version_run UNIQUE (inquiry_problem_id, inquiry_version, agent_run_id),
     CONSTRAINT fk_standard_request_inquiry_problem FOREIGN KEY (inquiry_problem_id) REFERENCES inquiry_problem (id),
     CONSTRAINT fk_standard_request_agent_run FOREIGN KEY (agent_run_id) REFERENCES agent_run (id),
     CONSTRAINT fk_standard_request_reported_system FOREIGN KEY (reported_system_id) REFERENCES it_system (id),
     CONSTRAINT fk_standard_request_reported_feature FOREIGN KEY (reported_feature_id) REFERENCES system_feature (id),
-    CONSTRAINT fk_standard_request_responsible_system FOREIGN KEY (responsible_system_id) REFERENCES it_system (id)
+    CONSTRAINT fk_standard_request_responsible_system FOREIGN KEY (responsible_system_id) REFERENCES it_system (id),
+    CONSTRAINT ck_standard_request_intent CHECK (intent IN ('HOW_TO', 'ACCESS_REQUEST', 'OBSERVED_SYMPTOM',
+        'FEATURE_REQUEST', 'IMPROVEMENT_REQUEST', 'UNKNOWN', 'OUT_OF_SCOPE')),
+    CONSTRAINT ck_standard_request_work_type CHECK (work_type IN ('KNOWLEDGE_QA', 'SERVICE_REQUEST', 'INVESTIGATION',
+        'INCIDENT', 'CHANGE_REQUEST', 'REVIEW_REQUIRED', 'OUT_OF_SCOPE'))
 );

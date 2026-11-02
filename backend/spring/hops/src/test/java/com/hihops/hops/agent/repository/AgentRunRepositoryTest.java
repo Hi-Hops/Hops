@@ -2,8 +2,6 @@ package com.hihops.hops.agent.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +25,7 @@ import jakarta.persistence.EntityManager;
 /**
  * AI 실행(agent_run) 한 건을 저장하고 다시 읽는지 확인한다 (docs/ERD.md "AI 실행 agent_run").
  *
- * <p>상담 실행은 시작 메시지와 실행 당시 문의 버전(inputVersion)을 남긴다.
+ * <p>상담 실행은 시작 메시지·실행 당시 문의 버전(inputVersion)·AI에 보낸 입력(inputSnapshot)을 남긴다.
  * 결과가 늦게 와서 문의 버전이 달라졌으면 Spring이 그 결과를 버리는 기준이 된다.
  */
 @SpringBootTest
@@ -70,11 +68,9 @@ class AgentRunRepositoryTest {
     void 상담_실행을_저장하고_DB에서_다시_읽는다() {
         Inquiry inquiry = inquiryRepository.findById(INQUIRY_ID).orElseThrow();
         Message triggerMessage = messageRepository.findById(MESSAGE_ID).orElseThrow();
-        // DB는 마이크로초까지만 저장하므로 비교가 어긋나지 않게 잘라둔다
-        Instant startedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
-
+        // 접수만 된 대기(QUEUED) 실행이라 아직 시작 시각이 없다
         AgentRun saved = agentRunRepository.save(new AgentRun(inquiry, triggerMessage, AgentTask.INQUIRY_ANALYSIS,
-                RunStatus.RUNNING, 1, "gpt-test", "prompt-v1", "schema-v1", startedAt));
+                RunStatus.QUEUED, 1, "{\"answerMessageId\": \"m-1\"}", "gpt-test", "prompt-v1", "schema-v1", null));
         entityManager.flush();
         entityManager.clear();
 
@@ -82,12 +78,13 @@ class AgentRunRepositoryTest {
         assertThat(found.getInquiry().getId()).isEqualTo(INQUIRY_ID);
         assertThat(found.getTriggerMessage().getId()).isEqualTo(MESSAGE_ID);
         assertThat(found.getTask()).isEqualTo(AgentTask.INQUIRY_ANALYSIS);
-        assertThat(found.getRunStatus()).isEqualTo(RunStatus.RUNNING);
+        assertThat(found.getRunStatus()).isEqualTo(RunStatus.QUEUED);
         assertThat(found.getInputVersion()).isEqualTo(1);
         assertThat(found.getModelVersion()).isEqualTo("gpt-test");
         assertThat(found.getPromptVersion()).isEqualTo("prompt-v1");
         assertThat(found.getSchemaVersion()).isEqualTo("schema-v1");
-        assertThat(found.getStartedAt()).isEqualTo(startedAt);
+        assertThat(found.getInputSnapshot()).isEqualToIgnoringWhitespace("{\"answerMessageId\": \"m-1\"}");
+        assertThat(found.getStartedAt()).isNull();
         assertThat(found.getCreatedAt()).isNotNull();
         assertThat(found.getUpdatedAt()).isNotNull();
         // 아직 Supervisor 경로·결과·종료 시각이 없다

@@ -1,10 +1,10 @@
 # ERD (물리 테이블·컬럼)
 
-상태: PRD 1.44 MVP 공통 계약 정합안 · 병합 원본(#69)의 22개 테이블을 사용하고 추가 테이블은 만들지 않는다. 기존 컬럼·DTO 대응은 6절에서 보완하며 팀 리뷰·실제 DB 적용 전이다. 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
+상태: PRD 1.44 MVP 공통 계약 정합안 · 22개 테이블 · FK 46개 · 6절 보완을 3절 표에 반영하고 Flyway V1~V21로 실제 DB에 적용 (#23). 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
 
 이 문서는 테이블·컬럼·타입·FK를 적은 **물리 설계**다. ERD Cloud import와 Flyway 마이그레이션 작성의 기준으로 쓴다. 엔터티의 의미·관계·저장 불변식(**논리 모델**)은 [ERD 설명](ERD_설명.md)과 [DATA](DATA.md)를 따른다. 두 문서가 다르면 논리 모델을 먼저 맞추고 이 문서를 고친다.
 
-실제 DB에 적용된 테이블은 [V1 마이그레이션](../backend/spring/hops/src/main/resources/db/migration/V1__create_department_member_role.sql)의 `department`·`member`·`member_role`뿐이다. 이 문서를 고쳐도 DDL·DB에 자동으로 반영되지 않는다.
+실제 DB 구조는 [Flyway 마이그레이션](../backend/spring/hops/src/main/resources/db/migration/) V1~V21이다. V1은 `department`·`member`·`member_role`, V2~V20은 나머지 19개 테이블, V21은 `member.policy_revision` 추가다. 이 문서를 고쳐도 DDL·DB에 자동으로 반영되지 않으므로, 바꿀 때는 새 마이그레이션과 함께 고친다.
 
 ## 1. 한눈에 보기
 
@@ -40,9 +40,9 @@
 | 기본키 | 모든 테이블 `id` UUID (UUIDv7 권장). 화면에는 Q-0142·TK-0001·CASE-0001 같은 표시 번호를 따로 씀 |
 | 시간 컬럼 | 바뀌는 테이블: 생성일시·수정일시·삭제일시 / 원본 이력·기록9개는 생성일시만. journal은 operation/tombstone 갱신, CASE는 현재 초안 편집 후 승인하면 읽기 전용(6절) / AI 실행: 생성일시·수정일시 |
 | 이력·기록 테이블 | 메시지 수정 이력, 표준 요청서, 티켓 변경 이력, 티켓 처리 기록, AI 실행 단계, 중복 요청 방지 기록, 알림, 문서 버전, 검색 조각 |
-| 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약 |
+| 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약. 마이그레이션에서 `ck_<테이블>_<컬럼>` 이름으로 34개 적용 |
 | 업무 데이터 쓰기 | Spring이 REST 변경 요청을 저장·확정하고 권한별 SSE를 전달. AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
-| 관계선 | 원본 FK45개를 기준으로 기존 테이블의 컬럼 보완을 구현 시 대조한다. 추가 테이블의 FK는 만들지 않는다. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
+| 관계선 | 실제 DB는 FK 46개(원본 45개 + 6.1절 `inquiry.current_run_id`)를 적용한다. 추가 테이블의 FK는 만들지 않는다. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
 | 중복 방지 | REST `Idempotency-Key`는 중복 요청 방지 기록에 업무 변경과 같은 트랜잭션으로 저장. 문의 1:N 문제 → 문제당 티켓 최대 1개 (`ticket.inquiry_problem_id` 중복 불가) |
 | 삭제 | 문의·티켓·처리 기록·해결 사례는 지우지 않고 보존 (최종기획서 8.3). 신규 프로필의 만료된 journal 응답 본문은 정리하되 키/digest/tombstone은 유지(6절). 전환 전 프로필의 정책과 구분 |
 | 저장소 경계 | PostgreSQL은 사용자·시스템·주담당자·문의·티켓·승인·상태의 정본. 관계 탐색은 Neo4j, 의미 검색은 Vector 저장소, 로그인 세션·Refresh는 Redis. 신규 hops-system-1 SSE는 replay 없이 REST 재동기화, 전환 전 replay 프로필은 별도 Redis (최종기획서 9.1, 팀 합의 2026-10-28) |
@@ -78,6 +78,7 @@
 |  | 비밀번호 해시 | `password_hash` | VARCHAR(255) | ● |  |  | 로그인 확인용. 비밀번호 원문은 저장하지 않으려고 해시로 보관 |
 |  | 이름 | `name` | VARCHAR(50) | ● |  |  | 헤더·요청자·담당자 이름을 화면에 보여주려고 |
 |  | 소속 부서 ID | `department_id` | UUID | ● |  | 부서 | 헤더·문의자 정보에 소속을 보여주려고. 티켓 조회 권한과 배정에는 쓰지 않음 |
+|  | 권한 문맥 버전 | `policy_revision` | INT | ● | 1 |  | 시스템 주담당자·역할이 바뀌면 영향받는 회원 행과 같은 거래에서 1씩 늘려, 예전 권한으로 만든 토큰·구독을 막으려고 (V21) |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
@@ -114,6 +115,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 시스템명 | `name` | VARCHAR(100) | ● |  |  | 채팅의 시스템 확인 질문·티켓 목록에 시스템 이름을 보여주려고 (예: 전자결재) |
 |  | 지원 범위 설명 | `description` | TEXT |  |  |  | 사용자가 시스템을 고르지 않았을 때 AI가 문의 내용과 비교해 시스템 후보를 고르려고 |
 |  | 주담당자 ID | `primary_owner_member_id` | UUID | ● |  | 회원 | 이 시스템 문의를 자동 배정받는 주담당자(PRIMARY) 1명. 한 회원이 여러 시스템을 맡을 수 있음 |
+|  | 담당 세대 | `ownership_version` | INT | ● | 1 |  | 주담당자가 바뀔 때마다 1씩 늘려 권한을 검증하려고. 이미 배정된 티켓의 담당자는 바꾸지 않음 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
@@ -149,8 +151,10 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 문의 번호 | `inquiry_number` | VARCHAR(20) | ● |  |  | 사용자·담당자가 부르기 쉬운 문의 번호 (Q-0142) · 중복 불가 |
 |  | 문의자 ID | `requester_member_id` | UUID | ● |  | 회원 | 본인 문의만 보이게 하고, 알림 받을 사람을 찾으려고 |
 |  | 제목 | `title` | VARCHAR(200) | ● |  |  | 내 문의 목록에 보여줄 제목 (첫 입력 → AI 요약 제목) |
-|  | 문의 상태 | `inquiry_status` | VARCHAR(30) | ● |  |  | 내 문의 목록 상태 필터와 종합 상태 표시용 (IN_PROGRESS / WAITING_USER / RESOLVED) |
+|  | 문의 상태 | `inquiry_status` | VARCHAR(30) | ● |  |  | 내 문의 목록 상태 필터와 종합 상태 표시용 (IN_PROGRESS / WAITING_USER / RESOLVED / CLOSED). CLOSED는 모든 문제가 범위 밖이고 범위 안내를 저장한 문의에만 쓰며 무응답 자동 종료가 아님 |
 |  | 문의 버전 | `version` | INT | ● | 1 |  | 메시지 추가·정정 때마다 1씩 늘려, 예전 버전으로 분석한 늦은 AI 결과를 버리려고 |
+|  | 현재 상담 실행 ID | `current_run_id` | UUID |  |  | AI 실행 | 지금 이 문의를 분석 중인(마지막으로 시작한) 상담 실행. 현재 입력 버전과 실행이 둘 다 맞는 결과만 적용하려고. Curator 실행은 가리키지 않음 |
+|  | 결과 차수 | `result_revision` | INT | ● | 1 |  | AI 결과를 적용할 때마다 1씩 늘려, 화면이 최신 결과를 받았는지 확인하려고 |
 |  | AI 요약 | `summary` | TEXT |  |  |  | 문의 상세에서 대화를 다 읽지 않아도 내용을 알 수 있게 |
 |  | 요약 반영 순번 | `summary_until_seq` | INT |  |  |  | 요약이 대화 어디까지 반영됐는지 표시하려고 |
 |  | 요약 기준일시 | `summary_updated_at` | TIMESTAMPTZ |  |  |  | 문의 상세에 'AI 요약 · 10.17 09:05 기준'처럼 요약이 언제 기준인지 보여주려고 |
@@ -170,8 +174,9 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 메시지 순번 | `sequence_no` | INT | ● |  |  | 대화를 보낸 순서대로 보여주려고 (같은 시각이어도 순서 보장) |
 |  | 발신자 구분 | `sender_type` | VARCHAR(30) | ● |  |  | 말풍선을 사용자·AI로 나눠 보여주려고 (USER / AI) |
 |  | 내용 | `content` | TEXT | ● |  |  | 대화 내용을 보여주고 AI 분석에 넘기려고 (최대 4,000자) |
-|  | 화면 표시 데이터 | `payload` | JSONB |  |  |  | 단계별 가이드·티켓 정보 카드·문서 링크처럼 모양이 있는 답변을 그리려고 |
-|  | 상태 | `message_status` | VARCHAR(30) | ● |  |  | 답변 생성 중·완료·실패를 화면에 구분해 보여주려고 |
+|  | 현재 차수 | `revision` | INT | ● | 1 |  | 현재 내용이 몇 번째 수정본인지 (1 이상). 정정할 때마다 1씩 늘리고 과거 원문은 메시지 수정 이력에 둠 |
+|  | 화면 표시 데이터 | `payload` | JSONB | ● | '{}' |  | 요청 ID·실행 ID·문제 연결·질문 묶음·가이드 같은 서버 관리 메타데이터와 모양이 있는 답변을 그리려고 (구조는 DATA 11.3절) |
+|  | 상태 | `message_status` | VARCHAR(30) | ● |  |  | 답변 생성 중·완료·실패를 구분하려고 (GENERATING / COMPLETED / FAILED). 신규 계약의 저장 행은 COMPLETED이며 AI 답변은 예약한 answerMessageId를 이 행의 ID로 써서 완성 후 한 번 저장 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
@@ -204,6 +209,8 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 문제 상태 | `problem_status` | VARCHAR(30) | ● |  |  | 문제마다 어디까지 왔는지 구분하려고 (CLARIFYING 추가 질문 중 / SYSTEM_PENDING 시스템 확인 대기 / GUIDED 안내 후 해결 확인 대기 / RESOLVED_WITHOUT_TICKET 무티켓 해결 / TICKET_CREATED 티켓 생성 / TICKET_FAILED 티켓 생성 실패 / OUT_OF_SCOPE 범위 밖) |
 |  | 추가 질문 횟수 | `clarify_count` | INT | ● | 0 |  | 문제당 질문 묶음 최대 5회를 지키려고. 5회 뒤 시스템을 알면 누락 항목과 함께 티켓으로, 모르면 시스템 확인 대기로 |
 |  | 티켓 생성 오류 코드 | `ticket_error_code` | VARCHAR(50) |  |  |  | 티켓 생성이 실패한 원인. 성공한 티켓은 두고 실패한 문제만 다시 만들려고 |
+|  | 티켓 생성 결과 | `creation_outcome` | VARCHAR(30) |  |  |  | 티켓 생성 작업이 어디까지 됐는지 (PENDING / STORED / NOT_CREATED / UNKNOWN, 작업이 없으면 NULL). 저장 여부를 모르면 실패로 단정하지 않고 UNKNOWN으로 두려고 |
+|  | 생성 기준 문의 버전 | `creation_input_version` | INT |  |  |  | 티켓 생성을 시도한 문의 버전 |
 |  | 확인 요청일시 | `confirm_requested_at` | TIMESTAMPTZ |  |  |  | 티켓 없이 안내한 뒤 문의자에게 해결 확인을 요청한 시각 |
 |  | 해결일시 | `resolved_at` | TIMESTAMPTZ |  |  |  | 문의자가 티켓 없이 해결됐다고 확인한 시각 (확인 전이면 NULL) |
 |  | AI 실행 ID | `agent_run_id` | UUID |  |  | AI 실행 | 이 문제를 판단한 AI 실행을 추적하려고 |
@@ -224,8 +231,8 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |---|---|---|---|:-:|---|---|---|
 | **표준 요청서** | 표준 요청서 ID | `id` | UUID | ● | uuidv7() |  | 표준 요청서 한 건을 구분하는 고유 번호 |
 |  | 문제 ID | `inquiry_problem_id` | UUID | ● |  | 문의 문제 | 어느 문제를 정리한 요청서인지 |
-|  | 문의 버전 | `inquiry_version` | INT | ● |  |  | 어느 문의 버전까지의 대화로 정리했는지. 정정되면 새 버전 행을 추가하고 최신 버전을 사용 |
-|  | AI 실행 ID | `agent_run_id` | UUID |  |  | AI 실행 | 이 요청서를 정리한 AI 실행을 추적하려고 |
+|  | 문의 버전 | `inquiry_version` | INT | ● |  |  | 어느 문의 버전까지의 대화로 정리했는지. 정정되거나 같은 버전을 새로 분석하면 새 행을 추가하고 최신 적용 실행의 행을 사용 |
+|  | AI 실행 ID | `agent_run_id` | UUID | ● |  | AI 실행 | 이 요청서를 정리한 AI 실행. 출처를 남기려고 필수 |
 |  | 문의 의도 | `intent` | VARCHAR(30) | ● |  |  | 사용자가 무엇을 원하는지 (HOW_TO / ACCESS_REQUEST / OBSERVED_SYMPTOM / FEATURE_REQUEST / IMPROVEMENT_REQUEST / UNKNOWN / OUT_OF_SCOPE) |
 |  | 처리 유형 | `work_type` | VARCHAR(30) | ● |  |  | 담당자가 어떤 업무를 할지 (KNOWLEDGE_QA / SERVICE_REQUEST / INVESTIGATION / INCIDENT / CHANGE_REQUEST / REVIEW_REQUIRED / OUT_OF_SCOPE) |
 |  | 보고 시스템 ID | `reported_system_id` | UUID |  |  | 시스템 | 사용자가 현상을 겪은 시스템. 아직 모르면 NULL이고 시스템 확인 질문 대상 |
@@ -240,7 +247,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 관련 지식 | `related_knowledge` | JSONB | ● | '[]' |  | 검색된 지식·해결 사례와 적용 조건·차이점을 담당자에게 함께 전달하려고 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 
-신규 계약 중복 불가 조합: (문제 ID, 문의 버전, AI 실행 ID). 같은 입력 버전의 새 run은 새 불변 스냅샷을 만들고 현재 포인터는 최신 적용 run에서만 선택한다.
+중복 불가 조합: (문제 ID, 문의 버전, AI 실행 ID). 같은 입력 버전의 새 run은 새 불변 스냅샷을 만들고 현재 포인터는 최신 적용 run에서만 선택한다.
 
 추가만 하는 이력 테이블이라 수정·삭제일시를 두지 않는다. 사용자에게 알 수 없는 정보를 강요하거나 미확인 값을 모델 추정으로 채우지 않도록 확인한 사실·추정·미확인 항목을 분리한다 (최종기획서 4.4). 기획서 4.5의 티켓 제목·내용과 PRIMARY 배정 결과는 티켓·배정 이력에 저장한다. 필수·null·JSONB 구조는 DATA11.3절과 신규 DATA_TYPES·AI Schema를 따른다.
 
@@ -265,7 +272,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 담당자 ID | `assignee_member_id` | UUID | ● |  | 회원 | 배정 시점의 책임 시스템 주담당자. 나중에 주담당자가 바뀌어도 기존 티켓 담당은 그대로 남음 |
 |  | 확인 요청일시 | `confirm_requested_at` | TIMESTAMPTZ |  |  |  | 담당자가 해결·구현 기록을 남기고 문의자에게 해결 확인을 요청한 시각 |
 |  | 해결일시 | `resolved_at` | TIMESTAMPTZ |  |  |  | 문의자가 해결을 확인해 최종 완료된 시각 (확인 전이면 NULL) |
-|  | 버전 | `version` | INT | ● | 0 |  | 두 사람이 동시에 고칠 때 늦은 쪽 변경을 거절하려고 |
+|  | 버전 | `version` | INT | ● | 0 |  | 두 사람이 동시에 고칠 때 늦은 쪽 변경을 거절하려고. 0~2,147,483,646만 허용(CHECK)하고 외부에는 version+1을 ticketRevision으로 보냄 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
@@ -304,13 +311,14 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 배정 출처 | `source` | VARCHAR(30) | ● |  |  | 최초 자동 배정과 수동 정정을 구분하려고 (AUTO / MANUAL_CORRECTION) |
 |  | 정정자 ID | `assigned_by_member_id` | UUID |  |  | 회원 | 담당자나 업무 관리자가 수동 정정했다면 누구인지 (자동 배정이면 NULL) |
 |  | 배정 사유 | `reason` | VARCHAR(1000) | ● |  |  | 자동 배정은 AI가 본 시스템 근거, 수동 정정은 정정 근거와 사유. 오배정 검토에 쓰려고 |
+|  | 배정 근거 | `evidence` | JSONB | ● | '{"messageIds":[],"note":null}' |  | 배정 근거로 본 메시지와 메모. 정정 전후 근거를 비교하려고 (구조는 DATA 11.3절) |
 |  | 배정일시 | `assigned_at` | TIMESTAMPTZ | ● |  |  | 배정된 시각 |
 |  | 배정 종료일시 | `ended_at` | TIMESTAMPTZ |  |  |  | 정정으로 다른 시스템·담당자에게 넘어간 시각. NULL이면 현재 배정 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
 
-- 티켓을 만들 때 `AUTO` 배정 1건을 같은 트랜잭션으로 저장한다. 수동 정정은 현재 배정의 `ended_at`을 채우고 새 `MANUAL_CORRECTION` 배정을 추가한 뒤, 티켓의 책임 시스템·담당자를 같은 트랜잭션으로 바꾼다. 현재 배정(`ended_at`이 NULL)은 티켓당 1건이다.
+- 티켓을 만들 때 `AUTO` 배정 1건을 같은 트랜잭션으로 저장한다. 수동 정정은 현재 배정의 `ended_at`을 채우고 새 `MANUAL_CORRECTION` 배정을 추가한 뒤, 티켓의 책임 시스템·담당자를 같은 트랜잭션으로 바꾼다. 현재 배정(`ended_at`이 NULL)은 티켓당 1건이며 부분 유일 인덱스 `uk_ticket_assignment_current`로 보장한다.
 - 자동 재이관은 없다. 다른 시스템과의 의존 관계가 검색돼도 최초 담당자를 자동으로 바꾸지 않는다 (최종기획서 5.2).
 
 #### 티켓 처리 기록 `ticket_work_log`
@@ -324,7 +332,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 기록 종류 | `log_type` | VARCHAR(30) | ● |  |  | 진행 중 조치·실패한 시도·해결 완료·기능 구현 완료를 구분하려고 (PROGRESS / FAILED_ATTEMPT / RESOLVED / IMPLEMENTED) |
 |  | 조치 내용 | `action_detail` | TEXT | ● |  |  | 실제로 한 조치·변경. 해결 확인 요청 알림과 사례 초안의 재료 |
 |  | 확인된 원인 | `confirmed_cause` | TEXT |  |  |  | 담당자가 근거로 확인한 원인. 확인하지 못했으면 NULL로 두고 모델이 채우지 않음 |
-|  | 검증 결과 | `verification_result` | TEXT |  |  |  | 조치 후 다시 확인한 결과. 해결·구현 완료로 기록하기 전에 확인하려고 |
+|  | 검증 결과 | `verification_result` | TEXT |  |  |  | 조치 후 다시 확인한 결과. RESOLVED·IMPLEMENTED 기록이면 비어 있으면 안 됨(CHECK). 검증하지 않은 조치를 완료로 남기지 않으려고 |
 |  | 적용 버전 | `applied_version` | VARCHAR(100) |  |  |  | 기능 구현이 반영된 시스템 버전. 기능 구현 사례에 적용 버전을 남기려고 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 
@@ -347,8 +355,9 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 시작 처리 기록 ID | `trigger_work_log_id` | UUID |  |  | 티켓 처리 기록 | Curator 실행을 시작한 해결·구현 기록 (상담 실행이면 NULL) |
 |  | 작업 종류 | `task` | VARCHAR(30) | ● |  |  | 사용자 상담 실행과 사후 지식화 실행을 나눠 관리하려고 (INQUIRY_ANALYSIS / CURATION) |
 |  | 처리 경로 | `route` | VARCHAR(30) |  |  |  | Supervisor가 고른 상담 경로 (GUIDE 사용법 / REQUEST 신청·변경 / SYMPTOM 현상 확인). Curator 실행이면 NULL |
-|  | 실행 상태 | `run_status` | VARCHAR(30) | ● |  |  | 실행이 어떻게 끝났는지 (RUNNING / SUCCEEDED / FAILED / TIMED_OUT / CANCELLED). 실행 성공은 업무 저장 성공이 아님 |
+|  | 실행 상태 | `run_status` | VARCHAR(30) | ● |  |  | 실행이 어디까지 왔고 어떻게 끝났는지 (QUEUED / RUNNING / SUCCEEDED / FAILED / TIMED_OUT / CANCELLED). CANCELLED는 외부에 SUPERSEDED로 보냄. 실행 성공은 업무 저장 성공이 아님 |
 |  | 문의 버전 | `input_version` | INT | ● |  |  | 실행 당시 문의 버전. 정정 후라면 결과를 버리려고 |
+|  | 입력 스냅샷 | `input_snapshot` | JSONB | ● |  |  | AI 서버에 보낸 검증된 입력(AiRunRequest) 원본. 상담 실행의 answerMessageId를 고정하고 재전달 때 같은 입력을 쓰려고 |
 |  | 모델 버전 | `model_version` | VARCHAR(100) | ● |  |  | 어떤 모델로 실행했는지. 평가 결과를 같은 조건으로 재현하려고 |
 |  | 프롬프트 버전 | `prompt_version` | VARCHAR(50) | ● |  |  | 프롬프트를 바꿨을 때 결과를 비교하려고 |
 |  | 스키마 버전 | `schema_version` | VARCHAR(50) | ● |  |  | Spring이 결과 형식을 검증하는 기준 |
@@ -356,10 +365,12 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 에이전트 제안 | `result` | JSONB |  |  |  | AI가 제안한 판단 (서버 검증 전) |
 |  | 서버 검증 결과 | `validation_result` | JSONB |  |  |  | Spring이 검증·저장한 결과. 실패해도 이미 반영된 업무를 보여주려고 |
 |  | 오류 코드 | `error_code` | VARCHAR(50) |  |  |  | 실행이 왜 실패했는지 |
-|  | 시작일시 | `started_at` | TIMESTAMPTZ | ● |  |  | 실행 시작 시각. 응답 시간 측정 기준 |
+|  | 시작일시 | `started_at` | TIMESTAMPTZ |  |  |  | 실제로 실행을 시작한 시각 (대기 중이면 NULL). 응답 시간 측정 기준 |
 |  | 종료일시 | `completed_at` | TIMESTAMPTZ |  |  |  | 실행 종료 시각 (진행 중이면 NULL) |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+
+- Curator 실행(`CURATION`)은 `trigger_work_log_id`가 필수이고 상담 실행에는 없다(CHECK). 처리 기록 하나로 Curator 실행을 두 번 만들지 않도록 부분 유일 인덱스 `uk_agent_run_curation_work_log`(`task = 'CURATION'`)를 둔다.
 
 #### AI 실행 단계 `agent_step`
 AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남겨요. 채팅 진행 문구와 실패 단계 추적에 써요. *(근거: 최종기획서 7.1, 7.2, 9.3)*
@@ -395,16 +406,22 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |---|---|---|---|:-:|---|---|---|
 | **중복 요청 방지 기록** | 기록 ID | `id` | UUID | ● | uuidv7() |  | 중복 요청 방지 기록 한 건을 구분하는 고유 번호 |
 |  | 요청자 ID | `actor_member_id` | UUID | ● |  | 회원 | 다른 사람이 같은 키를 보내도 남의 결과를 받지 않게 요청자별로 나누려고 |
+|  | 계약 버전 | `contract_version` | VARCHAR(50) | ● |  |  | 어느 계약의 요청인지 (예: hops-system-1). 같은 키라도 계약별로 나누려고 |
 |  | 요청 방식 | `http_method` | VARCHAR(10) | ● |  |  | 같은 키라도 다른 API 요청과 섞이지 않게 (POST / PATCH 등) |
 |  | 요청 경로 | `request_path` | VARCHAR(500) | ● |  |  | 같은 키라도 다른 API 요청과 섞이지 않게 (예: /api/inquiries/{id}/messages) |
 |  | 요청 키 | `idempotency_key` | VARCHAR(100) | ● |  |  | 프론트가 요청마다 만들어 `Idempotency-Key` 헤더로 보낸 값 |
 |  | 요청 해시 | `request_hash` | VARCHAR(64) | ● |  |  | 같은 키로 내용이 다른 요청이 오면 거절하려고 (본문 SHA-256) |
-|  | 응답 상태 코드 | `response_status` | INT | ● |  |  | 처음 처리했을 때의 HTTP 상태를 다시 돌려주려고 |
-|  | 응답 내용 | `response_body` | JSONB | ● |  |  | 처음 처리한 저장 결과를 그대로 다시 돌려주려고 |
-|  | 만료일시 | `expires_at` | TIMESTAMPTZ | ● |  |  | 이 시각까지 같은 요청을 중복으로 판단. 생성 후 최소 24시간 |
+|  | 작업 ID | `operation_id` | UUID | ● |  |  | 이 요청으로 시작한 업무 작업. 같은 키로 다시 오면 이 작업 결과를 확인하려고 · 중복 불가 |
+|  | 작업 상태 | `operation_state` | VARCHAR(30) | ● |  |  | PENDING 접수 / SUCCEEDED / REJECTED / UNKNOWN. 결과를 모르면 실패로 단정하지 않으려고 |
+|  | 대상 종류 | `resource_type` | VARCHAR(30) |  |  |  | 만들어지거나 바뀐 업무 대상의 종류 (예: INQUIRY) |
+|  | 대상 ID | `resource_id` | UUID |  |  |  | 만들어지거나 바뀐 업무 대상의 ID |
+|  | 응답 상태 코드 | `response_status` | INT |  |  |  | 처음 처리했을 때의 HTTP 상태를 다시 돌려주려고 (접수 중이거나 만료 정리 뒤에는 NULL) |
+|  | 응답 내용 | `response_body` | JSONB |  |  |  | 처음 처리한 저장 결과를 그대로 다시 돌려주려고 (접수 중이거나 만료 정리 뒤에는 NULL) |
+|  | 만료일시 | `expires_at` | TIMESTAMPTZ | ● |  |  | 이 시각까지 상세 응답을 보존. 생성 후 최소 24시간 |
+|  | 정리일시 | `tombstoned_at` | TIMESTAMPTZ |  |  |  | 만료돼 응답 본문을 비운 시각. 행은 지우지 않고 키·해시·작업 표식을 남겨 같은 키의 새 실행을 막으려고 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 
-전환 전 유일 키는 (요청자 ID, 요청 방식, 요청 경로, 요청 키)다. 신규 hops-system-1은 6절의 (actor_member_id,contract_version,idempotency_key)로 교체하고 다른 메서드/경로/본문 재사용을409로 거부한다.
+중복 불가 조합: (요청자 ID, 계약 버전, 요청 키). `operation_id`도 중복 불가다. 같은 키로 다른 메서드·경로·본문을 보내면 409로 거부한다.
 
 - 업무 변경과 **같은 트랜잭션**으로 저장한다. 전환 전 프로필의 롤백 기록과 신규 PENDING 접수 기록을 구분한다. 신규 프로필은 예약된 operation을 유지하고 업무 실패를 같은 키로 재확인한다. 새 업무 의도로 자동 재실행하지 않는다. 신규 프로필은 6절 operation_state와 저장 명령을 함께 관리한다. 장기 작업의 PENDING 접수 기록과 실제 업무 반영 트랜잭션을 구분한다. 같은 키가 동시에 오면 중복 불가 조합에서 한 요청만 저장된다.
 - 로그인 세션·Refresh 검증값과 전환 전 프로필의 SSE replay 이벤트 이력은 Redis에 두고 이 테이블에 넣지 않는다 (팀 합의 2026-10-28).
@@ -437,7 +454,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |---|---|---|---|:-:|---|---|---|
 | **지식 문서** | 지식 문서 ID | `id` | UUID | ● | uuidv7() |  | 지식 문서 한 건을 구분하는 고유 번호 |
 |  | 제목 | `title` | VARCHAR(200) | ● |  |  | 답변 근거의 출처로 보여줄 문서 제목 |
-|  | 문서 종류 | `document_type` | VARCHAR(30) | ● |  |  | 사용법 안내·업무 규칙·담당자 절차로 검색 범위를 나누려고 (EMPLOYEE_GUIDE / POLICY / STAFF_RUNBOOK) |
+|  | 문서 종류 | `document_type` | VARCHAR(30) | ● |  |  | 사용법 안내·업무 규칙·담당자 절차·승인 사례로 검색 범위를 나누려고 (EMPLOYEE_GUIDE / POLICY / STAFF_RUNBOOK / CASE). CASE는 승인된 현재 사례의 검색용 문서이며 원본·승인 여부는 해결 사례에서 확인 |
 |  | 시스템 ID | `it_system_id` | UUID |  |  | 시스템 | 가이드·런북이 어느 시스템 이야기인지. 검색 범위를 시스템으로 좁히려고 (여러 시스템 공통 정책이면 NULL) |
 |  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 직원에게 보여줄 문서와 담당자만 볼 문서를 검색 전에 걸러내려고 (EMPLOYEE / STAFF) |
 |  | 출처 정보 | `source_data` | JSONB |  |  |  | 어느 공개 데이터셋·레코드에서 만들었는지 출처를 남기려고 |
@@ -457,11 +474,14 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |  | 지식 문서 ID | `knowledge_document_id` | UUID | ● |  | 지식 문서 | 어느 문서의 버전인지 |
 |  | 버전 번호 | `version_no` | INT | ● |  |  | 몇 번째 버전인지. 예전 답변이 참고한 버전을 남기려고 |
 |  | 본문 | `content` | TEXT | ● |  |  | 그 버전의 문서 본문 |
+|  | 본문 해시 | `content_digest` | CHAR(64) | ● |  |  | 승인 원문의 UTF-8 바이트 SHA-256. 검색 조각이 같은 원문에서 나왔는지 대조하려고 |
+|  | 출처 메타데이터 | `source_metadata` | JSONB | ● |  |  | origin·출처·적용 조건을 버전마다 고정하려고. 사례 문서는 caseId·caseVersion·indexRequests도 둠 (DATA 11.3절) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 버전마다 검수해 승인된 버전만 검색에 쓰려고 (PENDING / APPROVED) |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 
 중복 불가 조합: (지식 문서 ID, 버전 번호)
 
-#### 검색 조각 `knowledge_chunk`
+#### 검색 조각 `hops_knowledge.knowledge_chunk`
 문서를 검색하기 좋게 잘게 나눈 조각과 임베딩이에요. *(근거: 최종기획서 9.1, 9.3)*
 
 | 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
@@ -471,6 +491,8 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |  | 조각 순번 | `chunk_no` | INT | ● |  |  | 문서 안에서 몇 번째 조각인지 |
 |  | 내용 | `content` | TEXT | ● |  |  | 검색되면 AI에게 넘길 본문 |
 |  | 임베딩 벡터 | `embedding` | VECTOR | ● |  |  | 표현이 달라도 의미가 비슷한 조각을 찾으려고 |
+|  | 원문 해시 | `content_digest` | CHAR(64) | ● |  |  | 잘라낸 문서 버전의 본문 해시. 모델에 넣기 전에 원문 버전과 대조하려고 |
+|  | 조각 해시 | `chunk_digest` | CHAR(64) | ● |  |  | 이 조각 본문의 SHA-256. 저장된 조각이 바뀌지 않았는지 확인하려고 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 
 중복 불가 조합: (문서 버전 ID, 조각 순번)
@@ -533,14 +555,16 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 
 ## 5. 물리 적용 상태
 
-- 실제 DB에 적용된 테이블은 V1의 `department`·`member`·`member_role`뿐이다. 나머지 19개 테이블과 `is_routable`·`AGENT_OPS_ADMIN` 제거는 새 Flyway 마이그레이션(V2 이후)과 코드·계약 전환 이슈에서 적용한다.
-- JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다. 실제 CHECK/인덱스/migration 적용은 백엔드 구현 PR의 검증 대상이다.
-- 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다. 본 문서6절은 이번 PR의 추가 설계이며 #69에서 이미 승인·적용한 구조로 간주하지 않는다.
+- 22개 테이블 전부 [Flyway 마이그레이션](../backend/spring/hops/src/main/resources/db/migration/) V1~V21로 실제 DB에 적용했다 (#23). 테이블마다 파일 하나(V2~V20)이며, 순환 참조 FK는 뒤 파일에서 `ALTER TABLE`로 붙인다 (`inquiry.current_run_id`→V7, `agent_run.ticket_id`→V11, `agent_run.trigger_work_log_id`→V14).
+- 검색 조각은 pgvector `vector` 타입을 쓴다. pgvector는 trusted 확장이 아니라 로컬 DB에 슈퍼유저로 한 번 `CREATE EXTENSION vector`를 실행해야 한다 ([Spring README](../backend/spring/hops/README.md)).
+- 아직 적용하지 않은 것: `department.is_routable`·`AGENT_OPS_ADMIN` 제거(로그인·부서 전환 이슈), AI 서버 계정의 `hops_knowledge` 전용 권한, 임베딩 차원 고정과 벡터 검색 인덱스(모델 선정 후), JSONB 내부 구조의 전용 타입.
+- JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다.
+- 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다.
 
 
 ## 6. hops-system-1 공통 계약 보완
 
-MVP는 병합된 22개 테이블을 재사용한다. 별도 해결 확인·사례 버전·반영 작업·이벤트 전달 테이블을 추가하지 않는다. 아래는 기존 컬럼과 조회 DTO를 연결하기 위한 정의이며 Entity/Flyway/실제 DB 변경은 수행하지 않았다. 승인 후 복수 버전 병행, 반영 시도 전체 이력, 프로세스 재시작 뒤 후속 호출 자동 복구는 후순위다.
+MVP는 병합된 22개 테이블을 재사용한다. 별도 해결 확인·사례 버전·반영 작업·이벤트 전달 테이블을 추가하지 않는다. 6.1의 컬럼·제약은 3절 표와 Flyway V2~V21에 반영했으며(#23), 아래 표는 보완 근거로 남긴다. 승인 후 복수 버전 병행, 반영 시도 전체 이력, 프로세스 재시작 뒤 후속 호출 자동 복구는 후순위다.
 
 ### 6.1 기존 컬럼과 제약 보완
 

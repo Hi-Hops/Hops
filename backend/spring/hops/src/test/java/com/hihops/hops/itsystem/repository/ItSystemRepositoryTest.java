@@ -65,5 +65,7 @@ class ItSystemRepositoryTest {
         assertThat(found.getName()).isEqualTo("전자결재");
         assertThat(found.getDescription()).isEqualTo("결재 상신·승인·문서 조회");
         assertThat(found.getPrimaryOwner().getId()).isEqualTo(OWNER_ID);
+        // 주담당자가 아직 바뀐 적 없어 담당 세대는 1이다
+        assertThat(found.getOwnershipVersion()).isEqualTo(1);
     }
 }

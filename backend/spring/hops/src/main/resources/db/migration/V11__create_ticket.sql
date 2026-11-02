@@ -1,4 +1,4 @@
--- 티켓: 책임 시스템의 주담당자가 처리할 일 1건 (docs/ERD.md "티켓 ticket")
+-- 티켓: 책임 시스템의 주담당자가 처리할 일 1건 (docs/ERD.md "티켓 ticket", 6.1절)
 -- 문제 하나에서 티켓은 최대 1개다 (inquiry_problem_id 중복 불가).
 -- 이미 적용된 이 파일은 고치지 않는다. 바꿀 내용이 생기면 다음 번호 파일을 새로 추가한다.
 CREATE TABLE ticket (
@@ -20,7 +20,7 @@ CREATE TABLE ticket (
     assignee_member_id    UUID          NOT NULL,
     confirm_requested_at  TIMESTAMPTZ,
     resolved_at           TIMESTAMPTZ,
-    -- 두 사람이 동시에 고칠 때 늦은 쪽 변경을 거절하려고 (문의 버전과 다른 값, 0부터)
+    -- 두 사람이 동시에 고칠 때 늦은 쪽 변경을 거절하려고 (0부터). 외부에는 version+1을 ticketRevision으로 보낸다
     version               INT           NOT NULL DEFAULT 0,
     created_at            TIMESTAMPTZ   NOT NULL DEFAULT now(),
     updated_at            TIMESTAMPTZ   NOT NULL DEFAULT now(),
@@ -31,7 +31,12 @@ CREATE TABLE ticket (
     CONSTRAINT fk_ticket_inquiry_problem FOREIGN KEY (inquiry_problem_id) REFERENCES inquiry_problem (id),
     CONSTRAINT fk_ticket_standard_request FOREIGN KEY (standard_request_id) REFERENCES standard_request (id),
     CONSTRAINT fk_ticket_responsible_system FOREIGN KEY (responsible_system_id) REFERENCES it_system (id),
-    CONSTRAINT fk_ticket_assignee FOREIGN KEY (assignee_member_id) REFERENCES member (id)
+    CONSTRAINT fk_ticket_assignee FOREIGN KEY (assignee_member_id) REFERENCES member (id),
+    CONSTRAINT ck_ticket_work_type CHECK (work_type IN ('SERVICE_REQUEST', 'INVESTIGATION', 'INCIDENT',
+        'CHANGE_REQUEST', 'REVIEW_REQUIRED')),
+    CONSTRAINT ck_ticket_status CHECK (ticket_status IN ('OPEN', 'IN_PROGRESS', 'WAITING_CONFIRM', 'RESOLVED')),
+    -- 외부 ticketRevision(version+1)이 INT 범위를 넘지 않게 한다
+    CONSTRAINT ck_ticket_version CHECK (version BETWEEN 0 AND 2147483646)
 );
 
 -- V7에서 컬럼만 만들어 둔 AI 실행의 대상 티켓 FK를 이제 붙인다 (Curator 실행이 처리 기록이 달린 티켓을 가리킴)

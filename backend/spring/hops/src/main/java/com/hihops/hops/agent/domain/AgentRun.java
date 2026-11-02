@@ -29,6 +29,8 @@ import jakarta.persistence.Table;
  *
  * <p>실행 ID는 Spring이 저장할 때 만들고(UUIDv7), 이 ID를 AI 서버에 넘긴다. 그래서 DB 기본값이 없다.
  * inputVersion은 실행 당시 문의 버전이다. 결과가 늦게 와서 문의 버전이 바뀌었으면 Spring이 결과를 버린다.
+ * inputSnapshot은 AI 서버에 보낸 검증된 입력(AiRunRequest) 원본이며, 상담 실행의 answerMessageId도 여기 고정한다.
+ * startedAt은 실제로 시작한 시각이라 대기(QUEUED) 중에는 비어 있다.
  *
  * <p>공통 부모를 상속하지 않는 이유: 이 테이블은 수정일시는 있지만 삭제일시가 없다(실행 기록은 지우지 않음).
  * BaseEntity(삭제일시 있음)·CreatedOnlyEntity(수정일시 없음) 어느 쪽과도 맞지 않아 컬럼을 직접 둔다.
@@ -78,6 +80,11 @@ public class AgentRun {
     @Column(name = "input_version", nullable = false)
     private int inputVersion;
 
+    // AiRunRequest 원본. 구조는 에이전트 계약(contracts/agents)을 따르며 지금은 JSON 문자열로 둔다.
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "input_snapshot", nullable = false, columnDefinition = "jsonb")
+    private String inputSnapshot;
+
     @Column(name = "model_version", nullable = false, length = 100)
     private String modelVersion;
 
@@ -102,7 +109,7 @@ public class AgentRun {
     @Column(name = "error_code", length = 50)
     private String errorCode;
 
-    @Column(name = "started_at", nullable = false)
+    @Column(name = "started_at")
     private Instant startedAt;
 
     @Column(name = "completed_at")
@@ -120,12 +127,13 @@ public class AgentRun {
     }
 
     public AgentRun(Inquiry inquiry, Message triggerMessage, AgentTask task, RunStatus runStatus, int inputVersion,
-            String modelVersion, String promptVersion, String schemaVersion, Instant startedAt) {
+            String inputSnapshot, String modelVersion, String promptVersion, String schemaVersion, Instant startedAt) {
         this.inquiry = inquiry;
         this.triggerMessage = triggerMessage;
         this.task = task;
         this.runStatus = runStatus;
         this.inputVersion = inputVersion;
+        this.inputSnapshot = inputSnapshot;
         this.modelVersion = modelVersion;
         this.promptVersion = promptVersion;
         this.schemaVersion = schemaVersion;
@@ -134,13 +142,14 @@ public class AgentRun {
 
     /** Curator 실행. 해결·구현 기록(triggerWorkLog)이 저장되면 그 기록으로 사례 초안을 만든다. 작업 종류는 CURATION으로 고정한다. */
     public AgentRun(Inquiry inquiry, Ticket ticket, TicketWorkLog triggerWorkLog, RunStatus runStatus, int inputVersion,
-            String modelVersion, String promptVersion, String schemaVersion, Instant startedAt) {
+            String inputSnapshot, String modelVersion, String promptVersion, String schemaVersion, Instant startedAt) {
         this.inquiry = inquiry;
         this.ticket = ticket;
         this.triggerWorkLog = triggerWorkLog;
         this.task = AgentTask.CURATION;
         this.runStatus = runStatus;
         this.inputVersion = inputVersion;
+        this.inputSnapshot = inputSnapshot;
         this.modelVersion = modelVersion;
         this.promptVersion = promptVersion;
         this.schemaVersion = schemaVersion;
@@ -181,6 +190,10 @@ public class AgentRun {
 
     public int getInputVersion() {
         return inputVersion;
+    }
+
+    public String getInputSnapshot() {
+        return inputSnapshot;
     }
 
     public String getModelVersion() {

@@ -43,6 +43,7 @@ class TicketAssignmentRepositoryTest {
     private static final UUID INQUIRY_ID = UUID.fromString("e0000000-0000-7000-8000-000000000099");
     private static final UUID PROBLEM_ID = UUID.fromString("e1000000-0000-7000-8000-000000000099");
     private static final UUID REQUEST_ID = UUID.fromString("e2000000-0000-7000-8000-000000000099");
+    private static final UUID RUN_ID = UUID.fromString("b1000000-0000-7000-8000-000000000099");
     private static final UUID TICKET_ID = UUID.fromString("e3000000-0000-7000-8000-000000000099");
 
     @Autowired
@@ -75,9 +76,14 @@ class TicketAssignmentRepositoryTest {
                 + "VALUES (?, 'Q-9999', ?, '결재 문서가 안 열려요', 'IN_PROGRESS')", INQUIRY_ID, MEMBER_ID);
         jdbcTemplate.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) "
                 + "VALUES (?, ?, 1, '결재 문서 열람 오류', 'TICKET_CREATED')", PROBLEM_ID, INQUIRY_ID);
-        jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, intent, work_type, "
-                + "responsible_system_id, summary) VALUES (?, ?, 1, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, '빈 화면')",
-                REQUEST_ID, PROBLEM_ID, SYSTEM_ID);
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
+                + "model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+                RUN_ID, INQUIRY_ID);
+        jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, "
+                + "work_type, responsible_system_id, summary) "
+                + "VALUES (?, ?, 1, ?, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, '빈 화면')",
+                REQUEST_ID, PROBLEM_ID, RUN_ID, SYSTEM_ID);
         jdbcTemplate.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, "
                 + "title, detail, work_type, responsible_system_id, assignee_member_id) "
                 + "VALUES (?, 'TK-9999', ?, ?, ?, '결재 문서 열람 오류', '빈 화면', 'INVESTIGATION', ?, ?)",
@@ -105,6 +111,8 @@ class TicketAssignmentRepositoryTest {
         assertThat(found.getReason()).isEqualTo("결재 문서 권한은 전자결재 시스템 담당");
         assertThat(found.getAssignedAt()).isEqualTo(assignedAt);
         assertThat(found.getEndedAt()).isNull();
+        // 근거를 따로 넣지 않으면 빈 근거로 저장된다 (JSONB는 키 순서를 바꿔 저장하므로 항목별로 확인)
+        assertThat(found.getEvidence()).contains("\"messageIds\": []").contains("\"note\": null");
 
         // 끝나지 않은 배정이 이미 있는데 또 추가하면 → DB의 부분 유일 인덱스가 막는다 (현재 담당이 둘이 되지 않게)
         assertThatThrownBy(() -> ticketAssignmentRepository.saveAndFlush(newCurrentAssignment(assignedAt)))

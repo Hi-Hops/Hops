@@ -22,9 +22,13 @@ import jakarta.persistence.UniqueConstraint;
  *
  * <p>차원 수(숫자 개수)는 임베딩 모델을 정할 때 함께 정한다. 그 전에는 컬럼에 차원 제한이 없어
  * columnDefinition을 "vector"로 적는다. 정해지면 vector(1536)처럼 바꾸는 마이그레이션을 추가한다.
+ *
+ * <p>테이블은 같은 DB의 hops_knowledge 스키마에 있다 (docs/ERD.md 6.1절). 업무 테이블과 FK를 유지하면서,
+ * 나중에 AI 서버 계정에 이 스키마의 조각 쓰기 권한만 주기 위해서다.
+ * contentDigest(원문 버전의 해시)와 chunkDigest(이 조각 본문의 해시)로 모델에 넣기 전에 원문과 대조한다.
  */
 @Entity
-@Table(name = "knowledge_chunk",
+@Table(name = "knowledge_chunk", schema = "hops_knowledge",
         uniqueConstraints = @UniqueConstraint(name = "uk_knowledge_chunk_version_chunk",
                 columnNames = {"knowledge_document_version_id", "chunk_no"}))
 public class KnowledgeChunk extends CreatedOnlyEntity {
@@ -43,15 +47,27 @@ public class KnowledgeChunk extends CreatedOnlyEntity {
     @Column(nullable = false, columnDefinition = "vector")
     private float[] embedding;
 
+    // 고정 길이 CHAR(64). VARCHAR로 기대하지 않게 JDBC 타입을 CHAR로 알려준다
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "content_digest", nullable = false, length = 64)
+    private String contentDigest;
+
+    // 고정 길이 CHAR(64). VARCHAR로 기대하지 않게 JDBC 타입을 CHAR로 알려준다
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "chunk_digest", nullable = false, length = 64)
+    private String chunkDigest;
+
     protected KnowledgeChunk() {
     }
 
     public KnowledgeChunk(KnowledgeDocumentVersion knowledgeDocumentVersion, int chunkNo, String content,
-            float[] embedding) {
+            float[] embedding, String contentDigest, String chunkDigest) {
         this.knowledgeDocumentVersion = knowledgeDocumentVersion;
         this.chunkNo = chunkNo;
         this.content = content;
         this.embedding = embedding;
+        this.contentDigest = contentDigest;
+        this.chunkDigest = chunkDigest;
     }
 
     public KnowledgeDocumentVersion getKnowledgeDocumentVersion() {
@@ -68,5 +84,13 @@ public class KnowledgeChunk extends CreatedOnlyEntity {
 
     public float[] getEmbedding() {
         return embedding;
+    }
+
+    public String getContentDigest() {
+        return contentDigest;
+    }
+
+    public String getChunkDigest() {
+        return chunkDigest;
     }
 }

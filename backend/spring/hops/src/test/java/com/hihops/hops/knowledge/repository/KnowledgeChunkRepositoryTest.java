@@ -33,6 +33,9 @@ class KnowledgeChunkRepositoryTest {
 
     private static final UUID DOCUMENT_ID = UUID.fromString("f1000000-0000-7000-8000-000000000099");
     private static final UUID VERSION_ID = UUID.fromString("f2000000-0000-7000-8000-000000000099");
+    // 원문·조각 SHA-256 자리 (16진수 64자). 실제 계산은 색인 기능에서 한다
+    private static final String CONTENT_DIGEST = "b".repeat(64);
+    private static final String CHUNK_DIGEST = "c".repeat(64);
 
     @Autowired
     private KnowledgeChunkRepository knowledgeChunkRepository;
@@ -50,15 +53,17 @@ class KnowledgeChunkRepositoryTest {
     void 테스트용_문서와_문서_버전을_넣는다() {
         jdbcTemplate.update("INSERT INTO knowledge_document (id, title, document_type, access_level, data_split) "
                 + "VALUES (?, '비밀번호 정책', 'POLICY', 'EMPLOYEE', 'RAG')", DOCUMENT_ID);
-        jdbcTemplate.update("INSERT INTO knowledge_document_version (id, knowledge_document_id, version_no, content) "
-                + "VALUES (?, ?, 1, '비밀번호는 90일마다 바꾼다. 최근 3개는 다시 쓸 수 없다.')", VERSION_ID, DOCUMENT_ID);
+        jdbcTemplate.update("INSERT INTO knowledge_document_version (id, knowledge_document_id, version_no, content, "
+                + "content_digest, source_metadata) VALUES (?, ?, 1, '비밀번호는 90일마다 바꾼다. 최근 3개는 다시 쓸 수 없다.', ?, '{}')",
+                VERSION_ID, DOCUMENT_ID, CONTENT_DIGEST);
     }
 
     @Test
     void 조각을_임베딩과_함께_저장하고_같은_버전에_같은_순번은_막는다() {
         KnowledgeDocumentVersion version = knowledgeDocumentVersionRepository.findById(VERSION_ID).orElseThrow();
         KnowledgeChunk saved = knowledgeChunkRepository.save(
-                new KnowledgeChunk(version, 1, "비밀번호는 90일마다 바꾼다.", new float[] {0.1f, -0.2f, 0.3f}));
+                new KnowledgeChunk(version, 1, "비밀번호는 90일마다 바꾼다.", new float[] {0.1f, -0.2f, 0.3f},
+                        CONTENT_DIGEST, CHUNK_DIGEST));
         entityManager.flush();
         entityManager.clear();
 
@@ -67,12 +72,17 @@ class KnowledgeChunkRepositoryTest {
         assertThat(found.getChunkNo()).isEqualTo(1);
         assertThat(found.getContent()).isEqualTo("비밀번호는 90일마다 바꾼다.");
         assertThat(found.getEmbedding()).containsExactly(0.1f, -0.2f, 0.3f);
+        assertThat(found.getContentDigest()).isEqualTo(CONTENT_DIGEST);
+        assertThat(found.getChunkDigest()).isEqualTo(CHUNK_DIGEST);
+        // 검색 조각은 hops_knowledge 스키마에 있다
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM hops_knowledge.knowledge_chunk WHERE id = ?", Integer.class, found.getId())).isEqualTo(1);
         assertThat(found.getCreatedAt()).isNotNull();
 
         // 같은 문서 버전 + 같은 조각 순번 → DB의 중복 불가 제약이 막는다
         KnowledgeDocumentVersion sameVersion = knowledgeDocumentVersionRepository.findById(VERSION_ID).orElseThrow();
         assertThatThrownBy(() -> knowledgeChunkRepository.saveAndFlush(
-                new KnowledgeChunk(sameVersion, 1, "중복 순번", new float[] {0f, 0f, 0f})))
+                new KnowledgeChunk(sameVersion, 1, "중복 순번", new float[] {0f, 0f, 0f}, CONTENT_DIGEST, CHUNK_DIGEST)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

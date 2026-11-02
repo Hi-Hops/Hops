@@ -15,6 +15,7 @@ import jakarta.persistence.Table;
  * (docs/ERD.md "시스템 it_system").
  *
  * <p>문의는 부서가 아니라 이 시스템의 주담당자(primaryOwner)에게 배정한다. 주담당자는 시스템당 1명이다.
+ * ownershipVersion은 주담당자가 바뀔 때마다 1씩 늘리는 담당 세대다. 권한 검증에 쓰고, 이미 배정된 티켓의 담당자는 바꾸지 않는다.
  * 클래스 이름을 System으로 하지 않은 이유: java.lang.System과 이름이 겹쳐 헷갈린다.
  */
 @Entity
@@ -35,6 +36,9 @@ public class ItSystem extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "primary_owner_member_id", nullable = false)
     private Member primaryOwner;
+
+    @Column(name = "ownership_version", nullable = false)
+    private int ownershipVersion = 1;
 
     protected ItSystem() {
     }
@@ -60,5 +64,9 @@ public class ItSystem extends BaseEntity {
 
     public Member getPrimaryOwner() {
         return primaryOwner;
+    }
+
+    public int getOwnershipVersion() {
+        return ownershipVersion;
     }
 }

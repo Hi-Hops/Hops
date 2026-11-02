@@ -1,5 +1,6 @@
--- 해결 사례: 담당자의 해결·구현 기록으로 만든 사례 (docs/ERD.md "해결 사례 resolved_case")
+-- 해결 사례: 담당자의 해결·구현 기록으로 만든 사례 (docs/ERD.md "해결 사례 resolved_case", 6.2절)
 -- Curator가 초안(DRAFT)을 만들고, 시스템 주담당자가 승인(APPROVED)한 뒤 Vector·Neo4j에 모두 반영(SUCCEEDED)돼야 검색에 쓴다.
+-- 초안을 고치면 현재 행의 version_no를 올린다. 승인 뒤에는 내용을 고치지 않는다.
 -- 이미 적용된 이 파일은 고치지 않는다. 바꿀 내용이 생기면 다음 번호 파일을 새로 추가한다.
 CREATE TABLE resolved_case (
     id                    UUID          PRIMARY KEY DEFAULT uuidv7(),
@@ -34,7 +35,7 @@ CREATE TABLE resolved_case (
     relation_candidates   JSONB         NOT NULL DEFAULT '[]',
     approved_by_member_id UUID,
     approved_at           TIMESTAMPTZ,
-    -- 승인 후 각 검색 저장소 반영 결과: PENDING / SUCCEEDED / FAILED
+    -- 승인 후 각 검색 저장소 반영 결과: PENDING / SUCCEEDED / FAILED (진행 중·결과 모름도 PENDING으로 비공개)
     vector_status         VARCHAR(30)   NOT NULL DEFAULT 'PENDING',
     graph_status          VARCHAR(30)   NOT NULL DEFAULT 'PENDING',
     graph_node_id         VARCHAR(100),
@@ -47,5 +48,11 @@ CREATE TABLE resolved_case (
     CONSTRAINT fk_resolved_case_it_system FOREIGN KEY (it_system_id) REFERENCES it_system (id),
     CONSTRAINT fk_resolved_case_system_feature FOREIGN KEY (system_feature_id) REFERENCES system_feature (id),
     CONSTRAINT fk_resolved_case_curator_run FOREIGN KEY (curator_run_id) REFERENCES agent_run (id),
-    CONSTRAINT fk_resolved_case_approved_by FOREIGN KEY (approved_by_member_id) REFERENCES member (id)
+    CONSTRAINT fk_resolved_case_approved_by FOREIGN KEY (approved_by_member_id) REFERENCES member (id),
+    CONSTRAINT ck_resolved_case_type CHECK (case_type IN ('RESOLUTION', 'IMPLEMENTATION')),
+    CONSTRAINT ck_resolved_case_access_level CHECK (access_level IN ('EMPLOYEE', 'STAFF')),
+    CONSTRAINT ck_resolved_case_origin_type CHECK (origin_type IN ('SYNTHETIC', 'DEMO_VERIFIED', 'PRODUCTION')),
+    CONSTRAINT ck_resolved_case_status CHECK (case_status IN ('DRAFT', 'APPROVED')),
+    CONSTRAINT ck_resolved_case_vector_status CHECK (vector_status IN ('PENDING', 'SUCCEEDED', 'FAILED')),
+    CONSTRAINT ck_resolved_case_graph_status CHECK (graph_status IN ('PENDING', 'SUCCEEDED', 'FAILED'))
 );

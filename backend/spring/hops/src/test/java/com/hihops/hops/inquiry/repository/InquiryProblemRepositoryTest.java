@@ -60,9 +60,9 @@ class InquiryProblemRepositoryTest {
                 + "VALUES (?, 'test.requester', '29990099', 'hash', '테스트 문의자', ?)", REQUESTER_ID, DEPARTMENT_ID);
         jdbcTemplate.update("INSERT INTO inquiry (id, inquiry_number, requester_member_id, title, inquiry_status) "
                 + "VALUES (?, 'Q-9999', ?, '결재 문서가 안 열려요', 'IN_PROGRESS')", INQUIRY_ID, REQUESTER_ID);
-        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, model_version, "
-                + "prompt_version, schema_version, started_at) "
-                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'RUNNING', 1, 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
+                + "model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'RUNNING', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
                 RUN_ID, INQUIRY_ID);
     }
 
@@ -85,6 +85,8 @@ class InquiryProblemRepositoryTest {
         assertThat(found.getAgentRun().getId()).isEqualTo(RUN_ID);
         // 티켓 생성 오류·해결 확인은 아직 없다
         assertThat(found.getTicketErrorCode()).isNull();
+        assertThat(found.getCreationOutcome()).isNull();
+        assertThat(found.getCreationInputVersion()).isNull();
         assertThat(found.getConfirmRequestedAt()).isNull();
         assertThat(found.getResolvedAt()).isNull();
 

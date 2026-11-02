@@ -25,5 +25,6 @@ CREATE TABLE agent_step (
     completed_at    TIMESTAMPTZ,
     created_at      TIMESTAMPTZ    NOT NULL DEFAULT now(),
     CONSTRAINT uk_agent_step_run_sequence UNIQUE (agent_run_id, sequence_no),
-    CONSTRAINT fk_agent_step_agent_run FOREIGN KEY (agent_run_id) REFERENCES agent_run (id)
+    CONSTRAINT fk_agent_step_agent_run FOREIGN KEY (agent_run_id) REFERENCES agent_run (id),
+    CONSTRAINT ck_agent_step_agent_type CHECK (agent_type IN ('SUPERVISOR', 'INQUERY', 'KNOWLEDGE', 'TICKET', 'CURATOR'))
 );
