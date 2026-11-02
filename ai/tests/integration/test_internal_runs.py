@@ -276,6 +276,21 @@ def test_duplicate_authorization_headers_are_rejected(client, ledger) -> None:
     assert ledger.get_calls == 0
 
 
+@pytest.mark.parametrize(
+    "path", ["/internal", "/internal/v2/index-jobs", "/internal/v3/anything", "/internal/mock/v1"]
+)
+def test_every_internal_path_requires_service_auth(client, path) -> None:
+    # 아직 없는 내부 경로도 인증 전에는 존재 여부를 드러내지 않는다.
+    response = client.post(path, json={})
+    assert response.status_code == 401
+    assert response.json()["code"] == "AUTH_CONTEXT_INVALID"
+    assert client.post(path, json={}, headers=auth()).status_code == 404
+
+
+def test_internal_prefix_match_is_segment_based(client) -> None:
+    assert client.get("/internalx").status_code == 404
+
+
 def test_health_is_public_with_internal_auth_enabled(client) -> None:
     assert client.get("/healthz").status_code == 200
     assert client.get("/readyz").status_code == 503
