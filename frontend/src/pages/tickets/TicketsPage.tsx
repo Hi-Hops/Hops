@@ -6,6 +6,8 @@ export function TicketsPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const admin = location.pathname.startsWith('/admin/');
+  if (ticketId && search.get('tab') === 'work' && !admin)
+    return <SystemTicketDetail key={ticketId} id={ticketId} />;
   return (
     <>
       <SystemTicketBoard />

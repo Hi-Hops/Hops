@@ -107,6 +107,12 @@ export function AppLayout() {
                 >
                   담당 시스템 업무
                 </NavLink>
+                <NavLink
+                  to={paths.cases}
+                  className={({ isActive }) => (isActive ? styles.active : styles.link)}
+                >
+                  사례 검토
+                </NavLink>
               </>
             )}
             {user.roles.includes('BIZ_ADMIN') && (

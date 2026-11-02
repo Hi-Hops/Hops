@@ -5,6 +5,7 @@ import type { InquiryResult, Problem } from '@/shared/api/types/hopsSystem1';
 import { Button } from '@/shared/ui/Button';
 import { RouteModal } from '@/shared/ui/RouteModal';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import { ResolutionControls } from './ResolutionControls';
 import { SystemCommandButton } from './SystemCommandButton';
 import {
   confirmSystemCommand,
@@ -195,6 +196,9 @@ export function SystemResultPanel({ result }: { result: InquiryResult }) {
                 </small>
               </div>
             ))}
+            {problem.activeResolutionRequest && (
+              <ResolutionControls request={problem.activeResolutionRequest} />
+            )}
             <ProblemControls inquiry={result} problem={problem} />
           </section>
         ))}

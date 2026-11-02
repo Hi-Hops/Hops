@@ -31,6 +31,11 @@ export const router = createBrowserRouter([
               })),
           },
           {
+            path: '/cases/:caseId?',
+            lazy: () =>
+              import('@/pages/cases/CasesPage').then(({ CasesPage }) => ({ Component: CasesPage })),
+          },
+          {
             path: '/tickets/:ticketId?',
             lazy: () =>
               import('@/pages/tickets/TicketsPage').then(({ TicketsPage }) => ({
