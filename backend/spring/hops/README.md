@@ -8,19 +8,22 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `inquiry`, `ticket`, `agent`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
 
 | 패키지 | 역할 |
 |---|---|
 | `auth` / `user` | JWT 로그인·토큰 발급과 인증 수명 관리 / 사번·소속 부서 등 사용자 정보 |
 | `department` | 부서·소속·활성 여부·R&R |
-| `inquiry` | 문의·대화·내용 확인·정정 |
-| `ticket` | 티켓 저장·배정·처리 |
-| `agent` | Python 실행 요청·진행·결과 통신 |
+| `itsystem` | 문의를 받는 업무시스템·시스템 기능과 시스템별 주담당자 |
+| `inquiry` | 문의·대화·내용 확인·정정, 문의 문제와 표준 요청서 |
+| `ticket` | 티켓 저장·배정·처리, 변경 이력·배정 이력·처리 기록 |
+| `agent` | Python 실행 요청·진행·결과 통신, AI 실행·실행 단계 기록 |
+| `notification` | 서비스 내부 알림함 |
+| `knowledge` | 지식 문서·문서 버전·검색 조각(pgvector)과 해결 사례 |
 | `investigation` | 읽기 전용 진단 조회의 검증·실행 경계 |
-| `global` | 공통 설정·JWT 검증·접근 제어 기반·예외 처리 |
+| `global` | 공통 설정·JWT 검증·접근 제어 기반·예외 처리, 공통 Entity 부모(`entity`)·중복 요청 방지 기록(`idempotency`) |
 
-업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에서 관련 담당자와 합의한 뒤 구현합니다.
+업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`와 실행 기록용 `domain`, `repository`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에서 관련 담당자와 합의한 뒤 구현합니다.
 
 ## JWT 인증과 REST·SSE 연동 설계
 
@@ -39,17 +42,25 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 2. **PostgreSQL 18** 설치 (`uuidv7()` 사용을 위해 18 이상이 필요합니다).
    - Mac: `brew install postgresql@18` 후 `brew services start postgresql@18`
    - Windows: [PostgreSQL 공식 설치 파일](https://www.postgresql.org/download/windows/)로 18 버전을 설치합니다. 설치 중 정한 `postgres` 비밀번호를 기억해 둡니다.
-3. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
+3. **pgvector 설치** (검색 조각 `knowledge_chunk.embedding`의 `vector` 타입). 없으면 서버가 시작되지 않습니다.
+   - Mac: `brew install pgvector`
+   - Windows: [pgvector 공식 안내의 Windows 설치](https://github.com/pgvector/pgvector#windows)를 따릅니다.
+4. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
    ```sql
    CREATE ROLE hops WITH LOGIN PASSWORD '내_비밀번호';
    CREATE DATABASE hops OWNER hops;
    CREATE DATABASE hops_test OWNER hops; -- 테스트 전용
+   -- pgvector는 trusted 확장이 아니라 슈퍼유저만 켤 수 있다. 지금 접속한 슈퍼유저로 두 DB에 한 번씩 켠다
+   \c hops
+   CREATE EXTENSION IF NOT EXISTS vector;
+   \c hops_test
+   CREATE EXTENSION IF NOT EXISTS vector;
    ```
-4. **접속 정보 파일 만들기** (`src/main/resources`에서)
+5. **접속 정보 파일 만들기** (`src/main/resources`에서)
    - Mac: `cp application-db.local.properties.example application-db.local.properties`
    - Windows: `Copy-Item application-db.local.properties.example application-db.local.properties`
-   - 만든 파일에 3번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
-5. **실행**
+   - 만든 파일에 4번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
+6. **실행**
    - Mac: `./gradlew bootRun`
    - Windows(PowerShell): `.\gradlew.bat bootRun`
    - 기본 프로필이 `db`라서 프로필을 따로 지정하지 않아도 로컬 PostgreSQL에 연결합니다.
@@ -57,12 +68,13 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 
 ## 이미 설치한 팀원이 pull 받은 뒤 할 일
 
-"처음 설치"를 이미 마쳤다면 따로 설정할 것은 없습니다.
+"처음 설치"를 이미 마쳤다면 pgvector만 한 번 준비합니다. 위 "처음 설치" 3번으로 설치하고, 4번의 `\c hops`부터 `CREATE EXTENSION` 네 줄을 슈퍼유저로 실행합니다. 그 밖에는 따로 설정할 것이 없습니다.
 
-1. `git pull` 후 위 5번처럼 실행합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
+1. `git pull` 후 위 6번처럼 실행합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
 2. 로그에 `Successfully applied ... migration`이 보이면 새 테이블·데이터가 적용된 것입니다.
 3. `Port 8080 was already in use`가 나오면 이미 켜진 서버를 끄고 다시 실행합니다.
-4. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
+4. `extension "vector" is not available` 또는 `permission denied to create extension "vector"`가 나오면 위 "처음 설치" 3번(pgvector 설치)과 4번의 `CREATE EXTENSION` 두 줄을 한 번 실행합니다. 검색 조각 테이블(V19)부터 필요합니다.
+5. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
 
 ## 가상 데이터 (로컬 개발용)
 
@@ -94,6 +106,9 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 ```sql
 DROP DATABASE hops;
 CREATE DATABASE hops OWNER hops;
+-- DB를 지우면 확장도 함께 지워지므로 다시 켠다
+\c hops
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 다시 실행하면 테이블과 가상 데이터가 새로 들어갑니다.
@@ -138,7 +153,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 ./gradlew bootRun
 ```
 
-- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~4번을 마쳐야 통과합니다.
+- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~5번을 마쳐야 통과합니다.
 - 테스트 DB에는 가상 데이터(seed)를 넣지 않습니다. 필요한 데이터는 각 테스트가 직접 넣고 `@Transactional`로 끝나면 되돌립니다 (예: `MemberRepositoryTest`).
 - 로그인 판단 규칙처럼 DB가 필요 없는 테스트는 Repository를 mock으로 바꿔 빠르게 확인합니다 (예: `AuthServiceTest`).
 

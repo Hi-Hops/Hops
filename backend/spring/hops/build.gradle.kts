@@ -21,6 +21,8 @@ repositories {
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     runtimeOnly("org.postgresql:postgresql")
+    // pgvector의 vector 컬럼(knowledge_chunk.embedding)을 Java float[]로 읽고 쓴다. 버전은 Spring Boot가 관리하는 Hibernate와 같다.
+    implementation("org.hibernate.orm:hibernate-vector")
     // DB 테이블 생성·변경을 버전 붙은 SQL 파일(src/main/resources/db/migration)로 관리한다.
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
