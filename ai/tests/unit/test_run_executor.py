@@ -33,7 +33,14 @@ def make_executor(pipeline, ledger=None, **settings) -> tuple[RunExecutor, Memor
     resolved = Settings(_env_file=None, **settings)
     ledger = ledger or MemoryLedger()
     admission = RunAdmissionService(ledger, server_ceilings(resolved))
-    executor = RunExecutor(ledger, admission, pipeline, resolved, store_retry_delays=(0, 0))
+    executor = RunExecutor(
+        ledger,
+        admission,
+        pipeline,
+        resolved,
+        store_retry_delays=(0, 0),
+        cancel_grace_seconds=0.05,
+    )
     return executor, ledger
 
 
@@ -196,6 +203,37 @@ async def test_result_returned_after_deadline_is_not_stored_as_success() -> None
     assert result["status"] == "TIMED_OUT"
     assert result["error"]["code"] == "DEADLINE_EXCEEDED"
     assert result["answer"] is None
+
+
+async def test_pipeline_that_never_honours_cancel_still_times_out_and_frees_slot() -> None:
+    stop = asyncio.Event()
+
+    async def stubborn(req):
+        # 테스트가 끝날 때까지 기한 취소를 계속 삼키고 대기한다.
+        while not stop.is_set():
+            try:
+                await stop.wait()
+            except asyncio.CancelledError:
+                continue
+        return succeeded(req)
+
+    executor, ledger = make_executor(Pipeline(stubborn), max_concurrent_runs=1)
+    req = request(expires_at=expires_in(0.2))
+    try:
+        await executor.submit(req)
+        result = await finished(ledger, req.runId)
+        assert result["status"] == "TIMED_OUT"
+        assert result["error"]["code"] == "DEADLINE_EXCEEDED"
+        assert executor.active_runs == 0
+        assert executor.stray_tasks == 1
+        # 슬롯이 비었으므로 동시 실행 1개 상한에서도 새 run을 받을 수 있다.
+        assert (await executor.submit(request())).created
+        await executor.shutdown()  # 취소를 무시하는 작업이 있어도 종료가 멈추지 않는다
+    finally:
+        # 회귀로 실행이 끝나지 않아도 테스트가 멈추지 않고 실패하도록 항상 풀어 준다.
+        stop.set()
+        await asyncio.sleep(0.01)
+    assert executor.stray_tasks == 0
 
 
 async def test_transient_store_failures_are_retried_without_rerunning_pipeline() -> None:

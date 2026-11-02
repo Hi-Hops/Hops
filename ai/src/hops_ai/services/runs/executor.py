@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 BUSY_RETRY_AFTER_SECONDS = 5
 # 실행 상태 저장이 DB 일시 오류로 실패할 때 다시 시도하기 전 대기 시간(초). 시도는 최대 3회다.
 STORE_RETRY_DELAYS = (0.2, 1.0)
+# 기한·종료로 취소를 요청한 뒤 작업이 정리되기를 기다리는 최대 시간(초).
+CANCEL_GRACE_SECONDS = 1.0
 
 # 하네스 내부 오류 코드를 Spring과 주고받는 AiError 코드로 바꾼다.
 _WIRE_CODES: dict[AgentErrorCode, str] = {
@@ -162,6 +164,7 @@ class RunExecutor:
         *,
         clock: Clock | None = None,
         store_retry_delays: Sequence[float] = STORE_RETRY_DELAYS,
+        cancel_grace_seconds: float = CANCEL_GRACE_SECONDS,
     ) -> None:
         self._ledger = ledger
         self._admission = admission
@@ -169,7 +172,9 @@ class RunExecutor:
         self._settings = settings
         self._clock = clock
         self._store_retry_delays = tuple(store_retry_delays)
+        self._cancel_grace_seconds = cancel_grace_seconds
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
+        self._stray: set[asyncio.Task[AiResult]] = set()
         # 동시 실행 수 확인과 접수가 경쟁하지 않도록 한 번에 하나씩 처리한다.
         self._submit_lock = asyncio.Lock()
 
@@ -194,12 +199,19 @@ class RunExecutor:
                 task.add_done_callback(lambda _task: self._tasks.pop(run_id, None))
             return acceptance
 
+    @property
+    def stray_tasks(self) -> int:
+        """기한 뒤 취소에 응답하지 않아 실행 슬롯에서 분리한 파이프라인 작업 수."""
+        return len(self._stray)
+
     async def shutdown(self) -> None:
         """진행 중인 실행을 멈춘다. 결과는 저장하지 않으며 다음 기동 복구에서 UNKNOWN이 된다."""
-        tasks = list(self._tasks.values())
+        tasks = [*self._tasks.values(), *self._stray]
         for task in tasks:
             task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
+        if tasks:
+            # 취소에 응답하지 않는 작업 때문에 종료가 멈추지 않도록 짧게만 기다린다.
+            await asyncio.wait(tasks, timeout=self._cancel_grace_seconds)
 
     def _context(self, request: AiRunRequest) -> RunContext:
         deadline_at = datetime.fromisoformat(request.expiresAt)
@@ -241,24 +253,49 @@ class RunExecutor:
                 "끝내지 못한 실행을 UNKNOWN으로 바꾸지 못했습니다: %s", type(exc).__name__
             )
 
+    def _detach(self, task: asyncio.Task[AiResult]) -> None:
+        """취소에 응답하지 않는 파이프라인 작업을 실행 슬롯에서 떼어 따로 추적한다."""
+        logger.warning("취소에 응답하지 않는 AI 파이프라인 작업을 분리했습니다")
+        self._stray.add(task)
+        task.add_done_callback(self._forget_stray)
+
+    def _forget_stray(self, task: asyncio.Task[AiResult]) -> None:
+        self._stray.discard(task)
+        # 늦게 끝난 작업의 예외를 회수한다. 회수하지 않으면 asyncio가 원문을 로그에 남긴다.
+        if not task.cancelled():
+            task.exception()
+
     async def _run_pipeline(self, request: AiRunRequest, context: RunContext) -> AiResult:
+        # wait_for는 취소된 작업이 끝날 때까지 기다린다. 취소를 무시하는 파이프라인이
+        # run과 실행 슬롯을 붙잡지 않도록 별도 작업으로 돌리고 기한까지만 기다린다.
+        task = asyncio.create_task(self._pipeline.run(request, context))
         try:
-            raw = await asyncio.wait_for(
-                self._pipeline.run(request, context),
-                timeout=context.budget.remaining_seconds(),
-            )
-        except TimeoutError:
-            return _timed_out(request)
+            done, _ = await asyncio.wait({task}, timeout=context.budget.remaining_seconds())
         except asyncio.CancelledError:
+            # 앱 종료로 실행이 취소됐다. 파이프라인 작업도 취소하고 끝날 때까지 추적한다.
+            task.cancel()
+            self._stray.add(task)
+            task.add_done_callback(self._forget_stray)
             raise
-        except Exception as exc:  # noqa: BLE001 - 원시 예외를 안전한 실패로 바꾼다
+        if task not in done:
+            task.cancel()
+            await asyncio.wait({task}, timeout=self._cancel_grace_seconds)
+            if task.done():
+                self._forget_stray(task)
+            else:
+                self._detach(task)
+            return _timed_out(request)
+        if task.cancelled():
+            # 파이프라인이 스스로 취소됐다. 결과가 없으므로 안전한 실패로 끝낸다.
+            return _failure_from_exception(request, RuntimeError())
+        if (exc := task.exception()) is not None:
             # 예외 메시지에 문의 원문이 담길 수 있어 종류만 기록한다.
             logger.warning("AI 실행이 실패했습니다: %s", type(exc).__name__)
             return _failure_from_exception(request, exc)
-        # 파이프라인이 기한 취소를 무시하고 늦게 결과를 돌려줘도 저장하지 않는다.
+        # 파이프라인이 기한 직전·직후에 돌려준 결과도 기한을 넘겼으면 저장하지 않는다.
         if context.budget.remaining_seconds() <= 0:
             return _timed_out(request)
-        return _checked_result(request, raw)
+        return _checked_result(request, task.result())
 
     async def _execute(self, request: AiRunRequest) -> None:
         run_id = UUID(request.runId)
