@@ -30,6 +30,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.servlet.http.Cookie;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -149,6 +151,27 @@ class AuthControllerTest {
     }
 
     @Test
+    void Refresh_쿠키로_갱신하면_새_액세스_토큰과_회전된_Refresh_쿠키를_받는다() throws Exception {
+        // WIRE_CONTRACT 2절: POST /api/auth/refresh 본문 없음·Refresh 쿠키 → 200 LoginResponse
+        // WIRE_CONTRACT 10절: 갱신 때 회전(새 값)한다. DATA_TYPES: Refresh 원문은 JSON에 넣지 않는다.
+        String oldRefresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        MockHttpServletResponse response = mockMvc.perform(refresh(oldRefresh))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.id").value(MEMBER_ID.toString()))
+                .andExpect(jsonPath("$.user.employeeNo").value("20260001"))
+                .andReturn().getResponse();
+
+        Jwt token = jwtDecoder.decode(objectMapper.readTree(response.getContentAsString()).get("accessToken").asString());
+        assertThat(token.getSubject()).isEqualTo(MEMBER_ID.toString());
+
+        String newRefresh = refreshValue(response);
+        assertThat(newRefresh).isNotBlank().isNotEqualTo(oldRefresh);
+        assertThat(refreshCookie(response)).contains("HttpOnly").contains("SameSite=Lax").contains("Path=/api/auth");
+        assertThat(response.getContentAsString()).doesNotContain(newRefresh);
+    }
+
+    @Test
     void 토큰과_사용자_정보에_소속_부서를_담는다() throws Exception {
         // 계약: JWT departmentId·departmentCode·departmentName (docs/API.md §2.5), user.department (DATA_TYPES.md Department)
         String body = mockMvc.perform(login("requester", "hops1234!"))
@@ -250,6 +273,16 @@ class AuthControllerTest {
         return post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"loginId\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password));
+    }
+
+    // 브라우저처럼 Refresh 쿠키만 붙여 본문 없이 갱신을 요청한다.
+    private static MockHttpServletRequestBuilder refresh(String refreshToken) {
+        return post("/api/auth/refresh").cookie(new Cookie("hops_refresh", refreshToken));
+    }
+
+    private static String refreshValue(MockHttpServletResponse response) {
+        String cookie = refreshCookie(response);
+        return cookie.substring("hops_refresh=".length(), cookie.indexOf(';'));
     }
 
     // Set-Cookie 헤더 중 Refresh 쿠키 한 줄을 찾는다. 예: "hops_refresh=값; Path=/api/auth; Max-Age=604800; HttpOnly; SameSite=Lax"

@@ -17,6 +17,8 @@ import org.springframework.http.HttpStatusCode;
 public enum ErrorCode {
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.", false),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.", false),
+    // Refresh 쿠키가 없거나, 이미 쓰였거나, 로그아웃으로 폐기됨 → 프론트는 재로그인 (WIRE_CONTRACT 10절)
+    REFRESH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "로그인이 만료되었습니다. 다시 로그인해 주세요.", false),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.", false),
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 대상을 찾을 수 없습니다.", false),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다.", false),
