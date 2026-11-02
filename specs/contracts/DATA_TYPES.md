@@ -1,15 +1,15 @@
 # 공통 데이터 필드
 
-> **PRD 1.44 전환 안내:** 이 문서는 신규 hops-system-1 목표 계약과 기존 부서 기반 전환 전 타입을 구분한다. 신규 계약의 코드 적용은 별도다. 제품 정책은 [PRD](../../docs/PRD.md), 전송은 [WIRE_CONTRACT](WIRE_CONTRACT.md)를 따른다. 이전 부서 배정·3회 질문·CS 검토·무응답 종료는 신규 목표가 아니다.
+> **PRD 1.44 전환 안내:** 이 문서는 hops-system-1 계약과 기존 부서 기반 전환 전 타입을 구분한다. 현재 프론트 DTO·Mock은 신규 계약을 사용하며 서버의 업무 구현·통합 검증과 구분한다. 제품 정책은 [PRD](../../docs/PRD.md), 전송은 [WIRE_CONTRACT](WIRE_CONTRACT.md)를 따른다. 이전 부서 배정·3회 질문·CS 검토·무응답 종료는 신규 목표가 아니다.
 
-상태: 2026-10-28 REST·SSE 타입 정리 / 기존 개발 기준 유지, ResyncRequiredEvent는 develop 확정 계약, 저장 결과는 프론트 연동 프로필 / 서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
+상태: PRD 1.44의 신규 타입과 전환 전 타입을 분리한 언어 독립 계약. 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 서비스별 실제 구현·검증 상태는 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
 
 프로필별 표현 규칙을 구분한다. 아래 기존 타입의 필수/null 규칙은 전환 전 프로필에 적용한다.
 
 
 ## 신규 계약 hops-system-1
 
-상태: PRD 1.44 hops-system-1 목표 계약·필드/상태/명령 정의. 이 절은 `/api/v2`용이며 아래의 전환 전 타입과 이름이 같아도 상호 교환하지 않는다. 의미·전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md), 전송은 [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따른다. 현재 런타임 타입·Mock은 변경하지 않았다.
+상태: PRD 1.44 hops-system-1 계약·필드/상태/명령 정의. 이 절은 `/api/v2`용이며 아래의 전환 전 타입과 이름이 같아도 상호 교환하지 않는다. 의미·전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md), 전송은 [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따른다. 현재 프론트 런타임 타입·Mock은 이 절을 구현한다. Spring·AI의 전체 업무 DTO 연결은 별도다.
 
 ### 공통 표현과 버전
 

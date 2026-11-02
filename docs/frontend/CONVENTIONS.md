@@ -33,10 +33,10 @@
 
 ## 4. 테스트
 
-- **구현 범위의 인수 조건마다 테스트를 작성해야 기능 완료다.** describe에 기능 ID, it 이름에 `Fnnn-ACnn`을 포함해 스펙과 연결한다.
+- **구현 범위의 인수 조건마다 테스트를 작성해야 기능 완료다.** describe에 기능 ID를, it 이름에 해당 spec의 인수 조건 ID(`Fnnn-ACnn`·`Fnnn-TARGET-nn`) 또는 신규 `Fnnn-CONTRACT-nn`을 포함해 연결한다. 이전 계약의 검사 통과를 신규 조건 통과로 옮겨 적지 않는다.
 - 정상 흐름뿐 아니라 실패·빈 결과·권한 없음·충돌·HTTP 저장 응답 유실·중복·늦은 이벤트·재접속 등 해당 기능의 예외를 검사한다.
 - 순수 로직은 단위 테스트, 화면은 Testing Library와 user-event로 확인한다. getByRole/getByLabelText를 우선 사용하고 내부 상태·CSS 클래스만 검사하는 테스트는 피한다.
-- Mock 데이터는 공용 JSON을 사용하며 각 테스트의 서버·인증·조회 상태를 분리한다. 자동 테스트에 개인 `.env`나 실제 인증 값을 사용하지 않는다.
+- 현재 Mock 데이터는 신규 계약의 `systemMockData.ts` 카탈로그와 `systemMockBackend.ts`·`systemMockWorkflow.ts`·`systemMockExamples.ts`를 사용하며 각 테스트의 서버·인증·조회 상태를 분리한다. 전환 전 공용 JSON은 보존 자료다. 자동 테스트에 개인 `.env`나 실제 인증 값을 사용하지 않는다.
 - Mock 단위·컴포넌트 테스트, 실제 서버 통합 검사, 브라우저 직접 확인, 자동 E2E를 구분해서 보고한다. 하나의 통과를 다른 검사 통과로 표현하지 않는다.
 
 ## 5. 기능 완료 체크리스트

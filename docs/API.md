@@ -43,11 +43,11 @@ Spring은 기존 저장 결과·원문·현재 입력/정책 버전·실행 기�
 
 Vector 저장·RunLedger·개발 origin·평가 게이트는 [결정 대장](../specs/QUESTIONS.md#실행검색-기본값)을 따른다. 모델 선정·단가·예상 비용·금액 예산과 구체 실행 설정값은 이 계약에서 제외한다. 공용 도메인·키·비밀번호는 배포 환경 입력이며 계약을 비워 둔 항목이 아니다. 새 공급자·유료 관리형 인프라로 자동 대체하지 않는다.
 
-현재 프론트 /api·hops-mock-1과 신규 목표 계약을 구분한다. Python은 새 역할 골격이며 옛 agent-1 실행 API는 제거됐다. 신규 경로와 DTO가 실제 서버에 등록됐다는 뜻은 아니다. 문서/JSON 검사·Mock·실제 저장/권한·실제 모델/검색·브라우저 E2E를 분리해 기록한다.
+현재 프론트는 `/api/v2`·`hops-system-1` DTO·Mock을 사용한다. Spring도 인증·부서 SSE의 공개 경로는 `/api/v2`이며, 시스템 권한 DTO·업무 API·시스템/사례 SSE는 구현·통합 검증이 남아 있다. Python은 실행 wire 검증·서비스 인증·저장된 실행 조회를 제공하지만 역할 실행·모델·검색은 미구현이며 옛 agent-1 실행 API는 제거됐다. 문서/JSON 검사·Mock·실제 저장/권한·실제 모델/검색·브라우저 E2E를 분리해 기록한다.
 
 
 ## 5. 병합 ERD 반영
 
-[PR #69](https://github.com/Hi-Hops/Hops/pull/69)의 물리 ERD를 기준으로 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 상태/버전·원문/표준 요청·CASE/색인·실행/명령 매핑을 확정했다. 현재 PRIMARY DTO는 관계 ID 없이 반환하고 처리 기록의 FAILED_ATTEMPT·확인된 원인/적용 버전·CASE 문제 설명을 포함한다. 저장 보완은 ERD6절의 공통 계약 설계다. 실제 프론트/서버 전환 전까지 기존 프로필을 유지한다.
+[PR #69](https://github.com/Hi-Hops/Hops/pull/69)의 물리 ERD를 기준으로 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 상태/버전·원문/표준 요청·CASE/색인·실행/명령 매핑을 확정했다. 현재 PRIMARY DTO는 관계 ID 없이 반환하고 처리 기록의 FAILED_ATTEMPT·확인된 원인/적용 버전·CASE 문제 설명을 포함한다. 저장 보완은 ERD6절의 공통 계약 설계다. 프론트는 신규 계약으로 전환됐으며 서버의 업무 DTO·저장·권한 연결은 별도다. 전환 전 계약은 기록으로 보존한다.
 
 담당자의 실제 장애 확정은 POST /api/v2/tickets/{ticketId}/processing-type-corrections로 INVESTIGATION↔INCIDENT만 변경한다. 자동 AI 확정과 관리자 역할만으로의 변경은 허용하지 않으며 상태·확인 요청과 분리한다.

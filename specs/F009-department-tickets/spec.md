@@ -21,7 +21,7 @@
 
 ### 화면
 
-- 담당 시스템 업무 목록·티켓 상세와 관련 대화·처리 기록 영역. 현재 프론트의 `/tickets`, `/tickets/:ticketId`는 부서 기반 구현이며 새 권한 연결은 미완료다.
+- `/tickets`는 담당 시스템 업무 보드/목록, `/tickets/:ticketId`는 목록 위 상세 모달이다. 관련 대화·사례 탭을 제공하고 `tab=work`는 독립 처리·검증 페이지로 연다.
 - 상세는 표준 요청, 보고/책임 시스템, 사실·추정·미확인, 허용 근거, 처리 이력, 해결 사례 적용 조건을 제공한다.
 
 ### 흐름
@@ -49,9 +49,9 @@
 | 조작 | 계약·검증 |
 |---|---|
 | 목록·보드 | GET tickets?scope=ASSIGNED_SYSTEMS&systemId&state&page&size. 보드/목록은 같은 조회·URL 조건 유지 |
-| 상세 경로 | 목표 /tickets/:ticketId 독립 페이지. tab=request/work/case. 목록 쿼리를 보존해 복귀 |
+| 상세 경로 | /tickets/:ticketId 상세 모달. tab=request/case는 모달 탭, tab=work는 독립 처리 페이지. 목록 쿼리를 보존해 복귀 |
 | 관련 대화·근거 | TicketDetail과 RelatedMessagePage. 관계없는 독립 문제·전체 원문·내부 로그를 포함하지 않음 |
-| 처리·검증 | WorkRecordCommand PROGRESS/VERIFIED_RESOLUTION/IMPLEMENTED_VERIFIED. 완료 기록은 확인 요청·Curator 예약과 연결 |
+| 처리·검증 | WorkRecordCommand PROGRESS/FAILED_ATTEMPT/VERIFIED_RESOLUTION/IMPLEMENTED_VERIFIED. 검증 완료 두 종류만 확인 요청·Curator 작업과 연결 |
 | 정정 | AssignmentCorrectionCommand와 ticketRevision. 새 시스템 PRIMARY는 서버 조회 |
 | 사례 이동 | 원 WorkRecord의 CaseGeneration 상태와 /cases/:caseId 연결 |
 
@@ -77,11 +77,9 @@
 
 ## 현재 구현과 남은 작업
 
-현재 프론트는 부서 기반 티켓 목록·읽기 전용 상세다. 새 소유권·관련 대화·처리·정정 API는 별도다.
+현재 프론트는 PRIMARY 기준 시스템 업무 보드/목록·상세 모달, 표준 요청·허용 관련 대화, 독립 처리 기록 페이지와 책임 시스템/조사·장애 정정을 구현했다. PROGRESS·FAILED_ATTEMPT·VERIFIED_RESOLUTION·IMPLEMENTED_VERIFIED를 구분하고 입력 보존·버전 충돌을 Mock·UI로 검사한다. 실제 Spring의 현재 권한·기록 저장·해결 확인·Curator 연결은 통합 검증이 남아 있다.
 
-기존 코드·테스트의 인수 조건 번호는 이전 기준이며 목표 조건과 구분한다. 목표 AC는 실제 구현·검증 완료를 뜻하지 않는다. 실제 구현 범위는 서비스 코드와 실행 안내에서 확인한다.
-
-기능의 목표 인수 조건은 구현·통합 검증을 대신하지 않는다. hops-system-1 계약에 맞춰 코드·테스트를 전환한다. 현재 구현을 문서만으로 완료 처리하지 않는다.
+실행법과 현재 화면·호출 범위는 [프론트 안내](../../frontend/README.md), 서비스별 실제 구현은 [공통 계약 11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 신규 계약의 프론트 검사를 실제 Spring 저장·권한, AI·검색 및 전체 E2E 검증으로 대신하지 않는다.
 
 ## 서비스 간 계약 추적
 

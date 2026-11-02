@@ -1,6 +1,6 @@
 # 코드 구조
 
-> **PRD 1.44 전환:** 아래는 현재 프론트 코드 구조다. 목표 시스템 업무·사례 승인은 별도 구현하며 목표 기획이 기존 디렉터리·전송 타입에 이미 반영됐다는 뜻은 아니다.
+> **PRD 1.44 전환:** 아래는 `hops-system-1` 기반 현재 프론트 코드 구조다. 시스템 업무·처리·해결 확인·사례 승인 UI와 전송 어댑터를 포함하며 실제 Spring·AI·검색 통합 상태와 구분한다.
 
 `hops-system-1`의 로그인·채팅·시스템 업무·상세 모달·처리·해결·사례는 기능별 컴포넌트와 API/훅으로 연결한다. 기존 CSS Modules·공통 UI를 재사용한다. `shared/config/api.ts`는 /api/v2 경로만 생성한다. DTO는 `shared/api/types/hopsSystem1.ts`에서 관리하고 `systemWire.ts`는 응답을, `systemCommands.ts`는 receipt·동일 요청 확인을 검증한다. 조회 정본은 사용자·대상별 TanStack Query다. 채팅 초안/명령은 기존 전용 store, 처리·정정·사례의 미전송 입력은 `useFormDraft`, 미확인 원 명령은 `useSystemCommand`의 메모리 store로 보관한다. 서버 객체의 복사본을 클라이언트 store에 저장하지 않는다.
 
@@ -12,7 +12,7 @@
 src/
 ├─ app/       라우터·Provider·인증/역할 가드·앱 레이아웃
 ├─ pages/     경로별 화면 조립
-├─ features/  auth·realtime·chat·inquiry·ticket의 동작과 도메인 UI
+├─ features/  auth·realtime·chat·inquiry·ticket·case의 동작과 도메인 UI
 ├─ shared/    api·realtime·ui·lib·config·styles
 └─ test/      공통 테스트 설정과 렌더 도우미
 ```
@@ -21,7 +21,7 @@ src/
 
 기능 내부는 필요한 `api/`, `hooks/`, `model/`, `components/`와 공개 `index.ts`를 둔다. 앞으로 쓸 수 있다는 이유만으로 폴더·컴포넌트를 미리 만들지 않는다. 같은 기능 내부는 한 단계 상대 경로를 사용할 수 있고 다른 레이어·기능은 `@/` 별칭을 사용한다. `../../` 경로는 쓰지 않는다.
 
-위 트리는 현재 구현이다. 전체 MVP 기능 배치와 추가할 CASE의 책임은 [목표 구조](#6-hops-system-1-목표-구조)에 정의하며 실제 디렉터리·파일은 해당 기능 구현 때 생성한다.
+위 트리는 현재 구현이다. 시스템 업무와 CASE를 포함한 기능별 책임은 [구조 결정](#6-hops-system-1-목표-구조)에 정의한다. 이 절의 제목은 기존 참조 경로를 보존하며 실제 파일·화면은 상단 설명과 ROUTES에서 확인한다.
 
 ## 2. 이름과 공개 진입점
 
