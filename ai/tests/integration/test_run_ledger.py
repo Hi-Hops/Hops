@@ -9,10 +9,10 @@ from uuid import uuid4
 import psycopg
 import pytest
 from psycopg.conninfo import conninfo_to_dict
-from pydantic import BaseModel
 
 from hops_ai.persistence.run_ledger import InvalidRunTransition, RunConflict, RunLedger
 from hops_ai.services.runs.admission import AdmissionRejected, ExecutionLimits, RunAdmissionService
+from tests.doubles.run_requests import inquiry_request
 
 
 @pytest.fixture
@@ -104,27 +104,9 @@ async def test_sequence_is_atomic_and_unavailable_after_termination(ledger: RunL
 
 
 async def test_admission_checks_limits_expiry_and_reuses_existing(ledger: RunLedger) -> None:
-    class Limits(BaseModel):
-        maxModelCalls: int
-        maxInputTokens: int
-        maxOutputTokens: int
-        maxToolCalls: int
-        maxRetries: int
-
-    class Request(BaseModel):
-        runId: str
-        expiresAt: str
-        limits: Limits
-
     ceilings = ExecutionLimits(4, 1000, 500, 3, 1)
     service = RunAdmissionService(ledger, ceilings, clock=lambda: datetime(2026, 11, 2, tzinfo=UTC))
-    request = Request(
-        runId=str(uuid4()),
-        expiresAt="2026-11-02T01:00:00Z",
-        limits=Limits(
-            maxModelCalls=4, maxInputTokens=1000, maxOutputTokens=500, maxToolCalls=3, maxRetries=1
-        ),
-    )
+    request = inquiry_request()
     assert (await service.accept(request)).created
     assert not (await service.accept(request)).created
     with pytest.raises(RunConflict):

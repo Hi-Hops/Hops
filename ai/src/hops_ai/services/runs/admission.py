@@ -6,9 +6,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Protocol
 from uuid import UUID
 
+from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.persistence.run_ledger import RunAcceptance, RunConflict, RunLedger, input_digest
 
 
@@ -19,16 +19,6 @@ class ExecutionLimits:
     maxOutputTokens: int
     maxToolCalls: int
     maxRetries: int
-
-
-class ValidatedRequest(Protocol):
-    """호출자는 외부 DTO의 형식·조건 검증을 먼저 완료해야 한다."""
-
-    runId: str
-    expiresAt: str
-    limits: Any
-
-    def model_dump(self, *, mode: str) -> dict[str, Any]: ...
 
 
 class AdmissionRejected(ValueError):
@@ -56,7 +46,9 @@ class RunAdmissionService:
             if type(value) is not int or value < minimum:
                 raise AdmissionRejected("실행 한도는 허용된 정수 범위여야 합니다")
 
-    async def accept(self, request: ValidatedRequest) -> RunAcceptance:
+    async def accept(self, request: AiRunRequest) -> RunAcceptance:
+        # DTO의 중첩 목록은 변경 가능하므로 저장할 입력을 다시 검증해 고정한다.
+        request = AiRunRequest.model_validate(request.model_dump(mode="json"))
         payload = request.model_dump(mode="json")
         run_id = UUID(request.runId)
 
