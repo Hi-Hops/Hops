@@ -11,7 +11,7 @@ import com.hihops.hops.global.config.ApiPathConfig;
  * Refresh Token을 담는 쿠키 모양을 한 곳에서 정한다. 로그인·refresh·로그아웃이 같은 이름·경로를 써야
  * 브라우저가 같은 쿠키로 알아보고 덮어쓰거나 지운다.
  *
- * <p>HTTP 요청 객체는 받지 않는다. HTTPS 여부만 Controller가 알려주면 되므로 서비스 계층에 두어도 웹 코드에 묶이지 않는다.
+ * <p>HTTP 요청 객체는 받지 않는다. Secure 여부는 설정값({@link RefreshCookieProperties})을 Controller가 넘겨준다.
  */
 public final class RefreshCookies {
 
@@ -24,7 +24,7 @@ public final class RefreshCookies {
     }
 
     /**
-     * @param secure HTTPS 요청이면 true. 운영(HTTPS)에서는 Secure로 암호화된 연결에서만 쿠키가 오가고,
+     * @param secure {@link RefreshCookieProperties#secure()}. 운영(HTTPS)에서는 Secure로 암호화된 연결에서만 쿠키가 오가고,
      *               로컬 http 개발에서는 Secure를 빼야 브라우저가 쿠키를 저장한다.
      */
     public static ResponseCookie issue(IssuedRefreshToken token, boolean secure) {

@@ -175,6 +175,22 @@ class AuthControllerTest {
     }
 
     @Test
+    void 로컬_개발_설정에서는_http라도_Secure_없이_쿠키를_준다() throws Exception {
+        // application.properties의 hops.auth.refresh-cookie.secure=false. 운영은 환경변수로 true를 넣는다.
+        String cookie = refreshCookie(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        assertThat(cookie).doesNotContain("Secure");
+    }
+
+    @Test
+    void HTTPS로_들어와도_Secure는_요청이_아니라_설정으로_정한다() throws Exception {
+        // 프록시 설정에 따라 결과가 달라지지 않게 한다. 로컬 설정(false)에서는 https 요청이어도 Secure를 붙이지 않는다.
+        String cookie = refreshCookie(mockMvc.perform(login("requester", "hops1234!").secure(true)).andReturn().getResponse());
+
+        assertThat(cookie).doesNotContain("Secure");
+    }
+
+    @Test
     void Refresh_쿠키로_갱신하면_새_액세스_토큰과_회전된_Refresh_쿠키를_받는다() throws Exception {
         // WIRE_CONTRACT 2절: POST /api/v2/auth/refresh 본문 없음·Refresh 쿠키 → 200 LoginResponse
         // WIRE_CONTRACT 10절: 갱신 때 회전(새 값)한다. DATA_TYPES: Refresh 원문은 JSON에 넣지 않는다.

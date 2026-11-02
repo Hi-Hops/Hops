@@ -19,6 +19,7 @@ import com.hihops.hops.auth.dto.LoginRequest;
 import com.hihops.hops.auth.dto.LoginResponse;
 import com.hihops.hops.auth.service.AccessTokenIssuer;
 import com.hihops.hops.auth.service.AuthService;
+import com.hihops.hops.auth.service.RefreshCookieProperties;
 import com.hihops.hops.auth.service.RefreshCookies;
 import com.hihops.hops.auth.service.RefreshTokenService;
 import com.hihops.hops.auth.service.RefreshTokenService.IssuedRefreshToken;
@@ -27,7 +28,6 @@ import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.dto.CurrentUserResponse;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
@@ -42,17 +42,17 @@ public class AuthController {
     private final AuthService authService;
     private final AccessTokenIssuer accessTokenIssuer;
     private final RefreshTokenService refreshTokenService;
+    private final RefreshCookieProperties cookieProperties;
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request,
-            @CookieValue(name = RefreshCookies.NAME, required = false) String previousRefresh,
-            HttpServletRequest httpRequest) {
+            @CookieValue(name = RefreshCookies.NAME, required = false) String previousRefresh) {
         Member member = authService.login(request.loginId(), request.password()); // 틀리면 여기서 401
         // 같은 브라우저의 재로그인·계정 전환: 쿠키만 덮어쓰면 예전 세션이 7일 동안 남는다. 성공한 뒤에만 정리한다.
         if (hasValue(previousRefresh)) {
             refreshTokenService.revoke(previousRefresh);
         }
-        return withTokens(member, refreshTokenService.issue(member), httpRequest);
+        return withTokens(member, refreshTokenService.issue(member));
     }
 
     /**
@@ -61,15 +61,14 @@ public class AuthController {
      */
     @PostMapping("/refresh")
     public ResponseEntity<LoginResponse> refresh(
-            @CookieValue(name = RefreshCookies.NAME, required = false) String refreshToken,
-            HttpServletRequest httpRequest) {
+            @CookieValue(name = RefreshCookies.NAME, required = false) String refreshToken) {
         if (!hasValue(refreshToken)) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_REVOKED);
         }
         // 회원 확인(DB)을 먼저 하고 회전은 마지막에 한다. DB가 일시 실패하면 Refresh를 소비하지 않아 같은 쿠키로 다시 시도할 수 있다.
         // 토큰이 아니라 DB를 다시 읽으므로, 그 사이 바뀐 부서·역할로 새 Access를 만든다.
         Member member = currentMemberOrEndSession(refreshTokenService.ownerOf(refreshToken), refreshToken);
-        return withTokens(member, refreshTokenService.rotate(refreshToken), httpRequest);
+        return withTokens(member, refreshTokenService.rotate(refreshToken));
     }
 
     /**
@@ -78,8 +77,7 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @CookieValue(name = RefreshCookies.NAME, required = false) String refreshToken,
-            HttpServletRequest httpRequest) {
+            @CookieValue(name = RefreshCookies.NAME, required = false) String refreshToken) {
         if (hasValue(refreshToken)) {
             // 세션을 끝내면 그 회원의 열린 SSE도 닫힌다(LoginSessionRevokedEvent). 남은 Access(최대 15분)는 프론트가 메모리에서 버린다.
             try {
@@ -90,7 +88,7 @@ public class AuthController {
             }
         }
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, RefreshCookies.expire(httpRequest.isSecure()).toString())
+                .header(HttpHeaders.SET_COOKIE, RefreshCookies.expire(cookieProperties.secure()).toString())
                 .build();
     }
 
@@ -109,9 +107,8 @@ public class AuthController {
     }
 
     // Access는 본문(JSON)으로, Refresh는 Set-Cookie 헤더로 따로 내려준다. Refresh 원문은 JSON에 넣지 않는다.
-    private ResponseEntity<LoginResponse> withTokens(Member member, IssuedRefreshToken refreshToken,
-            HttpServletRequest httpRequest) {
-        ResponseCookie refreshCookie = RefreshCookies.issue(refreshToken, httpRequest.isSecure());
+    private ResponseEntity<LoginResponse> withTokens(Member member, IssuedRefreshToken refreshToken) {
+        ResponseCookie refreshCookie = RefreshCookies.issue(refreshToken, cookieProperties.secure());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
                 .body(LoginResponse.of(accessTokenIssuer.issue(member), member));

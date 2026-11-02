@@ -16,6 +16,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
+import com.hihops.hops.auth.service.RefreshCookieProperties;
 import com.hihops.hops.global.config.ApiPathConfig;
 
 /**
@@ -27,7 +28,7 @@ import com.hihops.hops.global.config.ApiPathConfig;
  * <p>필터 순서: RequestIdFilter → RequestLoggingFilter → Security(이 설정) → Controller
  */
 @Configuration
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, RefreshCookieProperties.class})
 public class SecurityConfig {
 
     // 인증 주소. permitAll과 CookieOriginFilter가 같은 값을 쓰도록 한곳에 둔다.
