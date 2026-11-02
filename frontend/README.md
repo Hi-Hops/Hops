@@ -6,6 +6,8 @@
 
 ## 1. 실행 환경
 
+Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 저장소 루트의 [로컬 개발 환경 안내](../docs/LOCAL_DEVELOPMENT.md)를 따른다. 아래 Compose는 프론트 단독 실행용이다.
+
 Docker Engine과 Docker Compose **2.20 이상**을 준비한다. Windows/macOS는 Docker Desktop을 실행하고 Windows는 Linux 컨테이너 모드를 사용한다. 최초 실행은 이미지·npm 패키지를 내려받을 네트워크가 필요하다. 저장소의 `frontend/`와 `specs/`가 함께 있어야 한다.
 
 아래 명령은 모두 **`frontend/`에서** 실행한다. `.env.example`을 같은 폴더의 `.env`로 복사한다.
@@ -58,7 +60,7 @@ FRONTEND_PORT=5173
 ## 3. Docker 실행·종료
 
 ```sh
-docker compose up --build -d --wait
+docker compose up --build -d
 docker compose ps
 docker compose logs -f frontend
 docker compose down
@@ -66,7 +68,7 @@ docker compose down
 
 기본 주소는 **http://127.0.0.1:5173/** 이다. 포트가 사용 중이면 `.env`의 `FRONTEND_PORT`를 바꾼다. 포트는 로컬 PC에만 바인딩한다. 로그 확인은 `Ctrl+C`, 서버 종료는 `down`이다.
 
-`.env`만 바꿨다면 `docker compose up -d --force-recreate --wait`, 소스가 바뀌었다면 `docker compose up --build -d --wait`를 실행한다. 이 이미지는 프론트 Vite 개발 서버만 실행한다. Spring·DB·AI 서버는 각 담당자가 별도로 실행해야 한다.
+`.env`만 바꿨다면 `docker compose up -d`, 소스가 바뀌었다면 `docker compose up --build -d`를 실행한다. 이 이미지는 프론트 Vite 개발 서버만 실행한다. Spring·DB·AI 서버는 각 담당자가 별도로 실행해야 한다.
 
 Node.js **24.22.0**을 PC에 설치했다면 `.env` 작성 후 직접 실행할 수도 있다.
 

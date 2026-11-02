@@ -1,5 +1,7 @@
 # HOPS AI 서버 골격
 
+Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 저장소 루트의 [로컬 개발 환경 안내](../docs/LOCAL_DEVELOPMENT.md)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
+
 [PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 실행 가능한 것은 생존·준비 상태 조회와 재사용한 기술 하네스다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
