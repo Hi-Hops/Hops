@@ -9,16 +9,21 @@ from hops_ai.contracts.wire import AiError
 
 
 class ApiFault(Exception):
-    def __init__(self, status_code: int, error: AiError) -> None:
+    def __init__(self, status_code: int, error: AiError, *, retry_after: int | None = None) -> None:
         super().__init__(error.code)
         self.status_code = status_code
         self.error = error
+        self.retry_after = retry_after
 
 
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiFault)
     async def internal_fault_handler(_request: Request, exc: ApiFault) -> JSONResponse:
-        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        headers: dict[str, str] = {}
+        if exc.status_code == 401:
+            headers["WWW-Authenticate"] = "Bearer"
+        if exc.retry_after is not None:
+            headers["Retry-After"] = str(exc.retry_after)
         return JSONResponse(
             status_code=exc.status_code, content=exc.error.model_dump(mode="json"), headers=headers
         )
