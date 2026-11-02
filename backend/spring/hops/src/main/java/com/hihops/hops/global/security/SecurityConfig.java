@@ -30,6 +30,11 @@ import com.hihops.hops.global.config.ApiPathConfig;
 @EnableConfigurationProperties(CorsProperties.class)
 public class SecurityConfig {
 
+    // 인증 주소. permitAll과 CookieOriginFilter가 같은 값을 쓰도록 한곳에 둔다.
+    static final String LOGIN_PATH = ApiPathConfig.PREFIX + "/auth/login";
+    static final String REFRESH_PATH = ApiPathConfig.PREFIX + "/auth/refresh";
+    static final String LOGOUT_PATH = ApiPathConfig.PREFIX + "/auth/logout";
+
     /** 로그인 없이 접근할 수 있는 주소. 그 외는 모두 인증이 필요하다. */
     private static final String[] PUBLIC_PATHS = {
             "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", // Swagger 화면 (5단계)
@@ -41,7 +46,8 @@ public class SecurityConfig {
             CorsProperties corsProperties) throws Exception {
         http
                 // refresh·logout은 허용한 프론트 주소에서 온 요청만 받는다. CORS 필터보다 먼저 공통 오류 형식으로 막는다.
-                .addFilterBefore(new CookieOriginFilter(corsProperties.allowedOrigins(), errorResponder), CorsFilter.class)
+                .addFilterBefore(new CookieOriginFilter(List.of(REFRESH_PATH, LOGOUT_PATH),
+                        corsProperties.allowedOrigins(), errorResponder), CorsFilter.class)
                 // 업무 API는 Access를 Authorization 헤더로 보내므로 CSRF 공격 대상이 아니다.
                 // 쿠키를 쓰는 refresh·logout은 SameSite=Lax 쿠키와 위 CookieOriginFilter(허용 Origin 검사)로 막는다.
                 // 그 밖의 API가 쿠키로 인증하게 바뀌면 CSRF 보호를 다시 설계해야 한다.
@@ -52,11 +58,9 @@ public class SecurityConfig {
                 // JWT는 요청마다 토큰으로 사용자를 확인하므로 서버가 로그인 상태(세션)를 저장하지 않는다.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/login").permitAll() // 로그인 전에는 토큰이 없다
-                        // Access가 만료된 뒤에 부르는 곳이라 Bearer 대신 Refresh 쿠키로 확인한다 (AuthController)
-                        .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/refresh").permitAll()
-                        // Access가 이미 만료됐어도 로그아웃할 수 있어야 한다. 대상 세션은 Refresh 쿠키로 찾는다.
-                        .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, LOGIN_PATH).permitAll() // 로그인 전에는 토큰이 없다
+                        // Access가 만료된 뒤에도 부르는 곳이라 Bearer 대신 Refresh 쿠키로 확인한다 (AuthController)
+                        .requestMatchers(HttpMethod.POST, REFRESH_PATH, LOGOUT_PATH).permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated())
                 // Bearer 토큰 검증. 토큰이 틀리거나 만료되면 errorResponder가 401 공통 오류로 응답한다.

@@ -1,12 +1,16 @@
 package com.hihops.hops.auth.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -19,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -28,10 +33,14 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hihops.hops.auth.service.AuthService;
+import com.hihops.hops.auth.service.RefreshTokenService;
 import com.hihops.hops.realtime.service.RealtimeService;
 
 import jakarta.servlet.http.Cookie;
@@ -61,6 +70,13 @@ class AuthControllerTest {
     // 열린 SSE 종료는 RealtimeServiceTest가 확인한다. 여기서는 로그아웃이 그 회원으로 종료를 부르는지만 본다.
     @MockitoBean
     private RealtimeService realtimeService;
+
+    // 진짜 동작을 그대로 쓰되, 장애 상황 테스트에서만 특정 호출이 실패하도록 바꾼다.
+    @MockitoSpyBean
+    private AuthService authService;
+
+    @MockitoSpyBean
+    private RefreshTokenService refreshTokenService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -232,6 +248,64 @@ class AuthControllerTest {
         mockMvc.perform(logout(refresh)).andExpect(status().isNoContent());
 
         verify(realtimeService).disconnect(MEMBER_ID);
+    }
+
+    @Test
+    void 갱신_중_회원_조회가_일시_실패해도_같은_Refresh로_다시_갱신할_수_있다() throws Exception {
+        // 회원 확인을 먼저 하고 회전은 나중에 한다. 순서가 반대면 DB 장애 한 번에 쿠키의 Refresh가 이미 쓰인 값이 된다.
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+        doThrow(new CannotCreateTransactionException("DB 일시 장애")).when(authService).currentMember(MEMBER_ID);
+
+        mockMvc.perform(refresh(refresh)).andExpect(status().is5xxServerError());
+
+        reset(authService);
+        mockMvc.perform(refresh(refresh)).andExpect(status().isOk());
+    }
+
+    @Test
+    void 삭제된_회원이_갱신하면_재로그인_코드로_거절하고_세션을_끝낸다() throws Exception {
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+        jdbcTemplate.update("UPDATE member SET deleted_at = now() WHERE id = ?", MEMBER_ID);
+
+        mockMvc.perform(refresh(refresh))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_REVOKED"));
+        verify(realtimeService).disconnect(MEMBER_ID);
+    }
+
+    @Test
+    void 세션_저장소_장애_중에도_로그아웃은_쿠키를_지운다() throws Exception {
+        // 프론트는 HttpOnly 쿠키를 직접 지울 수 없다. 서버가 지우지 않으면 장애가 끝난 뒤 그 쿠키로 세션이 되살아난다.
+        doThrow(new RedisConnectionFailureException("Redis 장애")).when(refreshTokenService).revoke(anyString());
+
+        MockHttpServletResponse response = mockMvc.perform(logout("any-refresh"))
+                .andExpect(status().isNoContent())
+                .andReturn().getResponse();
+
+        assertThat(refreshCookie(response)).startsWith("hops_refresh=;").contains("Max-Age=0");
+    }
+
+    @Test
+    void 인코딩한_주소로_보내도_Origin_검사를_건너뛸_수_없다() throws Exception {
+        // %72 = r. 서버는 /api/v2/auth/refresh로 해석하므로 Origin 검사도 같은 기준으로 적용돼야 한다.
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        mockMvc.perform(post(URI.create("/api/v2/auth/%72efresh")).cookie(new Cookie("hops_refresh", refresh)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ORIGIN_DENIED"));
+    }
+
+    @Test
+    void 같은_브라우저에서_다시_로그인하면_예전_쿠키의_세션을_끝낸다() throws Exception {
+        // 쿠키만 덮어쓰면 예전 세션이 7일 동안 남는다. 복사해 둔 예전 쿠키로 계속 갱신할 수 있으면 안 된다.
+        String oldRefresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        mockMvc.perform(login("requester", "hops1234!").cookie(new Cookie("hops_refresh", oldRefresh)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(refresh(oldRefresh))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_REVOKED"));
     }
 
     @Test

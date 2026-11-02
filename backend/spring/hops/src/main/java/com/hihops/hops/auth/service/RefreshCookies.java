@@ -1,5 +1,7 @@
 package com.hihops.hops.auth.service;
 
+import java.time.Duration;
+
 import org.springframework.http.ResponseCookie;
 
 import com.hihops.hops.auth.service.RefreshTokenService.IssuedRefreshToken;
@@ -26,23 +28,22 @@ public final class RefreshCookies {
      *               로컬 http 개발에서는 Secure를 빼야 브라우저가 쿠키를 저장한다.
      */
     public static ResponseCookie issue(IssuedRefreshToken token, boolean secure) {
-        return ResponseCookie.from(NAME, token.value())
-                .httpOnly(true)   // 프론트 JS(document.cookie)가 읽지 못한다 → XSS로 훔칠 수 없음
-                .secure(secure)
-                .sameSite("Lax")  // 다른 사이트에서 몰래 보내는 POST에는 붙지 않는다 (CSRF 1차 방어)
-                .path(PATH)
-                .maxAge(token.maxAge())
-                .build();
+        return build(token.value(), token.maxAge(), secure);
     }
 
     /** 로그아웃 시: 같은 이름·경로·속성에 빈 값과 Max-Age=0을 보내면 브라우저가 쿠키를 지운다. */
     public static ResponseCookie expire(boolean secure) {
-        return ResponseCookie.from(NAME, "")
-                .httpOnly(true)
+        return build("", Duration.ZERO, secure);
+    }
+
+    // 발급과 삭제가 같은 속성을 쓰도록 한곳에서 만든다. 속성이 다르면 브라우저가 다른 쿠키로 보고 지우지 않는다.
+    private static ResponseCookie build(String value, Duration maxAge, boolean secure) {
+        return ResponseCookie.from(NAME, value)
+                .httpOnly(true)   // 프론트 JS(document.cookie)가 읽지 못한다 → XSS로 훔칠 수 없음
                 .secure(secure)
-                .sameSite("Lax")
+                .sameSite("Lax")  // 다른 사이트에서 몰래 보내는 POST에는 붙지 않는다 (CSRF 1차 방어)
                 .path(PATH)
-                .maxAge(0)
+                .maxAge(maxAge)
                 .build();
     }
 }

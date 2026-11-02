@@ -3,6 +3,8 @@ package com.hihops.hops.auth.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -38,36 +41,41 @@ class RefreshTokenServiceTest {
 
     private final TestClock clock = new TestClock(Instant.parse("2026-11-02T00:00:00Z"));
     private final Member member = mock(Member.class);
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private RefreshTokenService service;
 
     @BeforeEach
     void setUp() {
         when(member.getId()).thenReturn(UUID.randomUUID());
-        service = new RefreshTokenService(redis, clock);
+        service = new RefreshTokenService(redis, clock, events);
     }
 
     @Test
     void 회전하고_10초가_지난_Refresh를_다시_쓰면_탈취로_보고_세션을_폐기한다() {
         // 예전 값을 누군가 훔쳐 쓴 것으로 본다. 그 로그인 세션 전체를 끊어 정상 사용자의 최신 Refresh도 막는다.
         IssuedRefreshToken first = service.issue(member);
-        IssuedRefreshToken latest = service.rotate(first.value()).token();
+        IssuedRefreshToken latest = service.rotate(first.value());
 
         clock.advance(Duration.ofSeconds(11));
 
         assertRevoked(first.value());
         assertRevoked(latest.value());
+        // 로그아웃과 같이 그 회원의 열린 SSE도 닫게 알린다 (RealtimeSessionListener)
+        verify(events).publishEvent(new LoginSessionRevokedEvent(member.getId()));
     }
 
     @Test
     void 회전_직후_10초_안에_예전_Refresh가_오면_경합으로_보고_그_요청만_거절한다() {
         // 탭 두 개가 같은 쿠키로 거의 동시에 갱신한 경우다. 진 요청만 401이고 세션은 유지한다 (Q-BE-2 팀 합의 2026-10-28).
         IssuedRefreshToken first = service.issue(member);
-        IssuedRefreshToken latest = service.rotate(first.value()).token();
+        IssuedRefreshToken latest = service.rotate(first.value());
 
         clock.advance(Duration.ofSeconds(10));
 
         assertRevoked(first.value());
-        assertThat(service.rotate(latest.value()).memberId()).isEqualTo(member.getId());
+        assertThat(service.ownerOf(latest.value())).isEqualTo(member.getId());
+        assertThat(service.rotate(latest.value()).value()).isNotBlank();
+        verify(events, never()).publishEvent(new LoginSessionRevokedEvent(member.getId()));
     }
 
     @Test
@@ -84,11 +92,21 @@ class RefreshTokenServiceTest {
     void 갱신과_로그아웃이_겹쳐_예전_Refresh로_로그아웃해도_세션을_끝낸다() {
         // 갱신 요청이 먼저 처리되어 쿠키 값이 바뀐 직후에 로그아웃이 도착한 경우. 로그아웃이 조용히 무시되면 세션이 살아남는다.
         IssuedRefreshToken first = service.issue(member);
-        IssuedRefreshToken latest = service.rotate(first.value()).token();
+        IssuedRefreshToken latest = service.rotate(first.value());
 
         assertThat(service.revoke(first.value())).contains(member.getId());
 
         assertRevoked(latest.value());
+    }
+
+    @Test
+    void 회원_확인용으로_읽기만_하면_Refresh를_소비하지_않는다() {
+        // 갱신은 회원 확인(DB)을 먼저 하고 회전은 나중에 한다. DB 조회가 실패해도 쿠키의 Refresh로 다시 시도할 수 있어야 한다.
+        IssuedRefreshToken first = service.issue(member);
+
+        assertThat(service.ownerOf(first.value())).isEqualTo(member.getId());
+        assertThat(service.ownerOf(first.value())).isEqualTo(member.getId());
+        assertThat(service.rotate(first.value()).value()).isNotBlank();
     }
 
     private void assertRevoked(String refreshToken) {

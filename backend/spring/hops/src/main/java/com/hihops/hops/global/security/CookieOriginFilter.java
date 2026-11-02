@@ -2,13 +2,14 @@ package com.hihops.hops.global.security;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.hihops.hops.global.config.ApiPathConfig;
 import com.hihops.hops.global.exception.ErrorCode;
 
 import jakarta.servlet.FilterChain;
@@ -25,23 +26,29 @@ import jakarta.servlet.http.HttpServletResponse;
  *
  * <p>Spring CORS 필터보다 앞에 둔다. CORS 필터도 틀린 Origin을 403으로 막지만 본문이 공통 오류 형식이 아니다.
  * Bean으로 등록하지 않는다: Bean이면 Spring Boot가 일반 서블릿 필터로도 한 번 더 등록한다(SecurityConfig에서 직접 만든다).
+ *
+ * <p>주소 비교는 Spring MVC와 같은 경로 매처로 한다. 문자열로 비교하면 {@code /auth/%72efresh}처럼
+ * 서버는 refresh로 해석하는 인코딩 주소가 검사를 건너뛴다.
  */
 class CookieOriginFilter extends OncePerRequestFilter {
 
-    private static final Set<String> COOKIE_PATHS = Set.of(
-            ApiPathConfig.PREFIX + "/auth/refresh", ApiPathConfig.PREFIX + "/auth/logout");
-
+    private final RequestMatcher cookieRequests;
     private final List<String> allowedOrigins;
     private final SecurityErrorResponder errorResponder;
 
-    CookieOriginFilter(List<String> allowedOrigins, SecurityErrorResponder errorResponder) {
+    /** @param cookiePaths Refresh 쿠키를 쓰는 POST 주소 (SecurityConfig의 REFRESH_PATH·LOGOUT_PATH) */
+    CookieOriginFilter(List<String> cookiePaths, List<String> allowedOrigins, SecurityErrorResponder errorResponder) {
+        PathPatternRequestMatcher.Builder paths = PathPatternRequestMatcher.withDefaults();
+        this.cookieRequests = new OrRequestMatcher(cookiePaths.stream()
+                .map(path -> (RequestMatcher) paths.matcher(HttpMethod.POST, path))
+                .toList());
         this.allowedOrigins = List.copyOf(allowedOrigins);
         this.errorResponder = errorResponder;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !(HttpMethod.POST.matches(request.getMethod()) && COOKIE_PATHS.contains(request.getRequestURI()));
+        return !cookieRequests.matches(request);
     }
 
     @Override
