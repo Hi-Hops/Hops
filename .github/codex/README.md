@@ -35,7 +35,7 @@
 - `.github/`, `.agents/`: Node 스크립트 회귀 테스트와 `actionlint` 문법·표현식 검사. ShellCheck는 실행하지 않는다.
 - `frontend/`: `npm ci --ignore-scripts` 후 typecheck·lint·format:check·test·build.
 - `ai/`: Python 3.13, 고정 uv와 lockfile로 의존성을 설치하고 Ruff lint·format·pytest를 실행한다. 별도 DSN이 필요한 DB 테스트는 skip될 수 있으며 pytest 출력에서 확인한다.
-- `backend/`: Java 21, 임시 pgvector PostgreSQL의 `hops_test` DB를 사용해 Gradle `test`를 실행한다. DB는 이 job에서만 쓰는 가상 자격 증명으로 생성·폐기한다.
+- `backend/`: Java 21, 임시 pgvector PostgreSQL의 `hops_test` DB와 Redis 8.2의 테스트 전용 15번 DB를 사용해 Gradle `test`를 실행한다. PostgreSQL은 검증 스크립트가 생성·폐기하며, Redis는 `validation` job의 서비스 컨테이너로 준비 상태(`redis-cli ping`)를 확인한 뒤 실행하고 job 종료 시 폐기한다. Spring 테스트는 runner에서 실행하므로 Redis의 6379 포트를 연결하고 `SPRING_DATA_REDIS_HOST=localhost`, `SPRING_DATA_REDIS_PORT=6379`, `SPRING_DATA_REDIS_DATABASE=15`를 주입한다. 운영 DB와 Secret은 사용하지 않는다.
 
 의존성 설치나 DB 준비가 실패하면 해당 후속 검사는 skip으로 기록하고 다른 영역의 검증은 계속한다. 이미 base에 있던 실패인지 이번 변경의 회귀인지는 결과만으로 확정하지 않는다. 명령별 실행 제한은 4분이며 전체 job 제한과 함께 적용된다.
 
