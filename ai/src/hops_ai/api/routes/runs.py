@@ -8,14 +8,12 @@ from fastapi import APIRouter, Depends
 from psycopg import Error as PsycopgError
 from pydantic import ValidationError
 
-from hops_ai.api.dependencies import get_run_ledger, require_service_auth
+from hops_ai.api.dependencies import get_run_ledger
 from hops_ai.api.errors import ApiFault
 from hops_ai.contracts.wire import AiError, AiResult, AiRunRequest, AiRunSnapshot, WireUuid
 from hops_ai.persistence.run_ledger import RunLedger
 
-router = APIRouter(
-    prefix="/internal/v2/runs", tags=["internal runs"], dependencies=[Depends(require_service_auth)]
-)
+router = APIRouter(prefix="/internal/v2/runs", tags=["internal runs"])
 logger = logging.getLogger(__name__)
 
 

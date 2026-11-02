@@ -210,3 +210,72 @@ def test_unauthorized_calls_do_not_reveal_validation_or_runtime_state(client, le
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_CONTEXT_INVALID"
     assert ledger.get_calls == 0
+
+
+@pytest.mark.parametrize("body", [b"{", b"\xff"])
+def test_unauthenticated_malformed_body_is_rejected_first(client, ledger, body) -> None:
+    response = client.post(
+        "/internal/v2/runs", content=body, headers={"Content-Type": "application/json"}
+    )
+    assert response.status_code == 401
+    assert response.json()["code"] == "AUTH_CONTEXT_INVALID"
+    assert ledger.get_calls == 0
+
+
+def test_authenticated_malformed_body_still_receives_validation_error(client) -> None:
+    response = client.post(
+        "/internal/v2/runs", content=b"{", headers=auth() | {"Content-Type": "application/json"}
+    )
+    assert response.status_code == 422
+    assert response.json()["code"] == "INVALID_REQUEST"
+
+
+async def test_unauthenticated_request_does_not_read_asgi_body(ledger: LedgerDouble) -> None:
+    settings = Settings(
+        _env_file=None, internal_api_enabled=True, runtime_dsn=TEST_DSN, ai_service_token=TEST_TOKEN
+    )
+    app = create_app(settings, ledger=ledger)
+    received = 0
+    messages = []
+
+    async def receive():
+        nonlocal received
+        received += 1
+        raise AssertionError("인증 실패 요청의 본문을 읽으면 안 된다")
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "POST",
+        "scheme": "http",
+        "path": "/internal/v2/runs",
+        "raw_path": b"/internal/v2/runs",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [(b"content-type", b"application/json"), (b"content-length", b"100000000")],
+        "client": ("127.0.0.1", 1234),
+        "server": ("test", 80),
+    }
+    await app(scope, receive, send)
+    assert received == 0
+    assert messages[0]["type"] == "http.response.start"
+    assert messages[0]["status"] == 401
+
+
+def test_duplicate_authorization_headers_are_rejected(client, ledger) -> None:
+    headers = [
+        (b"authorization", f"Bearer {TEST_TOKEN}".encode()),
+        (b"authorization", b"Bearer bad"),
+    ]
+    response = client.get(f"/internal/v2/runs/{uuid4()}", headers=headers)
+    assert response.status_code == 401
+    assert ledger.get_calls == 0
+
+
+def test_health_is_public_with_internal_auth_enabled(client) -> None:
+    assert client.get("/healthz").status_code == 200
+    assert client.get("/readyz").status_code == 503

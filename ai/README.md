@@ -90,7 +90,7 @@ Docker 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)�
 | `GET /internal/v2/runs/{runId}/events` | 실행기·SSE 미준비 503 |
 | `POST /internal/v2/runs/{runId}/cancel` | 취소 전파 미구현 503 |
 
-인증 실패는 안전한 오류 본문의 401이다. `readyz`는 내부 조회 활성화 여부와 관계없이 503이며, 현재 프로필은 운영 배포·실제 모델 실행을 뜻하지 않는다.
+내부 실행 경로는 요청 본문을 읽기 전에 서비스 인증을 수행한다. 인증 실패는 안전한 오류 본문의 401이며 중복 Authorization 헤더도 거부한다. 생존·준비 상태 경로는 인증하지 않는다. `readyz`는 내부 조회 활성화 여부와 관계없이 503이며, 현재 프로필은 운영 배포·실제 모델 실행을 뜻하지 않는다.
 
 ```bash
 uv run pytest

@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from hops_ai.api.auth import ServiceAuthMiddleware
 from hops_ai.api.errors import install_error_handlers
 from hops_ai.api.routes import health, runs
 from hops_ai.harness.errors import ComponentNotReady
@@ -37,6 +38,9 @@ def create_app(settings: Settings | None = None, *, ledger: RunLedger | None = N
     app.state.settings = resolved
     app.include_router(health.router)
     if resolved.internal_api_enabled:
+        if resolved.ai_service_token is None:
+            raise ComponentNotReady("AI service token")
+        app.add_middleware(ServiceAuthMiddleware, token=resolved.ai_service_token)
         install_error_handlers(app)
         app.include_router(runs.router)
     return app
