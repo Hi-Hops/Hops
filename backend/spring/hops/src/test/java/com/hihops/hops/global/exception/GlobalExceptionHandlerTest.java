@@ -50,7 +50,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void 업무_예외는_오류_코드의_상태와_공통_형식으로_응답한다() throws Exception {
-        mockMvc.perform(get("/test/errors/conflict"))
+        mockMvc.perform(get("/api/v2/test/errors/conflict"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.message").isNotEmpty())
@@ -60,17 +60,17 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void 오류_응답의_requestId는_응답_헤더와_같다() throws Exception {
-        String requestId = mockMvc.perform(get("/test/errors/conflict"))
+        String requestId = mockMvc.perform(get("/api/v2/test/errors/conflict"))
                 .andExpect(header().string("X-Request-Id", matchesPattern(UUID_PATTERN)))
                 .andReturn().getResponse().getHeader("X-Request-Id");
 
-        mockMvc.perform(get("/test/errors/conflict").header("X-Request-Id", requestId))
+        mockMvc.perform(get("/api/v2/test/errors/conflict").header("X-Request-Id", requestId))
                 .andExpect(jsonPath("$.requestId").value(requestId));
     }
 
     @Test
     void 입력값_검증에_실패하면_400으로_응답한다() throws Exception {
-        mockMvc.perform(post("/test/errors/validation")
+        mockMvc.perform(post("/api/v2/test/errors/validation")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \" \"}"))
                 .andExpect(status().isBadRequest())
@@ -79,7 +79,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void 업무_예외는_상태_코드_문구를_로그로_남긴다(CapturedOutput output) throws Exception {
-        mockMvc.perform(get("/test/errors/conflict"));
+        mockMvc.perform(get("/api/v2/test/errors/conflict"));
 
         assertThat(output).contains("업무 오류 409 CONFLICT: " + ErrorCode.CONFLICT.message());
     }
@@ -87,7 +87,7 @@ class GlobalExceptionHandlerTest {
     @Test
     void 입력값_검증에_실패하면_틀린_항목_이름만_로그로_남긴다(CapturedOutput output) throws Exception {
         // 입력한 값은 비밀번호일 수도 있으므로 남기지 않고, 어떤 항목이 틀렸는지만 남긴다.
-        mockMvc.perform(post("/test/errors/validation")
+        mockMvc.perform(post("/api/v2/test/errors/validation")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"name\": \"  \", \"memo\": \"typed-secret-value\"}"));
 
@@ -97,7 +97,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void JSON_형식이_잘못되면_400으로_응답한다() throws Exception {
-        mockMvc.perform(post("/test/errors/validation")
+        mockMvc.perform(post("/api/v2/test/errors/validation")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{not-json"))
                 .andExpect(status().isBadRequest())
@@ -106,14 +106,14 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void 없는_경로는_404로_응답한다() throws Exception {
-        mockMvc.perform(get("/test/errors/no-such-path"))
+        mockMvc.perform(get("/api/v2/test/errors/no-such-path"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("NOT_FOUND"));
     }
 
     @Test
     void 예상하지_못한_예외는_500으로_응답하고_내부_내용을_숨긴다() throws Exception {
-        mockMvc.perform(get("/test/errors/unexpected"))
+        mockMvc.perform(get("/api/v2/test/errors/unexpected"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.message").value(not(containsString("secret-detail"))));
@@ -121,7 +121,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void 일시_장애는_재시도_가능으로_표시한다() throws Exception {
-        mockMvc.perform(get("/test/errors/unavailable"))
+        mockMvc.perform(get("/api/v2/test/errors/unavailable"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.retryable").value(true));
     }

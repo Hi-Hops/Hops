@@ -14,6 +14,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
+
+import com.hihops.hops.auth.service.RefreshCookieProperties;
+import com.hihops.hops.global.config.ApiPathConfig;
 
 /**
  * Spring Security 설정: 누가 어떤 주소에 접근할 수 있는지 정한다.
@@ -24,8 +28,13 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * <p>필터 순서: RequestIdFilter → RequestLoggingFilter → Security(이 설정) → Controller
  */
 @Configuration
-@EnableConfigurationProperties(CorsProperties.class)
+@EnableConfigurationProperties({CorsProperties.class, RefreshCookieProperties.class})
 public class SecurityConfig {
+
+    // 인증 주소. permitAll과 CookieOriginFilter가 같은 값을 쓰도록 한곳에 둔다.
+    static final String LOGIN_PATH = ApiPathConfig.PREFIX + "/auth/login";
+    static final String REFRESH_PATH = ApiPathConfig.PREFIX + "/auth/refresh";
+    static final String LOGOUT_PATH = ApiPathConfig.PREFIX + "/auth/logout";
 
     /** 로그인 없이 접근할 수 있는 주소. 그 외는 모두 인증이 필요하다. */
     private static final String[] PUBLIC_PATHS = {
@@ -34,11 +43,15 @@ public class SecurityConfig {
     };
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorResponder errorResponder)
-            throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorResponder errorResponder,
+            CorsProperties corsProperties) throws Exception {
         http
-                // 토큰을 Authorization 헤더로 보내는 방식(docs/API.md §1 계약안)이라 CSRF 공격 대상이 아니다.
-                // 토큰을 쿠키에 담는 방식으로 바뀌면 CSRF 보호를 다시 켜야 한다.
+                // refresh·logout은 허용한 프론트 주소에서 온 요청만 받는다. CORS 필터보다 먼저 공통 오류 형식으로 막는다.
+                .addFilterBefore(new CookieOriginFilter(List.of(REFRESH_PATH, LOGOUT_PATH),
+                        corsProperties.allowedOrigins(), errorResponder), CorsFilter.class)
+                // 업무 API는 Access를 Authorization 헤더로 보내므로 CSRF 공격 대상이 아니다.
+                // 쿠키를 쓰는 refresh·logout은 SameSite=Lax 쿠키와 위 CookieOriginFilter(허용 Origin 검사)로 막는다.
+                // 그 밖의 API가 쿠키로 인증하게 바뀌면 CSRF 보호를 다시 설계해야 한다.
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults()) // 아래 corsConfigurationSource() 사용
                 .httpBasic(AbstractHttpConfigurer::disable) // 브라우저 기본 로그인 창 사용 안 함
@@ -46,7 +59,9 @@ public class SecurityConfig {
                 // JWT는 요청마다 토큰으로 사용자를 확인하므로 서버가 로그인 상태(세션)를 저장하지 않는다.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll() // 로그인 전에는 토큰이 없다
+                        .requestMatchers(HttpMethod.POST, LOGIN_PATH).permitAll() // 로그인 전에는 토큰이 없다
+                        // Access가 만료된 뒤에도 부르는 곳이라 Bearer 대신 Refresh 쿠키로 확인한다 (AuthController)
+                        .requestMatchers(HttpMethod.POST, REFRESH_PATH, LOGOUT_PATH).permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated())
                 // Bearer 토큰 검증. 토큰이 틀리거나 만료되면 errorResponder가 401 공통 오류로 응답한다.

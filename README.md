@@ -33,7 +33,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Frontend·Spring·AI·PostgreSQL 컨테이너 4개가 함께 실행됩니다. 기본 접속 주소는 프론트 `http://localhost:5173`, Spring Swagger `http://localhost:8080/swagger-ui/index.html`, AI 생존 확인 `http://localhost:8000/healthz`이며 DB는 `localhost:5432`입니다. 모든 포트는 로컬 PC에만 공개합니다.
+Frontend·Spring·AI·PostgreSQL·Redis 컨테이너 5개가 함께 실행됩니다. Redis(로그인 세션·Refresh 토큰)는 PC에 포트를 공개하지 않으며 `docker compose exec redis redis-cli`로 확인합니다. 기본 접속 주소는 프론트 `http://localhost:5173`, Spring Swagger `http://localhost:8080/swagger-ui/index.html`, AI 생존 확인 `http://localhost:8000/healthz`이며 DB는 `localhost:5432`입니다. 모든 포트는 로컬 PC에만 공개합니다.
 
 DB는 [pgvector 프로젝트 이미지](https://github.com/pgvector/pgvector#docker)의 PostgreSQL 18·pgvector 0.8.7을 사용합니다. Spring Flyway가 확장 활성화, 테이블과 개발용 가상 데이터를 적용하므로 pgvector를 따로 설치할 필요가 없습니다. 테스트 DB는 [Spring 설치 안내](backend/spring/hops/README.md#처음-설치-mac--windows)에 따라 별도로 준비합니다.
 

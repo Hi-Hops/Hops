@@ -10,7 +10,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/v2/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -29,16 +29,34 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE는 구현했습니다. refresh·로그아웃, 문의 변경 REST·문의/티켓 조회와 문의·개별 티켓 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 실제 서버 연결 검사 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·갱신(회전)은 구현했습니다. 로그아웃, 문의 변경 REST·문의/티켓 조회와 문의·개별 티켓 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 실제 서버 연결 검사 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
-- React는 `GET /api/realtime/events?targetType={type}&targetId={id}`로 Spring SSE에 직접 연결합니다. Spring은 연결마다 JWT와 현재 소유자·부서·역할을 검사하고 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`를 허용된 대상에만 전달합니다.
+- React는 `GET /api/v2/realtime/events?targetType={type}&targetId={id}`로 Spring SSE에 직접 연결합니다. Spring은 연결마다 JWT와 현재 소유자·부서·역할을 검사하고 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`를 허용된 대상에만 전달합니다.
 - `agent`는 Python HTTP 실행 요청과 내부 SSE 진행·결과 수신을 담당합니다. 공개 가능한 진행·답변 조각은 Spring이 검증해 React SSE로 전달하고 최종 메시지·업무 변경은 DB 저장 결과로 확정합니다. heartbeat·`Last-Event-ID`·`resync.required`·REST 복구의 상세 계약은 API 설계를 따릅니다.
 
 ## 처음 설치 (Mac · Windows)
 
 pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
+
+**직접 할 일과 자동으로 되는 일**
+
+git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각자 PC에 만듭니다. 설명서(SQL 파일)는 공유하고, 방(DB)은 각자 준비하는 구조입니다.
+
+| 무엇 | 누가 | 언제 |
+|---|---|---|
+| PostgreSQL·pgvector·Redis 설치와 실행 | 직접 (아래 2~4번) | 처음 한 번 |
+| `hops` 계정과 빈 DB `hops`·`hops_test` | 직접 (아래 5번) | 처음 한 번 |
+| 접속 정보 파일 `application-db.local.properties` | 직접 (아래 6번) | 처음 한 번 |
+| DB 안의 테이블 (`db/migration/V*.sql`) | Flyway 자동 | 서버·테스트 시작할 때 |
+| 가상 데이터 (`db/seed`, `hops` DB만) | Flyway 자동 | 서버 시작할 때 |
+| 나중에 추가된 `V2`·`V3`… | Flyway 자동 (아직 안 한 것만) | pull 뒤 서버 시작할 때 |
+
+- Flyway는 **빈 DB 안에 테이블을 채울 뿐, DB 자체는 만들지 않습니다.** 5번을 건너뛰면 `database "hops" does not exist` 오류가 납니다.
+- Flyway는 어디까지 실행했는지 DB의 `flyway_schema_history` 표에 적어 두고, 다음 시작 때 그 뒤의 파일만 실행합니다.
+- 테이블을 바꿀 때는 이미 실행된 `V*.sql`을 고치지 않고 새 번호 파일을 추가합니다. 고치면 `checksum mismatch` 오류가 납니다.
+- Redis는 테이블이 없어 설치·실행만 하면 됩니다.
 
 1. **JDK 17 이상** 설치 (Gradle을 실행하는 용도). 프로젝트가 쓰는 JDK 21은 Gradle이 없으면 자동으로 내려받습니다 (`settings.gradle.kts`의 foojay 플러그인).
 2. **PostgreSQL 18** 설치 (`uuidv7()` 사용을 위해 18 이상이 필요합니다).
@@ -47,7 +65,11 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 3. **pgvector 설치** (검색 조각 `knowledge_chunk.embedding`의 `vector` 타입). 없으면 서버가 시작되지 않습니다.
    - Mac: `brew install pgvector`
    - Windows: [pgvector 공식 안내의 Windows 설치](https://github.com/pgvector/pgvector#windows)를 따릅니다.
-4. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
+4. **Redis 설치·실행** (로그인 세션·Refresh 토큰 저장소). 기본 주소 `localhost:6379`를 그대로 쓰므로 설정 파일은 필요 없습니다.
+   - Mac: `brew install redis` 후 `brew services start redis`
+   - Windows: Redis는 공식 Windows 버전이 없어 WSL(Ubuntu)에서 `sudo apt install redis-server` 후 `sudo service redis-server start`로 실행합니다. Docker Desktop을 쓴다면 `docker run -d --name hops-redis -p 6379:6379 redis:8`도 됩니다.
+   - 확인: `redis-cli ping` → `PONG`, `redis-server --version`이 **6.0 이상**이어야 합니다(Refresh 회전 스크립트가 `KEEPTTL` 사용). 개발은 0번 DB, 테스트는 15번 DB를 써서 서로 섞이지 않습니다.
+5. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
    ```sql
    CREATE ROLE hops WITH LOGIN PASSWORD '내_비밀번호';
    CREATE DATABASE hops OWNER hops;
@@ -58,11 +80,11 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
    \c hops_test
    CREATE EXTENSION IF NOT EXISTS vector;
    ```
-5. **접속 정보 파일 만들기** (`src/main/resources`에서)
+6. **접속 정보 파일 만들기** (`src/main/resources`에서)
    - Mac: `cp application-db.local.properties.example application-db.local.properties`
    - Windows: `Copy-Item application-db.local.properties.example application-db.local.properties`
-   - 만든 파일에 4번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
-6. **실행**
+   - 만든 파일에 5번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
+7. **실행**
    - Mac: `./gradlew bootRun`
    - Windows(PowerShell): `.\gradlew.bat bootRun`
    - 기본 프로필이 `db`라서 프로필을 따로 지정하지 않아도 로컬 PostgreSQL에 연결합니다.
@@ -70,13 +92,14 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 
 ## 이미 설치한 팀원이 pull 받은 뒤 할 일
 
-"처음 설치"를 이미 마쳤다면 pgvector만 한 번 준비합니다. 위 "처음 설치" 3번으로 설치하고, 4번의 `\c hops`부터 `CREATE EXTENSION` 네 줄을 슈퍼유저로 실행합니다. 그 밖에는 따로 설정할 것이 없습니다.
+"처음 설치"를 이미 마쳤다면 pgvector와 Redis만 한 번 준비합니다. 위 "처음 설치" 3번(pgvector)·4번(Redis)으로 설치하고, 5번의 `\c hops`부터 `CREATE EXTENSION` 네 줄을 슈퍼유저로 실행합니다. 그리고 아래 1번처럼 접속 정보 파일에 한 줄을 추가합니다.
 
-1. `git pull` 후 위 6번처럼 실행합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
-2. 로그에 `Successfully applied ... migration`이 보이면 새 테이블·데이터가 적용된 것입니다.
-3. `Port 8080 was already in use`가 나오면 이미 켜진 서버를 끄고 다시 실행합니다.
-4. `extension "vector" is not available` 또는 `permission denied to create extension "vector"`가 나오면 위 "처음 설치" 3번(pgvector 설치)과 4번의 `CREATE EXTENSION` 두 줄을 한 번 실행합니다. 검색 조각 테이블(V19)부터 필요합니다.
-5. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
+1. `application-db.local.properties`에 `hops.auth.refresh-cookie.secure=false` 한 줄을 추가합니다(예시 파일 참고). 없으면 Refresh 쿠키에 `Secure`가 붙어 Safari 등에서 http 로그인 쿠키가 저장되지 않습니다.
+2. `git pull` 후 위 7번처럼 실행합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
+3. 로그에 `Successfully applied ... migration`이 보이면 새 테이블·데이터가 적용된 것입니다.
+4. `Port 8080 was already in use`가 나오면 이미 켜진 서버를 끄고 다시 실행합니다.
+5. `extension "vector" is not available` 또는 `permission denied to create extension "vector"`가 나오면 위 "처음 설치" 3번(pgvector 설치)과 5번의 `CREATE EXTENSION` 두 줄을 한 번 실행합니다. 검색 조각 테이블(V19)부터 필요합니다.
+6. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
 
 ## 가상 데이터 (로컬 개발용)
 
@@ -95,7 +118,7 @@ pull 받은 뒤 아래 순서대로 하면 같은 환경에서 실행됩니다.
 | `20260020` | 20260020 | 경영지원팀 | `BIZ_ADMIN`, `AGENT_OPS_ADMIN` | 역할 두 개 확인용 |
 | `20260005`~`20260019` (15명) | 로그인 ID와 같음 | 처리 부서별 담당자·일반 직원 | 없음 | 부서별 테스트 |
 
-- 이 계정으로 `POST /api/auth/login`에 로그인할 수 있습니다(아래 [인증](#인증)). DB에서 직접 보려면:
+- 이 계정으로 `POST /api/v2/auth/login`에 로그인할 수 있습니다(아래 [인증](#인증)). DB에서 직접 보려면:
   ```bash
   psql -U hops -d hops -c "SELECT login_id, employee_no, name FROM member;"
   ```
@@ -135,11 +158,12 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 | 기능 | 위치 | 쓰는 방법 |
 |---|---|---|
+| API 주소 접두사 | `global/config/ApiPathConfig` | 우리 `@RestController`의 주소 앞에 `/api/v2`가 자동으로 붙습니다. 컨트롤러에는 `@RequestMapping("/tickets")`처럼 접두사 뒤 주소만 적습니다. Swagger·`/error`에는 붙지 않습니다. `SecurityConfig`처럼 전체 주소가 필요하면 `ApiPathConfig.PREFIX + "/auth/login"`으로 씁니다. |
 | 공통 오류 응답 | `global/exception` | Controller·Service에서 `throw new BusinessException(ErrorCode.NOT_FOUND)`처럼 던지면 `{code, message, requestId, retryable}` 형식으로 응답합니다 ([API 설계](../../../docs/API.md) §1). try-catch는 쓰지 않습니다. |
 | 요청 추적 번호 | `global/filter/RequestIdFilter` | 모든 응답 헤더와 로그 줄에 `X-Request-Id`(requestId)가 붙습니다. 오류 문의 시 이 값으로 로그를 찾습니다. |
 | API 호출 로그 | `global/filter/RequestLoggingFilter` | 요청 전 `→ GET /path`, 요청 후 `← GET /path 200 (12ms)`를 남깁니다. 본문·헤더·쿼리는 기록하지 않습니다. |
 | 시각 | `application.properties` | API 응답과 DB 모두 UTC입니다. 한국 시간 표시는 화면에서 합니다. |
-| 접근 규칙 | `global/security/SecurityConfig` | `POST /api/auth/login`, Swagger, `/error`만 토큰 없이 접근할 수 있고 나머지는 인증이 필요합니다. 새 공개 주소가 필요하면 이 파일에 추가합니다. |
+| 접근 규칙 | `global/security/SecurityConfig` | `POST /api/v2/auth/login`, Swagger, `/error`만 토큰 없이 접근할 수 있고 나머지는 인증이 필요합니다. 새 공개 주소가 필요하면 이 파일에 추가합니다. |
 | JWT 검증 | `global/security/JwtConfig` | `Authorization: Bearer 토큰`의 서명(HS256)·만료·발급자(`hops.jwt.issuer`)·대상(`hops.jwt.audience`)을 검사합니다. Controller에서 `@AuthenticationPrincipal Jwt jwt`로 클레임을 꺼내고, `roles`는 `hasRole('BIZ_ADMIN')`처럼 씁니다. `hops.jwt.secret`은 개발용 값이며 공용·운영 서버에서는 `HOPS_JWT_SECRET` 환경변수로 바꿉니다. 발급은 `auth/service/AccessTokenIssuer`가 같은 키로 합니다. |
 | CORS | `hops.cors.allowed-origins` | 기본값은 Vite 개발 서버 `http://localhost:5173`, `http://127.0.0.1:5173`입니다 (브라우저는 둘을 다른 주소로 봅니다). 로그인 쿠키를 위해 `allowCredentials`를 켰습니다. |
 | Swagger UI | `global/config/OpenApiConfig` | 서버 실행 후 `http://localhost:8080/swagger-ui/index.html`. 오른쪽 위 Authorize에 JWT를 넣어 호출합니다. 계약 기준은 Swagger가 아니라 저장소의 OpenAPI YAML입니다. |
@@ -155,7 +179,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 ./gradlew bootRun
 ```
 
-- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~5번을 마쳐야 통과합니다.
+- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~6번(PostgreSQL·pgvector·Redis·DB·접속 정보)을 마쳐야 통과합니다.
 - 테스트 DB에는 가상 데이터(seed)를 넣지 않습니다. 필요한 데이터는 각 테스트가 직접 넣고 `@Transactional`로 끝나면 되돌립니다 (예: `MemberRepositoryTest`).
 - 로그인 판단 규칙처럼 DB가 필요 없는 테스트는 Repository를 mock으로 바꿔 빠르게 확인합니다 (예: `AuthServiceTest`).
 
@@ -165,33 +189,42 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
-| `POST /api/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` | 400 `INVALID_INPUT`(빈 값·형식 오류), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
-| `GET /api/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles}` | 401 `UNAUTHENTICATED`(토큰 없음·위조·만료, 회원 없음·차단) |
+| `POST /api/v2/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` + `Set-Cookie: hops_refresh` | 400 `INVALID_INPUT`(빈 값·형식 오류), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
+| `POST /api/v2/auth/refresh` | 본문 없음, `hops_refresh` 쿠키 | 200 `{accessToken, expiresAt, user}` + 새 `Set-Cookie: hops_refresh` | 401 `REFRESH_TOKEN_REVOKED`(쿠키 없음·이미 쓰인 값·만료), 403 `ORIGIN_DENIED` |
+| `POST /api/v2/auth/logout` | 본문 없음, `hops_refresh` 쿠키 | 204 + 쿠키 삭제(`Max-Age=0`). 쿠키가 없거나 이미 끝난 세션이어도 같음 | 403 `ORIGIN_DENIED`, 503 `SERVICE_UNAVAILABLE`(세션 저장소 장애. 쿠키 삭제는 그대로 보냄) |
+| `GET /api/v2/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles}` | 401 `UNAUTHENTICATED`(토큰 없음·위조·만료, 회원 없음·차단) |
 
 - **동작 순서:** 로그인 ID로 회원·부서·역할을 DB에서 찾고(삭제된 회원 제외) → BCrypt로 비밀번호 해시 비교 → `AccessTokenIssuer`가 토큰 발급 (`auth/service`).
 - **토큰 클레임:** `sub`(회원 UUID), `employeeNo`, `departmentId`·`departmentCode`·`departmentName`, `roles`, `iss`·`aud`·`iat`·`exp`(발급 후 15분). 토큰 내용은 누구나 읽을 수 있으므로 비밀번호 등은 넣지 않습니다.
 - **`/me`는 토큰이 아니라 DB를 다시 읽습니다.** 토큰 발급 뒤 역할 회수·부서 변경·계정 차단이 있었을 수 있기 때문입니다.
 - 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD](../../../docs/ERD.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
-- **아직 없음:** refresh 토큰(HttpOnly 쿠키), `POST /api/auth/logout`.
+- **Refresh 쿠키:** `HttpOnly`, `SameSite=Lax`, `Path=/api/v2/auth`. `Secure`는 요청이 아니라 설정 `hops.auth.refresh-cookie.secure`로 정합니다(로컬 `false`, 설정이 없으면 `true`). 설정 파일 기본값에는 넣지 않으므로 공용·운영(HTTPS) 서버는 따로 설정하지 않으면 `Secure`입니다. 로컬은 `application-db.local.properties`(아래 "pull 받은 뒤 할 일"), Docker는 루트 `.env`의 `HOPS_AUTH_REFRESHCOOKIE_SECURE=false`로 끕니다. 원문은 JSON에 넣지 않고 Redis에는 SHA-256 해시만 키로 둡니다. 갱신할 때마다 새 값으로 바꾸고(이전 값은 즉시 폐기), 만료는 최초 로그인부터 7일로 늘어나지 않습니다.
+- **재사용 검출:** 회전으로 이미 쓴 Refresh가 10초 안에 다시 오면 탭 두 개의 동시 갱신 경합으로 보고 그 요청만 401입니다. 10초가 지나서 오면 탈취로 보고 그 로그인 세션 전체를 폐기합니다(정상 사용자도 재로그인).
+- **갱신 순서:** 회원을 DB에서 먼저 확인하고 Refresh 회전은 마지막에 합니다. DB가 일시 실패해도 같은 쿠키로 다시 갱신할 수 있습니다. 삭제·차단된 회원은 그 세션을 끝내고 401 `REFRESH_TOKEN_REVOKED`입니다.
+- **로그아웃:** 그 쿠키의 로그인 세션만 끝냅니다(다른 기기 로그인은 유지). 세션 저장소 장애 중에도 쿠키 삭제는 내려보냅니다. 이미 발급한 Access는 최대 15분 남지만 프론트가 메모리에서 버립니다.
+- **재로그인:** 같은 브라우저에서 다시 로그인하면 예전 쿠키의 세션을 끝냅니다.
+- **세션이 끝나면** (로그아웃·재로그인·재사용 감지·차단 회원) `LoginSessionRevokedEvent`를 받은 `RealtimeSessionListener`가 그 회원의 열린 SSE를 닫습니다. Access에 세션 ID가 없어 기기 구분 없이 회원 단위로 닫습니다.
+- **브라우저 주소:** `SameSite=Lax` 쿠키라 프론트 화면과 API 주소의 호스트가 같아야 합니다. `localhost`와 `127.0.0.1`은 다른 사이트로 취급되어, `http://127.0.0.1:5173` 화면에서 `http://localhost:8080` API를 부르면 Refresh 쿠키가 저장·전송되지 않습니다(15분 뒤 재로그인). live 모드는 둘 다 `localhost`로 맞춥니다.
+- **Origin 검사:** 쿠키를 쓰는 refresh·logout은 `Origin` 헤더가 `hops.cors.allowed-origins`에 있을 때만 받습니다(없거나 다르면 403 `ORIGIN_DENIED`). 프론트와 API를 같은 주소로 배포해도 그 주소를 이 목록에 넣어야 합니다. Swagger 화면(`localhost:8080`)에서는 이 둘을 호출할 수 없으니 curl에 `-H "Origin: http://localhost:5173"`을 붙여 확인합니다.
 
 ### 토큰 직접 확인하기
 
 ```bash
 # 1) 로그인해서 토큰 저장
-TOKEN=$(curl -s -H 'Content-Type: application/json' -d '{"loginId":"bizadmin","password":"hops1234!"}' http://localhost:8080/api/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
+TOKEN=$(curl -s -H 'Content-Type: application/json' -d '{"loginId":"bizadmin","password":"hops1234!"}' http://localhost:8080/api/v2/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
 # 2) 토큰 내용(클레임) 보기 — 서명 검증은 하지 않고 읽기만 한다
 echo "$TOKEN" | python3 -c 'import sys,base64,json; p=sys.stdin.read().strip().split(".")[1]; print(json.dumps(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))),ensure_ascii=False,indent=2))'
 # 3) 서버가 유효하다고 보는지 확인 — 200이면 서명·만료·발급자·대상 통과
-curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/auth/me
+curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v2/auth/me
 ```
 
-Swagger에서는 `POST /api/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
+Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
 
 ## Spring SSE 공통 기반
 
 [전송 계약](../../../specs/contracts/WIRE_CONTRACT.md#5-sse-연결이벤트복구)에 따라
-`GET /api/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
+`GET /api/v2/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
 `Authorization: Bearer <accessToken>`과 `Accept: text/event-stream`을 전달합니다.
 프론트는 Bearer 헤더를 지정할 수 있는 fetch 기반 SSE 소비자가 필요합니다.
 

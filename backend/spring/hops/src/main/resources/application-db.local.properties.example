@@ -6,3 +6,6 @@
 spring.datasource.url=jdbc:postgresql://localhost:5432/hops
 spring.datasource.username=hops
 spring.datasource.password=여기에_내_PC_DB_비밀번호
+
+# 로컬은 http라서 Refresh 쿠키의 Secure를 끈다. 이 줄이 없으면 Secure가 켜져 Safari 등에서 http 로그인 쿠키가 저장되지 않는다.
+hops.auth.refresh-cookie.secure=false

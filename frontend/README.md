@@ -98,4 +98,6 @@ npm run build
 
 `springBackend.integration.test.ts`는 신규 `/api/v2` 개발 서버의 읽기 통합 검사다. `HOPS_TEST_SPRING_URL`, `HOPS_TEST_LOGIN_ID`, `HOPS_TEST_PASSWORD`를 명시했을 때만 실행하며 현재 PRIMARY 개발 계정을 사용한다. 이 값에는 `VITE_` 접두사를 사용하지 않는다. 문의 생성·모델 호출을 수행하지 않는다. 실제 AI·검색·업무 저장 통합은 별도 검증한다.
 
+현재 develop의 Spring은 `/api/v2/auth/login`·`refresh`·`logout`·`me`와 `/api/v2/realtime/events`를 제공한다. 프론트도 `/api/v2`를 호출한다. 다만 Spring의 사용자 DTO에는 아직 `primarySystemIds`가 없고 SSE는 `DEPARTMENT_TICKETS` 범위이므로, 같은 경로를 사용한다는 사실만으로 신규 시스템 계약 연결이 완료되지는 않는다. 시스템 기반 사용자·업무 API와 `SYSTEM_TICKETS`·`CASE` 등의 SSE 계약 구현 후 실제 통합 검증이 필요하다. 서버 실행·Refresh 쿠키/Redis 설정은 [Spring 실행 안내](../backend/spring/hops/README.md)를 따른다.
+
 정본은 [PRD](../docs/PRD.md), [DATA_TYPES](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1), [WIRE_CONTRACT 12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 개발 구조·경로·규칙은 [프론트 개발 기준](../docs/frontend/README.md)이다.
