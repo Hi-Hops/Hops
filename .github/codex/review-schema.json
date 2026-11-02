@@ -9,7 +9,6 @@
     "covered_files",
     "unread_files",
     "findings",
-    "resolved_previous",
     "verified_behaviors",
     "overall_correctness",
     "overall_explanation"
@@ -40,7 +39,6 @@
         }
       }
     },
-    "resolved_previous": { "type": "array", "items": { "type": "string" } },
     "verified_behaviors": {
       "type": "array",
       "items": {
