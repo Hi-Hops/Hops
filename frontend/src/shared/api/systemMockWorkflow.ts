@@ -3,6 +3,7 @@ import { contentError } from '@/shared/lib/content';
 import { isUuid } from './wire';
 import { mockError } from './mockError';
 import { systems } from './systemMockData';
+import type { MockExampleStage } from './systemMockExamples';
 
 type Context = {
   people: () => D.CurrentUser[];
@@ -31,6 +32,7 @@ function version(body: Record<string, unknown>, field: string, expected: number,
   if (value !== expected) mockError(409, code, '최신 정보와 작성 내용을 비교해 주세요.');
 }
 export class SystemMockWorkflow {
+  private seeding = false;
   private cases = new Map<string, D.CaseDetail>();
   private generations = new Map<string, { value: D.CaseGeneration; ticketId: string }>();
   private resolutions = new Map<string, D.ResolutionRequest>();
@@ -63,7 +65,64 @@ export class SystemMockWorkflow {
   failIndex(store: D.IndexStore) {
     this.nextIndexFailure = store;
   }
+  seedExample(ticket: D.TicketDetail, requester: D.CurrentUser, stage: MockExampleStage) {
+    const staff = this.context.people().find((p) => p.id === ticket.currentPrimary.id);
+    if (!staff) throw new Error('가상 시나리오 담당자 누락');
+    this.seeding = true;
+    try {
+      if (stage === 'GENERATION_FAILED') this.setGenerationOutcome('FAILED');
+      if (stage === 'NO_REUSABLE_CASE') this.setGenerationOutcome('NO_REUSABLE_CASE');
+      this.post(staff, ['tickets', ticket.id, 'work-records'], {
+        requestId: crypto.randomUUID(),
+        expectedTicketRevision: ticket.ticketRevision,
+        kind:
+          stage === 'PROGRESS'
+            ? 'PROGRESS'
+            : ticket.processingType === 'CHANGE_REQUEST'
+              ? 'IMPLEMENTED_VERIFIED'
+              : 'VERIFIED_RESOLUTION',
+        action:
+          stage === 'PROGRESS'
+            ? '가상 문의의 발생 조건과 접근 정책을 점검하고 있어요.'
+            : '가상 환경의 접근 정책을 복구하고 요청 동작을 적용했어요.',
+        verification:
+          stage === 'PROGRESS'
+            ? null
+            : '가상 시나리오에서 동일 사용자·화면의 정상 동작을 확인했어요.',
+        confirmedCause: null,
+        appliesToSystemVersion: 'demo-1.0',
+      });
+      const request = ticket.activeResolutionRequest;
+      if (
+        stage === 'PROGRESS' ||
+        stage === 'WAITING_CONFIRMATION' ||
+        stage === 'GENERATION_FAILED' ||
+        stage === 'NO_REUSABLE_CASE' ||
+        !request
+      )
+        return;
+      this.post(requester, ['resolution-requests', request.id, 'responses'], {
+        requestId: crypto.randomUUID(),
+        expectedRequestRevision: request.requestRevision,
+        decision: 'RESOLVED',
+      });
+      const caseId = ticket.caseGeneration?.caseId;
+      if (!caseId || stage === 'DRAFT_READY') return;
+      if (stage === 'INDEX_FAILED') this.failIndex('NEO4J');
+      this.post(staff, ['cases', caseId, 'approvals'], {
+        requestId: crypto.randomUUID(),
+        expectedCaseVersion: 1,
+      });
+    } finally {
+      this.seeding = false;
+    }
+  }
   private later(action: () => void) {
+    // 최초 시연 데이터 구성만 즉시 완료한다. 사용자 명령은 기존 비동기 흐름을 유지한다.
+    if (this.seeding) {
+      action();
+      return;
+    }
     const timer = setTimeout(() => {
       this.timers.delete(timer);
       action();
@@ -373,7 +432,7 @@ export class SystemMockWorkflow {
       if (body.decision !== 'RESOLVED' && body.decision !== 'UNRESOLVED')
         mockError(400, 'INVALID_INPUT', '해결 응답을 확인해 주세요.');
       request.state = body.decision;
-      request.confirmationOrigin = 'HOPS_USER';
+      request.confirmationOrigin = this.seeding ? 'SYNTHETIC_PRESET' : 'HOPS_USER';
       for (const detail of this.cases.values()) {
         if (detail.version.resolutionRequestId === request.id && detail.version.state === 'DRAFT')
           detail.version.confirmationOrigin = request.confirmationOrigin;

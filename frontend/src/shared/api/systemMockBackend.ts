@@ -4,6 +4,7 @@ import { isRecord, isUuid } from './wire';
 import { mockError } from './mockError';
 import { systems, users } from './systemMockData';
 import { SystemMockWorkflow } from './systemMockWorkflow';
+import { mockExamples } from './systemMockExamples';
 import type * as D from './types/hopsSystem1';
 import type { SubscriptionTarget } from './types';
 
@@ -81,6 +82,115 @@ export class SystemMockBackend {
     );
     if (fileWorkspace.result.problems[0])
       this.storeTicket(fileWorkspace, fileWorkspace.result.problems[0]);
+    if (
+      import.meta.env.VITE_DATA_MODE?.trim() === 'mock' &&
+      import.meta.env.VITE_MOCK_EXAMPLES === 'true'
+    )
+      this.seedExamples();
+  }
+  private seedExamples() {
+    const requester = this.people[0];
+    for (const example of mockExamples) {
+      const workspace = this.createWorkspace(
+        requester,
+        example.title,
+        systems[example.systemIndex].id,
+      );
+      const problem = workspace.result.problems[0];
+      if (!problem) continue;
+      problem.questionCount = 1;
+      this.message(
+        workspace,
+        '시연용으로 구성한 합성 문의예요. 아래 티켓과 처리 상태를 확인해 주세요.',
+        'AI',
+        null,
+      );
+      this.storeTicket(workspace, problem);
+      const ticket = problem.ticket && this.details.get(problem.ticket.id);
+      if (!ticket) continue;
+      ticket.standardRequest.details.taskOrScreen = '시연용 업무 화면';
+      ticket.standardRequest.details.actualBehavior =
+        '가상 입력에서 접근 또는 문서 처리 오류가 발생해요.';
+      ticket.standardRequest.details.expectedBehavior = '동일 화면에서 업무를 정상적으로 처리해요.';
+      this.workflow.seedExample(ticket, requester, example.stage);
+      this.syncTicket(ticket);
+    }
+    const waiting = this.createWorkspace(requester, '[예시] 시스템을 알 수 없는 접속 문제', null);
+    const waitingProblem = waiting.result.problems[0];
+    if (waitingProblem) {
+      waitingProblem.state = 'WAITING_SYSTEM';
+      waitingProblem.questionCount = 5;
+      this.message(
+        waiting,
+        '질문 한도에 도달했어요. 보고 시스템을 선택하면 같은 문제의 접수를 이어가요.',
+        'AI',
+        null,
+      );
+      this.aggregate(waiting);
+    }
+    const question = this.createWorkspace(
+      requester,
+      '[예시] 추가 정보가 필요한 문서 오류',
+      systems[0].id,
+    );
+    const questionProblem = question.result.problems[0];
+    if (questionProblem) {
+      questionProblem.state = 'WAITING_USER';
+      questionProblem.questionCount = 1;
+      this.message(
+        question,
+        '어느 화면에서 언제 발생했고, 기대한 동작과 실제 현상이 무엇인지 알려 주세요.',
+        'AI',
+        null,
+      );
+      this.aggregate(question);
+    }
+    const guide = this.createWorkspace(requester, '[예시] 파일 공유 사용법 안내', systems[2].id);
+    const guideProblem = guide.result.problems[0];
+    if (guideProblem) {
+      guideProblem.intent = 'HOW_TO';
+      guideProblem.processingType = 'KNOWLEDGE_QA';
+      const message = this.message(
+        guide,
+        '가상 파일 공유의 안내예요. 파일 선택 후 공유 대상과 열람 범위를 확인해 주세요.',
+        'AI',
+        null,
+      );
+      this.workflow.guide(guideProblem, message.id);
+      this.aggregate(guide);
+    }
+    const mixed = this.createWorkspace(
+      requester,
+      '[예시] 문서 오류와 기능 요청을 동시에 문의',
+      systems[0].id,
+    );
+    const first = mixed.result.problems[0];
+    const second = mixed.result.problems[1];
+    if (first) {
+      first.summary = '[예시] 전자결재 문서 열기 오류';
+      first.intent = 'OBSERVED_SYMPTOM';
+      first.processingType = 'INVESTIGATION';
+      this.storeTicket(mixed, first);
+    }
+    if (second) {
+      second.state = 'TICKET_PENDING';
+      second.creationResult = {
+        workItemId: second.id,
+        problemId: second.id,
+        inquiryVersion: 1,
+        outcome: 'UNKNOWN',
+        ticketId: null,
+        error: null,
+        updatedAt: now(),
+      };
+    }
+    this.message(
+      mixed,
+      '첫 문제의 티켓은 저장됐고 두 번째 문제는 저장 결과를 확인 중인 가상 예시예요.',
+      'AI',
+      null,
+    );
+    this.aggregate(mixed);
   }
   loseNextResponse() {
     this.lost = true;
