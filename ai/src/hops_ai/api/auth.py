@@ -16,9 +16,8 @@ class ServiceAuthMiddleware:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get("path", "")
-        if scope["type"] != "http" or not (
-            path == "/internal/v2/runs" or path.startswith("/internal/v2/runs/")
-        ):
+        # 새 내부 라우터가 추가돼도 인증 없이 열리지 않도록 /internal 전체를 보호한다.
+        if scope["type"] != "http" or not (path == "/internal" or path.startswith("/internal/")):
             await self.app(scope, receive, send)
             return
 
