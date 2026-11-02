@@ -185,7 +185,13 @@ async function postReview({ github, context, core, review, appendix = '' }) {
     a.priority - b.priority || (b.confidence ?? 0) - (a.confidence ?? 0));
   await writeJobSummary(core, parsed, findings, options);
 
-  const open = await openThreadKeys(github, repo, expected.number);
+  // 스레드 조회가 실패해도 지적과 CI 결과는 게시한다. 이 경우 중복 게시를 막지 못할 수 있다.
+  let open = new Set();
+  try {
+    open = await openThreadKeys(github, repo, expected.number);
+  } catch (error) {
+    core.warning(`기존 리뷰 스레드 조회에 실패해 중복 확인 없이 게시합니다: ${error.message}`);
+  }
   const comments = [];
   const fileComments = [];
   const unplaced = [];

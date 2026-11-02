@@ -11,7 +11,7 @@ const FILES = [
 ];
 
 function setup({ current = {}, review = '검토 결과', baseRef = 'develop', files = FILES, threads = [],
-  failReview = false, failFileComment = false, appendix } = {}) {
+  failReview = false, failFileComment = false, failThreads = false, appendix } = {}) {
   const calls = [];
   const expected = { number: 42, head: { sha: 'abc' }, base: { ref: baseRef, sha: 'def' } };
   const context = { repo: { owner: 'example', repo: 'hops' }, payload: { pull_request: expected } };
@@ -36,6 +36,7 @@ function setup({ current = {}, review = '검토 결과', baseRef = 'develop', fi
       return files;
     },
     graphql: async (query, variables) => {
+      if (failThreads) throw new Error('Something went wrong while executing your query');
       assert.doesNotMatch(query, /mutation/);
       assert.deepEqual(variables, { owner: 'example', repo: 'hops', number: 42 });
       return { repository: { pullRequest: { reviewThreads: { nodes: threads } } } };
@@ -160,6 +161,15 @@ test('해결된 스레드의 지적이 다시 발견되면 새 스레드를 만�
     threads: [thread('권한 확인 누락', 'backend/A.java', { isResolved: true })] });
   await run();
   assert.equal(reviewCall().comments.length, 2);
+});
+
+test('스레드 조회가 실패해도 경고 후 지적과 CI 결과를 게시한다', async () => {
+  const { run, calls, reviewCall } = setup({ failThreads: true, review: structured(),
+    appendix: '\n\n**CI 실행 검증**\n- 실패' });
+  await run();
+  assert.ok(calls.some(call => call.type === 'warning' && /스레드 조회에 실패/.test(call.message)));
+  assert.equal(reviewCall().comments.length, 2);
+  assert.match(reviewCall().body, /새 스레드 2개[\s\S]*CI 실행 검증/);
 });
 
 test('새로 알릴 내용이 없으면 리뷰를 만들지 않고 스레드를 resolve하지 않는다', async () => {
