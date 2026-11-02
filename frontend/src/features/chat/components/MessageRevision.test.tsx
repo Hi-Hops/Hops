@@ -7,7 +7,7 @@ import { mockBackend } from '@/shared/api/mockBackend';
 import { mockWorkspace } from '@/shared/api/mockWorkspace';
 import { fixture } from '@/shared/api/mockData';
 import { realtime } from '@/shared/realtime/mockTransport';
-import { realtime as transport } from '@/shared/realtime';
+import * as chatApi from '../api/chatApi';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import type { ChatMessage } from '@/shared/api/types';
 import '../api/chatApi';
@@ -37,13 +37,42 @@ async function edit() {
   return user;
 }
 describe('F004 메시지 정정', () => {
+  it('F004-AC01 429 대기 중 정정 저장을 막고 대기 후 같은 요청으로 확인한다', async () => {
+    const request = vi
+      .spyOn(chatApi, 'reviseMessage')
+      .mockResolvedValueOnce({
+        ok: false,
+        error: {
+          code: 'RATE_LIMITED',
+          message: '잠시 후 재시도해 주세요.',
+          requestId: crypto.randomUUID(),
+          retryable: true,
+        },
+        retryAfterSeconds: 1,
+      })
+      .mockResolvedValue({ ok: 'unknown' });
+    renderWithProviders(<MessageRevision message={message()} version={2} onStored={vi.fn()} />);
+    const user = await edit();
+    await user.click(screen.getByRole('button', { name: '정정 저장' }));
+    expect(await screen.findByText('1초 후 다시 정정할 수 있어요.')).toBeVisible();
+    expect(screen.getByRole('button', { name: '정정 저장' })).toBeDisabled();
+    expect(screen.getByLabelText('메시지 정정')).toHaveValue('사내 포털 오류로 정정해요');
+    await waitFor(
+      () => {
+        expect(screen.getByRole('button', { name: '정정 저장' })).toBeEnabled();
+      },
+      { timeout: 2000 },
+    );
+    expect(request).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('button', { name: '정정 저장' }));
+    expect(request.mock.calls[0]).toEqual(request.mock.calls[1]);
+  });
   it('F004-AC01 저장 ACK 전 정정 중을 표시하고 입력을 검증한다', async () => {
     let releaseAck: (() => void) | undefined;
-    vi.spyOn(transport, 'send').mockImplementationOnce((name, command) => {
-      if (name !== 'message.revise' || !('messageId' in command)) throw new Error('정정 요청 필요');
+    vi.spyOn(chatApi, 'reviseMessage').mockImplementationOnce((command) => {
       return new Promise((resolve) => {
         releaseAck = () => {
-          resolve(mockWorkspace.command(actor(), 'message.revise', command));
+          resolve({ ...mockWorkspace.command(actor(), 'message.revise', command), ok: true });
         };
       });
     });
@@ -69,7 +98,7 @@ describe('F004 메시지 정정', () => {
       expectedInquiryVersion: 2,
       content: '정정 내용',
     });
-    expect(ack.ok).toBe(true);
+    expect(ack.messageId).toBe(msg.id);
     const changed = mockWorkspace.messages(actor(), msg.inquiryId, 0, 20).items[0];
     if (!changed) throw new Error('메시지 없음');
     renderWithProviders(<MessageRevision message={changed} version={3} onStored={vi.fn()} />);
@@ -108,7 +137,6 @@ describe('F004 메시지 정정', () => {
       requestId: crypto.randomUUID(),
       content: 'CS 검토 예시',
     });
-    if (!ack.ok) throw new Error('저장 실패');
     mockWorkspace.flushPending();
     const msg = mockWorkspace.messages(actor(), ack.inquiryId, 0, 20).items[0];
     if (!msg) throw new Error('메시지 없음');
@@ -119,7 +147,7 @@ describe('F004 메시지 정정', () => {
       expectedInquiryVersion: 1,
       content: '보완',
     });
-    expect(reply).toMatchObject({ ok: true, runId: null, effect: 'SUPPLEMENT_SAVED' });
+    expect(reply).toMatchObject({ runId: null, effect: 'SUPPLEMENT_SAVED' });
     expect(mockWorkspace.readInquiry(actor(), ack.inquiryId).tickets).toHaveLength(1);
   });
   it('F004-AC05 충돌해도 편집 내용을 유지하고 최신 조회를 요청한다', async () => {
@@ -134,7 +162,7 @@ describe('F004 메시지 정정', () => {
   it('F004-AC06 ACK 유실 뒤 같은 키로 확인해 이력이 중복되지 않는다', async () => {
     renderWithProviders(<MessageRevision message={message()} version={2} onStored={vi.fn()} />);
     const user = await edit();
-    realtime.loseNextAck();
+    mockBackend.loseNextResponse();
     await user.click(screen.getByRole('button', { name: '정정 저장' }));
     expect(await screen.findByRole('status')).toHaveTextContent('결과 확인 중');
     await user.click(screen.getByRole('button', { name: '정정 저장' }));

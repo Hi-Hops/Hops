@@ -1,37 +1,18 @@
-# Hops Knowledge 설계
+# HOPS 데이터·Knowledge 작업 안내
 
-Knowledge Agent와 Diagnosis·Ticket Agent 개발자가 공통으로 참고할 가상 기업, 장애 시나리오, 지식 데이터 구성과 개선 규칙이다.
+[PRD](../PRD.md)를 기준으로, 임직원의 IT 문의를 대화로 표준화하고 시스템 담당자의 처리 결과를 검증된 지식으로 재사용하기 위한 준비 문서다. 사용법·권한·현상 확인·기능 추가·개선을 함께 다룬다.
 
-## 먼저 읽을 문서
+## 읽는 순서
 
-1. [팀 공유 안내](TEAM_HANDOFF.md)
-2. [가상 기업 환경](VIRTUAL_COMPANY.md)
-3. [데이터셋 인벤토리와 구축 범위](DATASETS.md)
-4. [장애·문의 시나리오와 정답 경계](INCIDENT_SCENARIOS.md)
-5. [지식 수명주기와 개선 규칙](KNOWLEDGE_LIFECYCLE.md)
-6. [Knowledge–Diagnosis 책임과 Evidence Bundle 계약](KNOWLEDGE_DIAGNOSIS_CONTRACT.md)
-7. [팀 검수 체크리스트](REVIEW_CHECKLIST.md)
-8. [현재 작성된 직원 가이드](guides/)
-9. [현재 작성된 담당자 런북](runbooks/)
-10. [현재 작성된 서비스·지식 정책](policies/)
-11. [IT 용어집](references/IT_GLOSSARY.md)
-12. [IT 용어집 담당자 검수 결과](references/IT_GLOSSARY_REVIEW.md)
-13. [진단 신호 레지스트리](references/ERROR_SIGNALS.md)
-14. [진단 신호 담당자 검수 결과](references/ERROR_SIGNAL_REVIEW.md)
+1. [가상 기업·시스템 명세](VIRTUAL_COMPANY.md): 어떤 환경에서 무엇을 문의하고, 정상 동작과 담당 경계를 어떻게 정할지 확인한다.
+2. [데이터 구축 계획](DATASETS.md): 상담 대화·매뉴얼·해결 사례·관계·평가 데이터를 어떤 용도로 만들고 검수할지 확인한다.
 
-현재 기계 판독 후보 데이터는 [`datasets/knowledge/v0`](../../datasets/knowledge/v0)에 있다.
-일반 공개 근거 62건과 PORTAL 핵심 슬라이스, 담당자 확정·팀 리뷰 대기 자료가 있으며
-아직 Git 병합·RAG 적재가 승인된 정본은 아니다. `DATASETS.md`의 목표 범위와 팀
-리뷰 조건을 충족한 뒤 공유 정본으로 채택한다.
+제품 정책은 PRD, 역할과 서비스 경계는 [에이전트 계약](../../contracts/agents/README.md)과 [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 참조한다. 이 문서 묶음에서 별도 계약이나 제품 정책 사본을 만들지 않는다.
 
-## 상태 구분
+## 현재 상태와 다음 작업
 
-- `OWNER_CONFIRMED`: 데이터 담당자가 내용 방향을 확인했다.
-- `content_status=AI_DRAFT`: AI 초안이며 데이터 담당자 내용 검수가 남았다.
-- `content_status=OWNER_CONFIRMED`: 데이터 담당자가 내용을 확인했지만 팀 승인 전이다.
-- `TEAM_REVIEW_PENDING`: 공통 데이터 채택을 위한 팀 리뷰가 남았다.
-- `ingest_status=PENDING`: RAG 인덱스에 넣지 않는다.
-- `tool_binding_status=PENDING`: 실제 읽기 MCP Tool과 연결하지 않았다.
-- `scenario_validation_status=NOT_RUN`: Demo Portal 재현 결과가 아니다.
+현재는 데이터 구축을 다시 시작하는 설계 단계다. 이 문서의 가상 기능·수량·폴더 구조는 검토안이며 팀이 선정한 공통 데이터나 구현 완료를 뜻하지 않는다. 새 상담 대화·검색용 매뉴얼·해결 사례·관계·평가셋은 아직 구축하지 않았다. 기존 외부 원문은 보존했지만 새 검색 대상으로 채택하지 않았다.
 
-문서 작성, 팀 승인, RAG 적재, Tool 연결, Demo 재현은 서로 다른 완료 조건이다. 한 상태를 통과했다고 다른 상태까지 완료된 것으로 간주하지 않는다.
+다음에는 가상 기업의 작은 기능·권한 명세를 검토하고, 매뉴얼과 상담 대화 소량을 함께 만들어 실제로 쓸 수 있는지 확인한다. 그 결과로 데이터 형식과 초기 수량을 확정한 뒤 수집·생성·전처리·적재를 진행한다. 각 작성·실행 작업의 범위는 착수 전에 설명하고 승인받는다.
+
+자료 내용 검수, 팀 공통 데이터 선정, 제품 내 해결 사례 승인, DB 반영, 실제 모델 평가와 서비스 통합 검증은 각각 구분한다. 현재 코드의 구현 상태는 [AI 서버 안내](../../ai/README.md)에서 확인한다.

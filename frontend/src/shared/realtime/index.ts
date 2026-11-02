@@ -1,14 +1,9 @@
 import { connectionMode } from '@/shared/config/connection';
 import { realtime as mock } from './mockTransport';
-import { SocketTransport } from './socketTransport';
+import { SseTransport } from './sseTransport';
 import type { RealtimeTransport } from './types';
-
-const live = new SocketTransport();
-function transport(): RealtimeTransport {
-  return connectionMode() === 'mock' ? mock : live;
-}
-
-// 실행 중에는 모드를 바꾸지 않는다. 테스트는 호출 전에 모드를 고정한다.
+const live = new SseTransport();
+const transport = (): RealtimeTransport => (connectionMode() === 'mock' ? mock : live);
 export const realtime: RealtimeTransport = {
   connect: (token) => {
     transport().connect(token);
@@ -19,5 +14,6 @@ export const realtime: RealtimeTransport = {
   getState: () => transport().getState(),
   onConnection: (listener) => transport().onConnection(listener),
   on: (name, handler) => transport().on(name, handler),
-  send: (name, command) => transport().send(name, command),
+  onSync: (listener) => transport().onSync(listener),
+  subscribe: (target, listener) => transport().subscribe(target, listener),
 };

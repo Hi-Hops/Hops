@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { StoredAck } from '@/shared/api/types';
-import type { StoredCommand, StoredCommandName } from '@/shared/realtime/types';
-import { realtime } from '@/shared/realtime';
+import type { MutationResult } from '@/shared/api/types';
+import type { StoredCommand, StoredCommandName } from '@/shared/api/mutations';
+import { createInquiry, sendMessage } from '../api/chatApi';
 import { contentError, codePointLength } from '@/shared/lib/content';
 import { Button } from '@/shared/ui/Button';
 import { useSession } from '@/features/auth';
 import { useConnection } from '@/features/realtime';
 import { useDrafts } from '../model/draftStore';
+import { useRetryAfter } from '@/shared/lib/useRetryAfter';
 import styles from './MessageComposer.module.css';
 
 type MessageComposerProps = {
   inquiryId?: string;
   version?: number;
-  onStored: (ack: StoredAck) => void;
+  onStored: (ack: MutationResult) => void;
   onRefresh?: () => void;
   isHome?: boolean;
   focusKey?: string;
@@ -51,8 +52,9 @@ export function MessageComposer({
   const [notice, setNotice] = useState('');
   const connection = useConnection((state) => state.state);
   const invalid = contentError(content);
+  const { remaining, wait } = useRetryAfter();
   async function send(retry = false) {
-    if (!historyReady || status === 'sending' || (invalid && !retry)) return;
+    if (!historyReady || remaining > 0 || status === 'sending' || (invalid && !retry)) return;
     const event: StoredCommandName = inquiryId ? 'message.send' : 'inquiry.create';
     const command: StoredCommand = inquiryId
       ? { requestId: crypto.randomUUID(), inquiryId, expectedInquiryVersion: version, content }
@@ -64,9 +66,9 @@ export function MessageComposer({
     setNotice('');
     const reply =
       request.event === 'inquiry.create'
-        ? await realtime.send('inquiry.create', request.command)
+        ? await createInquiry(request.command)
         : 'inquiryId' in request.command
-          ? await realtime.send('message.send', request.command)
+          ? await sendMessage(request.command)
           : { ok: 'unknown' as const };
     if (useSession.getState().user?.id !== actorId) return;
     if (reply.ok === true) {
@@ -84,6 +86,7 @@ export function MessageComposer({
       return;
     }
     if (!reply.ok) {
+      wait(reply.retryAfterSeconds ?? 0);
       setStatus('error');
       setNotice(reply.error.message);
       if (reply.error.code === 'UNAUTHENTICATED') useSession.getState().expire();
@@ -112,7 +115,7 @@ export function MessageComposer({
           {(status === 'unknown' || (status === 'error' && pending)) && (
             <Button
               variant="secondary"
-              disabled={!historyReady}
+              disabled={!historyReady || remaining > 0}
               onClick={() => {
                 void send(true);
               }}
@@ -166,19 +169,24 @@ export function MessageComposer({
           <Button
             type="submit"
             isLoading={status === 'sending'}
-            disabled={!historyReady || Boolean(invalid) || connection !== 'connected'}
+            disabled={!historyReady || remaining > 0 || Boolean(invalid)}
           >
             {status === 'sending' ? '전송 중' : isHome ? '질문하기 ↑' : '보내기 ↑'}
           </Button>
         </div>
       </form>
+      {remaining > 0 && (
+        <p role="status">{remaining}초 후 다시 전송할 수 있어요. 입력은 유지돼요.</p>
+      )}
       {invalid && codePointLength(content) > 4000 && (
         <p className={styles.error} role="alert">
           {invalid}
         </p>
       )}
       {connection !== 'connected' && (
-        <p className={styles.helper}>연결을 복구한 뒤 보낼 수 있어요. 작성 중인 내용은 유지돼요.</p>
+        <p className={styles.helper}>
+          실시간 연결이 끊겨도 전송할 수 있어요. 저장 결과는 서버에서 확인해요.
+        </p>
       )}
     </div>
   );

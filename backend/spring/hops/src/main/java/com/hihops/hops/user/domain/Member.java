@@ -15,10 +15,13 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 
 /**
- * 회원. 로그인 계정과 소속 부서를 관리한다 (docs/ERD_설명.md "회원 member").
+ * 회원. 로그인 계정과 소속 부서를 관리한다 (docs/ERD.md "회원 member").
  *
  * <p>로그인 ID(loginId)와 사번(employeeNo)은 별도 컬럼이다. 사번은 JWT employeeNo 클레임의 원본이다.
  * 비밀번호는 원문을 저장하지 않고 BCrypt 해시(passwordHash)만 보관한다.
+ *
+ * <p>policyRevision은 권한 문맥 버전이다 (docs/ERD.md 6.1절, V21). 시스템 주담당자·역할이 바뀌면 같은 트랜잭션에서 1씩 늘려
+ * 예전 권한으로 만든 토큰·구독을 막는 기준으로 쓴다.
  */
 @Entity
 @Table(name = "member")
@@ -44,6 +47,9 @@ public class Member extends BaseEntity {
     // 역할 부여 목록. member_role.member_id로 연결된다(이 쪽은 읽기 전용, 저장은 MemberRole이 한다).
     @OneToMany(mappedBy = "member")
     private List<MemberRole> memberRoles = new ArrayList<>();
+
+    @Column(name = "policy_revision", nullable = false)
+    private int policyRevision = 1;
 
     protected Member() {
     }
@@ -74,6 +80,10 @@ public class Member extends BaseEntity {
 
     public Department getDepartment() {
         return department;
+    }
+
+    public int getPolicyRevision() {
+        return policyRevision;
     }
 
     /** 현재 유효한 역할. 회수된(deleted_at이 있는) 역할은 빼고, 항상 같은 순서(Role 선언 순)로 돌려준다. */

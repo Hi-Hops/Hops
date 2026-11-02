@@ -13,9 +13,20 @@ export function useTickets() {
   const location = useLocation();
   const base = location.pathname.startsWith('/admin/') ? paths.adminTickets : paths.tickets;
   const canRead = canReadTickets(user);
-  const query = useQuery({
-    queryKey: ticketKeys.list(search.toString(), user?.id ?? ''),
-    queryFn: ({ signal }) => getTickets(search.toString(), signal),
+  const view =
+    search.get('view') === 'list' || (!search.has('view') && base === paths.adminTickets)
+      ? 'list'
+      : 'board';
+  // view는 프론트 표시 상태다. 계약에 정의된 조회 조건만 서버로 보낸다.
+  const query = new URLSearchParams();
+  for (const key of ['page', 'size', 'processingStatus']) {
+    const value = search.get(key);
+    if (value !== null) query.set(key, value);
+  }
+  const queryString = query.toString();
+  const tickets = useQuery({
+    queryKey: ticketKeys.list(queryString, user?.id ?? ''),
+    queryFn: ({ signal }) => getTickets(queryString, signal),
     enabled: canRead,
     refetchInterval: 5000,
   });
@@ -24,13 +35,14 @@ export function useTickets() {
     const next = new URLSearchParams(search);
     if (value) next.set(key, value);
     else next.delete(key);
-    if (key !== 'page') next.delete('page');
+    if (key !== 'page' && key !== 'view') next.delete('page');
     setSearch(next);
   }
   return {
     user,
     base,
-    query,
+    query: tickets,
+    view,
     canRead,
     ticketId,
     search,

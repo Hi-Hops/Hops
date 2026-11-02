@@ -1,0 +1,74 @@
+name: hops-dev
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg18-bookworm
+    environment:
+      POSTGRES_DB: '${POSTGRES_DB:-hops}'
+      POSTGRES_USER: '${POSTGRES_USER:-hops}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?루트 .env에 POSTGRES_PASSWORD를 설정하세요}'
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ai:
+    build:
+      context: ./ai
+    environment:
+      HOPS_AI_MODE: '${HOPS_AI_MODE:-scaffold}'
+      HOPS_AI_RUN_DEADLINE_SECONDS: '${HOPS_AI_RUN_DEADLINE_SECONDS:-60}'
+      HOPS_AI_LLM_CALL_TIMEOUT_SECONDS: '${HOPS_AI_LLM_CALL_TIMEOUT_SECONDS:-30}'
+      HOPS_AI_MAX_LLM_CALLS: '${HOPS_AI_MAX_LLM_CALLS:-8}'
+      HOPS_AI_MAX_AUTO_RETRIES: '${HOPS_AI_MAX_AUTO_RETRIES:-2}'
+      HOPS_AI_MAX_OUTPUT_TOKENS: '${HOPS_AI_MAX_OUTPUT_TOKENS:-1500}'
+      OPENAI_API_KEY: '${OPENAI_API_KEY:-}'
+      LANGFUSE_PUBLIC_KEY: '${LANGFUSE_PUBLIC_KEY:-}'
+      LANGFUSE_SECRET_KEY: '${LANGFUSE_SECRET_KEY:-}'
+      LANGFUSE_BASE_URL: '${LANGFUSE_BASE_URL:-}'
+    ports:
+      - '127.0.0.1:${AI_PORT:-8000}:8000'
+
+  backend:
+    build:
+      context: ./backend/spring/hops
+    environment:
+      SPRING_PROFILES_ACTIVE: db
+      SPRING_DATASOURCE_URL: 'jdbc:postgresql://postgres:5432/${POSTGRES_DB:-hops}'
+      SPRING_DATASOURCE_USERNAME: '${POSTGRES_USER:-hops}'
+      SPRING_DATASOURCE_PASSWORD: '${POSTGRES_PASSWORD:?루트 .env에 POSTGRES_PASSWORD를 설정하세요}'
+      HOPS_JWT_SECRET: '${HOPS_JWT_SECRET:?루트 .env에 32바이트 이상의 HOPS_JWT_SECRET을 설정하세요}'
+      HOPS_AGENT_BASEURL: '${HOPS_AGENT_BASEURL:-http://ai:8000}'
+      HOPS_CORS_ALLOWEDORIGINS: '${HOPS_CORS_ALLOWEDORIGINS:-http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}}'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${BACKEND_PORT:-8080}:8080'
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    environment:
+      VITE_DATA_MODE: '${VITE_DATA_MODE:-live}'
+      VITE_API_BASE_URL: '${VITE_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}}'
+      VITE_MOCK_REQUESTER_ID: '${VITE_MOCK_REQUESTER_ID:-}'
+      VITE_MOCK_PREVIEW_ID: '${VITE_MOCK_PREVIEW_ID:-}'
+      VITE_MOCK_NETWORK_ID: '${VITE_MOCK_NETWORK_ID:-}'
+      VITE_MOCK_BACKEND_ID: '${VITE_MOCK_BACKEND_ID:-}'
+      VITE_MOCK_ADMIN_ID: '${VITE_MOCK_ADMIN_ID:-}'
+      VITE_MOCK_PASSWORD: '${VITE_MOCK_PASSWORD:-}'
+    init: true
+    depends_on:
+      - backend
+    ports:
+      - '127.0.0.1:${FRONTEND_PORT:-5173}:5173'
+
+volumes:
+  postgres-data:

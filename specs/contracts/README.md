@@ -1,40 +1,36 @@
-# 공통 데이터 계약
+# 공통 데이터·전송 계약
 
-상태: `hops-mock-1` 기반 · 2026-10-27 REST·SSE 개발 기준 확정 / 팀 리뷰·서비스 구현 검증 별도.
+기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 목표 계약이며 실제 구현·통합 완료와 구분한다. 현재 프론트의 hops-mock-1과 새 Python 골격·신규 목표 계약을 구분한다. 옛 Python agent-1 실행 API는 제거됐으며 프로필을 혼용하지 않는다.
 
-인증·상태·오류·재시도·AI 초기 예산·MVP 범위의 확정 개발 기준은 [WIRE_CONTRACT 10절](WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필)에 모은다. [11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)은 담당별 구현 작업과 미검증 항목이다. 정책 선택과 실제 서비스 구현·팀 리뷰/병합을 구분한다. 공통 폴더에서 언어별 코드나 DTO를 생성·배포하지 않는다.
+## 정본과 읽는 순서
 
-프론트는 Mock과 live 모드에서 같은 JSON 계약을 사용한다. 서버 담당자는 [REST·이벤트 연결표와 live 프로필](WIRE_CONTRACT.md#9-프론트-live-연동-프로필), 실행 담당자는 [프론트 환경 설정](../../frontend/README.md)을 확인한다. live 통신 어댑터 제공과 팀원 서버의 구현·통합 검증 완료는 구분한다.
+| 문서 | 이곳에서 관리할 내용 |
+|---|---|
+| [TARGET_CONTRACT](TARGET_CONTRACT.md) | 업무 관계·권한·상태 전이·중복 방지·공개 불변식 |
+| [DATA_TYPES 신규 절](DATA_TYPES.md#신규-계약-hops-system-1) | 데이터 타입·enum·필드·필수성·nullable·명령 본문 |
+| [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1) | /api/v2 REST·오류·SSE·멱등성·복구 |
+| [에이전트 계약 신규 절](../../contracts/agents/README.md#hops-system-1-실행-계약안) | Spring↔AI wire·내부 역할·검색·실행 한도 |
+| [AI State 계약](../../contracts/agents/README.md#내부-state와-wire-검증-계약) | 내부 State·실행/색인/검색 권한 DTO의 필드·검증 규칙 |
+| [F001~F011](../README.md) | 화면·조작·AC·계약 검증 시나리오 |
+| [DATA](../../docs/DATA.md)·[ERD](../../docs/ERD_설명.md) | 기존22개 테이블의 업무 저장 관계·유일성·잠금·commit 뒤 후속 호출 |
+| [QUESTIONS](../QUESTIONS.md) | 공통 계약·저장 기준과 모델·비용 선정 제외 범위·구현 상태 |
 
-- [데이터 타입과 필드](DATA_TYPES.md): 공통 기본 타입·값 목록·객체 필드·필수/nullable·제약.
-- [요청·응답과 전송 규칙](WIRE_CONTRACT.md): REST·SSE·AI 입출력 연결, 권한, 오류, 멱등 재전송·버전·순서.
-- [Mock 데이터](../mocks/README.md): 화면과 테스트에서 사용하는 JSON 예시. 실행용 로그인 값은 frontend/.env에만 작성한다.
+공통 상태·오류·필드 표를 각 spec에 다시 정의하지 않는다. spec은 해당 정본을 참조하고 사용자에게 관찰되는 동작·완료 조건을 적는다. 제품 범위의 정본은 PRD다.
 
-## 확정 기준과 남은 담당 작업
+채팅을 연결할 때는 [WIRE12.8절의 송수신 순서](WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)와 [AI 답변·저장 메시지 연결](../../contracts/agents/README.md#상담-답변과-저장-메시지-연결)을 함께 따른다. 상담 run당 한 최종 메시지, 서버 발급 ID, 질문/가이드와 본문의 관계는 이 계약의 채택값이다.
 
-정확한 필드·enum은 DATA_TYPES, 요청/응답·전이·오류 행동은 WIRE_CONTRACT가 원본이다. 로그인·Refresh·SSE 대상 연결·REST 저장 결과·문의 버전·1:N 작업/티켓·멱등 정책은 개발 기준으로 확정했다. 추가 OpenAPI/JSON Schema는 MVP 연결의 필수 선행 조건이 아니다.
+## 프로필과 실제 구현
 
-백엔드는 REST/DB/인증과 브라우저 SSE, AI+백엔드는 실행 경계·내부 SSE·예산/결과 검증을 구현한다. 프론트의 fetch SSE 어댑터·제어 이벤트·일부 상태/429 UI도 남아 있다. 실제 키·주소·프록시/부하 설정·모델/SDK·금액 상한·DDL은 담당 설계 대상으로 남기며 11절에서 통합 검증과 구분한다.
+| 프로필 | 용도 | 구현 상태 |
+|---|---|---|
+| hops-system-1 | PRD 1.44 전체 MVP의 /api/v2·신규 AI wire 계약안 | 이 문서 변경은 코드·DB·새 경로를 구현하지 않음 |
+| hops-mock-1 | DATA_TYPES 전환 전 절·WIRE 1~11절·기존 mock-profile.json과 공용 Mock | 현재 프론트/테스트가 읽는 이전 부서 기반 데이터 |
+| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 업무 실행·모델·검색·새 wire 어댑터는 미구현. 옛 agent-1 실행 API는 제거됨 |
 
-질문의 ID와 #22/#38 연결, 후속 상세 설계는 [QUESTIONS](../QUESTIONS.md)를 따른다. 선택한 기준을 같은 질문으로 다시 묻지 않는다.
+새 프로필은 시스템·주담당자, 5회 질문·대기, 무티켓 안내·문제별 해결 확인, 처리 기록, 사례 승인·동일 버전 두 저장소 반영을 모두 포함한다. 선점·수락·자동 재배정·무응답 종료·전용 복구 화면은 신규 필수 기능으로 추가하지 않는다.
 
-## 스펙별 사용 타입
+## 예시와 전환
 
-- F001: LoginRequest, LoginResponse, CurrentUser, Department, Role, ApiErrorBody.
-- F002: SubscriptionTarget(후속 이름 변경 대상), AgentProgressEvent, AnswerDeltaEvent, MessageStoredEvent, StateChangedEvent, AuthInvalidatedEvent, ResyncRequiredEvent(추가 필요).
-- F003: InquiryCreateCommand, MessageSendCommand, MutationResult(추가 필요), ChatMessage, MessageHistoryQuery, MessageHistoryPage, InquiryResult, RunSummary, RunRetryRequest. 기존 MessagePage는 전방 조회 호환 예제다.
-- F004: MessageReviseCommand, MutationResult(추가 필요), ChatMessage, MessageRevision, InquiryResult.
-- F005: InquiryResult, Problem, TicketCard, CreationFailure, RunSummary.
-- F006 재진입용 최소 목록: InquiryListQuery, InquiryPage, InquirySummary. 독립 목록·상세 모달은 후속이다.
-- F009: TicketListQuery, TicketPage, TicketCard, TicketDetail, AssignmentHistory, Department.
-- 서비스 AI 연결: AiRequest, AiAccepted, AiProgress, AiDelta, AiResult와 각 하위 타입. 기존 내부 agent-1 계약을 교체하지 않는다.
+[호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)는 명령·상태 경계를 검토하는 Markdown 코드다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에서 확인한다. 예시는 실행 Mock·실제 서버 응답·승인 증거가 아니며, 기존 mock-profile.json·accounts.json·fixtures.json·scenarios.json은 소비 코드와 함께 전환하기 전까지 그대로 둔다.
 
-F007의 읽기 전용 티켓 조회는 MVP다. 별도 관리자 요약·F008 분리 동의·F010 운영 기술 복구 UI는 후속이며 상세 입출력은 해당 기능 착수 전에 설계한다.
-
-각 타입의 정확한 필드와 상태값은 데이터 타입 문서의 같은 제목에서 확인한다. 각 스펙에서도 사용하는 타입을 연결한다. 조회된 티켓은 서버 저장 결과이고 AI 제안은 업무 저장 성공이 아니다.
-
-## 관리 원칙
-
-필드명은 서비스 간 JSON에서 camelCase로 맞춘다. 필수 여부·null·상태·버전·오류 의미를 각 담당 언어에서 유지하되 내부 클래스·DB 자료형까지 통일하지 않는다. 계약 변경은 문서·영향받는 스펙·Mock 예시와 각 서비스 테스트를 함께 리뷰한다. 언어별 자동 생성/동기화 도구는 사용하지 않는다.
-
-관련 Q-BE·Q-INF·Q-AI·Q-ALL 미정 사항은 [QUESTIONS](../QUESTIONS.md)에 남긴다. 이 문서는 운영 정책 승인이나 실제 서비스 연동 완료를 뜻하지 않는다. 제품 정책은 [PRD](../../docs/PRD.md), 역할 경계는 [API](../../docs/API.md)·[DATA](../../docs/DATA.md)를 따른다.
+전환은 신규 API/DB/AI 구현 → 신규 어댑터·DTO → 프로필별 fixture/계약 검사 → 서비스 저장·권한 검사 → 실제 모델/검색 → 브라우저 E2E 순으로 검증한다. 전체 설계는 이번 계약에 포함하고 구현만 순서대로 진행한다. 통신 실패 시 다른 프로필이나 Fake로 자동 대체하지 않는다.

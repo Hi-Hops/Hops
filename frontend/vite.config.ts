@@ -16,14 +16,10 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': { target: env.DEV_API_PROXY_TARGET ?? 'http://localhost:8080', changeOrigin: true },
-        '/socket.io': {
-          target: env.DEV_SOCKET_PROXY_TARGET ?? 'http://localhost:3001',
-          ws: true,
-          changeOrigin: true,
-        },
       },
     },
     test: {
+      maxWorkers: 2,
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],

@@ -6,7 +6,7 @@ import { useConnection } from '@/features/realtime';
 import { mockBackend } from '@/shared/api/mockBackend';
 import { fixture } from '@/shared/api/mockData';
 import type { MessageHistoryPage } from '@/shared/api/types';
-import { realtime } from '@/shared/realtime';
+
 import { TEST_LOGINS } from '@/test/mockCredentials';
 import { renderWithProviders } from '@/test/renderWithProviders';
 import * as chatApi from '../api/chatApi';
@@ -34,7 +34,7 @@ beforeEach(async () => {
   await login(TEST_LOGINS.requester);
   useConnection.getState().setState('connected');
   useDrafts.getState().set(seed.id, { content: '보존할 미전송 내용', pending: null });
-  vi.spyOn(realtime, 'send').mockResolvedValue({ ok: 'unknown' });
+  vi.spyOn(chatApi, 'reviseMessage').mockResolvedValue({ ok: 'unknown' });
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -164,9 +164,7 @@ describe('F003 최신 30개와 이전 대화 조회', () => {
     const form = input.closest('form');
     if (!form) throw new Error('정정 폼 없음');
     fireEvent.submit(form);
-    expect(vi.mocked(realtime.send).mock.calls.some(([name]) => name === 'message.revise')).toBe(
-      false,
-    );
+    expect(chatApi.reviseMessage).not.toHaveBeenCalled();
     act(() => {
       finish?.(page(1, 2, null));
     });

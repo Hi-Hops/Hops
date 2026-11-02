@@ -12,7 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
 
 /**
- * ERD(docs/ERD_설명.md)의 테이블 대부분이 공통으로 가진 컬럼을 한 곳에 정의한 부모 클래스.
+ * ERD(docs/ERD.md)의 테이블 대부분이 공통으로 가진 컬럼을 한 곳에 정의한 부모 클래스.
  *
  * <table>
  *   <tr><th>컬럼</th><th>필드</th><th>채워지는 방법</th></tr>
@@ -32,7 +32,7 @@ import jakarta.persistence.MappedSuperclass;
  * <p>삭제: ERD 규칙("실제로 지우지 않고 기록을 남기려고")에 따라 행을 지우지 않고 deleted_at만 기록한다.
  * 조회할 때 삭제된 행을 빼는 조건은 각 Repository에서 정한다.
  *
- * <p>주의: 이력 테이블처럼 updated_at·deleted_at이 없는 테이블(예: ticket_event)은 상속하지 않고 필요한 컬럼만 직접 둔다.
+ * <p>주의: 이력 테이블처럼 updated_at·deleted_at이 없는 테이블(예: ticket_event)은 이 클래스 대신 {@link CreatedOnlyEntity}를 상속한다.
  */
 @MappedSuperclass
 public abstract class BaseEntity {

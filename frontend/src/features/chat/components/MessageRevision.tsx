@@ -57,11 +57,14 @@ export function MessageRevision({
             <Button
               type="submit"
               isLoading={editor.busy}
-              disabled={disabled || Boolean(editor.invalid)}
+              disabled={disabled || editor.remaining > 0 || Boolean(editor.invalid)}
             >
               {editor.busy ? '정정 중' : '정정 저장'}
             </Button>
           </div>
+          {editor.remaining > 0 && (
+            <p role="status">{editor.remaining}초 후 다시 정정할 수 있어요.</p>
+          )}
           {editor.invalid && <p role="alert">{editor.invalid}</p>}
         </form>
       ) : (

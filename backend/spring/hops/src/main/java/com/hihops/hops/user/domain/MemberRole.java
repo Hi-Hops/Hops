@@ -12,7 +12,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 /**
- * 역할 부여 한 건 (docs/ERD_설명.md "역할 부여 member_role"). 한 회원에게 여러 역할을 줄 수 있다.
+ * 역할 부여 한 건 (docs/ERD.md "역할 부여 member_role"). 한 회원에게 여러 역할을 줄 수 있다.
  *
  * <p>역할을 회수할 때는 행을 지우지 않고 deleted_at만 기록한다. 회수된 역할은 토큰에 넣지 않는다.
  */

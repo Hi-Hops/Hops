@@ -66,7 +66,7 @@ describe('F001 환경 변수 Mock 로그인', () => {
         { requestId: crypto.randomUUID(), content: 'VPN 연결이 안 돼요' },
         session.accessToken,
       ),
-    ).toMatchObject({ ok: true });
+    ).toMatchObject({ effect: 'ANALYSIS_STARTED', inquiryVersion: 1 });
   });
   it('F001-AC02 체험 모드는 설정한 한 계정만 허용한다', () => {
     vi.stubEnv('VITE_MOCK_PREVIEW_ID', crypto.randomUUID());
@@ -88,7 +88,7 @@ describe('F001 환경 변수 Mock 로그인', () => {
       { requestId: crypto.randomUUID(), content: '다른 사용자 문의' },
       other.accessToken,
     );
-    if (!result.ok) throw new Error('테스트 문의 생성 실패');
+    if (!result.inquiryId) throw new Error('테스트 문의 생성 실패');
     const loginId = crypto.randomUUID();
     vi.stubEnv('VITE_MOCK_PREVIEW_ID', loginId);
     const preview = mockBackend.request(

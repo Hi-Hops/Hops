@@ -1,6 +1,20 @@
 # wire JSON·REST·SSE·AI 계약
 
+> **PRD 1.44 전환 안내:** 아래 타입·REST/SSE와 enum은 기존 부서 기반 구현·Mock의 호환 프로필이다. 시스템별 주담당자, 문제별 확인, Curator·사례 공개와 두 저장소 반영의 새 필드·상태·경로는 12절 hops-system-1 목표 계약에 정의하며 실제 구현은 별도다. 새 제품 정책은 [PRD](../../docs/PRD.md)와 [API 설계](../../docs/API.md)를 따르며, 이전 단일 MVP·CS 배정·무응답 종료는 새 목표가 아니다. 실제 코드와 계약은 전환 전까지 서로 구분해 유지한다.
+
 상태: 2026-10-27 개발 기준 확정 / 작성자 외 팀원 리뷰·실제 서비스 구현 및 통합 검증 별도. 현재 Mock·임시 Live Adapter와 확정 계약의 차이는 11절에 명시한다. 전체 필드와 타입은 [DATA_TYPES.md](DATA_TYPES.md), 작업별 입출력은 이 문서의 연결표를 따른다. 언어별 코드 생성은 제공하지 않는다.
+
+## PRD 1.44 목표 전송 원칙
+
+React→Spring 업무 변경·조회는 REST, 허용된 진행과 상태 알림은 SSE를 사용한다. Spring이 사용자·시스템·담당 관계를 검사하고 DB 저장·배정·확인·승인을 확정한다. AI는 제안하며 이벤트 수신이나 모델 출력은 업무 성공이 아니다.
+
+- 문제당 질문 최대 5회, 시스템 미확인 대기와 선택, 문제별 저장 성공·실패·미확인을 전달해야 한다.
+- 티켓 재시도 전에 동일 문제의 저장 결과와 문의 버전을 확인한다. 미확인이면 새로 생성하지 않는다.
+- 처리·기능 구현 완료, 문의자 확인, 사례 초안·승인과 두 저장소별 반영/공개 상태를 구분한다.
+- 사용자·담당 시스템별 조회/변경과 SSE 접근은 현재 권한으로 검사하고 재접속 후 저장 상태를 재조회한다.
+- API 경로·필드·상태·구독·복구의 구체 제안은 12절에서 검토한다. 1~11절의 기존 개발 프로필을 자동 전환하지 않는다.
+
+## 전환 전 wire 프로필
 
 ## 1. 공통 표현
 
@@ -43,7 +57,9 @@ SSE 연결을 열기 전의 인증·권한·입력 오류도 HTTP 상태와 `Api
 | `GET /api/tickets` | page, size, processingStatus | 200 TicketPage |
 | `GET /api/tickets/{id}` | 티켓 UUID | 200 TicketDetail |
 
-`MutationResult`는 기존 `CommandAck`의 저장 결과 의미를 REST에 맞게 이름을 바꾼 타입이다. `requestId`, 저장된 식별자, 현재 inquiryVersion, effect, nullable runId를 포함한다. 정확한 필드명과 기존 타입 제거는 DATA_TYPES 후속 수정에서 함께 확정한다.
+`MutationResult`는 DATA_TYPES의 프론트 REST 연동 프로필을 사용한다. requestId·inquiryId·inquiryVersion·messageId·revision·nullable runId·effect를 반환하며 wire의 ok 외피는 없다. 기존 API 설계에 기반한 프론트 연동 프로필이며 백엔드의 동일 DTO·저장 API 구현은 Q-INF-6으로 추적한다.
+
+프론트는 성공 응답의 필수 필드·UUID·정수 범위·effect/runId 조합과 요청 식별자의 일치를 검사한다. HTTP 성공이어도 형식·식별자가 맞지 않으면 결과 미확인으로 취급하고 서버 저장 상태를 임의로 확정하지 않는다. 정확한 필드 의미와 가상 응답 예시는 DATA_TYPES의 MutationResult 절이 원본이다.
 
 page 기본 0, size 기본 20·최대 100이다. 음수·범위 초과·소수·알 수 없는 필터는 400이다. query의 null 필터는 URL에서 생략하며 문자열 `"null"`을 보내지 않는다.
 
@@ -105,7 +121,7 @@ Last-Event-ID: {lastEventId}
 
 eventId 중복은 한 번만 반영한다. `answer.delta`는 `(runId,messageId,seq)`로도 중복을 제거하고 순서가 뒤바뀐 조각을 버퍼링한다. 누락·충돌이 남으면 임시 답변을 확정하지 않고 REST 저장 메시지로 복구한다.
 
-재연결 시 마지막으로 처리한 `id`를 `Last-Event-ID`로 보낸다. 서버가 보존 구간 안의 이벤트를 재생할 수 있으면 이후 이벤트를 순서대로 보낸다. 재생할 수 없으면 `resync.required`를 보내며 클라이언트는 현재 권한으로 문의·메시지·티켓·실행을 REST 재조회하고 새 기준점으로 연결한다. SSE 재연결만으로 누락 복구를 완료했다고 보지 않는다.
+재연결 시 마지막으로 처리한 `id`를 `Last-Event-ID`로 보낸다. 서버가 보존 구간 안의 이벤트를 재생할 수 있으면 이후 이벤트를 순서대로 보낸다. 재생할 수 없으면 `ResyncRequiredEvent` 형식의 `resync.required`를 보낸 뒤 스트림을 종료한다. SSE id와 JSON eventId는 동일하다. 클라이언트는 현재 권한으로 해당 대상의 문의·메시지·티켓·실행을 REST 재조회하고 기존 커서와 제어 이벤트 ID를 비운 뒤 `Last-Event-ID` 없이 새 연결을 연다. SSE 재연결만으로 누락 복구를 완료했다고 보지 않는다.
 
 Access Token이 만료되면 현재 refresh 정책으로 갱신한 뒤 새 Bearer 토큰으로 연결을 다시 연다. `AUTH_CONTEXT_CHANGED`·Refresh 폐기는 재로그인한다. 로그아웃·계정 전환·권한 회수 때 기존 SSE를 닫으며, 서버 측 권한 검사가 이벤트 전달을 차단해야 한다.
 
@@ -156,7 +172,18 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 - 재연결은 1→2→4→최대 5초 backoff와 jitter를 사용하고 전체 자동 시도는 30초를 기본으로 한다. 이후 수동 다시 연결 또는 online 이벤트로 재개한다. 연결 뒤 권한 재검증과 REST 복구가 필요하며 저장 요청을 자동 반복하지 않는다.
 - 브라우저 origin을 Spring CORS에 정확히 허용한다. 업무 REST·SSE는 Authorization을 허용하고 로그인·refresh·로그아웃 쿠키는 11절의 CORS·Origin·CSRF 정책을 함께 적용한다. HTTPS 화면에서 혼합 콘텐츠를 사용하지 않는다.
 
-현재 프론트의 Socket.IO Live Adapter는 이전 계약의 구현이며 이 계약을 만족하지 않는다. fetch 기반 SSE 어댑터와 REST 변경 명령으로 교체하기 전에는 실제 연동 완료로 표시하지 않는다. AI 내부 `/internal/mock/...` 경로는 프론트가 호출하지 않는다.
+프론트는 REST 변경 명령과 fetch SSE 어댑터를 제공한다. AI 내부 `/internal/mock/...` 경로는 호출하지 않는다. 대역 서버 테스트와 실제 Spring·DB·AI 전체 연결 완료를 구분한다.
+
+### PR #59 병합 후 Spring 연동
+
+PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 INQUIRY·TICKET은 도메인 권한 연결 전 503이다. 프론트는 503을 인증 실패로 처리하지 않고 제한된 재접속 후 수동 재시도를 제공한다.
+
+- Last-Event-ID 이후 이벤트를 재생할 수 없으면 ResyncRequiredEvent(eventId만 필수)를 보내고 종료한다. SSE id와 JSON eventId는 동일하다.
+- 프론트는 현재 연결 대상의 REST 상태를 복구한 뒤 기존 커서와 제어 이벤트 ID를 비우고 Last-Event-ID 없이 재연결한다. 제어 알림 유실·일반 종료에도 REST 복구를 유지하며 comment 문구에는 의존하지 않는다.
+- 새 연결은 스트림을 읽기 시작한 뒤 REST 조회를 다시 수행한다. 진행 중 변경은 대상별 조회를 갱신한다. 서버 스냅샷/재개 커서 API는 가정하지 않는다.
+- 초기 연결·업무 이벤트에 따른 REST 조회 실패는 조회 영역에서 안내하고 정상 SSE를 종료하거나 연결 끊김으로 표시하지 않는다. `resync.required` 이후의 필수 REST 복구가 실패하면 재연결을 중단하고 재시도를 안내한다. SSE 연결 유지와 데이터 복구 완료는 별개다.
+- state.changed.target은 공통 형식인 type·id를 사용한다.
+- 커서는 대상 연결 메모리에 보관한다. 마지막 소비자가 나가거나 로그아웃·계정 전환하면 정리한다. 새로고침 후에는 새 연결과 REST 조회로 복구한다.
 
 ## 10. 인증·재접속·최신 대화·분석 재시도 추가 프로필
 
@@ -197,7 +224,7 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 
 ### AI 실행과 화면 표현
 
-- 단일 에이전트 MVP 초기 상한은 전체 분석 60초, LLM 호출 시도 최대 3회, 일시 장애 자동 재시도 최대 1회, 호출당 출력 최대 1,500토큰이다. 재시도도 전체 횟수·시간 안에 포함한다.
+- AI 실행의 초기 상한은 단일·멀티 공통으로 전체 분석 60초, LLM 호출 시도 최대 8회(재시도 포함), 호출당 일시 장애 자동 재시도 최대 2회, 호출당 출력 최대 1,500토큰이다. 재시도도 전체 횟수·시간 안에 포함한다.
 - 모델·SDK 내부 자동 재시도를 포함한 전체 시도와 사용량·비용·시간을 기록한다. 지연·출력 잘림·스키마 실패·부분 결과·외부 호출 취소를 검증한다.
 - Spring은 문의 버전·활성 실행·허용 식별자와 저장 결과를 최종 확인하고 지연 도착한 이전 실행을 반영하지 않는다.
 - 화면에는 저장 답변 문자열·Problem 상태·TicketCard를 표시한다. 구조화 가이드·문서 링크 블록은 후속이며, 무티켓 안내를 사용자 확인 없이 해결로 확정하지 않는다.
@@ -212,38 +239,204 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 
 정책을 확정한 것과 실제 구현·테스트 통과를 구분한다. 이 문서 수정은 런타임 코드·DB·인프라를 변경하지 않는다.
 
-### 백엔드 구현 대상
+### 백엔드 구현과 남은 작업
+
+- 구현: PostgreSQL 계정·부서 마이그레이션과 개발 seed, JWT 로그인 `POST /api/auth/login`, Bearer 내 정보 `GET /api/auth/me`, 부서 SSE `GET /api/realtime/events`와 대상 권한 검사.
+- 부서 SSE는 comment heartbeat, timeout·완료·오류 정리, 토큰 만료 종료와 전송 전 DB 권한 재검사, 커밋 후 `state.changed` 전달 기반을 제공한다. `Last-Event-ID` 요청은 `resync.required`를 보낸 뒤 종료한다. 이벤트 보존/replay는 제공하지 않는다.
+- 문의·개별 티켓 SSE는 권한 저장소 연결 전 503이다. 문의·티켓 조회/변경, 분석 재시도, Refresh·서버 로그아웃 API와 업무/AI 이벤트 생산자 연결은 미완료다. `auth.invalidated`의 서버 발행과 권한 변경 즉시 통지도 남아 있다.
+
+남은 구현·운영 검증:
 
 - Access 15분·Refresh 최대 7일, 회전·재사용 검출·로그아웃·권한 변경 시 기존 인증 무효화, HttpOnly 쿠키·CSRF·CORS와 안전한 검증값 저장.
 - 문의 생성·메시지 전송·정정 REST, `Idempotency-Key`, 현재 소유자·부서·역할·실행 권한 검사, 메시지·목록·재시도 계약.
 - inquiry.version, 작업과 티켓 FK·유일성, 최소 24시간 멱등 결과, 부분 실패·원자 저장·정정 이력·오래된 실행 차단과 마이그레이션.
-- 대상별 SSE 연결, heartbeat, eventId·replay·`resync.required`, timeout·완료·오류 정리, 권한 회수 중 열린 연결 차단, DB commit 뒤 이벤트 생성.
+- 문의·개별 티켓 SSE의 소유권 연결, 실제 업무 저장 트랜잭션의 이벤트 발행, replay, 권한 변경 즉시 통지와 회수 경합 처리.
 - 정확한 이벤트 보존소와 기간, 다중 Spring 인스턴스 전달·순서·중복, 프록시 buffering/timeout과 최대 연결 수는 구현·부하 검증으로 확정한다.
 
-### 프론트 구현 대상
+### 프론트 구현과 검증 범위
 
-- 기존 Socket.IO 의존성·환경 설정·adapter와 명령/구독 타입을 제거한다. 문의 생성·메시지 전송·정정은 REST API 함수로 옮기고 결과 미확인·초안 보존·동일 멱등 키 재확인을 유지한다.
-- Bearer 헤더와 `Last-Event-ID`를 지원하는 fetch 기반 SSE parser, 대상별 연결 참조 수, AbortSignal 종료, heartbeat 무시, 재연결·`resync.required`·REST 복구를 구현한다.
-- eventId와 `(runId,messageId,seq)` 중복 제거, 임시 답변과 저장 메시지 병합, `auth.invalidated` 처리, 429 대기시간과 QUEUED/SUPERSEDED 상태를 화면에 일관되게 반영한다.
-- 현재 Mock Access 30분·메모리 Refresh 7일은 실제 15분·회전 쿠키·CSRF·폐기를 검증하지 않는다. 기존 Socket.IO 어댑터 테스트 통과도 새 SSE 계약의 통과가 아니다.
+- Socket.IO 의존성·환경 설정·adapter와 명령/구독 타입을 제거하고 문의 생성·메시지 전송·정정을 REST로 전환했다. 결과 미확인·초안 보존·동일 멱등 키 재확인을 유지하며 실제 Spring DTO·업무 연결은 별도 검증한다.
+- Bearer 헤더와 `Last-Event-ID`를 지원하는 fetch 기반 SSE parser, 대상별 연결 참조 수, AbortSignal 종료, heartbeat 무시, 재연결·`resync.required`·REST 복구를 구현했다. 초기 REST 조회 실패가 정상 SSE를 끊지 않도록 처리했다.
+- eventId와 `(runId,messageId,seq)` 중복 제거, 임시 답변과 저장 메시지 병합, `auth.invalidated` 처리, 429 대기 안내와 QUEUED/SUPERSEDED 표시를 구현했다. Mock·화면·HTTP/SSE 대역 서버 테스트로 검증하며 서버 생산자 구현 완료와 구분한다.
+- 실제 Spring·PostgreSQL 연결 검사에서 로그인 성공/실패, Bearer 내 정보와 프론트 세션 반영, 현재 부서 SSE 연결/해제, 미구현 티켓 REST의 404에도 SSE 유지, `resync.required`의 id/eventId와 EOF, 타 부서 403·미구현 문의 SSE 503을 확인했다. 브라우저에서는 로그인·사용자/부서 표시와 티켓 조회 실패 중 SSE 유지를 확인했다. 실행 방법은 frontend/README와 `springBackend.integration.test.ts`를 따른다.
+- 부서·관리자 티켓의 읽기 전용 목록·필터·페이지·상세·요약·AI 진단·배정 이력과 오류/권한 화면은 Mock·대역 테스트 범위다. 실제 티켓 데이터 조회와 변경 이벤트 후 원본 갱신은 백엔드 조회 API·생산자 연결 후 통합 검증해야 한다.
+- 현재 Mock Access 15분·메모리 Refresh 7일은 실제 15분·회전 쿠키·CSRF·폐기를 검증하지 않는다. 실제 서버의 재동기화 알림 수신 검증은 미구현 업무 REST를 포함한 복구 완료 검증을 뜻하지 않는다.
 
 ### AI 구현 대상
 
-- 단일 에이전트 60초·최대 3시도·일시 장애 자동 재시도 최대 1회·호출당 1,500토큰 상한과 사용량·비용 기록. SDK 자체 재시도와 도구 대기를 전체 예산에 포함한다.
+- 단일·멀티 공통 60초·최대 8시도(재시도 포함)·호출당 일시 장애 자동 재시도 최대 2회·호출당 1,500토큰 상한과 사용량·비용 기록. SDK 자체 재시도와 도구 대기를 전체 예산에 포함한다.
 - inquiryVersion/runId와 기존 문제·작업·성공 티켓을 유지하고 공개 진행·답변 조각·최종 결과를 분리하며 실패·출력 잘림·스키마를 검증한다.
 - 유효 저장 단계 재사용과 무결과 입력 재분석을 구분한다. 실제 모델·SDK·금액 상한, Spring↔Python 운영 경로·서비스 인증·재시작 복원은 담당자가 선정·검증한다.
 
 ### 공통 계약 후속
 
-- DATA_TYPES의 `CommandAck`를 `MutationResult`로 정리하고 Socket 전용 `SubscriptionCommand`·`SubscriptionAck`·`RelayStatusEvent`를 제거하며 `ResyncRequiredEvent`를 추가한다.
-- Mock fixture와 기능 스펙의 명령명·ACK·구독 표를 REST 경로·HTTP 결과·SSE 대상 연결로 바꾼다.
+- MutationResult는 DATA_TYPES의 프론트 연동 프로필로 구현했다. 백엔드는 동일 필드와 HTTP 응답으로 저장 API/DTO를 구현해야 한다. ResyncRequiredEvent는 develop에 확정된 형식을 사용하며 스냅샷 커서·replay는 별도 구현 대상이다.
+- 공용 Mock fixture와 MVP 기능 스펙을 REST 경로·HTTP 결과·SSE 대상 연결로 전환했다. 후속 분리 동의는 API 문서의 REST 후보 경로를 따르되 상세 성공 응답·후보 전달·저장 모델은 별도 설계한다.
 
 ### 아직 검증하지 않은 항목
 
 - 실제 Spring·DB·Python/LLM·React SSE 전체 통합과 자동 브라우저 E2E.
-- Refresh 쿠키·CSRF/CORS·회전 경합/재사용·로그아웃/부서 변경 즉시 차단, SSE 통지 유실 시 권한 방어.
+- Refresh 쿠키·CSRF·회전 경합/재사용·로그아웃/부서 변경 즉시 차단, SSE 통지 유실 시 권한 방어. 개발용 로그인·내 정보·부서 SSE의 브라우저 CORS 연결 확인은 운영 CORS/CSRF 검증을 대신하지 않는다.
 - 프록시 buffering·timeout, replay 보존 구간, 연결 해제·재개, 다중 인스턴스 이벤트 순서·중복과 부하 한계.
-- 실제 DDL·마이그레이션·트랜잭션 경합·24시간 이후 중복 방지·부분 성공/재시도·최신 조회 동시성.
+- 문의·메시지·티켓 업무 DDL·마이그레이션·트랜잭션 경합·24시간 이후 중복 방지·부분 성공/재시도·최신 조회 동시성. 계정·부서 마이그레이션 실행과 구분한다.
 - 실제 모델 예산·지연 결과 차단·단계 재사용·정확도·비용·실측 SLO와 새 정책을 포함한 회귀 테스트.
 
 문서 변경이나 기존 Mock·어댑터 테스트 통과를 위 항목의 완료로 보고하지 않는다.
+
+## 12. 신규 계약 hops-system-1
+
+상태: PRD 1.44 hops-system-1 목표 계약·API/SSE/오류 정의. 이 절만 `/api/v2`에 적용한다. 1~11절·기존 `/api`·실행 Mock의 구현 상태를 변경하지 않는다. 타입은 [신규 데이터 계약](DATA_TYPES.md#신규-계약-hops-system-1), 상태 전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md)가 정본이다.
+
+### 12.1 인증·명령·공통 응답
+
+- 로그인/갱신 외 API는 Bearer Access Token을 사용한다. 토큰 수명·회전 정책은 기존 10절의 Access 15분·Refresh 최초 로그인부터 절대 7일·매 갱신 회전을 유지한다. refresh/logout은 HttpOnly cookie와 허용 Origin 검증을 사용한다. 운영 HTTPS에서 Secure, SameSite=Lax, Path=/api/v2/auth이며 로컬 개발 예외는 환경 설정으로만 분리한다.
+- 허용 프론트 Origin을 정확히 나열하고 credentials를 허용한다. Authorization·Idempotency-Key·Last-Event-ID 요청 헤더와 Retry-After 응답 헤더를 CORS에 반영한다. 쿠키 사용 변경은 Origin 검증 실패 시 403이다. 토큰·비밀번호를 URL/로그에 넣지 않는다.
+- auth 외 변경 요청은 JSON의 requestId와 같은 Idempotency-Key를 보낸다. 200은 업무 저장 또는 기존 결과가 확정된 CommandReceipt, 202는 PENDING/UNKNOWN receipt다. 200 SUCCEEDED는 해당 명령 저장만 뜻하며 AI 실행·해결·검색 공개 완료를 뜻하지 않는다. 4xx/5xx는 ApiError를 반환한다.
+- 로그인·갱신은 200 LoginResponse, logout은 204다. GET은 200·데이터 타입을 직접 반환한다. 응답 envelope는 추가하지 않는다.
+- 같은 사용자·프로필·requestId에 HTTP 메서드·정규화한 경로·본문을 묶어 결과를 보존한다. 동일 키 재확인은 버전 비교보다 먼저 수행하며 이미 권한이 회수됐다면 기존 비공개 결과도 반환하지 않는다. 같은 키에 다른 경로/본문은 409 IDEMPOTENCY_KEY_REUSED다.
+- 명령 journal과 업무 변경은 같은 DB 저장 경계에서 기록하고 commit 뒤 후속 AI·색인·SSE 호출을 수행한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다. 상세 재확인 결과는 최소 24시간 보존하고 이후에도 요청 키 사용 이력과 업무 유일 제약으로 재실행을 막는다. 기간 이후 조회는 410이며 새로운 키로 자동 재생성하지 않는다.
+- 클라이언트 응답 대기는 10초, 자동 업무 재전송은 하지 않는다. 입력·원본 키·본문을 보존하고 결과 확인을 제공한다. 같은 키·동일 본문의 원 명령 재전송은 최초 요청 재확인이며 새 업무 의도가 아니다. 서버는 현재 권한·journal·업무 유일성을 검사하고 진행/미확인 작업을 중복 실행하지 않는다. 티켓 생성 복구는 별도의 work-item API를 사용한다.
+- operations/by-request 조회의 404는 원 명령이 도착하지 않았거나 확인할 수 없음을 뜻한다. DB 미저장 증거로 표시하지 않는다. 티켓 재시도는 서버가 NOT_CREATED를 확인한 경우에만 허용한다.
+
+### 12.2 REST 연결표
+
+아래 상대 경로 앞에는 모두 `/api/v2`를 붙인다. 변경 응답의 resource는 명령으로 저장한 참조이며 후속 GET으로 최신 상태를 읽는다.
+
+| 메서드·상대 경로 | 요청 | 성공 응답·resource | 권한 |
+|---|---|---|---|
+| POST /auth/login | LoginRequest | 200 LoginResponse | 비로그인 |
+| POST /auth/refresh | 없음·cookie | 200 LoginResponse | 유효 Refresh |
+| POST /auth/logout | 없음·cookie | 204 | 현재 세션; 반복 시에도 쿠키 삭제 |
+| GET /auth/me | 없음 | CurrentUser | 로그인 |
+| GET /systems | 없음 | SupportedSystem[] | 로그인 |
+| GET /systems/{systemId}/primary | 없음 | PrimaryAssignment | 현재 담당자 또는 관리자 |
+| GET /inquiries | page,size | Page<InquirySummary> | 본인 |
+| POST /inquiries | InquiryCreateCommand | CommandReceipt · INQUIRY | 로그인 |
+| GET /inquiries/{inquiryId} | 없음 | InquiryResult | 본인 |
+| GET /inquiries/{inquiryId}/messages | size,beforeSequenceNo | MessagePage | 본인 |
+| POST /inquiries/{inquiryId}/messages | MessageSendCommand | CommandReceipt · INQUIRY | 본인 |
+| POST /inquiries/{inquiryId}/messages/{messageId}/revisions | MessageReviseCommand | CommandReceipt · INQUIRY | 본인 USER 메시지 |
+| POST /inquiries/{inquiryId}/messages/{messageId}/problem-links | MessageProblemLinkCommand | CommandReceipt · INQUIRY | 본인·미연결 보완 메시지 |
+| POST /inquiries/{inquiryId}/problems/{problemId}/system-confirmations | SystemConfirmCommand | CommandReceipt · INQUIRY | 본인·미확정 시스템 |
+| GET /runs/{runId} | 없음 | RunSummary | 원 문의 소유자 |
+| POST /runs/{runId}/retries | RunRetryCommand | CommandReceipt · RUN | 본인·현재 실패/시간 초과 실행 |
+| GET /work-items/{workItemId} | 없음 | TicketCreationResult | 원 문의 소유자 |
+| POST /work-items/{workItemId}/retries | CreationRetryCommand | CommandReceipt · WORK_ITEM | 본인·NOT_CREATED |
+| GET /operations/{operationId} | 없음 | CommandReceipt | 원 요청자 |
+| GET /operations/by-request/{requestId} | 없음 | CommandReceipt | 원 요청자 |
+| GET /tickets | scope,systemId,state,page,size | Page<TicketSummary> | ASSIGNED_SYSTEMS 또는 ADMIN 범위 |
+| GET /tickets/{ticketId} | 없음 | TicketDetail | 현재 책임 시스템 담당자 |
+| GET /management/tickets/{ticketId} | 없음 | TicketManagementDetail | 업무 관리자 |
+| GET /tickets/{ticketId}/related-messages | size,cursor | RelatedMessagePage | 현재 책임 시스템 담당자 |
+| POST /tickets/{ticketId}/work-records | WorkRecordCommand | CommandReceipt · TICKET | 현재 책임 시스템 담당자 |
+| POST /tickets/{ticketId}/processing-type-corrections | ProcessingTypeCorrectionCommand | CommandReceipt · TICKET | 현재 PRIMARY·조사/장애 유형만 |
+| POST /tickets/{ticketId}/assignment-corrections | AssignmentCorrectionCommand | CommandReceipt · TICKET | 현재 담당자 또는 업무 관리자 |
+| GET /resolution-requests/{resolutionRequestId} | 없음 | ResolutionRequest | 본인 또는 해당 티켓 담당자 |
+| POST /resolution-requests/{resolutionRequestId}/responses | ResolutionResponse | CommandReceipt · RESOLUTION_REQUEST | 문의 소유자 |
+| GET /case-generations/{generationId} | 없음 | CaseGeneration | 원 티켓의 현재 담당자 |
+| POST /case-generations/{generationId}/retries | requestId | CommandReceipt · CASE_GENERATION | 현재 담당자·FAILED |
+| GET /cases | systemId,state,page,size | Page<CaseSummary> | 현재 담당 시스템 |
+| GET /cases/{caseId} | caseVersion 선택·현재 버전만 | CaseDetail | 현재 사례 시스템 담당자. 과거 버전 지정은404 |
+| POST /cases/{caseId}/versions | CaseEditCommand | CommandReceipt · CASE | 현재 담당자·현재 DRAFT·최신 버전 일치. 승인 후 편집은409 INVALID_STATE |
+| POST /cases/{caseId}/approvals | CaseApproveCommand | CommandReceipt · CASE | 현재 담당자·승인 전제 충족 |
+| POST /cases/{caseId}/index-checks | IndexCheckCommand | CommandReceipt · CASE | 현재 담당자·현재 요청 확인. 유효한 원격 NOT_FOUND이면 보존한 같은 요청의 멱등 재접수 |
+| POST /cases/{caseId}/index-retries | IndexRetryCommand | CommandReceipt · CASE | 현재 담당자·FAILED |
+
+scope 기본은 ASSIGNED_SYSTEMS이며 ADMIN은 BIZ_ADMIN만 허용한다. systemId 생략은 현재 허용된 모든 시스템이며 타 시스템 지정은 403이다. state는 해당 객체 enum 한 개만 받는다. 문의·티켓·사례는 updatedAt DESC,id DESC로 정렬한다. 보드 건수는 현재 페이지 기준이며 전체 상태별 집계로 표현하지 않는다.
+
+메시지 기본 size=30, 최신 페이지와 이전 페이지를 시간순으로 반환한다. beforeSequenceNo는 배타적 상한이다. 관련 메시지 size=30·최대100이며 불투명 cursor를 사용한다. 일반 Page size=20·최대100이다. 잘못된 필터·범위는 400이며 임의 보정하지 않는다. REST 재조회·화면 활성 중 폴링은 읽기이므로 업무 재시도가 아니다.
+
+시스템 목록에는 PRIMARY 인물 정보를 넣지 않는다. 원문 전체·담당자 내부 자료를 포함한 TicketDetail을 관리자 DTO로 재사용하지 않는다. 문의자는 InquiryResult 안의 허용된 티켓 요약을 사용하며 담당자 상세 API를 호출하지 않는다.
+
+### 12.3 오류·버전·재시도
+
+| HTTP | code | 화면·서버 처리 |
+|---|---|---|
+| 400 | INVALID_INPUT | fieldErrors 표시·입력 보존; 자동 반복 없음 |
+| 401 | UNAUTHENTICATED, ACCESS_TOKEN_EXPIRED, REFRESH_TOKEN_EXPIRED, REFRESH_TOKEN_REVOKED | 만료만 1회 refresh 후 읽기 재조회. 미확인 업무는 원 키로 확인 |
+| 403 | ACCESS_DENIED, AUTH_CONTEXT_CHANGED, ORIGIN_DENIED | 내용·캐시 제거/마스킹, SSE 종료, 허용 화면 또는 재로그인 |
+| 404 | NOT_FOUND | 찾을 수 없음을 안내. 비공개 존재 여부를 추가 반환하지 않음 |
+| 409 | INQUIRY_VERSION_CONFLICT, MESSAGE_REVISION_CONFLICT, TICKET_REVISION_CONFLICT, RESOLUTION_REVISION_CONFLICT, CASE_VERSION_CONFLICT | 초안 보존·최신 GET; 자동 덮어쓰기 없음 |
+| 409 | IDEMPOTENCY_KEY_REUSED | 같은 키의 다른 의도 거부 |
+| 409 | RUN_NOT_RETRYABLE, WORK_ITEM_NOT_RETRYABLE, INVALID_STATE, APPROVAL_PRECONDITION_FAILED, INDEX_NOT_RETRYABLE | 최신 상태 확인; 허용 조작만 제공 |
+| 410 | OPERATION_RESULT_EXPIRED | 상세 재확인 기간 만료. 원 업무 조회·재조정 없이 새 키 실행 금지 |
+| 429 | RATE_LIMITED | Retry-After 초 단위; 해당 시간까지 버튼 비활성·입력 보존 |
+| 503 | SERVICE_UNAVAILABLE, ASSIGNMENT_UNAVAILABLE, SEARCH_UNAVAILABLE, MODEL_UNAVAILABLE, AI_INVALID_OUTPUT, AI_RUN_STATE_UNKNOWN | 성공으로 표시하지 않음. 저장 여부 불명은 receipt UNKNOWN 또는 재확인. AI 실행 확인 불가는 공개 Run FAILED로 표시하고 새 run 재분석 제공 |
+| 504 | DEADLINE_EXCEEDED | 분석 실패와 업무 저장 미확인을 구분 |
+
+retryable은 수동 재시도 후보임을 뜻하며 상태·권한 검사를 생략하거나 자동 재전송하라는 뜻이 아니다. timeout·연결 오류는 프론트 로컬 오류이며 서버 DB 미저장 코드로 바꾸지 않는다. 검색 EMPTY와 ERROR, 모델 오류와 OUT_OF_SCOPE를 구분한다. 서비스 내부 오류는 에이전트 계약의 안전한 코드로 변환한다.
+
+색인 index-checks는 현재 담당자·expectedCaseVersion·PENDING/RUNNING/UNKNOWN을 검증한 수동 명령이다. 서버는 source_metadata.indexRequests의 현재 요청을 읽고 같은 원격 jobId/attempt를 조회한다. 유효한 원격 404 NOT_FOUND이면 보존한 같은 요청 전체를 한 번 멱등 재접수할 수 있다. 404를 FAILED나 새 시도의 근거로 바꾸지 않는다. timeout·5xx·인증/권한·형식 오류·메타데이터 누락에는 재전송하지 않는다. 기존 원격 UNKNOWN이면 조회만 반영한다. index-retries는 FAILED에서만 같은 jobId의 다음 attempt를 먼저 저장한 뒤 전달한다. 공개 명령의 requestId와 원격 jobId/attempt는 서로 다른 식별자다. 동일 공개 명령 키 재전달은 기존 receipt를 반환하고 새로운 확인 클릭만 새 requestId를 만든다. 상세는 [에이전트 I1.1](../../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)을 따른다. GET·보조 폴링은 색인을 시작하지 않는다.
+
+티켓 생성 재시도는 현재 inquiryVersion·workItem 잠금·기존 티켓 유일성을 확인한 뒤 수행한다. 이미 STORED면 기존 참조를 반환한다. UNKNOWN/PENDING이면 409 WORK_ITEM_NOT_RETRYABLE이며 확인만 가능하다. NOT_CREATED라도 입력 버전이 달라졌으면 충돌로 반환하고 새 표준 요청 적용 후 같은 작업을 재시도한다.
+
+### 12.4 SSE와 복구
+
+GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보내고 fetch stream을 읽는다. 대상은 INQUIRY, TICKET, SYSTEM_TICKETS, CASE다. INQUIRY는 소유자, TICKET/SYSTEM_TICKETS/CASE는 현재 담당자만 허용한다. 관리자는 SYSTEM_TICKETS의 메타데이터 변화만 허용하며 내부 진행/대화 payload는 받지 않는다.
+
+| 이벤트 | JSON 필드 | 소비 동작 |
+|---|---|---|
+| agent.progress | eventId,inquiryId,inquiryVersion,runId,stepNo,role,displaySummary | 현재 버전·실행의 안전한 진행만 임시 표시 |
+| answer.delta | eventId,inquiryId,inquiryVersion,runId,messageId,seq,text | 임시 조각; runId/messageId/seq 중복 제거 |
+| message.stored | eventId,inquiryId,messageId,requestId nullable | 저장 메시지·정정 GET. USER 명령은 requestId, AI는 null |
+| state.changed | eventId,targetType,targetId,resourceType,resourceId,revision | 해당 문의·업무·사례·목록 GET. revision은 단조 증가 알림 순번이며 도메인 버전과 다름 |
+| auth.invalidated | eventId,code,message | 표시 중 보호 데이터 마스킹·연결 중지·권한/세션 재확인 |
+| resync.required | eventId | 현재 대상 REST 재조회 후 새 연결 |
+
+이 절의 JSON 필드들은 모두 필수이고 eventId·messageId는 UUID, stepNo/seq/revision은 양의 정수다. role은 SUPERVISOR/INQUIRY/KNOWLEDGE/TICKET/CURATOR다. role=CURATOR의 내부 진행을 직원 INQUIRY에 전달하지 않는다. SSE id와 JSON eventId는 동일하며 payload의 전송 대상은 서버가 고정한다.
+
+업무 저장 commit 뒤만 stored/state 이벤트를 만든다. 이벤트 도착 순서는 HTTP 응답과 독립이다. 영속 이벤트 전달은 보장하지 않으므로 기존 REST 재조회·보조 폴링으로 저장 상태를 확인한다. 이벤트는 GET 무효화 신호이며 AI 답변 조각·알림만으로 티켓·해결·사례 공개를 확정하지 않는다.
+
+첫 신규 프로필의 replay는 제공하지 않는다. Last-Event-ID가 오면 권한 확인 후 resync.required를 보내고 종료한다. 클라이언트는 REST 조회 성공 뒤 마지막 ID·임시 조각을 비우고 ID 없이 연결한다. 실패 시 복구 중 상태를 유지한다. 재접속 간격은 1/2/5/10/30초 상한이며 화면 이탈·권한 거부 시 중단한다. 15초 comment heartbeat는 상태를 변경하지 않는다.
+
+담당 관계 변경 시 서버는 기존 구독의 전송 권한도 즉시 무효화한다. 메시지를 보내기 전에 현재 권한 세대를 검증하고 오래된 구독에 내부 payload를 보내지 않는다. 무효화 신호가 유실돼도 새 GET은 거부한다. 화면은 연결을 잃으면 보호 영역을 가리고 재조회 후 복원한다.
+
+내 문의·업무/사례 목록은 활성 화면에서 5초 간격 보조 폴링을 사용한다. 채팅은 실행이 QUEUED/RUNNING일 때만 1초 간격 Run 조회를 병행하고 종료를 관찰하면 문의와 메시지를 재조회한다. 숨겨진 탭에서는 폴링을 멈추고 포커스 복귀 시 재조회한다. SSE 또는 폴링 어느 쪽도 신규 업무 명령을 만들지 않는다. 채팅의 접수·임시 답변·최종 저장과 동기화 순서는 12.8절을 따른다.
+
+### 12.5 전환 확인
+
+새 경로·응답은 hops-system-1 목표 계약이다. 현행 프론트 요청과 Spring의 로그인/부서 SSE는 기존 프로필을 따른다. 신규 경로가 등록되지 않은 환경을 빈 결과·Mock 성공으로 처리하지 않는다. 새 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 확인한 뒤 배포 설정에서 신규 프로필을 선택한다.
+
+### 12.6 계약 범위와 spec 연결
+
+| API 묶음 | 계약 자료 | spec |
+|---|---|---|
+| auth·시스템/PRIMARY | Login/CurrentUser/SupportedSystem, 401/403·권한 회수 | F001/F002 |
+| 문의·메시지·정정·시스템 선택·problem-links | 명령/receipt·입력 버전·커서·보완 대상 | F003/F004/F008 |
+| Run 조회/재분석·operation 결과 | RunSummary·CommandReceipt·키 재확인·실행 오류 | F002/F003/F004 |
+| 작업 결과·티켓 생성 재시도 | TicketCreationResult·workItemId=problemId·미생성 선확인 | F005/F010 |
+| 티켓·관리 상세·관련 메시지·수동 정정 | 권한별 DTO·티켓 버전·실제 PRIMARY·원문 구간 | F007/F009 |
+| 처리 기록·해결 확인 | WorkRecord/ResolutionRequest·문제별 처리 주기 | F003/F006/F009 |
+| 사례/초안/승인/반영 확인·재실행 | CaseDetail/Generation/Publication·같은 버전/attempt | F009/F011 |
+| SSE·재접속·REST 복구 | 12.4 이벤트와 현재 권한 검사 | F002 및 업무별 spec |
+
+보완 메시지의 대상이 불명확하면 pendingTargetMessageIds에 저장하고 기존 문제 선택 UI를 제공한다. problem-links는 저장된 원문을 바꾸지 않고 같은 문의의 기존 문제와 연결한다. 최신 문의 버전 검사 후 입력 버전을1 올리고 배정된 티켓에는 보완만 연결한다. 질문 횟수 증가·자동 새 티켓·자동 재배정은 없다. 이미 연결된 메시지의 임의 재연결은409 INVALID_STATE다.
+
+프론트가 받는 오류/상태·조작은 이 표와 각 spec, 서비스 간 실행/색인/검색 권한은 에이전트 Markdown 계약을 정본으로 한다. 동일 규칙을 spec마다 복사하지 않는다.
+
+### 12.7 병합 ERD와 외부 계약의 경계
+
+REST 경로와 필터 state는 신규 wire enum을 유지한다. Spring이 [DATA11절](../../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)의 DB 상태와 version을 변환하며 프론트에 OPEN/WAITING_CONFIRM·DB version0을 노출하지 않는다. 현재 PRIMARY 조회는 systemId/primaryUser만 반환한다.
+
+WorkRecordCommand의 FAILED_ATTEMPT는 진행 이력 저장이며 해결 확인·CASE 초안을 예약하지 않는다. confirmedCause/appliesToSystemVersion은 nullable 실제 입력이다. CaseEditCommand의 problemStatement는 새 버전의 문제 설명이며 원 기록/확인된 원인은 변경하지 않는다. 구체 필드·길이는 DATA_TYPES 신규 절을 따른다.
+
+알림 테이블 신설은 REST/SSE 경로나 메뉴 신설을 뜻하지 않는다. 본 프로필은 기존 INQUIRY/TICKET/SYSTEM_TICKETS/CASE 구독과 현재 GET 결과로 화면을 갱신한다. 응답 본문·같은 요청 키의 만료 뒤 tombstone 및 410 동작은 이 절의 원 규칙을 유지한다.
+
+처리 유형 정정은 현재 담당자만 INVESTIGATION↔INCIDENT 사이에서 수행한다. reason·허용 메시지 또는 직접 관측한 evidenceNote를 검증하고 ticket.version 증가와 WORK_TYPE_CHANGED 이벤트를 같은 거래로 저장한다. 상태/확인 요청은 바꾸지 않는다. 완료 티켓·다른 처리 유형·관리자 역할만 가진 사용자는409 INVALID_STATE 또는403이다.
+
+### 12.8 채팅 송수신 완료 규칙
+
+아래 연결 방식을 신규 프로필의 구현 기준으로 채택한다. 모델·역할 내부 구현과 관계없이 같은 입력·출력·저장 의미를 유지한다. AI의 본문 조합과 ID 검증은 [상담 답변 연결](../../contracts/agents/README.md#상담-답변과-저장-메시지-연결), 필드는 DATA_TYPES 신규 절과 에이전트 Markdown 계약이 정본이다.
+
+1. **입력 저장:** 최초 `POST /inquiries`는 문의·첫 USER 메시지·inquiryVersion=1을 저장한다. 이후 메시지·정정은 expected 버전을 검사한 뒤 입력 버전을 1 올린다. USER 메시지 생성의 requestId는 최초 명령 ID로 보존한다. 같은 거래에서 새 상담 runId와 answerMessageId를 발급하고 불변 실행 입력·QUEUED·currentRun 연결·멱등 결과를 저장한다. 정정/새 입력은 이전 활성 run을 SUPERSEDED로 만든다. 기존 티켓과 질문 횟수는 유지한다.
+2. **명령 응답:** 정상 저장은 200 SUCCEEDED CommandReceipt·resource=INQUIRY다. 이는 사용자 입력과 실행 접수 정보의 저장이며 답변 완료가 아니다. 답변을 기다리느라 REST 응답을 유지하지 않는다. 기존 202 PENDING/UNKNOWN·원 키 재확인 규칙은 그대로 적용한다. 같은 명령 재전송은 기존 저장 결과를 반환하고 새 run을 만들지 않는다.
+3. **AI 실행:** Spring은 commit 후 이전 실행을 최선 노력 취소하고 `POST /internal/v2/runs`에 새 입력을 보낸다. 이어 내부 SSE를 연결하고 snapshot도 즉시 조회한다. QUEUED/RUNNING 동안 1초 간격 snapshot 조회를 병행해 SSE 접속 전에 끝난 실행도 확인한다. 이벤트와 snapshot의 같은 최종 결과는 한 번만 적용한다. 접수·조회 실패나 기한 초과를 안전한 공개 Run 오류로 남기며 영속 전달 큐를 추가하지 않는다.
+4. **화면 진입:** 문의 ID를 얻으면 INQUIRY SSE 연결을 시작하고 InquiryResult와 최신 MessagePage를 조회한다. 요청이 겹쳐도 메시지는 id로 합친다. USER 임시 말풍선은 ChatMessage.requestId로 저장 메시지와 합치고, 서버 GET의 revision/content/sequenceNo를 사용한다. SSE 연결 이전의 저장 결과도 초기 GET에서 복구한다. 실행 중이면 공개 Run 조회를 병행한다.
+5. **임시 답변:** 내부 delta의 messageId=input.answerMessageId를 검증하고 공개 answer.delta의 messageId로 그대로 전달한다. 내부 chunkSeq를 공개 seq로 사용하며 내부 이벤트 전체 순번과 혼용하지 않는다. 현재 inquiryVersion/runId/answerMessageId가 맞는 조각만 임시 말풍선 하나에 누적한다. 같은 seq·같은 text는 무시하고 다른 text 충돌·누락은 임시 본문을 확정하지 않는다. 앞뒤 순서가 바뀐 조각은 seq로 정렬해 연결한다. 이미 GET으로 저장된 같은 messageId가 있으면 늦은 조각은 무시한다.
+6. **최종 저장:** 검증된 AiResult.answer와 질문·가이드 상태를 Spring이 같은 거래로 저장한 뒤 공개 Run SUCCEEDED를 반환한다. 최종 AI 메시지는 run의 answerMessageId 한 건이다. questions[].text·guide.messageText는 answer 안에 포함되며 별도 말풍선이나 추가 저장 메시지로 만들지 않는다. questionCount 증가와 GUIDE 확인 요청 생성은 이 commit 때만 수행한다. 답변 저장·질문 규칙과 기존 문제별 티켓 저장 결과는 별도로 확정한다.
+7. **완료 표시:** message.stored/state.changed 또는 Run 종료를 관찰하면 InquiryResult와 최신 MessagePage를 모두 재조회한다. 최종 ChatMessage.id와 임시 messageId가 같으면 content를 서버 본문으로 통째로 교체하고 임시 상태를 해제한다. 조각을 다시 붙이지 않는다. 이 GET 성공 전에는 답변을 저장 완료로 표시하지 않는다. 진행 중 currentRun이 바뀌어도 먼저 같은 재조회를 수행해 직전에 저장된 답변을 놓치지 않는다. 종료한 run의 폴링은 멈추고 재조회한 currentRun이 QUEUED/RUNNING이면 그 run을 조회한다.
+8. **실패·다음 입력:** FAILED/TIMED_OUT/SUPERSEDED 실행의 미저장 임시 답변은 제거하고 저장된 대화·입력을 유지한다. 실패는 안전한 Run 오류와 허용된 재분석 UI로 표시하며 가짜 AI 저장 메시지나 해결 상태를 만들지 않는다. 재분석은 새 runId·새 answerMessageId다. 새 메시지·정정 중 이전 조각은 무시하고 기존 저장 메시지는 보존한다. 시스템 선택과 GUIDE 미해결의 재분석도 같은 접수·답변 연결 방식을 사용하며 질문 수를 초기화하지 않는다.
+
+메시지 GET은 신규 프로필에서 message_status=COMPLETED인 저장 행만 반환한다. 예약 answerMessageId만으로 빈 메시지를 조회 결과에 넣지 않는다. answer.delta가 한 건도 없어도 SUCCEEDED 뒤 GET으로 최종 답변을 표시하며, SSE 유실·재접속·포커스 복귀 시 동일한 조회/병합 규칙을 적용한다. Run 종료 조회 후 최종 메시지 조회가 실패하면 동기화 실패와 재조회 조작을 표시한다. 사용자의 새 입력이나 AI 재분석을 자동 생성하지 않는다.
+
+권한 있는 기존 Run의 조회는 실패 상태여도 HTTP200 RunSummary다. 실패의 error는 ApiError 형식을 사용하고 requestId에는 해당 run 접수를 만든 공개 명령 ID를 넣는다. 내부 INVALID_OUTPUT은 FAILED/AI_INVALID_OUTPUT, MODEL_UNAVAILABLE·SEARCH_UNAVAILABLE은 FAILED/동명 코드, TOOL_UNAVAILABLE·BUDGET_EXCEEDED는 FAILED/SERVICE_UNAVAILABLE, DEADLINE_EXCEEDED는 TIMED_OUT/DEADLINE_EXCEEDED로 변환한다. 실행 확인 불가는 FAILED/AI_RUN_STATE_UNKNOWN이다. 이들 오류의 retryable=true는 최신 FAILED/TIMED_OUT run에 수동 RunRetryCommand를 제공한다는 뜻이며 업무 명령 자동 재전송은 아니다. AUTH_CONTEXT_INVALID는 FAILED/AUTH_CONTEXT_CHANGED·retryable=false이며 먼저 현재 권한을 확인한다. 이전 입력으로 대체된 run은 SUPERSEDED·error=null이며 재분석 대상이 아니다. 원시 오류·내부 응답 본문을 그대로 사용자에게 반환하지 않는다.

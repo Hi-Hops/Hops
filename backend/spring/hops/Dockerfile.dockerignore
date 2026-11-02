@@ -1,0 +1,24 @@
+# 빌드에 필요한 Wrapper·설정·공개 소스만 전달한다.
+**
+!gradlew
+!settings.gradle.kts
+!build.gradle.kts
+!gradle/
+gradle/*
+!gradle/wrapper/
+gradle/wrapper/*
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!src/
+src/*
+!src/main/
+!src/main/**
+**/application-*.local.*
+**/.env
+**/.env.*
+**/*.key
+**/*.jks
+**/*.p12
+**/*.pfx
+**/*.class
+**/*.log

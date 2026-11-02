@@ -1,0 +1,37 @@
+[project]
+name = "hops-ai"
+version = "0.1.0"
+description = "IT 문의 표준화·지식 검색·사례 재사용을 위한 Hops AI 서버 골격"
+requires-python = ">=3.13,<3.14"
+# 초기 직접 의존성은 docs/AGENT_DEVELOPMENT.md 9장의 고정 버전을 따른다.
+dependencies = [
+    "fastapi==0.143.5",
+    "langgraph==1.2.16",
+    "psycopg[binary]>=3.2,<4",
+    "pydantic-settings>=2.16.1",
+    "uvicorn==0.53.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "pytest>=8.3",
+    "pytest-asyncio>=1.0",
+    "ruff>=0.9",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

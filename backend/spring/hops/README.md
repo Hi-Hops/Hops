@@ -1,26 +1,35 @@
 # Hops Spring 백엔드
 
+Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../../../README.md#docker-compose로-실행)를 따릅니다. 아래 직접 설치 절차는 PC에서 Spring을 실행할 때 사용합니다.
+
+> **PRD 1.44 전환:** 아래 부서·시드·SSE·API 내용은 현재 구현 설명이다. 새 목표의 시스템별 주담당자 배정·처리·확인·사례 승인·검색 반영은 이 문서 변경으로 구현되지 않았다. [PRD](../../../docs/PRD.md), [API](../../../docs/API.md), [데이터](../../../docs/DATA.md)를 기준으로 별도 계약·migration·구현이 필요하다.
+
 Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에서는 해당 디렉터리를 Gradle 프로젝트로 엽니다. 빌드·테스트·실행 명령은 이 디렉터리에서 실행합니다.
+
+PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/contracts/README.md)에서 데이터·전송·상태·AI 경계를 함께 검토합니다. 기존 `/api` 구현과 제안된 `hops-system-1`을 구분하며, 물리 ERD·엔티티 매핑은 이슈 #66과 맞춥니다.
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `inquiry`, `ticket`, `agent`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 구현된 기능은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/auth/me`입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
 
 | 패키지 | 역할 |
 |---|---|
 | `auth` / `user` | JWT 로그인·토큰 발급과 인증 수명 관리 / 사번·소속 부서 등 사용자 정보 |
 | `department` | 부서·소속·활성 여부·R&R |
-| `inquiry` | 문의·대화·내용 확인·정정 |
-| `ticket` | 티켓 저장·배정·처리 |
-| `agent` | Python 실행 요청·진행·결과 통신 |
+| `itsystem` | 문의를 받는 업무시스템·시스템 기능과 시스템별 주담당자 |
+| `inquiry` | 문의·대화·내용 확인·정정, 문의 문제와 표준 요청서 |
+| `ticket` | 티켓 저장·배정·처리, 변경 이력·배정 이력·처리 기록 |
+| `agent` | Python 실행 요청·진행·결과 통신, AI 실행·실행 단계 기록 |
+| `notification` | 서비스 내부 알림함 |
+| `knowledge` | 지식 문서·문서 버전·검색 조각(pgvector)과 해결 사례 |
 | `investigation` | 읽기 전용 진단 조회의 검증·실행 경계 |
-| `global` | 공통 설정·JWT 검증·접근 제어 기반·예외 처리 |
+| `global` | 공통 설정·JWT 검증·접근 제어 기반·예외 처리, 공통 Entity 부모(`entity`)·중복 요청 방지 기록(`idempotency`) |
 
-업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에서 관련 담당자와 합의한 뒤 구현합니다.
+업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`와 실행 기록용 `domain`, `repository`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에서 관련 담당자와 합의한 뒤 구현합니다.
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/auth/me`는 구현했고(아래 [인증](#인증) 참고), refresh·로그아웃과 문의 변경 REST·브라우저 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE는 구현했습니다. refresh·로그아웃, 문의 변경 REST·문의/티켓 조회와 문의·개별 티켓 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 실제 서버 연결 검사 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
@@ -37,14 +46,14 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 
 | 무엇 | 누가 | 언제 |
 |---|---|---|
-| PostgreSQL·Redis 설치와 실행 | 직접 (아래 2·3번) | 처음 한 번 |
-| `hops` 계정과 빈 DB `hops`·`hops_test` | 직접 (아래 4번) | 처음 한 번 |
-| 접속 정보 파일 `application-db.local.properties` | 직접 (아래 5번) | 처음 한 번 |
+| PostgreSQL·pgvector·Redis 설치와 실행 | 직접 (아래 2~4번) | 처음 한 번 |
+| `hops` 계정과 빈 DB `hops`·`hops_test` | 직접 (아래 5번) | 처음 한 번 |
+| 접속 정보 파일 `application-db.local.properties` | 직접 (아래 6번) | 처음 한 번 |
 | DB 안의 테이블 (`db/migration/V*.sql`) | Flyway 자동 | 서버·테스트 시작할 때 |
 | 가상 데이터 (`db/seed`, `hops` DB만) | Flyway 자동 | 서버 시작할 때 |
 | 나중에 추가된 `V2`·`V3`… | Flyway 자동 (아직 안 한 것만) | pull 뒤 서버 시작할 때 |
 
-- Flyway는 **빈 DB 안에 테이블을 채울 뿐, DB 자체는 만들지 않습니다.** 4번을 건너뛰면 `database "hops" does not exist` 오류가 납니다.
+- Flyway는 **빈 DB 안에 테이블을 채울 뿐, DB 자체는 만들지 않습니다.** 5번을 건너뛰면 `database "hops" does not exist` 오류가 납니다.
 - Flyway는 어디까지 실행했는지 DB의 `flyway_schema_history` 표에 적어 두고, 다음 시작 때 그 뒤의 파일만 실행합니다.
 - 테이블을 바꿀 때는 이미 실행된 `V*.sql`을 고치지 않고 새 번호 파일을 추가합니다. 고치면 `checksum mismatch` 오류가 납니다.
 - Redis는 테이블이 없어 설치·실행만 하면 됩니다.
@@ -53,21 +62,29 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 2. **PostgreSQL 18** 설치 (`uuidv7()` 사용을 위해 18 이상이 필요합니다).
    - Mac: `brew install postgresql@18` 후 `brew services start postgresql@18`
    - Windows: [PostgreSQL 공식 설치 파일](https://www.postgresql.org/download/windows/)로 18 버전을 설치합니다. 설치 중 정한 `postgres` 비밀번호를 기억해 둡니다.
-3. **Redis 설치·실행** (로그인 세션·Refresh 토큰 저장소). 기본 주소 `localhost:6379`를 그대로 쓰므로 설정 파일은 필요 없습니다.
+3. **pgvector 설치** (검색 조각 `knowledge_chunk.embedding`의 `vector` 타입). 없으면 서버가 시작되지 않습니다.
+   - Mac: `brew install pgvector`
+   - Windows: [pgvector 공식 안내의 Windows 설치](https://github.com/pgvector/pgvector#windows)를 따릅니다.
+4. **Redis 설치·실행** (로그인 세션·Refresh 토큰 저장소). 기본 주소 `localhost:6379`를 그대로 쓰므로 설정 파일은 필요 없습니다.
    - Mac: `brew install redis` 후 `brew services start redis`
    - Windows: Redis는 공식 Windows 버전이 없어 WSL(Ubuntu)에서 `sudo apt install redis-server` 후 `sudo service redis-server start`로 실행합니다. Docker Desktop을 쓴다면 `docker run -d --name hops-redis -p 6379:6379 redis:8`도 됩니다.
    - 확인: `redis-cli ping` → `PONG`. 개발은 0번 DB, 테스트는 15번 DB를 써서 서로 섞이지 않습니다.
-4. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
+5. **DB 계정과 DB 생성** (Mac은 `psql postgres`, Windows는 `psql -U postgres`로 접속)
    ```sql
    CREATE ROLE hops WITH LOGIN PASSWORD '내_비밀번호';
    CREATE DATABASE hops OWNER hops;
    CREATE DATABASE hops_test OWNER hops; -- 테스트 전용
+   -- pgvector는 trusted 확장이 아니라 슈퍼유저만 켤 수 있다. 지금 접속한 슈퍼유저로 두 DB에 한 번씩 켠다
+   \c hops
+   CREATE EXTENSION IF NOT EXISTS vector;
+   \c hops_test
+   CREATE EXTENSION IF NOT EXISTS vector;
    ```
-5. **접속 정보 파일 만들기** (`src/main/resources`에서)
+6. **접속 정보 파일 만들기** (`src/main/resources`에서)
    - Mac: `cp application-db.local.properties.example application-db.local.properties`
    - Windows: `Copy-Item application-db.local.properties.example application-db.local.properties`
-   - 만든 파일에 4번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
-6. **실행**
+   - 만든 파일에 5번의 비밀번호를 넣습니다. 이 파일은 git에 올라가지 않습니다.
+7. **실행**
    - Mac: `./gradlew bootRun`
    - Windows(PowerShell): `.\gradlew.bat bootRun`
    - 기본 프로필이 `db`라서 프로필을 따로 지정하지 않아도 로컬 PostgreSQL에 연결합니다.
@@ -75,12 +92,13 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 
 ## 이미 설치한 팀원이 pull 받은 뒤 할 일
 
-"처음 설치"를 이미 마쳤다면 따로 설정할 것은 없습니다.
+"처음 설치"를 이미 마쳤다면 pgvector와 Redis만 한 번 준비합니다. 위 "처음 설치" 3번(pgvector)·4번(Redis)으로 설치하고, 5번의 `\c hops`부터 `CREATE EXTENSION` 네 줄을 슈퍼유저로 실행합니다. 그 밖에는 따로 설정할 것이 없습니다.
 
-1. `git pull` 후 위 6번처럼 실행합니다. Redis를 아직 설치하지 않았다면 3번을 먼저 합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
+1. `git pull` 후 위 7번처럼 실행합니다. 이전에 `SPRING_PROFILES_ACTIVE=local`로 실행했다면 빼고 실행합니다 (`local` 프로필은 없어졌습니다).
 2. 로그에 `Successfully applied ... migration`이 보이면 새 테이블·데이터가 적용된 것입니다.
 3. `Port 8080 was already in use`가 나오면 이미 켜진 서버를 끄고 다시 실행합니다.
-4. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
+4. `extension "vector" is not available` 또는 `permission denied to create extension "vector"`가 나오면 위 "처음 설치" 3번(pgvector 설치)과 5번의 `CREATE EXTENSION` 두 줄을 한 번 실행합니다. 검색 조각 테이블(V19)부터 필요합니다.
+5. `Validate failed`·`checksum mismatch` 오류가 나면 이미 적용된 `V*.sql` 파일이 바뀐 것입니다. 파일을 되돌리거나 아래 "처음 상태로 되돌리기"로 DB를 새로 만듭니다.
 
 ## 가상 데이터 (로컬 개발용)
 
@@ -112,6 +130,9 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 ```sql
 DROP DATABASE hops;
 CREATE DATABASE hops OWNER hops;
+-- DB를 지우면 확장도 함께 지워지므로 다시 켠다
+\c hops
+CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 다시 실행하면 테이블과 가상 데이터가 새로 들어갑니다.
@@ -156,7 +177,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 ./gradlew bootRun
 ```
 
-- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~5번(PostgreSQL·Redis·접속 정보)을 마쳐야 통과합니다.
+- 서버를 띄우는 테스트는 `@ActiveProfiles({"db", "test"})`로 로컬 PostgreSQL의 테스트 전용 `hops_test` DB에 연결합니다 (`src/test/resources/application-test.properties`). 위 "처음 설치" 2~6번(PostgreSQL·pgvector·Redis·DB·접속 정보)을 마쳐야 통과합니다.
 - 테스트 DB에는 가상 데이터(seed)를 넣지 않습니다. 필요한 데이터는 각 테스트가 직접 넣고 `@Transactional`로 끝나면 되돌립니다 (예: `MemberRepositoryTest`).
 - 로그인 판단 규칙처럼 DB가 필요 없는 테스트는 Repository를 mock으로 바꿔 빠르게 확인합니다 (예: `AuthServiceTest`).
 
@@ -172,7 +193,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 - **동작 순서:** 로그인 ID로 회원·부서·역할을 DB에서 찾고(삭제된 회원 제외) → BCrypt로 비밀번호 해시 비교 → `AccessTokenIssuer`가 토큰 발급 (`auth/service`).
 - **토큰 클레임:** `sub`(회원 UUID), `employeeNo`, `departmentId`·`departmentCode`·`departmentName`, `roles`, `iss`·`aud`·`iat`·`exp`(발급 후 15분). 토큰 내용은 누구나 읽을 수 있으므로 비밀번호 등은 넣지 않습니다.
 - **`/me`는 토큰이 아니라 DB를 다시 읽습니다.** 토큰 발급 뒤 역할 회수·부서 변경·계정 차단이 있었을 수 있기 때문입니다.
-- 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD 설명](../../../docs/ERD_설명.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
+- 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD](../../../docs/ERD.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
 - **아직 없음:** refresh 토큰(HttpOnly 쿠키), `POST /api/auth/logout`.
 
@@ -188,3 +209,82 @@ curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhos
 ```
 
 Swagger에서는 `POST /api/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
+
+## Spring SSE 공통 기반
+
+[전송 계약](../../../specs/contracts/WIRE_CONTRACT.md#5-sse-연결이벤트복구)에 따라
+`GET /api/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
+`Authorization: Bearer <accessToken>`과 `Accept: text/event-stream`을 전달합니다.
+프론트는 Bearer 헤더를 지정할 수 있는 fetch 기반 SSE 소비자가 필요합니다.
+
+| 구현 항목 | 현재 동작 |
+|---|---|
+| 대상 권한 | 현재 DB 회원·부서·역할과 토큰 문맥을 비교합니다. 현재 처리 부서 구성원 또는 BIZ_ADMIN만 허용합니다. 없는 부서는 404입니다. |
+| 문의·개별 티켓 대상 | 소유권 저장소가 아직 없으므로 `INQUIRY`·`TICKET`은 503입니다. 도메인 구현 후 연결해야 합니다. |
+| 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
+| 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
+| 확정 이벤트 | 트랜잭션 안에서 `StateChangedEvent`를 발행하면 커밋 후 해당 부서 연결에 `state.changed`를 전달합니다. 롤백·트랜잭션 없는 발행은 전달하지 않습니다. |
+| 재접속 | 이벤트 보존소가 없습니다. `Last-Event-ID`가 있으면 `resync.required` 제어 이벤트를 보낸 뒤 연결을 종료합니다. 소비자는 REST 복구 후 커서를 비워 새 연결을 열어야 합니다. SSE 재생을 제공하지 않습니다. |
+
+업무 서비스는 `ApplicationEventPublisher.publishEvent(...)`로 `realtime/dto/StateChangedEvent`를
+자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
+외부 이벤트 발행용 HTTP API는 제공하지 않습니다. 문의·답변 이벤트 생산자와 업무 저장 API는 아직 연결하지 않았습니다.
+
+현재는 단일 Spring 프로세스의 연결만 관리합니다. DB 재검사로 전송을 막지만, 부서·역할 변경을
+즉시 모든 연결에 통지하는 `auth.invalidated`와 현재 세션 로그아웃 연계는 아직 없습니다.
+유휴 연결은 다음 heartbeat에서 회수를 확인하며, 업무 이벤트는 전송 전 재검사합니다.
+권한 변경 트랜잭션과 전송 간 경합을 완전히 직렬화하지는 않습니다.
+다중 인스턴스 전달·이벤트 보존/replay·프록시 buffering·최대 연결 수·느린 소비자에 대한
+전송 격리와 부하 테스트는 후속 작업입니다. 현재 공유 scheduler에서 SSE 전송이 수행되므로
+느린 연결의 영향도 운영 전 검증해야 합니다.
+
+DB 없이 SSE 기반 테스트만 실행할 수 있습니다.
+
+```bash
+./gradlew test --tests '*RealtimeAuthorizationTest' --tests '*RealtimeServiceTest' --tests '*RealtimeSecurityTest'
+```
+
+DB 없는 SSE 테스트 21개는 연결·대상별 전달·권한 회수·만료·재생 불가 종료·커밋/롤백·Security/CORS와
+예약 작업 취소·스케줄러 거부 시 정리를 검증합니다.
+Mock 권한·MVC 테스트는 실제 JWT/DB·브라우저·운영 프록시 E2E 검증을 대신하지 않습니다.
+
+### 다른 작업과의 연결 경계
+
+| 작업 | 책임 | SSE 기반과 연결할 부분 |
+|---|---|---|
+| #26 채팅 저장 | 문의 소유권·메시지 저장·버전·멱등성 | 도메인의 권한 검사를 연결하고 커밋 후 저장 이벤트를 제공 |
+| #28 티켓 저장·조회 | 티켓 권한·배정·실제 상태 변경 | 트랜잭션 안에서 부서별 StateChangedEvent 발행. 공통 권한 서비스가 생기면 SSE도 재사용 |
+| #27 Spring–Python | AI 이벤트 수신·실행/문의 버전 검증 | 공개 가능한 진행·답변 이벤트를 SSE 전송 계층에 연결 |
+| #56 프론트 SSE | 파싱·연결 공유·재접속·REST 동기화 | 초기 서버의 커서 요청 종료를 처리하고 REST 복구 후 커서 없이 재연결 |
+
+이번 #57에서는 위 업무 서비스·프론트 구현을 변경하지 않습니다. 공개 제어 이벤트 형식과 복구 절차는 공통 계약 문서에 반영합니다.
+현재 RealtimeAuthorization은 SSE 대상 검사이며, 전체 REST API 권한 회수를 대신하지 않습니다.
+초기 replay 미지원 시 DATA_TYPES의 `ResyncRequiredEvent`를 사용합니다. SSE id와 JSON eventId는 같고,
+소비자는 해당 대상의 REST 복구 후 기존 커서와 제어 이벤트 ID를 모두 비워 새로 연결해야 합니다.
+comment는 heartbeat 용도이며 복구 판단에 사용하지 않습니다.
+
+### 실제 HTTP·DB 통합 검증
+
+테스트 DB 설정 후 다음 명령으로 실제 Tomcat·JWT 필터·PostgreSQL을 사용하는 SSE 테스트를 실행합니다.
+
+```bash
+./gradlew test --tests '*RealtimeHttpIntegrationTest'
+```
+
+고유한 테스트 회원·부서를 `hops_test`에 만들고 종료 시 해당 fixture만 삭제합니다.
+실제 HTTP 스트림에서 미인증·타 부서 접근 거부, 연결·heartbeat, 커서 요청 종료 후 재연결,
+토큰 만료·테스트 회원 차단 후 종료를 확인합니다. 짧은 heartbeat·수명의 JWT는 테스트 전용이며
+실제 Access Token 15분 정책을 변경하지 않습니다. `Accept: text/event-stream` 요청의 연결 전
+오류는 HTTP 상태와 JSON 오류 본문으로 반환합니다.
+
+이 검사는 프론트 fetch parser·REST 복구·실제 업무 이벤트 생산자·운영 프록시 E2E까지 포함하지 않습니다.
+
+### 공개 이벤트와 연결 전 오류
+
+- 부서 `state.changed`의 `target`은 `{type: "DEPARTMENT_TICKETS", id: 부서 UUID}`입니다.
+  공통 계약에 따라 필드명은 `id`이고 값은 부서 ID이며, `inquiryVersion`은 반드시 `null`입니다.
+- 유효한 JWT의 소속 부서·역할이 현재 DB와 다르면 401 `AUTH_CONTEXT_CHANGED`로 응답합니다.
+  프론트는 일반 인증 갱신과 구분해 재로그인을 안내합니다. 누락된 필수 인증 문맥은 기존 401입니다.
+- 연결 전 DB 연결 실패·일시적 조회 장애·트랜잭션 시작 실패는 503 `SERVICE_UNAVAILABLE`입니다.
+  다른 종류의 예상하지 못한 DB 오류를 일괄 503으로 바꾸지는 않습니다.
+- HTTP 통합 테스트는 부서 변경·역할 변경의 응답 검증을 포함해 6개입니다.

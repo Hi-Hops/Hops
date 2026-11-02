@@ -11,6 +11,9 @@ import {
   registerUnauthorizedHandler,
 } from '@/shared/api/client';
 import { login, logout, useSession } from '@/features/auth';
+import { postMutation } from '@/shared/api/mutations';
+import { registerRefreshHandler } from '@/shared/api/client';
+import { createInquiry, sendMessage, reviseMessage } from '@/features/chat/api/chatApi';
 import type { InquiryResult, MessagePage, TicketDetail, TicketPage } from '@/shared/api/types';
 
 let server: Server;
@@ -21,6 +24,7 @@ let responses: {
   authorization: string | undefined;
   method: string | undefined;
   body: string;
+  idempotencyKey: string | string[] | undefined;
 }[];
 let status: number;
 let rawBody: string | null;
@@ -37,7 +41,13 @@ beforeEach(async () => {
     });
     req.on('end', () => {
       const path = req.url ?? '/';
-      responses.push({ path, authorization: req.headers.authorization, method: req.method, body });
+      responses.push({
+        path,
+        authorization: req.headers.authorization,
+        method: req.method,
+        body,
+        idempotencyKey: req.headers['idempotency-key'],
+      });
       res.setHeader('Content-Type', 'application/json');
       if (rawBody !== null) {
         res.writeHead(status).end(rawBody);
@@ -72,8 +82,6 @@ beforeEach(async () => {
   baseUrl = `http://127.0.0.1:${address.port}`;
   vi.stubEnv('VITE_DATA_MODE', 'live');
   vi.stubEnv('VITE_API_BASE_URL', baseUrl);
-  vi.stubEnv('VITE_SOCKET_URL', baseUrl);
-  vi.stubEnv('VITE_SOCKET_PATH', '/socket.io');
   registerTokenProvider(() => useSession.getState().token);
   registerUnauthorizedHandler(() => {
     useSession.getState().expire();
@@ -81,6 +89,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   useSession.getState().logout();
+  server.closeAllConnections();
   await new Promise<void>((resolve, reject) => {
     server.close((error) => {
       if (error) reject(error);
@@ -88,9 +97,109 @@ afterEach(async () => {
     });
   });
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 describe('F001·F003·F009 실제 HTTP 어댑터', () => {
+  it.each(['create', 'send', 'revise'] as const)(
+    'F003-AC01/06 F004-AC01 %s POST 경로·멱등 헤더·본문을 연결한다',
+    async (mode) => {
+      const inquiryId = crypto.randomUUID();
+      const messageId = crypto.randomUUID();
+      const create = { requestId: crypto.randomUUID(), content: 'VPN 문의' };
+      const send = { ...create, inquiryId, expectedInquiryVersion: 1 };
+      const revise = { ...send, messageId };
+      const command = mode === 'create' ? create : mode === 'send' ? send : revise;
+      const path =
+        mode === 'create'
+          ? '/api/inquiries'
+          : `/api/inquiries/${inquiryId}/messages${mode === 'revise' ? `/${messageId}/revisions` : ''}`;
+      rawBody = JSON.stringify({
+        requestId: command.requestId,
+        inquiryId,
+        inquiryVersion: 1,
+        messageId,
+        revision: 1,
+        runId: crypto.randomUUID(),
+        effect: 'ANALYSIS_STARTED',
+      });
+      const outcome =
+        mode === 'create'
+          ? await createInquiry(create)
+          : mode === 'send'
+            ? await sendMessage(send)
+            : await reviseMessage(revise);
+      expect(outcome).toMatchObject({
+        ok: true,
+        requestId: command.requestId,
+      });
+      expect(responses[0]).toMatchObject({
+        path,
+        method: 'POST',
+        idempotencyKey: command.requestId,
+        body: JSON.stringify(command),
+      });
+    },
+  );
+  it('F003-AC04 저장 결과 식별자가 요청과 다르면 성공 처리하지 않는다', async () => {
+    const command = { requestId: crypto.randomUUID(), content: '문의' };
+    rawBody = JSON.stringify({
+      requestId: crypto.randomUUID(),
+      inquiryId: crypto.randomUUID(),
+      inquiryVersion: 1,
+      messageId: crypto.randomUUID(),
+      revision: 1,
+      runId: null,
+      effect: 'SUPPLEMENT_SAVED',
+    });
+    expect(await postMutation('/api/inquiries', command)).toEqual({ ok: 'unknown' });
+  });
+  it('F003-AC04 401 후 인증을 갱신해도 저장 요청을 자동 재전송하지 않는다', async () => {
+    useSession.getState().activate({ ...fixture('login-1', 'LoginResponse'), accessToken: token });
+    const refresh = vi.fn(() => Promise.resolve(true));
+    registerRefreshHandler(refresh);
+    status = 401;
+    rawBody = JSON.stringify({
+      code: 'ACCESS_TOKEN_EXPIRED',
+      message: '만료',
+      requestId: crypto.randomUUID(),
+      retryable: false,
+    });
+    const command = { requestId: crypto.randomUUID(), content: '문의' };
+    expect(await postMutation('/api/inquiries', command)).toEqual({ ok: 'unknown' });
+    expect(responses).toHaveLength(1);
+    expect(refresh).toHaveBeenCalledOnce();
+    registerRefreshHandler(() => Promise.resolve(false));
+  });
+  it('F003-AC04 HTTP 응답 본문 지연에도 timeout을 적용한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation((_url, options) =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                options?.signal?.addEventListener(
+                  'abort',
+                  () => {
+                    controller.error(new DOMException('취소', 'AbortError'));
+                  },
+                  { once: true },
+                );
+              },
+            }),
+          ),
+        ),
+      ),
+    );
+    await expect(
+      apiRequest('/api/inquiries', {
+        method: 'POST',
+        idempotencyKey: crypto.randomUUID(),
+        timeoutMs: 20,
+      }),
+    ).rejects.toMatchObject({ status: 0, body: { code: 'REQUEST_TIMEOUT' } });
+  });
   it('F001-AC01·AC03·AC08 로그인 JSON → Bearer /me → 부서 티켓 조회 → 204 로그아웃을 연결한다', async () => {
     const credentials = { loginId: crypto.randomUUID(), password: crypto.randomUUID() };
     const user = await login(credentials);

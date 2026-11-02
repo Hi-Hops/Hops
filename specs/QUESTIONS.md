@@ -1,135 +1,98 @@
-# MVP 합의 질문 목록
+# PRD 1.44 공통 계약 결정 대장
 
-상태: **개발 기준 확정·담당 설계·후속 상세 설계 구분 / 팀 리뷰 전** · 작성 2026-10-21 · 갱신 2026-10-28 · 관리: frontend
-기준 문서: PRD v1.43, API.md, DATA.md, ERD_설명.md 및 공통 계약의 추가 개발 프로필(WIRE_CONTRACT 10절)
+기준: PRD 1.44 · 결정안 작성일 2026-11-01 · PR #68의 공통 계약·실행 기준을 기록한다. LLM·임베딩 모델 선정, 단가·예상 비용·금액 예산과 구체 실행 설정값은 이 문서의 결정 범위에서 제외한다. 계약 기준과 코드 적용·실행 검증 상태를 구분한다.
 
-[프론트엔드 기능 스펙](README.md)의 정책 선택과 남은 구현·검증을 추적한다. 2026-10-25 추천 정책을 개발 기준으로 확정했다. 이 결정은 팀원 리뷰·병합, 실제 서비스 구현 또는 통합 검증 완료를 의미하지 않는다.
+## 1. 상태를 읽는 방법
 
-- **우선순위** 1: 첫 E2E 착수 전에 필요 · 2: 해당 기능 구현 전에 필요 · 3: 화면 표시 수준.
-- **개발 기준 확정**: 정책 선택 완료. 각 담당자의 구현·테스트는 별도다.
-- **기준 확정·담당 설계 필요**: 정책은 확정했으나 실제 버전·배포·DB 물리 설계·모델 설정 등의 선정 작업이 남아 있다.
-- **후속 상세 설계**: MVP 제외를 확정한 기능이며 상세 payload·권한·저장 계약은 해당 기능 착수 전에 정한다. 제품 목표 삭제가 아니다.
-- **#22/#38**은 기존 이슈와 논의 자료의 연결을 보존한다. 실제 이슈 본문·완료 상태를 수정했다는 뜻이 아니다.
+| 구분 | 의미·현재 상태 |
+|---|---|
+| PRD 정책 | 시스템 PRIMARY·5회 질문·문제별 확인·같은 승인 버전 양쪽 반영을 유지 |
+| 계약 채택값 | C01~C11의 공통 계약과 S01~S08의 실행·저장 기준을 기록. 모델·비용·구체 실행 설정값은 고정하지 않음 |
+| 구현·검증 | 코드·migration·실제 모델·DB·E2E를 실행한 뒤 별도로 완료 표시 |
+| 배포 입력 | 비밀키·접속 비밀번호·공용 도메인은 환경 주입. 필드/검증 규칙은 고정하며 비밀값을 문서에 기록하지 않음 |
 
-## Mock 구현 프로필 추가 (2026-10-23)
+## 2. 서비스 간 계약 결정
 
-[공통 데이터 타입 문서](contracts/README.md)와 [공용 fixture](mocks/README.md)에 로그인·채팅·부서 티켓 조회의 테스트 표현을 추가했다. Mock 예제 추가 자체가 계약의 승인 근거는 아니다. 이후 선택한 개발 기준은 아래 갱신 판정에 별도로 반영했다. 관련 질문과 Mock 제안의 대응은 공통 계약 README를 따른다. 확정 정책은 공통 계약 10절, 담당 구현·검증은 11절을 따른다. 실제 환경·키·모델 선정과 팀 리뷰는 별도다.
-
-## 0. 이슈 #22·PR #38과의 연결
-
-이슈 #22는 첫 MVP 연결에 필요한 최소 계약을 담당자 간에 합의하는 이슈다. PR #15의 Node.js Socket.IO 선택은 이후 결정으로 폐기하고 React→Spring REST, Spring→React SSE를 현재 기준으로 적용한다. 원격 `feature/45-add-realtime-server`의 구현은 반영하지 않는다. PR #38은 Draft 논의 자료이며 승인된 계약이 아니다. 현재 개발 기준의 선택은 아래 판정에 반영했으며 실제 서비스 통합은 각 담당자가 확인한다.
-
-#22 완료 조건은 체크리스트 순서대로 번호를 붙여 부른다(1·2는 완료).
-
-| 번호 | #22 완료 조건 | 이 목록의 관련 질문 |
+| ID | 공통 계약 기준 | 정본 |
 |---|---|---|
-| #22-3 | Spring–Python 요청·결과의 필드명·타입·필수/선택·null·식별자·근거·오류 표현 | Q-ALL-3, Q-ALL-4, Q-BE-3, Q-BE-4, Q-AI-3, Q-AI-5 |
-| #22-4 | 실행 접수·SSE 진행·최종 결과·서비스 인증·단절/재시작 복구·중복/늦은 결과·취소 | Q-AI-1, Q-AI-2, Q-BE-8 |
-| #22-5 | 공유 코드·서버 검증 책임과 실행/모델/재시도 예산 | Q-ALL-2, Q-AI-4, Q-BE-8, Q-BE-15 |
-| #22-6 | #20 인증과 채팅/문의 담당의 연결 계약: JWT 상세 정책, REST 저장 응답, SSE 이벤트, 새 문의 동의와 관련 대화 권한 | Q-ALL-7, Q-BE-1, Q-BE-2, Q-BE-10, Q-BE-13, Q-BE-14, Q-INF-4, Q-INF-5, Q-INF-6 |
-| #22-7 | 합의 내용을 API 문서와 최소 계약 안내에 반영 | Q-BE-9 |
+| C01 | contractVersion=hops-system-1, React↔Spring=/api/v2, 서비스 전용=/internal/v2. 기존 프로필 유지·자동 혼용 없음 | [WIRE 12절](contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
+| C02 | 문의 소유자·현재 PRIMARY·BIZ_ADMIN을 서버에서 검사. 관리자 상세는 제한 DTO, 보호 구독은 현재 권한 세대로 차단 | [TARGET](contracts/TARGET_CONTRACT.md) |
+| C03 | UUID·UTC Z·필수 키/null 규칙, 문의 입력 버전과 메시지/업무/확인/사례 버전 분리. 원문 1~4,000 코드 포인트 | [DATA_TYPES](contracts/DATA_TYPES.md#신규-계약-hops-system-1) |
+| C04 | 생성 결과 PENDING/STORED/NOT_CREATED/UNKNOWN. 결과 확인 뒤 확정 미생성만 같은 논리 작업 재시도 | [F005](F005-result-cards/spec.md)·[F010](F010-creation-failures/spec.md) |
+| C05 | 검증 완료 WorkRecord별 PENDING 확인 요청 하나. 해결·미해결은 문제별 한 번, 무응답 대기·미해결 같은 티켓 계속 | [F006](F006-my-inquiries/spec.md)·[F009](F009-department-tickets/spec.md) |
+| C06 | 현재 초안 편집·승인 후 읽기 전용. 승인과 함께 기존 문서 버전의 indexRequests를 보존하고 미전달은 같은 키로 수동 재접수. FAILED에서만 새 attempt, 현재 승인 버전의 양쪽 성공 전 비공개 | [F011](F011-case-lifecycle/spec.md)·[수동 복구](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구) |
+| C07 | AiRunRequest/Result/Event + IndexApplyRequest/Snapshot + KnowledgeAuthorizationRequest/Response, 서비스 Bearer 인증 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
+| C08 | 현재 frontend UI를 구현 기준으로 채택. 독립 티켓 상세와 사례 최소 목록·채팅 안 해결 확인을 기존 구성/토큰으로 확장하고 기능 책임·상태 소유를 고정 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[목표 구조](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
+| C09 | workItemId=problemId, 생성 상태는 inquiry_problem, 티켓은 ticket.inquiry_problem_id UNIQUE. 현재 PRIMARY는 it_system의 FK, 당시 배정은 ticket_assignment 이력 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안) |
+| C10 | AI input 읽기 전용·State 단일 작성자·검증된 patch 병합, 종료 결과 불변. 외부 DTO의 필드·타입·조건을 Markdown 계약으로 정의 | [State 계약](../contracts/agents/README.md#내부-state와-wire-검증-계약) |
+| C11 | 상담 run당 최종 AI 메시지 하나. Spring 발급 answerMessageId를 입력·delta·최종 저장에 사용. answer가 채팅 본문 정본, questions/guide는 본문에 포함된 내용의 메타데이터. 답변·질문/가이드 상태 저장 뒤 공개 Run 성공·REST 본문으로 임시 답변 교체 | [채팅 송수신](contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)·[AI 답변 연결](../contracts/agents/README.md#상담-답변과-저장-메시지-연결) |
 
-표기:
-- **겹침 #22-n**: #22의 해당 완료 조건이 같은 결정을 다룬다. 그 논의에서 함께 답을 받는다.
-- **참고 #38**: PR #38에 제안 형태의 근거가 있다. 확정이 아니므로 스펙 판정은 바꾸지 않는다.
-- **—**: #22·#38 범위 밖. 해당 담당자에게 따로 묻는다.
+문의 종합 상태는 [TARGET 4절](contracts/TARGET_CONTRACT.md#4-문의문제질문)의 집계를 채택한다. PRD 3.1절의 범위 안내와 3.4절의 해결 확인을 구분하도록 모든 문제가 OUT_OF_SCOPE인 문의에만 CLOSED를 사용한다. DATA_TYPES의 누락값과 DATA11.2절/ERD6.1절의 저장 보완안을 일치시켰으며, 무응답 자동 종료는 추가하지 않는다. 화면 확인 조건은 F006-CONTRACT-07~09이며, [호출과 진행 예시](../contracts/agents/README.md#호출과-진행-예시)에서 조회·표시 코드를 확인한다.
 
-## 요약
+<a id="적용-전-선정-항목"></a>
 
-질문 36개의 ID를 유지한다. **개발 기준 확정 24개 · 기준 확정/담당 설계 필요 8개 · 후속 상세 설계 4개**다. 판정은 정책 선택 상태이며 구현 완료 수가 아니다.
+## 실행·검색 기본값
 
-정확한 타입은 [DATA_TYPES](contracts/DATA_TYPES.md), 정책·시간·오류·범위는 [WIRE_CONTRACT 10절](contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필), 담당 작업과 미검증 항목은 [11절](contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)이 원본이다.
+다음은 서비스 연결·검색·저장의 기준이며 실제 적용과 검증은 별도다. 특정 LLM·임베딩 모델명, 역할별 모델 배분, reasoning 설정, 모델 프로필, 임베딩 차원·단가·예상 비용·금액 예산과 실행 상한의 구체 수치는 정하지 않는다. 모델·과금 설정은 서비스 입출력 계약과 분리하며 문서 작성만으로 유료 호출이나 새 인프라 배포를 실행하지 않는다.
 
-### 확정한 기준
+| ID | 채택값 | 선정 이유·적용 규칙 |
+|---|---|---|
+| S01 | OpenAI API·역할별 구조화 출력·서버의 API 키 관리 원칙 유지. 모델·과금 설정은 이 계약에서 제외 | AiRunRequest는 모델 선택·가격·금액 예산을 전달하지 않음. 모델 접근·형식 호환·품질은 실제 구현에서 검증 |
+| S01-E | 구체 임베딩 모델·차원·단가는 선정 범위에서 제외. 코사인 검색·청크512토큰·겹침64·상위5건·후보20건은 검색 검토 기준 | 모델·토크나이저 선정 후 청크와 차원을 검증. 문서와 CASE의 검색 설정 버전을 기록하고 호환되지 않는 벡터를 혼용하지 않음 |
+| S02 | 실행 요청의 expiresAt과 ExecutionLimits 형식만 정의. 기한·호출·토큰·도구·재시도 상한의 구체 수치는 실행 설정에서 별도 관리 | 실행기가 유효한 서버 설정과 요청을 검증하고 실행 전체에서 누적. 역할 전환으로 한도를 초기화하지 않음 |
+| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 벡터 차원은 모델 선정 후 결정. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
+| S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [DATA 2절](../docs/DATA.md#2-고정-카탈로그)의 seed 작성 코드 | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
+| S05 | #69 원본22개 테이블 사용. 승인과 현재 요청을 기존 source_metadata.indexRequests에 원자 저장하고 commit 뒤 전달. 미전달은 기존 확인 조작에서 같은 요청으로 수동 복구 | 새 테이블·추가 컬럼·자동 전달 큐 없음. 복수 승인 버전·전체 시도 이력은 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
+| S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
+| S07 | 데이터 구축·평가 수량과 분할은 [데이터 구축 계획](../docs/knowledge/DATASETS.md#소량-검증과-수량-제안)의 검토안으로 관리하며 실제 선정은 별도 | 계약 정상/거부/실패 검사와 모델 품질 평가를 구분하고 미래 해결·정답은 KB와 모델 입력에서 분리 |
+| S08 | 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB·AI 전용 권한. RunLedger PK=runId, 입력 digest 불변·동일 ID 새 모델 실행 금지. index job은 (jobId,attempt) 유일 | AI 계정은 Spring 업무 원본 쓰기 권한 없음. 검색 조각 권한과 ledger 권한은 각각 제한. 재시작 후 진행 중 실행은 UNKNOWN, 중간 checkpoint 자동 재개 없음. 안전한 실패 뒤 새 runId. 상세24시간·사용 ID/digest 표식 유지 |
 
-- Access 15분·Refresh 최초 로그인부터 최대 7일·매 갱신 회전·현재 세션 로그아웃. 권한 문맥 변경은 기존 인증 회수 후 재로그인.
-- REST 저장 응답 대기 10초·SSE 연결 시도 5초·자동 재접속 최대 30초. `auth.invalidated`·`resync.required` 제어 이벤트 사용.
-- 상태·오류 목록과 전이, 문의 버전 1부터 증가, 작업당 최대 티켓 1개, 멱등 결과 최소 24시간 보존.
-- 문의/티켓 목록 기본 20·최대 100, 채팅 최신 30개를 오래된 순서로 표시. 본인 메시지 정정 기간·횟수 제한 없음, 종료 후에는 보완 저장만 허용.
-- 단일 에이전트 총 60초·LLM 최대 3회 시도·일시 장애 자동 재시도 최대 1회(전체 예산에 포함)·호출당 출력 최대 1,500토큰.
-- 로그인·개인 세션 재진입·채팅·정정·실제 단일 AI·복수 티켓/부서 배정·부서/관리자 읽기 전용 조회·분석 재시도는 MVP. 독립 문의 상세·예시 질문·분리 동의·관련 대화·담당자 처리·기술 복구 UI·구조화 가이드는 후속.
+### 서비스 인증과 실행 입력
 
-### 담당 설계와 검증이 남은 것
+서비스 인증은 Spring→AI의 AI_SERVICE_TOKEN, AI→Spring의 SPRING_SERVICE_TOKEN을 분리한다. 각 토큰은 최소32바이트 난수를 base64url로 환경 주입하고 미설정/빈 값이면 신규 프로필을 기동하지 않는다. PUBLIC_WEB_ORIGIN·SPRING_SERVICE_ORIGIN·AI_SERVICE_ORIGIN은 경로/query/fragment 없는 고정 origin이며 공용 환경은 HTTPS만 허용한다. 개발 CORS는 위 frontend origin과 credentials만 허용하고 wildcard를 사용하지 않는다.
 
-- **백엔드:** DB 컬럼/FK/인덱스·마이그레이션, 인증 키·CSRF·실제 Origin, 회전/폐기와 동시성, 24시간 결과 저장 및 영구 작업 유일성 구현.
-- **백엔드 SSE:** `SseEmitter` 연결 수명·heartbeat·replay·권한 회수, 다중 인스턴스 전달과 프록시 buffering/timeout 구현.
-- **AI+백엔드:** 실제 모델/SDK·금액 상한·SSE 세부 경로/복구, 예산 강제 및 유효 저장 단계 재사용, 실제 단일 에이전트 평가.
-- **프론트:** 새 제어 이벤트 수신, 추가 실행 상태·429 대기 UI와 실제 쿠키/권한 회수 연동 검증. 기존 Mock/대역 테스트가 위 서버 구현을 증명하지 않는다.
-- **후속 상세:** Q-BE-13/14/15·Q-AI-5의 후보/동의·관련 메시지·운영 복구 입출력은 해당 기능 착수 전에 설계한다.
+Spring은 서버에서 준비한 expiresAt·limits를 AI 실행 입력에 넣고 AI는 기한·누적 한도를 검증한다. 이 문서는 실행당·일일 금액, 단가·예상 비용, 모델 프로필과 구체 실행 상한을 정의하지 않는다. 추가 사용자 발화의 재분석은 새 run이며 모델 접근 불가·형식 거부를 임의의 다른 모델로 우회하거나 업무 성공으로 처리하지 않는다.
 
-| 담당 | 등록 질문 수(결정 항목 포함) | 우선순위 1 식별자(원래 분류) | #22와 겹침 |
+### 카탈로그와 검증 기준
+
+기능10개는 전자결재(문서작성·문서조회·결재상태·첨부열람), 공통 로그인(로그인/SSO·계정접근·권한신청), 파일 공유(파일열람·파일공유·접근권한)다. 이 목록과 DATA2절의 ID는 계약 호출 검토용 데모 카탈로그다. 실제 지식·평가 데이터의 선정 완료를 뜻하지 않으며 기능·업무 규칙은 가상 기업 명세와 데이터 검토 결과에 맞춰 별도 선정한다. Neo4j 카탈로그의 System/Feature는 같은 업무 ID를 쓰며 Symptom/Cause/Check는 검수 seed의 출처 ID, CASE는 caseId+caseVersion을 쓴다.
+
+평가 사건 수·분포·개발/테스트 분할·정확도 목표는 [데이터 구축 계획](../docs/knowledge/DATASETS.md#검수와-평가)을 따르며 이 계약에서 선정 완료로 표시하지 않는다.
+
+출시 게이트는 계약별 정상/오류 검사 전부 통과, 무권한 공개·중복 티켓·5회 초과·무응답 자동 종료·양쪽 반영 전 CASE 공개 0건, 근거 없는 해결 성공 단정0건, 승인→양쪽 반영→재검색 실제 연결1건 이상이다. API 저장 ack p95≤2초·첫 공개 진행 p95≤3초를 목표로 측정하고 상담·초안은 요청의 expiresAt 안에서 종료되는지 검사한다. 이는 합격 기준이며 아직 측정한 결과가 아니다.
+
+## 3. 계약 범위와 spec 연결
+
+| 경계 | 문서 정본 | 연결 spec | 포함 범위 |
 |---|---|---|---|
-| 전원 | 7 | Q-ALL-2, Q-ALL-4 | 4 |
-| backend | 15 | Q-BE-1, Q-BE-2, Q-BE-3, Q-BE-4, Q-BE-9 | 10 |
-| infra | 7 | Q-INF-1, Q-INF-2, Q-INF-3, Q-INF-6 | 3 |
-| ai | 5 | Q-AI-1 | 5 |
-| frontend | 2 | — | 0 |
+| Frontend↔Spring | DATA_TYPES 신규 절·WIRE12절 | F001~F011 | 명령/조회·nullable/enum·버전·HTTP/오류·멱등/복구·SSE·화면 조작 |
+| Spring↔AI 실행 | 에이전트 README의 외부 DTO·검증 규칙 | F002/F003/F004/F005/F008/F010/F011 | 요청/수락/snapshot/진행/최종결과/취소·State·인증·예산 |
+| Spring→AI 반영 | 에이전트 README·IndexApplyRequest/Snapshot | F011 | 승인 스냅샷·저장소·attempt·상태·digest·부분 실패 |
+| AI→Spring 검색 권한 | 에이전트 README·KnowledgeAuthorizationRequest/Response | F001/F003/F009/F011 | 현재 run·policyRevision·후보 문서/CASE 버전·허용 참조 |
+| wire→저장 | DATA9/10절 | F004/F005/F006/F007/F009/F010/F011 | 논리 작업 키·당시/현재 담당·원 기록·버전·잠금·원자 공개 |
 
-## 1. 전원
+## 4. 변경·승인 기록
 
-| ID | 질문 | 근거·현재 상태 | 관련 스펙 | 우선 | 판정 | 정한 기준 / 남은 결정 | #22/#38 |
-|---|---|---|---|---|---|---|---|
-| Q-ALL-1 | 내 문의 목록·상세를 MVP에 넣는가? | 개인 세션 목록·새 문의·기존 채팅 재진입은 MVP다. | F006 | 2 | **개발 기준 확정** | 독립 내 문의 목록·상세 모달은 후속. 최소 재진입과 전체 F006을 구분한다. | — |
-| Q-ALL-2 | 상태값 코드와 화면 표시명을 하나로 정한다 | DATA_TYPES의 상태 코드·표시명·허용 전이를 적용한다. 부서 배정과 개인 담당자 식별자는 별개다. | F003, F005, F006, F007, F008, F009, F010 | 1 | **개발 기준 확정** | 문의/문제/실행/처리/배정 상태를 분리한다. 후속 복구·동의 enum도 정의하되 전체 기능 구현 완료를 뜻하지 않는다. | 겹침 #22-5(공유 코드) · 참고 #38(문제별 `action`: `PROPOSE_TICKETS`, `ASK_USER` 제안) |
-| Q-ALL-3 | API 필드 이름과 ERD 컬럼 이름의 대응 | wire JSON camelCase와 DB 내부 명명은 매핑하며 물리명을 강제하지 않는다. | F005 | 2 | **기준 확정·담당 설계 필요** | 백엔드가 컬럼·FK·인덱스·마이그레이션을 설계하고 계약 매핑을 검증한다. | 겹침 #22-3(필드명) · 참고 #38(camelCase 키 사용) |
-| Q-ALL-4 | 오류 코드(`code`) 목록 | DATA_TYPES의 ErrorCode와 WIRE_CONTRACT 10절의 행동 표를 사용한다. | 전체 | 1 | **개발 기준 확정** | 대표값은 INVALID_INPUT·SERVICE_UNAVAILABLE. REST·SSE 연결 전 429는 Retry-After 초를 사용한다. 열린 스트림 뒤 제어 이벤트와 HTTP 오류를 구분한다. 서버/화면 구현 검증은 별도다. | 겹침 #22-3(오류 표현) · 참고 #38("기술 실패와 재시도 가능 여부"를 결과 정보로 제안) |
-| Q-ALL-5 | 화면 접근 권한 표 | 본인 문의만 조회, 현재 처리 부서 티켓·관련 범위는 해당 부서 구성원, 업무 관리자는 BIZ_ADMIN, 기술 복구는 AGENT_OPS_ADMIN이다. | F001, F007, F009, F010 | 2 | **개발 기준 확정** | 기준: PRD 2·3.3, WIRE_CONTRACT 3·10절, docs/frontend/ROUTES.md. 메뉴는 보조 가드이며 최종 접근 검사는 Spring이다. 타인 문의 전체 대화를 관리자 역할만으로 허용하지 않는다. | — |
-| Q-ALL-6 | 채팅 예시 질문을 MVP에 넣는가? | 예시 질문은 즉시 문의형·입력창 채움형 모두 MVP에서 제외한다. | F003 | 3 | **개발 기준 확정** | 후속 기능으로 두고 PRD 4.3/4.4/8장과 F003을 맞춘다. | — |
-| Q-ALL-7 | 이슈 #30·#31에는 있지만 원본 문서가 후속으로 둔 항목을 MVP 완료 조건에 넣는가? | 최소 개인 세션·채팅·복수 티켓/부서 배정·부서 및 관리자 읽기 전용 조회·분석 재시도·실제 단일 AI 평가를 MVP로 정한다. | F008, F009, F010 | 2 | **개발 기준 확정** | 분리 동의·티켓 관련 대화·운영 복구 UI·담당자 업무는 후속. 이슈 #30/#31 본문·완료 상태는 별도 조정 대상이며 이번 문서 편집으로 변경하지 않았다. | 겹침 #22-6(새 문의 동의와 관련 대화 권한) |
+[사례 UNKNOWN 복구·수동 공개 중단 변경안](F011-case-lifecycle/RECOVERY_PROPOSAL.md)을 참고한다.
 
-## 2. backend (Spring)
+공통 계약은 PR #68에서 정리했다. 실제 코드/DB/환경 연결과 검증 결과는 구현 작업에서 별도 기록한다.
 
-| ID | 질문 | 근거·현재 상태 | 관련 스펙 | 우선 | 판정 | 정한 기준 / 남은 결정 | #22/#38 |
-|---|---|---|---|---|---|---|---|
-| Q-BE-1 | 로그인 응답과 `/api/auth/me` 응답 필드 | 로그인/refresh 응답은 LoginResponse(accessToken, expiresAt, user), 현재 사용자는 CurrentUser다. user에는 id·employeeNo·name·department·roles가 있다. | F001 | 1 | **개발 기준 확정** | 정확한 필드·nullable은 DATA_TYPES.md를 따른다. Department는 id·code·name·isRoutable이다. POST /api/auth/login → GET /api/auth/me 흐름을 유지한다. | 겹침 #22-6(JWT 상세 정책, #20 인증) |
-| Q-BE-2 | JWT 브라우저 보관·갱신·CSRF (infra와 함께) | Access 메모리 15분, HttpOnly Refresh 최초 로그인부터 절대 7일, 매 갱신 회전·이전 토큰 폐기다. | F001, F002 | 1 | **기준 확정·담당 설계 필요** | 현재 로그인 세션만 로그아웃. 역할/부서 변경·차단은 해당 사용자 기존 인증과 열린 SSE를 회수한 뒤 재로그인. HTTPS Secure·동일 사이트/SameSite=Lax 기본. 세션·Refresh 검증값 저장소는 Redis(팀 합의 2026-10-28). 동시 갱신 경합에서 진 요청은 401 `REFRESH_TOKEN_REVOKED`, 세션 유지. 키·Origin·CSRF·회전 재사용 검출의 실제 설계/검증은 백엔드 담당이다. | 겹침 #22-6(JWT 상세 정책, #20 인증) |
-| Q-BE-3 | 문의 버전을 어디에 저장하는가? | inquiry.version 초기 1, 입력 추가·정정 시 증가, expectedInquiryVersion으로 낙관적 동시성을 적용한다. | F003, F004, F008 | 1 | **기준 확정·담당 설계 필요** | 멱등 결과 재사용을 버전 비교보다 먼저 검사(멱등 키는 PostgreSQL 테이블, 업무 변경과 같은 트랜잭션). 충돌 시 최신 조회·초안 비교, AI는 버전과 활성 runId가 맞을 때만 반영. 실제 컬럼/원자 갱신/마이그레이션은 백엔드 담당이다. | 겹침 #22-3(식별자) · 참고 #38(요청·결과에 정수 `inquiryVersion` 사용) |
-| Q-BE-4 | 문제·처리 작업·티켓 관계 | 문의 1:N 문제, 문제 1:N 생성 작업, 작업당 최대 티켓 1개다. | F005, F010 | 1 | **기준 확정·담당 설계 필요** | 티켓·현재 부서·최초 배정은 원자 저장, 부분 성공 보존. 요청 결과 최소 24시간, 이후에도 작업↔티켓 유일성 유지. 테이블/FK/유일 인덱스와 DDL 적용은 백엔드 담당이다. | 겹침 #22-3(식별자) · 참고 #38(입력에 "기존 문제·생성 작업과 식별자", 결과 `ticketProposals[]`가 `problemRef`로 문제를 가리킴) |
-| Q-BE-5 | 목록 페이지·정렬·필터 | 문의/티켓 목록은 페이지 0부터 기본 20·최대 100, createdAt DESC·id DESC다. | F006, F007, F009, F010 | 2 | **개발 기준 확정** | 현재 티켓 필터는 processingStatus만. routingStatus·개인 담당자·실패 전용 필터는 후속. 채팅은 별도 최신 30개 커서다. | — |
-| Q-BE-6 | 티켓 목록 범위와 상세 응답 | 현재 처리 부서 또는 BIZ_ADMIN 권한 범위의 읽기 전용 목록/상세다. | F007, F009 | 2 | **개발 기준 확정** | TicketPage/TicketDetail을 사용한다. 관리자 역할만으로 타인 문의 전체 대화를 공개하지 않는다. 개인 담당자 필터/업무 처리는 후속이다. | — |
-| Q-BE-7 | 대화 조회 형식 | GET /api/inquiries/{id}/messages?size=30은 최신 30개, beforeSequenceNo는 미만 조회, 응답은 MessageHistoryPage다. items는 오름차순이고 마지막이 최신이다. | F003, F004, F009 | 2 | **개발 기준 확정** | nextBeforeSequenceNo는 이전 항목이 있으면 첫 순번, 없으면 null. revision/revisions 이력과 순번 불변을 유지한다. 위 스크롤 추가·현재 위치 보존, 최초 하단 이동. 티켓 관련 대화의 공개 범위는 Q-BE-14다. | 참고 #38(분석 입력 메시지에 `messageId`, `revision` 사용) |
-| Q-BE-8 | 실행 상태 응답과 재시도 조건 | 본인 문의의 서버가 retryable=true로 판정한 시간 초과/일시 실패만 다시 분석한다. 기술 저장·재이관 복구는 운영 관리자 기능으로 구분한다. | F003, F005, F010 | 2 | **개발 기준 확정** | RunRetryRequest(requestId, expectedInquiryVersion) → RunSummary, POST /api/runs/{id}/retries. 소유권·최신 버전·활성 실행·멱등성 검증, 기존 성공 티켓 보존. 무결과 실행은 저장 입력으로 재분석하며 LLM 중간 체크포인트 재개는 미구현이다. 실행 예산은 Q-AI-4다. | 겹침 #22-4(복구), #22-5(재시도 예산) |
-| Q-BE-9 | MVP OpenAPI 파일 위치와 작성 담당 | DATA_TYPES/WIRE_CONTRACT의 Markdown 문서가 공통 계약 원본이며 언어별 코드를 생성하지 않는다. | 전체 | 1 | **개발 기준 확정** | 추가 OpenAPI/JSON Schema는 MVP 연결 선행 조건이 아니다. REST/DB·브라우저 SSE는 백엔드, AI 경계는 AI+백엔드가 작성·변경하고 영향 담당자가 리뷰한다. | 겹침 #22-7 · 참고 #38(`contracts/mvp/README.md`를 추가하며 "기계 판독 명세의 원본·생성 방식은 #24에서" 정한다고 함) |
-| Q-BE-10 | 메시지 저장 결과의 `effect` 값 | effect는 현재 ANALYSIS_STARTED와 SUPPLEMENT_SAVED로 구분한다. | F003, F004 | 2 | **개발 기준 확정** | ANALYSIS_STARTED는 runId 필수, SUPPLEMENT_SAVED는 runId=null이며 자동 재분석·새 티켓 생성을 하지 않는다. 이미 저장된 업무를 effect만으로 새로 생성하지 않는다. | 겹침 #22-6(저장 전용 메시지 응답) |
-| Q-BE-11 | 정정 제한 | 본인 사용자 메시지는 기간·횟수 제한 없이 정정하고 원문/정정 이력을 보존한다. | F004 | 3 | **개발 기준 확정** | 분석 단계에서는 최신 버전으로 재분석. 이관 완료·종료 뒤에는 보완만 저장하며 자동 재오픈·재배정·신규 티켓 생성 없음. 서버 단계 판정과 연동 검증 필요. | — |
-| Q-BE-12 | 티켓 카드의 번호·부서 형식 | 티켓 카드/상세는 ticketNumber와 Department 객체를 사용한다. 표시 번호와 접근용 UUID를 구분한다. | F005, F007, F009 | 3 | **개발 기준 확정** | TicketCard/TicketDetail/Department의 필드는 DATA_TYPES.md 기준이다. department는 id·code·name·isRoutable, 업무 접근은 현재 부서/권한으로 서버 검사한다. | 참고 #38(Python 제안에 `departmentCode` 사용. 화면 응답 형식과는 별개) |
-| Q-BE-13 | 새 문의 분리 동의의 후보 전달·응답·연결 표시 | 새 문의 분리 동의의 HITL 원칙만 PRD에 있고 후보 전달·동의/만료·REST 결과·출처 연결·저장 위치의 세부 계약은 없다. 현재 F008은 미구현이다. | F008 | 2 | **후속 상세 설계** | MVP 제외·후속 착수 전에 consentId·후보 payload·상태/만료·새 문의 식별자·연결 조회·멱등성을 함께 확정한다. 후속 enum은 DATA_TYPES에 정의했으며 전체 payload·만료 값·권한 계약은 별도 설계한다. | 겹침 #22-6(새 문의 동의) |
-| Q-BE-14 | 티켓 관련 대화의 범위와 권한 | 현재 처리 부서의 관련 대화 조회 원칙은 PRD에 있다. 현재 프론트는 티켓 관련 대화 API를 연결하지 않았다. | F007, F009 | 2 | **후속 상세 설계** | MVP 제외·후속 착수 전에 메시지↔문제/티켓 연결, 업무 관리자 관련 대화 공개 범위, 재이관 시 접근 회수 전달/시점을 확정한다. 전체 문의 대화를 무조건 공개하지 않는다. | 겹침 #22-6(관련 대화 권한) |
-| Q-BE-15 | 생성 실패의 역할별 필드와 재시도 경로 | 생성 실패와 분석 재시도는 별개이며 기술 재시도는 운영 관리자 권한이다. 현재 F010은 미구현이다. | F010 | 2 | **후속 상세 설계** | MVP 제외·후속 착수 전에 recoveryCaseId↔workItemId 연결, 역할별 공개 필드, 복구 API·멱등 키·복구 결과/재시도 예산을 확정한다. 문의자 다시 분석 버튼으로 복구 권한을 넓히지 않는다. | 겹침 #22-5(재시도 예산) |
+## 5. 완성 ERD 반영 상태
 
-## 3. infra (Spring SSE·배포)
+**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 기존 컬럼·DB↔wire 상태·JSONB 대응을 기록했다. 현재 MVP는 원본22개 테이블로 진행하고 4개 추가 테이블 제안은 반영하지 않는다. 확인은 기존 이벤트·메시지 메타데이터, 사례는 현재 행·승인 뒤 읽기 전용, 반영은 기존 두 상태 컬럼을 사용한다. 상세 매핑과 후순위 범위는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)을 따른다.
 
-| ID | 질문 | 근거·현재 상태 | 관련 스펙 | 우선 | 판정 | 정한 기준 / 남은 결정 | #22/#38 |
-|---|---|---|---|---|---|---|---|
-| Q-INF-1 | Spring SSE와 브라우저 클라이언트 구현 방식 | 별도 Node.js 서버 없이 Spring MVC `SseEmitter`와 fetch 기반 SSE를 사용한다. | F002 | 1 | **기준 확정·담당 설계 필요** | Bearer 헤더 때문에 native EventSource를 사용하지 않는다. parser·백압·연결 수·timeout의 실제 구현과 부하 검증은 백엔드/프론트가 맡는다. | 기존 PR #15 선택 대체 |
-| Q-INF-2 | 개발·배포 환경의 연결 주소·경로·CORS | Spring origin의 `/api/realtime/events`에 연결하고 운영 HTTPS·동일 사이트 배포를 기본으로 한다. | F002 | 1 | **기준 확정·담당 설계 필요** | 실제 주소·허용 Origin·TLS·CSRF/CORS·프록시 buffering/timeout은 배포 담당과 백엔드가 정하고 실제 브라우저에서 검증한다. | — |
-| Q-INF-3 | SSE 대상 형식과 권한 | 현재 대상은 INQUIRY·TICKET·DEPARTMENT_TICKETS이며 `targetType`·`targetId`가 필수다. | F002, F007, F009, F010 | 1 | **개발 기준 확정** | 한 연결에 한 대상을 요청하고 Spring이 현재 권한을 검사한다. 임의 채널명·userId를 신뢰하지 않으며 ADMIN_DASHBOARD 등 미구현 대상을 미리 추가하지 않는다. | — |
-| Q-INF-4 | 연결 중 토큰 만료와 권한 변경 시 SSE 회수 처리 | `auth.invalidated`와 서버 측 열린 스트림 종료를 WIRE_CONTRACT로 확정했다. | F002 | 2 | **기준 확정·담당 설계 필요** | 만료는 refresh 후 새 Bearer로 재연결, 권한 문맥 변경/폐기는 재로그인한다. 통지가 유실돼도 REST·SSE 권한 검사가 차단해야 한다. | 겹침 #22-6(JWT 상세 정책) |
-| Q-INF-5 | REST 저장 응답 대기와 재전송 정책 (backend와 함께) | 저장 응답 대기는 10초이며 요청 접수나 AI 완료가 아닌 Spring DB 저장 결과다. | F003, F004, F008 | 2 | **개발 기준 확정** | 시간 초과·단절은 결과 미확인, 원문과 `Idempotency-Key` 보존, 사용자 확인 뒤 같은 키/본문 재확인. 자동 저장 재전송 없음. 새 의도는 새 키다. | 겹침 #22-6(REST 저장 결과) |
-| Q-INF-6 | REST 경로·SSE 이벤트·결과 타입과 스키마 위치 | 변경 REST 3개, 업무 이벤트 4개와 제어 이벤트 `auth.invalidated`·`resync.required`를 사용한다. | F002~F005, F008 | 1 | **개발 기준 확정** | 타입은 DATA_TYPES, 전송은 WIRE_CONTRACT가 원본이다. `MutationResult`·`ResyncRequiredEvent` 추가와 기존 Command/Subscription 타입 제거가 남아 있다. | 겹침 #22-6(저장 결과·SSE) |
-| Q-INF-7 | SSE 단절·이벤트 재생 불가를 React에 알리는 방법 | 연결 오류와 `resync.required`를 구분한다. | F002 | 3 | **개발 기준 확정** | replay 이벤트 이력은 Redis에 둔다(팀 합의 2026-10-28). `Last-Event-ID` replay가 불가능하면 REST로 동기화하고 새 기준점으로 연결한다. 인증 만료나 저장 실패로 추정하거나 REST 변경을 자동 재전송하지 않는다. | — |
+현재 PRIMARY DTO, 실패 처리 기록과 원인/적용 버전, CASE 문제 설명/종류, 공통 POLICY의 null systemId, ticketRevision=DB version+1을 채택한다. 프론트는 wire 상태를 사용하고 기존 디자인·경로/메뉴를 재사용한다. FK를 유지하기 위해 지식 검색은 같은 PostgreSQL DB의 hops_knowledge schema에 두며 AI 계정의 업무 원본 쓰기는 금지한다.
 
-## 4. ai (Python 에이전트)
+남은 절차는 실제 코드/DB/검색/E2E 구현 검증이다. ERD 대조를 다시 기다리는 상태로 두지 않는다. 구현 경계는 DATA11.4절, 실제 구현 우선순위는 프론트 README를 따른다.
 
-| ID | 질문 | 근거·현재 상태 | 관련 스펙 | 우선 | 판정 | 정한 기준 / 남은 결정 | #22/#38 |
-|---|---|---|---|---|---|---|---|
-| Q-AI-1 | `agent.progress`에 담을 내용 | agent.progress.payload는 stepNo·stepType·displaySummary·status다. 화면은 공개 진행 문구를 표시하고 임의 진행률이나 모델 내부 사고 과정을 표시하지 않는다. | F003 | 1 | **개발 기준 확정** | DATA_TYPES의 AgentProgressEvent/Payload를 따른다. 사용자 공개 가능 범위의 문구만 Spring이 중계한다. 실제 Python→Spring SSE 변환·전달 구현은 별도 통합 검증한다. | 겹침 #22-4(SSE 진행). #38은 진행 형식을 다루지 않음 |
-| Q-AI-2 | `answer.delta`의 메시지 식별자·순번 | answer.delta.payload는 messageId·seq·text이며 runId·inquiryVersion을 함께 검사한다. | F003 | 2 | **개발 기준 확정** | 조각은 임시 표시, 최종은 같은 messageId의 저장 ChatMessage로 교체한다. 중복/역순 조각 처리, 이전 버전/실행 덮어쓰기 차단, 누락 시 저장 데이터 재조회 기준을 유지한다. | 겹침 #22-4(SSE 진행·늦은 결과) |
-| Q-AI-3 | AI 답변의 구조화 형태 | MVP는 ChatMessage.content·Problem 상태/질문 횟수·저장 티켓 카드로 표시한다. | F003 | 2 | **개발 기준 확정** | 별도 구조화 가이드 kind·단계·링크 payload는 후속이며 현재 AI↔Spring 결과를 화면 계약에 변환해 사용한다. | 겹침 #22-3 · 참고 #38(결과 `answer` 문자열과 문제별 `action`·`question`. Spring이 화면에 줄 형태는 별도로 정해야 함) |
-| Q-AI-4 | 분석 시간 초과 기준 | 초기 단일 에이전트 총 60초·LLM 최대 3회 시도·일시 장애 자동 재시도 최대 1회·호출당 출력 최대 1,500토큰이다. | F003 | 3 | **기준 확정·담당 설계 필요** | 자동/SDK 재시도도 전체 3회·60초 안에 포함. 유효한 저장 단계만 재사용하며 없으면 저장 입력으로 재분석. 모델·SDK·금액 상한·실제 SSE/복구 설정은 AI+백엔드가 측정 후 선정. SLO/품질 보장은 아니다. | 겹침 #22-5(실행 예산) · 참고 #38("종료 시각·호출 예산" 미정으로 둠) |
-| Q-AI-5 | 별개 문의 후보를 결과에 어떻게 표현하는가? | 별개 문의는 사용자 동의 후 분리한다는 PRD 원칙만 있다. 분리 후보의 AI 입출력은 미정이고 현재 미구현이다. | F008 | 2 | **후속 상세 설계** | MVP 제외·후속 착수 전에 후보별 문맥 요약·출처 메시지·원본 문제 연결·중복 후보 판정 및 Spring consentId 발급을 Q-BE-13과 함께 확정한다. | 겹침 #22-3 · 참고 #38 |
+## 6. 이번 단계에서 고정한 적용 기준
 
-## 5. frontend (공유용, 다른 담당 확인 요청)
+| 범위 | 작업 결정값 | 구현·승인과의 구분 |
+|---|---|---|
+| Contract | 외부 DTO·권한·HTTP/SSE·AI wire 형식 유지. 저장은 기존22개 테이블, 사례는 현재 초안 편집·승인 후 읽기 전용 | 서비스 구현과 DB 적용 완료를 뜻하지 않음 |
+| Spec | F001~F011의 MVP 정상 흐름과 기본 상태 검증 우선. 복수 승인 버전·반영 전체 이력·영속 전달 복구는 후순위 | 현재 코드의 이전 AC 검사로 신규 기능 완료를 대신하지 않음 |
+| UI | develop d896fae의 실제 프론트 UI와 공통 컴포넌트를 기준으로 기능 확장. 새 Figma를 구현 기준에서 제외 | 화면 세부 구현/접근성/브라우저 검증은 실제 작업에서 수행 |
+| Frontend 구조 | app→pages→features→shared, auth/realtime/chat/inquiry/ticket/case의 책임·데이터 소유·프로필 경계 | 목표 파일/폴더는 구현 때 생성하고 현재 frontend 소스/Mock을 유지 |
+| 물리 저장 | 원본22개 테이블과 ERD6절의 기존 컬럼·DTO 대응 사용. 새 테이블 없음 | 기존 컬럼 보완도 실제 DB 적용·코드 구현과 구분하며 예외 복구·이력 확장은 후순위 |
 
-| ID | 내용 | 관련 스펙 | 요청 | #22/#38 |
-|---|---|---|---|---|
-| Q-FE-1 | 화면 경로와 역할별 첫 화면(이슈 #6 라우팅 명세) | F001, 전체 | **개발 기준 확정** — 현재 경로·첫 화면·권한별 메뉴는 docs/frontend/ROUTES.md에 정의되어 있다. 내부 복귀 주소 우선, 그 외 BIZ_ADMIN은 /admin/tickets, 처리 부서원은 /tickets, 일반 사용자는 /. 상세는 /tickets/:ticketId와 /admin/tickets/:ticketId를 같은 컴포넌트로 처리한다. 별도 문의 상세/복구 경로는 현재 미등록이다. | — |
-| Q-FE-2 | 상태 표시명·오류 문구 | F003, F005 | **개발 기준 확정** — DATA_TYPES와 WIRE_CONTRACT 10절의 코드·행동 기준 적용. 현재 화면의 일부 상태/오류 안내는 구현되어 있으나 QUEUED/SUPERSEDED·429 대기·새 제어 이벤트 등 추가 구현과 실제 연동 검증이 남아 있다. | — |
-
-## 6. 원본 반영과 남은 검증
-
-- 문의 버전 초기 1과 문제→작업→티켓 관계를 API·DATA·ERD 설명에 반영했다. 실제 DDL·DB·ERD 그림의 적용/동기화는 확인하지 않았다.
-- 상태·오류·시간·범위는 공통 계약으로 맞췄다. 현재 Mock·어댑터가 모든 확정값을 구현했다는 뜻은 아니다.
-- 숨김·동의·메시지 관련성·운영 복구 등의 후속 저장/API는 해당 기능 착수 전에 설계한다.
-- 이슈 #30/#31의 기존 항목과 MVP/후속 대응은 ISSUE_MAP에 표시했다. GitHub 이슈 본문 변경·종료·팀 리뷰/병합은 수행하지 않았다.
-- 실제 Spring·PostgreSQL·React SSE·AI 연결, 동시성/인증 회수/쿠키 회전, 새 이벤트와 예산 강제, 단일 에이전트 평가·SLO·비용 측정은 미검증이다. 세부 담당은 WIRE_CONTRACT 11절을 따른다.
+이 결정은 공통 계약의 기준이다. 이번 단계에서는 신규 필드·엔드포인트·물리 테이블·모델 기본값을 추가 선택하지 않고, 현재 계약과 구현 범위를 기준으로 다음 프론트 작업을 진행한다.

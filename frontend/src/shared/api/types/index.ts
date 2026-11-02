@@ -220,37 +220,26 @@ export type TicketTarget = {
 
 export type SubscriptionTarget = InquiryTarget | DepartmentTicketsTarget | TicketTarget;
 
-export type SubscriptionCommand = {
-  requestId: Uuid;
-  target: SubscriptionTarget;
-};
-
-export type StoredAck = {
-  ok: true;
+/** Q-INF-6 임시 REST 프로필: docs/API의 저장 필드. 서버 DTO 최종 확인은 별도다. */
+export type MutationResult = {
   requestId: Uuid;
   inquiryId: Uuid;
   inquiryVersion: number;
   messageId: Uuid;
   revision: number;
-  runId: string | null;
+  runId: Uuid | null;
   effect: Effect;
 };
 
-export type ErrorAck = {
-  ok: false;
-  requestId: Uuid;
-  error: ApiErrorBody;
+export type AuthInvalidatedEvent = {
+  eventId: Uuid;
+  code: 'ACCESS_TOKEN_EXPIRED' | 'AUTH_CONTEXT_CHANGED' | 'REFRESH_TOKEN_REVOKED';
+  message: string;
 };
 
-export type SubscriptionAccepted = {
-  ok: true;
-  requestId: Uuid;
-  target: SubscriptionTarget;
+export type ResyncRequiredEvent = {
+  eventId: Uuid;
 };
-
-export type CommandAck = StoredAck | ErrorAck;
-
-export type SubscriptionAck = SubscriptionAccepted | ErrorAck;
 
 export type AgentProgressPayload = {
   stepNo: number;
