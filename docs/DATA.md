@@ -201,8 +201,8 @@ knowledge_document_version.id는 내부 FK이고, 외부 documentId는 knowledge
 
 ### 11.4 문서 병합과 실제 구현
 
-원본 ERD 대조 결과를 바탕으로 추가 테이블 없이 기존 컬럼과 DTO를 변환한다. [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)의 컬럼 보완과 MVP 범위는 실제 DB 적용과 구분한다.
+원본 ERD 대조 결과를 바탕으로 추가 테이블 없이 기존 컬럼과 DTO를 변환한다. [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)의 컬럼·제약 보완은 ERD 3절 표와 Flyway V2~V21에 반영했다(#23). MVP 범위의 업무 동작은 구현 PR에서 적용한다.
 
-Entity/Flyway·DB 경합·서비스 권한·실제 모델/검색·브라우저 E2E는 구현 PR에서 검증한다. Spring이 중계하는 임시 답변 조각은 message의 저장 완료 행과 별개이며 ERD의 message_status만으로 실시간 연결이 구현됐다고 볼 수 없다. 현재 프론트/Mock은 legacy 프로필을 유지하고 전환 작업은 [프론트 기준](frontend/README.md#erd-대조-후-프론트-구현-범위)을 따른다.
+Entity·Flyway의 저장·재조회·유일성·CHECK는 #23 Repository 테스트로 확인했다. DB 경합·서비스 권한·실제 모델/검색·브라우저 E2E는 구현 PR에서 검증한다. Spring이 중계하는 임시 답변 조각은 message의 저장 완료 행과 별개이며 ERD의 message_status만으로 실시간 연결이 구현됐다고 볼 수 없다. 현재 프론트/Mock은 legacy 프로필을 유지하고 전환 작업은 [프론트 기준](frontend/README.md#erd-대조-후-프론트-구현-범위)을 따른다.
 
 GUIDE의 UNRESOLVED 응답은 기존 메시지의 확인 메타데이터와 원 안내를 보존한 채 문제를 CLARIFYING으로 돌리고 commit 뒤 새 상담 run을 호출한다. input.problems[].resolutionContext에 원 요청/안내 revision·UNRESOLVED를 넣고 activeRunId를 갱신한다. 질문 횟수는 유지한다. WORK_RECORD의 UNRESOLVED는 기존 ticket_event에 남기고 같은 티켓 IN_PROGRESS로 돌아가며 새 사람 처리 기록 전 CASE_DRAFT를 다시 실행하지 않는다.

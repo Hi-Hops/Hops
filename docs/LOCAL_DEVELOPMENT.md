@@ -21,7 +21,7 @@ docker compose ps
 
 포트가 겹치면 루트 `.env`의 `FRONTEND_PORT`, `BACKEND_PORT`, `AI_PORT`, `POSTGRES_PORT`를 바꾸고 `docker compose up -d`를 실행한다. `VITE_API_BASE_URL`과 `HOPS_CORS_ALLOWEDORIGINS`를 비워두면 포트에 맞춰 로컬 주소를 만들며, 별도 주소가 필요하면 직접 입력한다. AI 모드와 실행 예산도 `HOPS_AI_*` 항목으로 설정한다.
 
-PostgreSQL 18의 업무 DB에 Spring Flyway가 테이블과 개발용 가상 데이터를 적용한다. 테스트 DB가 필요하면 [Spring 안내](../backend/spring/hops/README.md#처음-설치-mac--windows)에 따라 별도로 준비한다.
+DB는 [pgvector 프로젝트 이미지](https://github.com/pgvector/pgvector#docker)의 PostgreSQL 18·pgvector 0.8.7을 사용한다. Spring Flyway가 확장 활성화, 테이블과 개발용 가상 데이터를 적용하므로 Docker 실행 시 pgvector를 따로 설치하지 않는다. 기존 PostgreSQL 18 볼륨도 유지한다. 테스트 DB가 필요하면 [Spring 안내](../backend/spring/hops/README.md#처음-설치-mac--windows)에 따라 별도로 준비한다.
 
 루트 Compose는 현재 develop 프론트를 `live` 모드로 실행해 Spring의 기존 `/api`에 연결한다. 신규 `/api/v2` 전환과 해당 업무 API 구현은 별도 작업이다. AI는 골격 상태이며 `/healthz`는 200, `/readyz`는 503이다. 기동 확인과 업무 연동 완료는 구분한다. 자세한 구현 범위는 [Frontend](../frontend/README.md)·[Spring](../backend/spring/hops/README.md)·[AI](../ai/README.md)를 따른다.
 

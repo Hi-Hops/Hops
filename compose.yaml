@@ -2,7 +2,7 @@ name: hops-dev
 
 services:
   postgres:
-    image: postgres:18-bookworm
+    image: pgvector/pgvector:0.8.7-pg18-bookworm
     environment:
       POSTGRES_DB: '${POSTGRES_DB:-hops}'
       POSTGRES_USER: '${POSTGRES_USER:-hops}'
