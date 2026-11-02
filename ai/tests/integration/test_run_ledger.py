@@ -10,6 +10,7 @@ from uuid import uuid4
 
 import psycopg
 import pytest
+from httpx import ASGITransport, AsyncClient
 from psycopg import sql
 from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
@@ -305,3 +306,27 @@ async def test_limited_role_can_recover_without_business_database_access(ledger:
     async with RunLedger(conninfo) as restarted:
         assert (await restarted.get(run_id)).status == "UNKNOWN"
         assert not (await restarted.accept(run_id, payload)).created
+
+
+async def test_internal_snapshot_reads_persisted_and_recovered_run(ledger: RunLedger) -> None:
+    run_id = uuid4()
+    await ledger.accept(run_id, {"message": "가상 문의"})
+    await ledger.start(run_id)
+    settings = Settings(
+        _env_file=None,
+        internal_api_enabled=True,
+        runtime_dsn="dbname=hops_ai_runtime user=test_user",
+        ai_service_token="A" * 43,
+    )
+    app = create_app(settings, ledger=RunLedger(ledger._conninfo))
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            path = f"/internal/v2/runs/{run_id}"
+            assert (await client.get(path)).status_code == 401
+            response = await client.get(path, headers={"Authorization": f"Bearer {'A' * 43}"})
+            assert response.status_code == 200
+            assert response.json()["status"] == "RUNNING"
+            await ledger.close()
+            assert await app.state.run_ledger.recover_abandoned() == 1
+            response = await client.get(path, headers={"Authorization": f"Bearer {'A' * 43}"})
+            assert response.json()["status"] == "UNKNOWN"
