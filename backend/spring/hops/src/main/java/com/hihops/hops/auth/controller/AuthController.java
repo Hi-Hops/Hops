@@ -24,6 +24,8 @@ import com.hihops.hops.auth.service.RefreshTokenService;
 import com.hihops.hops.auth.service.RefreshTokenService.IssuedRefreshToken;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.global.exception.ErrorResponse;
+import com.hihops.hops.global.filter.RequestIdFilter;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.dto.CurrentUserResponse;
 
@@ -48,8 +50,9 @@ public class AuthController {
             @CookieValue(name = RefreshCookies.NAME, required = false) String previousRefresh) {
         Member member = authService.login(request.loginId(), request.password()); // 틀리면 여기서 401
         // 같은 브라우저의 재로그인·계정 전환: 쿠키만 덮어쓰면 예전 세션이 7일 동안 남는다. 성공한 뒤에만 정리한다.
+        // 정리는 덤이라 실패해도 로그인은 진행한다(손상된 예전 쿠키 때문에 로그인이 막히면 프론트는 그 쿠키를 지울 수 없다).
         if (hasValue(previousRefresh)) {
-            refreshTokenService.revoke(previousRefresh);
+            tryRevoke(previousRefresh, "재로그인 중 예전 세션 정리 실패");
         }
         return withTokens(member, refreshTokenService.issue(member));
     }
@@ -73,23 +76,21 @@ public class AuthController {
     /**
      * 현재 로그인 세션을 끝낸다 (WIRE_CONTRACT 12.2). 쿠키가 없거나 이미 끝난 세션이어도 204와 쿠키 삭제로 응답한다:
      * 프론트는 결과와 관계없이 화면 정리를 하고, 반복 호출도 같은 결과가 된다.
+     *
+     * <p>서버 세션을 끝내지 못하면(저장소 장애 등) 503으로 알리되 쿠키 삭제는 그대로 보낸다.
+     * 프론트는 HttpOnly 쿠키를 지울 수 없어서, 여기서 지우지 않으면 장애 뒤 그 쿠키로 세션이 되살아난다.
      */
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
+    public ResponseEntity<?> logout(
             @CookieValue(name = RefreshCookies.NAME, required = false) String refreshToken) {
-        if (hasValue(refreshToken)) {
-            // 세션을 끝내면 그 회원의 열린 SSE도 닫힌다(LoginSessionRevokedEvent). 남은 Access(최대 15분)는 프론트가 메모리에서 버린다.
-            try {
-                refreshTokenService.revoke(refreshToken);
-            } catch (RuntimeException exception) {
-                // 어떤 실패(저장소 장애·손상된 값·SSE 정리 오류)여도 쿠키는 지운다 (WIRE_CONTRACT 12.2 "반복 시에도 쿠키 삭제").
-                // 프론트는 HttpOnly 쿠키를 지울 수 없어서, 여기서 지우지 않으면 장애 뒤 그 쿠키로 세션이 되살아난다.
-                log.error("로그아웃 중 세션 정리 실패: 쿠키만 삭제", exception);
-            }
+        String expiredCookie = RefreshCookies.expire(cookieProperties.secure()).toString();
+        // 세션을 끝내면 그 회원의 열린 SSE도 닫힌다(LoginSessionRevokedEvent). 남은 Access(최대 15분)는 프론트가 메모리에서 버린다.
+        if (hasValue(refreshToken) && !tryRevoke(refreshToken, "로그아웃 중 세션 정리 실패: 쿠키만 삭제")) {
+            return ResponseEntity.status(ErrorCode.SERVICE_UNAVAILABLE.status())
+                    .header(HttpHeaders.SET_COOKIE, expiredCookie)
+                    .body(ErrorResponse.of(ErrorCode.SERVICE_UNAVAILABLE, RequestIdFilter.currentRequestId()));
         }
-        return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, RefreshCookies.expire(cookieProperties.secure()).toString())
-                .build();
+        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, expiredCookie).build();
     }
 
     // 차단·삭제된 회원이면 그 세션을 끝내고 재로그인 코드로 거절한다. DB 장애 같은 다른 예외는 세션을 건드리지 않는다.
@@ -97,8 +98,19 @@ public class AuthController {
         try {
             return authService.currentMember(memberId);
         } catch (BusinessException exception) {
-            refreshTokenService.revoke(refreshToken);
+            tryRevoke(refreshToken, "차단 회원의 세션 정리 실패");
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_REVOKED);
+        }
+    }
+
+    // 세션 정리를 시도하고 성공 여부를 돌려준다. 저장소 장애·손상된 값 등 어떤 실패도 호출한 API의 응답을 깨뜨리지 않게 로그로 남긴다.
+    private boolean tryRevoke(String refreshToken, String failureLog) {
+        try {
+            refreshTokenService.revoke(refreshToken);
+            return true;
+        } catch (RuntimeException exception) {
+            log.error(failureLog, exception);
+            return false;
         }
     }
 

@@ -18,9 +18,10 @@ services:
       retries: 10
 
   # 로그인 세션·Refresh 토큰 저장소. 포트는 PC에 공개하지 않는다(PC에 설치한 Redis 6379와 겹치지 않게).
-  # 안을 볼 때는 docker compose exec redis redis-cli. 재시작하면 로그인 세션이 비워져 다시 로그인한다.
+  # 안을 볼 때는 docker compose exec redis redis-cli. 디스크에 저장하지 않아 재시작하면 세션이 비워져 다시 로그인한다.
   redis:
     image: redis:8.2-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s

@@ -290,12 +290,14 @@ class AuthControllerTest {
     }
 
     @Test
-    void 세션_저장소_장애_중에도_로그아웃은_쿠키를_지운다() throws Exception {
+    void 세션_저장소_장애_중에도_로그아웃은_쿠키를_지우고_실패는_503으로_알린다() throws Exception {
         // 프론트는 HttpOnly 쿠키를 직접 지울 수 없다. 서버가 지우지 않으면 장애가 끝난 뒤 그 쿠키로 세션이 되살아난다.
+        // 서버 세션은 끝내지 못했으므로 204(성공)라고 하지 않는다.
         doThrow(new RedisConnectionFailureException("Redis 장애")).when(refreshTokenService).revoke(anyString());
 
         MockHttpServletResponse response = mockMvc.perform(logout("any-refresh"))
-                .andExpect(status().isNoContent())
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SERVICE_UNAVAILABLE"))
                 .andReturn().getResponse();
 
         assertThat(refreshCookie(response)).startsWith("hops_refresh=;").contains("Max-Age=0");
@@ -307,10 +309,19 @@ class AuthControllerTest {
         doThrow(new IllegalArgumentException("손상된 Refresh 값")).when(refreshTokenService).revoke(anyString());
 
         MockHttpServletResponse response = mockMvc.perform(logout("any-refresh"))
-                .andExpect(status().isNoContent())
+                .andExpect(status().isServiceUnavailable())
                 .andReturn().getResponse();
 
         assertThat(refreshCookie(response)).startsWith("hops_refresh=;").contains("Max-Age=0");
+    }
+
+    @Test
+    void 예전_쿠키_정리가_실패해도_로그인은_성공한다() throws Exception {
+        // 예전 세션 정리는 덤이다. 손상된 예전 쿠키 때문에 로그인이 계속 500이면, 프론트는 HttpOnly 쿠키를 지울 수 없어 갇힌다.
+        doThrow(new IllegalArgumentException("손상된 Refresh 값")).when(refreshTokenService).revoke(anyString());
+
+        mockMvc.perform(login("requester", "hops1234!").cookie(new Cookie("hops_refresh", "broken")))
+                .andExpect(status().isOk());
     }
 
     @Test

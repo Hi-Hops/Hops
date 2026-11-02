@@ -14,12 +14,14 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -124,26 +126,28 @@ class RefreshTokenServiceTest {
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(requests);
         try {
-            List<Future<Boolean>> results = new ArrayList<>();
+            List<Future<Optional<IssuedRefreshToken>>> results = new ArrayList<>();
             for (int i = 0; i < requests; i++) {
-                Callable<Boolean> rotate = () -> {
+                Callable<Optional<IssuedRefreshToken>> rotate = () -> {
                     start.await();
                     try {
-                        service.rotate(first.value());
-                        return true;
+                        return Optional.of(service.rotate(first.value()));
                     } catch (BusinessException exception) {
-                        return false;
+                        return Optional.empty();
                     }
                 };
                 results.add(pool.submit(rotate));
             }
             start.countDown(); // 모든 스레드를 한꺼번에 출발시킨다
 
-            int succeeded = 0;
-            for (Future<Boolean> result : results) {
-                succeeded += result.get() ? 1 : 0;
+            List<IssuedRefreshToken> winners = new ArrayList<>();
+            for (Future<Optional<IssuedRefreshToken>> result : results) {
+                result.get(10, TimeUnit.SECONDS).ifPresent(winners::add); // Redis가 멈춰도 테스트가 무한 대기하지 않게
             }
-            assertThat(succeeded).isEqualTo(1);
+            assertThat(winners).hasSize(1);
+            // 진 요청은 10초 유예 안의 경합이다: 세션을 끝내지 않아 이긴 쪽의 새 Refresh로 계속 갱신할 수 있다.
+            verify(events, never()).publishEvent(new LoginSessionRevokedEvent(member.getId()));
+            assertThat(service.rotate(winners.get(0).value()).value()).isNotBlank();
         } finally {
             pool.shutdownNow();
         }

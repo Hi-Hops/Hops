@@ -191,7 +191,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 |---|---|---|---|
 | `POST /api/v2/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` + `Set-Cookie: hops_refresh` | 400 `INVALID_INPUT`(빈 값·형식 오류), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
 | `POST /api/v2/auth/refresh` | 본문 없음, `hops_refresh` 쿠키 | 200 `{accessToken, expiresAt, user}` + 새 `Set-Cookie: hops_refresh` | 401 `REFRESH_TOKEN_REVOKED`(쿠키 없음·이미 쓰인 값·만료), 403 `ORIGIN_DENIED` |
-| `POST /api/v2/auth/logout` | 본문 없음, `hops_refresh` 쿠키 | 204 + 쿠키 삭제(`Max-Age=0`). 쿠키가 없거나 이미 끝난 세션이어도 같음 | 403 `ORIGIN_DENIED` |
+| `POST /api/v2/auth/logout` | 본문 없음, `hops_refresh` 쿠키 | 204 + 쿠키 삭제(`Max-Age=0`). 쿠키가 없거나 이미 끝난 세션이어도 같음 | 403 `ORIGIN_DENIED`, 503 `SERVICE_UNAVAILABLE`(세션 저장소 장애. 쿠키 삭제는 그대로 보냄) |
 | `GET /api/v2/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles}` | 401 `UNAUTHENTICATED`(토큰 없음·위조·만료, 회원 없음·차단) |
 
 - **동작 순서:** 로그인 ID로 회원·부서·역할을 DB에서 찾고(삭제된 회원 제외) → BCrypt로 비밀번호 해시 비교 → `AccessTokenIssuer`가 토큰 발급 (`auth/service`).
@@ -205,6 +205,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 - **로그아웃:** 그 쿠키의 로그인 세션만 끝냅니다(다른 기기 로그인은 유지). 세션 저장소 장애 중에도 쿠키 삭제는 내려보냅니다. 이미 발급한 Access는 최대 15분 남지만 프론트가 메모리에서 버립니다.
 - **재로그인:** 같은 브라우저에서 다시 로그인하면 예전 쿠키의 세션을 끝냅니다.
 - **세션이 끝나면** (로그아웃·재로그인·재사용 감지·차단 회원) `LoginSessionRevokedEvent`를 받은 `RealtimeSessionListener`가 그 회원의 열린 SSE를 닫습니다. Access에 세션 ID가 없어 기기 구분 없이 회원 단위로 닫습니다.
+- **브라우저 주소:** `SameSite=Lax` 쿠키라 프론트 화면과 API 주소의 호스트가 같아야 합니다. `localhost`와 `127.0.0.1`은 다른 사이트로 취급되어, `http://127.0.0.1:5173` 화면에서 `http://localhost:8080` API를 부르면 Refresh 쿠키가 저장·전송되지 않습니다(15분 뒤 재로그인). live 모드는 둘 다 `localhost`로 맞춥니다.
 - **Origin 검사:** 쿠키를 쓰는 refresh·logout은 `Origin` 헤더가 `hops.cors.allowed-origins`에 있을 때만 받습니다(없거나 다르면 403 `ORIGIN_DENIED`). 프론트와 API를 같은 주소로 배포해도 그 주소를 이 목록에 넣어야 합니다. Swagger 화면(`localhost:8080`)에서는 이 둘을 호출할 수 없으니 curl에 `-H "Origin: http://localhost:5173"`을 붙여 확인합니다.
 
 ### 토큰 직접 확인하기

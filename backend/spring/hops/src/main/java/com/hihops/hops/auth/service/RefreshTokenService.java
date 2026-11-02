@@ -31,18 +31,19 @@ import lombok.extern.slf4j.Slf4j;
  * <p>Access와 달리 JWT가 아니라 아무 뜻 없는 무작위 문자열이다. 내용을 담을 필요가 없고,
  * 서버가 보관한 값과 맞는지만 확인하면 되기 때문이다(복권 번호처럼 맞히기만 어려우면 된다).
  *
- * <p>Redis 키 (docs/DATA.md 5절)
+ * <p>Redis 키. 아래에서 {@code <...>}는 들어갈 값이고 중괄호 {@code { }}는 키에 실제로 들어가는 글자다.
  * <ul>
- *   <li>{@code auth:session:{sessionId}} → 회원 ID. 로그인 1번 = 세션 1개. 최초 로그인 + 7일 뒤 자동 삭제.</li>
- *   <li>{@code auth:refresh:{토큰 해시}} → "세션ID|회원ID|세션 만료 시각". 원문 대신 해시를 키로 써서,
+ *   <li>{@code auth:session:<세션ID>} → 회원 ID. 로그인 1번 = 세션 1개. 최초 로그인 + 7일 뒤 자동 삭제.</li>
+ *   <li>{@code auth:refresh:{<토큰 SHA-256>}} → "세션ID|회원ID|세션 만료 시각". 원문 대신 해시를 키로 써서,
  *       Redis 내용이 새어 나가도 쿠키 값을 알아낼 수 없다(비밀번호를 해시로 저장하는 것과 같은 이유).</li>
- *   <li>{@code auth:refresh-used:{토큰 해시}} → "세션ID|회원ID|세션 만료 시각|회전한 시각". 회전으로 이미 쓴 값.
+ *   <li>{@code auth:refresh-used:{<토큰 SHA-256>}} → "세션ID|회원ID|세션 만료 시각|회전한 시각". 회전으로 이미 쓴 값.
  *       다시 들어오면 재사용(탈취)을 알아채고, 갱신 직후 예전 값으로 온 로그아웃도 세션을 찾을 수 있다.
  *       세션 만료 시각까지 남긴다.</li>
  * </ul>
  *
  * <p>refresh·refresh-used 키의 해시 부분은 중괄호로 감싼다(Redis 해시태그). Redis Cluster에서도 두 키가 같은 슬롯에 놓여
  * {@link #CONSUME} 스크립트가 함께 다룰 수 있다. 단일 Redis에서는 그냥 키 이름의 일부다.
+ * 예: {@code redis-cli --scan --pattern 'auth:refresh:*'}
  */
 @Slf4j
 @Service
