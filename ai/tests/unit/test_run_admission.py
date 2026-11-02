@@ -4,7 +4,13 @@ import pytest
 from pydantic import ValidationError
 
 from hops_ai.persistence.run_ledger import input_digest
-from hops_ai.services.runs.admission import AdmissionRejected, ExecutionLimits, RunAdmissionService
+from hops_ai.services.runs.admission import (
+    AdmissionExpired,
+    AdmissionRejected,
+    ExecutionLimits,
+    LimitsExceeded,
+    RunAdmissionService,
+)
 from tests.doubles.run_requests import inquiry_request
 
 
@@ -24,19 +30,21 @@ def test_digest_normalizes_object_order_but_preserves_array_order() -> None:
 
 
 @pytest.mark.parametrize(
-    "expires_at,calls",
+    "expires_at,calls,reason",
     [
-        ("2026-11-01T00:00:00Z", 1),
-        ("2026-11-02T01:00:00Z", 5),
+        ("2026-11-01T00:00:00Z", 1, AdmissionExpired),
+        ("2026-11-02T01:00:00Z", 5, LimitsExceeded),
     ],
 )
-async def test_invalid_new_requests_are_not_accepted(expires_at: str, calls: int) -> None:
+async def test_invalid_new_requests_are_not_accepted(
+    expires_at: str, calls: int, reason: type[AdmissionRejected]
+) -> None:
     service = RunAdmissionService(
         EmptyLedger(),
         ExecutionLimits(4, 1000, 500, 3, 1),
         clock=lambda: datetime(2026, 11, 2, tzinfo=UTC),
     )
-    with pytest.raises(AdmissionRejected):
+    with pytest.raises(reason):
         await service.accept(inquiry_request(expires_at=expires_at, max_calls=calls))
 
 
