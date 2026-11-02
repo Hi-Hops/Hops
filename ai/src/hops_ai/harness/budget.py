@@ -37,6 +37,9 @@ class RunBudget:
     llm_call_timeout: float
     max_output_tokens: int
     llm_calls_used: int = 0
+    # 모든 역할·호출에 걸친 재시도 누적 상한. None이면 호출당 상한(max_auto_retries)만 적용한다.
+    max_run_retries: int | None = None
+    retries_used: int = 0
 
     @classmethod
     def start(
@@ -81,3 +84,10 @@ class RunBudget:
             raise LlmCallLimitExceeded(f"허용 {self.max_llm_calls}회를 모두 사용했다")
         self.llm_calls_used += 1
         return min(self.llm_call_timeout, self.remaining_seconds())
+
+    def try_use_retry(self) -> bool:
+        """실행 전체 재시도 1회를 예약한다. 누적 상한을 다 썼으면 예약하지 않고 False를 돌려준다."""
+        if self.max_run_retries is not None and self.retries_used >= self.max_run_retries:
+            return False
+        self.retries_used += 1
+        return True

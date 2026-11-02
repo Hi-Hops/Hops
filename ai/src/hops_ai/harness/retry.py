@@ -41,6 +41,7 @@ async def call_with_retry[T](
     - 호출 시간 제한은 이 함수가 강제한다. 초과하면 일시 오류로 보고 재시도 대상이 된다.
     - 서버가 알려 준 대기 시간(retry_after)이 있으면 그만큼 기다린다.
     - 남은 시간이 대기 시간보다 짧으면 기다리지 않고 마지막 오류를 낸다.
+    - 재시도는 호출당 상한(max_auto_retries)과 실행 전체 누적 상한(max_run_retries)을 모두 지킨다.
     - 일시 오류가 아닌 예외와 취소(CancelledError)는 그대로 전달하며 재시도하지 않는다.
     """
     retries = 0
@@ -62,6 +63,9 @@ async def call_with_retry[T](
         else:
             delay = backoff_delay(retries, base=base_delay, cap=max_delay, rng=rng)
         if delay >= budget.remaining_seconds():
+            raise failure
+        # 호출당 상한과 별도로 실행 전체의 누적 재시도 상한을 공유 예산에서 차감한다.
+        if not budget.try_use_retry():
             raise failure
         await sleep(delay)
         retries += 1

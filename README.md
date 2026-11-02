@@ -39,7 +39,7 @@ DB는 [pgvector 프로젝트 이미지](https://github.com/pgvector/pgvector#doc
 
 AI 모드·예산은 `HOPS_AI_*`로 설정합니다. [OpenAI](https://developers.openai.com/api/docs/quickstart)의 `OPENAI_API_KEY`와 [Langfuse](https://langfuse.com/docs/observability/sdk/troubleshooting-and-faq)의 `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`는 같은 `.env`에 선택 입력하며 AI 컨테이너에만 전달합니다. Langfuse 주소는 사용하는 리전 또는 자체 호스팅 주소로 설정합니다. 현재 모델 호출·추적 연동은 구현 전입니다.
 
-프론트는 `hops-system-1`·`/api/v2` 단일 계약을 사용합니다. 실제 연결에는 Spring의 시스템 권한 DTO·업무 API·SSE 구현과 통합 검증이 필요합니다. AI는 업무 파이프라인 미구현 상태의 골격으로 `/healthz`는 200, `/readyz`는 503이며, 별도 활성화한 내부 API에서는 서비스 인증과 저장된 실행 상태 조회를 제공합니다. 프론트 실행·가상 계정·화면 예시는 [Frontend 안내](frontend/README.md)를 따릅니다.
+프론트는 `hops-system-1`·`/api/v2` 단일 계약을 사용합니다. 실제 연결에는 Spring의 시스템 권한 DTO·업무 API·SSE 구현과 통합 검증이 필요합니다. AI는 `/healthz` 200·`/readyz` 503이며, 내부 API 활성화 시 서비스 인증·저장된 실행 조회와 파이프라인 주입 시 조건부 접수·백그라운드 실행을 제공합니다. 실제 Supervisor·모델·검색 파이프라인은 미연결입니다. 프론트 실행·가상 계정·화면 예시는 [Frontend 안내](frontend/README.md)를 따릅니다.
 
 #### 기존 서비스별 설정에서 전환
 

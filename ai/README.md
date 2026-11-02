@@ -2,7 +2,7 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
 
-[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증과 저장된 실행 상태 조회를 제공한다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
+[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증·실행 조회와 파이프라인 주입 시 접수·백그라운드 실행을 제공한다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
@@ -16,9 +16,9 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 역할·Supervisor | 역할 골격만 존재. 호출하면 `ComponentNotReady` 발생 |
 | OpenAI·pgvector·Neo4j | 내부 인터페이스와 연결 자리만 존재. 호출하면 미구현 오류 |
 | 실행 하네스 | 마감·모델 호출 상한·LLM 일시 오류 재시도·사용량·취소 확인·도구 허용 검사 |
-| RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 조회 연결, Supervisor 미연결 |
-| 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·저장된 실행 snapshot 조회. 실행 접수·취소·SSE는 503 |
-| 업무 실행·SSE | 실제 실행 관리와 어댑터 연결 전 |
+| RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결, Supervisor 미연결 |
+| 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot 조회. 실행 접수는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 취소·SSE는 503 |
+| 업무 실행·SSE | 백그라운드 실행기(접수·상태 전이·안전한 실패 저장) 구현. 실제 Supervisor 파이프라인·SSE·취소 전파는 연결 전 |
 | Fake·Mock | 테스트 전용 LLM·도구 대역. 서버에 자동 연결하지 않음 |
 
 단일 baseline, 독립 Diagnosis, Intake 명칭, 규칙 기반 Supervisor, 부서/CS 배정과 옛 `agent-1` 실행 모델은 활성 코드에서 분리했다. 기존 `/internal/mock/v1/runs` 접수·이벤트 경로는 제공하지 않는다. 예전 Fake 모드의 실행 명령이나 프론트 공용 `hops-mock-1` fixture로 이 서버를 호출하지 않는다.
@@ -28,7 +28,7 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 ```text
 src/hops_ai/
 ├── api/routes/health.py       생존·준비 상태
-├── api/routes/runs.py         서비스 인증된 내부 snapshot 조회; 실행기 미준비
+├── api/routes/runs.py         서비스 인증된 내부 실행 접수·snapshot 조회
 ├── contracts/                내부 자료형과 Spring↔AI 실행 wire DTO
 ├── supervisor/graph.py       모델 기반 조율 자리; 상담과 사후 실행 분리 예정
 ├── persistence/run_ledger.py AI 실행 ID·입력 digest·상태·결과 보존
@@ -40,18 +40,18 @@ src/hops_ai/
 ├── harness/                  공통 예산·재시도·취소·도구 정책; guardrails는 구현 자리
 ├── services/
 │   ├── llm/                  LLM 인터페이스·예산 래퍼·OpenAI 연결 자리
-│   ├── runs/                 기한·한도 확인과 RunLedger 접수; 실행기 미연결
+│   ├── runs/                 기한·한도 확인과 RunLedger 접수, 백그라운드 실행기
 │   ├── retrieval/            검색 인터페이스·pgvector·Neo4j 연결 자리
 │   ├── tools/                읽기 전용 도구 인터페이스·등록·호출 전 검사
 │   └── indexing/             청크·임베딩·관계 반영 구현 자리
 └── evaluation/               검색·표준화·응답 평가 구현 자리
 tests/
-├── doubles/                  정해 둔 응답만 반환하는 LLM·도구 대역
+├── doubles/                  정해 둔 응답만 반환하는 LLM·도구·실행 기록 대역
 ├── unit/                     기술 하네스와 미구현 경계 검증
 └── integration/              골격 앱의 생존·준비 상태와 옛 API 비노출 검증
 ```
 
-`contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 내부 실행 API는 이 요청 형식과 저장된 snapshot을 검증하지만 새 업무 실행을 접수하지 않는다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
+`contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 내부 실행 API는 이 요청 형식과 저장된 snapshot을 검증하며, 실행 파이프라인이 주입된 경우에만 새 실행을 접수한다. 실행기는 파이프라인 결과를 같은 run·문의·버전의 `AiResult`로 다시 검증한 뒤에만 저장한다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
 
 ## 실행과 검사
 
@@ -71,7 +71,7 @@ curl -i http://127.0.0.1:8000/readyz
 
 Docker 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)에 따라 한 번 복사한 루트 `.env`의 `HOPS_AI_*` 항목에 입력한다. 같은 파일에 OpenAI·Langfuse 키와 주소를 입력하는 선택 항목도 제공하며 AI 컨테이너에만 전달한다. 실제 모델 호출·추적 연동은 구현 전이다. AI 폴더에서 예시 파일을 별도로 복사하지 않는다. 위 uv 직접 실행은 루트 `.env`를 자동으로 읽지 않으므로 변경할 `HOPS_AI_*` 값을 프로세스 환경변수로 설정한다. 기존 개인 `.env`의 `HOPS_AI_MODE=fake`, `HOPS_AI_AGENT_MODE`, `HOPS_AI_API_PREFIX`는 제거한다. 단일/멀티 선택 설정은 없다. 비밀값은 Git에 올리지 않는다.
 
-실행 예산의 초기 기술 기본값은 전체 60초, 모델 호출당 30초, 최대 8시도, LLM 일시 오류 재시도 2회, 호출당 출력 1,500토큰이다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
+실행 예산의 초기 기술 기본값은 전체 60초, 모델 호출당 30초, 최대 8시도, LLM 일시 오류 재시도 2회, 호출당 출력 1,500토큰이다. Spring이 보낸 `limits`는 서버 상한(모델 호출 8회, 입력 60,000토큰, 출력 8×1,500토큰, 도구 호출 10회, 재시도 7회)을 넘으면 접수하지 않고, 실행 중에는 서버 설정과 요청 중 작은 값을 쓴다. 토큰·도구 호출 누적 한도의 실제 적용은 모델·도구 연결 시 추가한다. 한 인스턴스의 동시 실행 수 기본값은 4이며, 기한 뒤 취소에 응답하지 않아 분리한 작업도 끝날 때까지 이 수에 포함한다. AI 서버는 한 인스턴스로 운영하는 것을 전제로 하므로 이 값이 서비스 전체 상한이다. 여러 인스턴스로 늘리면 인스턴스마다 상한이 따로 적용되므로 공유 저장소 기반의 서비스 전체 상한을 먼저 구현해야 한다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
 
 ### Spring 전용 내부 조회 API
 
@@ -86,8 +86,8 @@ Docker 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)�
 | 경로 | 현재 응답 |
 |---|---|
 | `GET /internal/v2/runs/{runId}` | Bearer 인증 후 저장된 snapshot 조회. 없는 실행은 404, DB/저장 형식 오류는 안전한 503 |
-| `POST /internal/v2/runs` | 형식 검증 후 실행기 미준비 503. 새 run을 접수하지 않음 |
-| `GET /internal/v2/runs/{runId}/events` | 실행기·SSE 미준비 503 |
+| `POST /internal/v2/runs` | 파이프라인 미주입 시 503(접수 안 함). 주입 시 신규·재전송 202 `AiAccepted`, 다른 입력 409, 기한 지남 422, 서버 상한 초과 429 `BUDGET_EXCEEDED`, 동시 실행 초과 429 `RATE_LIMITED`+`Retry-After`, 저장소 오류 503 |
+| `GET /internal/v2/runs/{runId}/events` | 실행 이벤트 SSE 미준비 503 |
 | `POST /internal/v2/runs/{runId}/cancel` | 취소 전파 미구현 503 |
 
 `/internal` 아래 모든 경로는 요청 본문을 읽기 전에 서비스 인증을 수행한다. 아직 등록되지 않은 내부 경로도 인증 전에는 401을 반환한다. 인증 실패는 안전한 오류 본문의 401이며 중복 Authorization 헤더도 거부한다. 생존·준비 상태 경로는 인증하지 않는다. `readyz`는 내부 조회 활성화 여부와 관계없이 503이며, 현재 프로필은 운영 배포·실제 모델 실행을 뜻하지 않는다.
@@ -110,7 +110,7 @@ RunLedger는 Spring 업무 DB가 아닌 별도 `hops_ai_runtime` DB를 사용한
 
 `RunLedger.open()`은 인스턴스별 PostgreSQL 세션 잠금을 확보하고, 소유 세션이 사라진 미완료 run을 `UNKNOWN`으로 복구한다. 살아 있는 다른 인스턴스의 잠금은 건드리지 않는다. 접수·실행 변경은 잠금을 보유한 같은 DB 세션을 사용하므로 직접 연결 또는 세션 수명이 유지되는 연결 구성이 필요하다. 트랜잭션 단위 연결 풀은 사용할 수 없다. 네트워크 단절 시 PostgreSQL이 기존 세션 종료를 확인하기 전까지 복구가 지연될 수 있다. 스캔 중 종료된 다른 인스턴스는 다음 `recover_abandoned()` 호출에서 확인할 수 있으며 주기 실행은 아직 연결하지 않았다.
 
-테스트처럼 `create_app(..., ledger=ledger)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 종료 시 세션을 닫는다. 기본 골격 실행은 DB에 연결하지 않는다. 내부 API 활성화 시 서비스 인증·저장된 실행 조회는 구현됐으며, 실제 모델 실행·Supervisor·Spring 업무 연결·실행 SSE는 미구현이다.
+테스트처럼 `create_app(..., ledger=ledger, pipeline=pipeline)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 백그라운드 실행기를 연결하며 종료 시 실행기·세션을 정리한다. pipeline 없이 내부 API만 활성화하면 저장된 실행 조회만 제공하고 새 접수는 503이다. 기본 골격 실행은 DB에 연결하지 않는다. 실제 모델·Supervisor·Spring 업무·실행 SSE 연결은 미완료다.
 
 PostgreSQL 통합 검사는 별도 테스트 전용 DB `hops_ai_runtime_test`가 준비된 경우에만 실행한다. 해당 DB에 위 SQL을 적용하며 테스트용 실행 기록을 추가한다. 기본 테스트에서는 접속 설정이 없으면 이 검사들을 건너뛴다.
 

@@ -25,7 +25,7 @@
 |---|---|---|
 | hops-system-1 | PRD 1.44 전체 MVP의 /api/v2·신규 AI wire 계약 | 프론트 UI·DTO·REST/SSE 어댑터·메모리 Mock 구현. Spring은 v2 인증·부서 SSE를 제공하며 신규 업무·시스템 권한 연결은 미완료 |
 | hops-mock-1 | DATA_TYPES 전환 전 절·WIRE 1~10절·기존 mock-profile.json과 공용 JSON | 전환 전 부서 기반 참고 자료. 현재 프론트/테스트는 읽지 않음 |
-| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 실행 wire 검증·서비스 인증·저장된 실행 조회 구현. 역할 실행·모델·검색·실행 SSE는 미구현 |
+| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 실행 wire 검증·서비스 인증·실행 조회·파이프라인 주입 시 접수·백그라운드 실행 구현. 실제 역할·모델·검색 파이프라인·실행 SSE는 미연결 |
 
 새 프로필은 시스템·주담당자, 5회 질문·대기, 무티켓 안내·문제별 해결 확인, 처리 기록, 사례 승인·동일 버전 두 저장소 반영을 모두 포함한다. 선점·수락·자동 재배정·무응답 종료·전용 복구 화면은 신규 필수 기능으로 추가하지 않는다.
 
