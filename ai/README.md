@@ -1,5 +1,7 @@
 # HOPS AI 서버 골격
 
+Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
+
 [PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 실행 가능한 것은 생존·준비 상태 조회와 재사용한 기술 하네스다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
@@ -62,7 +64,7 @@ curl -i http://127.0.0.1:8000/readyz
 
 `healthz` 성공은 프로세스 생존만 의미한다. `readyz`는 현재 항상 503이며 분석 요청을 받을 준비가 됐다고 표시하지 않는다. `real` 모드는 시작을 거부한다.
 
-환경변수는 [예시](.env.example)를 따른다. 기존 `.env`의 `HOPS_AI_MODE=fake`, `HOPS_AI_AGENT_MODE`, `HOPS_AI_API_PREFIX`는 제거하고 현재 설정에 맞춘다. 단일/멀티 선택 설정은 없다. 비밀값은 Git에 올리지 않는다.
+Docker 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)에 따라 한 번 복사한 루트 `.env`의 `HOPS_AI_*` 항목에 입력한다. 같은 파일에 OpenAI·Langfuse 키와 주소를 입력하는 선택 항목도 제공하며 AI 컨테이너에만 전달한다. 실제 모델 호출·추적 연동은 구현 전이다. AI 폴더에서 예시 파일을 별도로 복사하지 않는다. 위 uv 직접 실행은 루트 `.env`를 자동으로 읽지 않으므로 변경할 `HOPS_AI_*` 값을 프로세스 환경변수로 설정한다. 기존 개인 `.env`의 `HOPS_AI_MODE=fake`, `HOPS_AI_AGENT_MODE`, `HOPS_AI_API_PREFIX`는 제거한다. 단일/멀티 선택 설정은 없다. 비밀값은 Git에 올리지 않는다.
 
 실행 예산의 초기 기술 기본값은 전체 60초, 모델 호출당 30초, 최대 8시도, LLM 일시 오류 재시도 2회, 호출당 출력 1,500토큰이다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한과 서비스 인증은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
 
