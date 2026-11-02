@@ -64,6 +64,25 @@ jobs:
             echo 'ready=true' >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Prepare unprivileged reviewer
+        if: steps.configuration.outputs.ready == 'true'
+        run: |
+          sudo adduser --system --home /home/codex-review --shell /bin/bash --group codex-review
+          sudo chmod 711 /home/codex-review
+          sudo usermod -a -G runner codex-review
+          sudo chown -R runner:codex-review "$GITHUB_WORKSPACE"
+          sudo chmod -R g+rX "$GITHUB_WORKSPACE"
+          sudo -H -u codex-review git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          sudo -H -u codex-review git -C "$GITHUB_WORKSPACE" cat-file -e "$HEAD_SHA^{commit}"
+          if sudo -H -u codex-review sudo -n true 2>/dev/null; then
+            echo '::error::리뷰 사용자에게 관리자 권한이 있습니다.'
+            exit 1
+          fi
+          cp .github/codex/review-prompt.md "$RUNNER_TEMP/codex-review-prompt.md"
+          # sudo 사용자 전환으로 사라지는 환경 변수 대신 커밋을 명시적으로 전달한다.
+          printf '\n비교 커밋은 아래 값이다. 환경 변수가 없어도 이 값을 Git 명령에 직접 사용하라.\nBASE_SHA=%s\nHEAD_SHA=%s\n' \
+            "$BASE_SHA" "$HEAD_SHA" >> "$RUNNER_TEMP/codex-review-prompt.md"
+
       # Codex 뒤에 같은 runner에서 다른 작업을 실행하지 않는다.
       - name: Review with Codex skill
         id: codex
@@ -74,8 +93,9 @@ jobs:
           model: ${{ vars.CODEX_REVIEW_MODEL }}
           effort: low
           sandbox: read-only
-          safety-strategy: drop-sudo
-          prompt-file: .github/codex/review-prompt.md
+          safety-strategy: unprivileged-user
+          codex-user: codex-review
+          prompt-file: ${{ runner.temp }}/codex-review-prompt.md
 
   post-review:
     needs: review
