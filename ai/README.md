@@ -25,7 +25,7 @@
 ```text
 src/hops_ai/
 ├── api/routes/health.py       생존·준비 상태; 업무 API는 계약 후 연결
-├── contracts/                PRD 의미와 내부 기술 자료형; 외부 전송 DTO 아님
+├── contracts/                내부 자료형과 Spring↔AI 실행 wire DTO
 ├── supervisor/graph.py       모델 기반 조율 자리; 상담과 사후 실행 분리 예정
 ├── persistence/run_ledger.py AI 실행 ID·입력 digest·상태·결과 보존
 ├── agents/
@@ -47,7 +47,7 @@ tests/
 └── integration/              골격 앱의 생존·준비 상태와 옛 API 비노출 검증
 ```
 
-역할의 상세 요청·응답과 업무 상태는 아직 확정하지 않았다. `contracts/`의 자료형과 검색 인터페이스는 내부 개발용이며 Spring DTO·권한 검증·승인 상태를 대신하지 않는다.
+`contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 이 DTO는 아직 업무 API에 연결하지 않았다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
 
 ## 실행과 검사
 

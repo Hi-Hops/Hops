@@ -1,0 +1,621 @@
+"""Spring과 AI 서버가 주고받는 외부 전송 자료형."""
+
+import re
+from datetime import datetime
+from typing import Annotated, Literal
+from urllib.parse import urlsplit
+from uuid import UUID
+
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+    model_validator,
+)
+
+
+class WireModel(BaseModel):
+    # 계약에 정의되지 않은 필드가 들어오면 조용히 무시하지 않고 거부한다.
+    # 한 번 검증한 외부 요청은 실행 중에 변경하지 않는다.
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+# 양의 정수만 허용한다.
+# StrictInt를 사용하면 문자열 "3"이나 불리언 True를 정수로 받아들이지 않는다.
+PositiveLimit = Annotated[StrictInt, Field(gt=0)]
+
+# 재시도 횟수는 0도 허용한다.
+RetryLimit = Annotated[StrictInt, Field(ge=0)]
+
+
+class ExecutionLimits(WireModel):
+    # 한 실행에서 허용할 모델 호출 횟수
+    maxModelCalls: PositiveLimit
+
+    # 한 실행에서 허용할 입력 토큰 합계
+    maxInputTokens: PositiveLimit
+
+    # 한 실행에서 허용할 출력 토큰 합계
+    maxOutputTokens: PositiveLimit
+
+    # 한 실행에서 허용할 도구 호출 횟수
+    maxToolCalls: PositiveLimit
+
+    # 한 실행에서 허용할 재시도 횟수
+    maxRetries: RetryLimit
+
+
+def validate_wire_uuid(value: str) -> str:
+    """계약에서 요구하는 소문자·하이픈 UUID 형식을 검사한다."""
+
+    try:
+        parsed = UUID(value)
+    except ValueError as exc:
+        raise ValueError("유효한 UUID가 아닙니다") from exc
+
+    # UUID()는 여러 입력 형식을 받아들일 수 있다.
+    # 계약에서는 소문자와 하이픈을 포함한 표준 문자열만 허용한다.
+    if str(parsed) != value:
+        raise ValueError("UUID는 소문자와 하이픈을 포함해야 합니다")
+
+    return value
+
+
+# UUID 문자열이 필요한 필드에서 이 타입을 재사용한다.
+WireUuid = Annotated[StrictStr, AfterValidator(validate_wire_uuid)]
+
+
+class AccessContext(WireModel):
+    # Spring이 확인한 실행 주체의 ID
+    actorId: WireUuid
+
+    # 어떤 목적으로 이 실행을 수행하는지 나타낸다.
+    purpose: Literal[
+        "EMPLOYEE_HELP",
+        "SYSTEM_WORK",
+        "CASE_DRAFT",
+    ]
+
+    # 이번 실행에서 접근이 허용된 시스템 ID 목록
+    systemIds: list[WireUuid]
+
+    # 이번 실행에서 접근할 수 있는 문서 공개 범위
+    allowedDocumentScopes: list[Literal["EMPLOYEE", "SYSTEM_STAFF"]]
+
+    # Spring이 확인한 권한 정책 버전
+    policyRevision: Annotated[StrictInt, Field(gt=0, le=2_147_483_647)]
+
+
+class ExistingWorkItem(WireModel):
+    workItemId: WireUuid
+    problemId: WireUuid
+
+    # 문의 입력 버전은 양의 정수다.
+    inquiryVersion: Annotated[
+        StrictInt,
+        Field(gt=0, le=2_147_483_647),
+    ]
+
+    outcome: Literal[
+        "PENDING",
+        "STORED",
+        "NOT_CREATED",
+        "UNKNOWN",
+    ]
+
+    # None은 허용하지만 기본값을 지정하지 않는다.
+    # 따라서 JSON에서 ticketId 키는 반드시 보내야 한다.
+    ticketId: WireUuid | None
+
+    @model_validator(mode="after")
+    def validate_ticket_id(self) -> "ExistingWorkItem":
+        # 저장 완료라면 실제 ticketId가 있어야 한다.
+        if self.outcome == "STORED" and self.ticketId is None:
+            raise ValueError("STORED 상태에는 ticketId가 필요합니다")
+
+        # 저장 완료가 아니면 ticketId를 전달하지 않는다.
+        if self.outcome != "STORED" and self.ticketId is not None:
+            raise ValueError("STORED가 아닌 상태의 ticketId는 null이어야 합니다")
+
+        return self
+
+
+# wire 타입은 내부 실행 타입과 별도로 검증한다.
+_WHITESPACE = (
+    "\t\n\v\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004"
+    "\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+)
+
+
+def _text(value: str) -> str:
+    if not value.strip(_WHITESPACE):
+        raise ValueError("공백만 있는 문자열은 허용하지 않습니다")
+    return value
+
+
+def _content(value: str) -> str:
+    _text(value)
+    if len(value) > 4000 or any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+        raise ValueError("본문은 surrogate 없이 1~4000 코드 포인트여야 합니다")
+    return value
+
+
+def _time(value: str) -> str:
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", value):
+        raise ValueError("시각은 UTC RFC 3339 Z 형식이어야 합니다")
+    try:
+        datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("유효하지 않은 시각입니다") from exc
+    return value
+
+
+def _problem_ref(value: str) -> str:
+    if re.fullmatch(r"new:[A-Za-z0-9_-]+", value):
+        return value
+    return validate_wire_uuid(value)
+
+
+WireText = Annotated[StrictStr, AfterValidator(_text)]
+WireContent = Annotated[StrictStr, AfterValidator(_content)]
+WireTime = Annotated[StrictStr, AfterValidator(_time)]
+ProblemRef = Annotated[StrictStr, AfterValidator(_problem_ref)]
+Version = Annotated[StrictInt, Field(gt=0, le=2_147_483_647)]
+NonNegative = Annotated[StrictInt, Field(ge=0)]
+QuestionCount = Annotated[StrictInt, Field(ge=0, le=5)]
+Title = Annotated[WireText, Field(max_length=200)]
+SystemVersion = Annotated[WireText, Field(max_length=100)]
+AccessScope = Literal["EMPLOYEE", "SYSTEM_STAFF"]
+RunKind = Literal["INQUIRY_ANALYSIS", "CASE_DRAFT"]
+Intent = Literal[
+    "HOW_TO",
+    "ACCESS_REQUEST",
+    "OBSERVED_SYMPTOM",
+    "FEATURE_REQUEST",
+    "IMPROVEMENT_REQUEST",
+    "UNKNOWN",
+    "OUT_OF_SCOPE",
+]
+ProcessingType = Literal[
+    "KNOWLEDGE_QA",
+    "SERVICE_REQUEST",
+    "INVESTIGATION",
+    "INCIDENT",
+    "CHANGE_REQUEST",
+    "REVIEW_REQUIRED",
+    "OUT_OF_SCOPE",
+]
+ProblemState = Literal[
+    "ANALYZING",
+    "WAITING_USER",
+    "WAITING_SYSTEM",
+    "TICKET_PENDING",
+    "IN_SERVICE",
+    "WAITING_CONFIRMATION",
+    "RESOLVED",
+    "OUT_OF_SCOPE",
+]
+
+
+class SystemFeature(WireModel):
+    id: WireUuid
+    name: WireText
+
+
+class SupportedSystem(WireModel):
+    id: WireUuid
+    code: Literal["ELECTRONIC_APPROVAL", "COMMON_LOGIN", "FILE_SHARING"]
+    name: WireText
+    features: list[SystemFeature]
+
+
+class InputMessage(WireModel):
+    id: WireUuid
+    revision: Version
+    sequenceNo: Version
+    sender: Literal["USER", "AI"]
+    content: WireContent
+    problemIds: list[WireUuid]
+    createdAt: WireTime
+
+
+class EvidenceStatement(WireModel):
+    text: WireText
+    sourceMessageIds: list[WireUuid]
+    knowledgeEvidenceIds: list[WireUuid]
+
+
+class AcceptanceCriterion(WireModel):
+    text: WireText
+    confirmation: Literal["PROPOSED", "CONFIRMED"]
+    confirmedBy: WireUuid | None
+
+    @model_validator(mode="after")
+    def validate_confirmation(self) -> "AcceptanceCriterion":
+        if (self.confirmation == "PROPOSED") != (self.confirmedBy is None):
+            raise ValueError("수용 조건의 확인 상태와 확인자가 일치하지 않습니다")
+        return self
+
+
+class RequestDetails(WireModel):
+    taskOrScreen: WireText | None
+    requestedAccess: WireText | None
+    businessPurpose: WireText | None
+    expectedBehavior: WireText | None
+    actualBehavior: WireText | None
+    occurredAt: WireText | None
+    currentWorkflow: WireText | None
+    desiredChange: WireText | None
+    acceptanceCriteria: list[AcceptanceCriterion]
+
+
+class KnowledgeEvidence(WireModel):
+    id: WireUuid
+    documentId: WireUuid
+    documentVersion: Version
+    kind: Literal["GUIDE", "POLICY", "RUNBOOK", "CASE"]
+    title: Title
+    excerpt: WireText
+    systemId: WireUuid | None
+    appliesToSystemVersion: SystemVersion | None
+    applicability: WireText
+    accessScope: AccessScope
+    origin: Literal["SYNTHETIC", "DEMO_VERIFIED", "OPERATIONAL"]
+
+    @model_validator(mode="after")
+    def validate_system(self) -> "KnowledgeEvidence":
+        if self.systemId is None and self.kind != "POLICY":
+            raise ValueError("공통 POLICY만 systemId가 null일 수 있습니다")
+        return self
+
+
+class StandardRequestBody(WireModel):
+    summary: WireText
+    confirmedFacts: list[EvidenceStatement]
+    assumptions: list[EvidenceStatement]
+    unknowns: list[WireText]
+    responsibleSystemCandidateId: WireUuid | None
+    responsibilityEvidenceIds: list[WireUuid]
+    details: RequestDetails
+    knowledge: list[KnowledgeEvidence]
+
+    @model_validator(mode="after")
+    def validate_sources(self) -> "StandardRequestBody":
+        if any(
+            not fact.sourceMessageIds and not fact.knowledgeEvidenceIds
+            for fact in self.confirmedFacts
+        ):
+            raise ValueError("확인 사실에는 출처가 필요합니다")
+        return self
+
+
+class ResolutionContext(WireModel):
+    requestId: WireUuid
+    source: Literal["GUIDE", "WORK_RECORD"]
+    sourceId: WireUuid
+    sourceVersion: Version
+    state: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
+
+
+class InputProblem(WireModel):
+    id: WireUuid
+    summary: WireText
+    intent: Intent
+    processingType: ProcessingType
+    reportedSystemId: WireUuid | None
+    reportedFeatureId: WireUuid | None
+    state: ProblemState
+    questionCount: QuestionCount
+    standardRequest: StandardRequestBody | None
+    resolutionContext: ResolutionContext | None
+
+
+class WorkRecordContext(WireModel):
+    id: WireUuid
+    ticketId: WireUuid
+    problemId: WireUuid
+    systemId: WireUuid
+    kind: Literal["VERIFIED_RESOLUTION", "IMPLEMENTED_VERIFIED"]
+    action: WireText
+    verification: WireText
+    createdAt: WireTime
+    resolutionRequestId: WireUuid
+    confirmationState: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
+    confirmedCause: Annotated[WireText, Field(max_length=4000)] | None
+    appliesToSystemVersion: SystemVersion | None
+
+
+class AiRunRequest(WireModel):
+    contractVersion: Literal["hops-system-1"]
+    runId: WireUuid
+    kind: RunKind
+    inquiryId: WireUuid
+    inquiryVersion: Version
+    answerMessageId: WireUuid | None
+    problemIds: list[WireUuid]
+    messages: list[InputMessage]
+    problems: list[InputProblem]
+    systems: list[SupportedSystem]
+    accessContext: AccessContext
+    existingWorkItems: list[ExistingWorkItem]
+    workRecord: WorkRecordContext | None
+    expiresAt: WireTime
+    limits: ExecutionLimits
+
+    @model_validator(mode="after")
+    def validate_kind_fields(self) -> "AiRunRequest":
+        if self.kind == "INQUIRY_ANALYSIS":
+            if self.answerMessageId is None or self.workRecord is not None:
+                raise ValueError("상담 실행의 답변 ID 또는 처리 기록이 올바르지 않습니다")
+            if self.accessContext.purpose not in ("EMPLOYEE_HELP", "SYSTEM_WORK"):
+                raise ValueError("상담 실행에 맞지 않는 접근 목적입니다")
+        elif (
+            self.answerMessageId is not None
+            or self.workRecord is None
+            or self.accessContext.purpose != "CASE_DRAFT"
+        ):
+            raise ValueError("사례 초안 실행의 답변 ID·처리 기록·접근 목적이 올바르지 않습니다")
+        return self
+
+
+class AiError(WireModel):
+    code: Literal[
+        "INVALID_OUTPUT",
+        "SEARCH_UNAVAILABLE",
+        "TOOL_UNAVAILABLE",
+        "MODEL_UNAVAILABLE",
+        "DEADLINE_EXCEEDED",
+        "BUDGET_EXCEEDED",
+        "AUTH_CONTEXT_INVALID",
+        "SUPERSEDED",
+        "INDEX_UNAVAILABLE",
+        "UPSTREAM_PROTOCOL_ERROR",
+        "NOT_FOUND",
+        "CONFLICT",
+        "INVALID_REQUEST",
+        "RATE_LIMITED",
+        "SERVICE_UNAVAILABLE",
+    ]
+    message: WireText
+    retryable: StrictBool
+
+
+class ProblemProposal(WireModel):
+    problemRef: ProblemRef
+    summary: WireText
+    intent: Intent
+    processingType: ProcessingType
+    reportedSystemCandidateId: WireUuid | None
+    facts: list[EvidenceStatement]
+    assumptions: list[EvidenceStatement]
+    unknowns: list[WireText]
+    details: RequestDetails
+
+    @model_validator(mode="after")
+    def validate_sources(self) -> "ProblemProposal":
+        if any(not fact.sourceMessageIds and not fact.knowledgeEvidenceIds for fact in self.facts):
+            raise ValueError("확인 사실에는 출처가 필요합니다")
+        return self
+
+
+class QuestionProposal(WireModel):
+    problemRef: ProblemRef
+    bundleRef: WireText
+    text: WireText
+    requestedFields: list[WireText]
+
+
+class GuideProposal(WireModel):
+    messageText: WireText
+    evidenceIds: list[WireUuid]
+    problemRef: ProblemRef
+
+
+class TicketProposal(WireModel):
+    problemRef: ProblemRef
+    title: Title
+    processingType: Literal["SERVICE_REQUEST", "INVESTIGATION", "CHANGE_REQUEST", "REVIEW_REQUIRED"]
+    responsibleSystemCandidateId: WireUuid
+    evidenceIds: list[WireUuid]
+    standardRequestSnapshot: StandardRequestBody
+
+
+class EntityLink(WireModel):
+    relation: Literal["APPLIES_TO", "ADDRESSES", "USES_CHECK"]
+    targetId: WireText
+    evidenceIds: list[WireUuid]
+
+
+class CaseProposal(WireModel):
+    reusable: StrictBool
+    title: Title | None
+    action: WireText | None
+    verification: WireText | None
+    applicability: WireText | None
+    limitations: list[WireText]
+    appliesToSystemVersion: SystemVersion | None
+    accessScope: AccessScope | None
+    sourceMessageIds: list[WireUuid]
+    entityLinks: list[EntityLink]
+    problemStatement: WireText | None
+
+    @model_validator(mode="after")
+    def validate_reusability(self) -> "CaseProposal":
+        required = (
+            self.title,
+            self.action,
+            self.verification,
+            self.applicability,
+            self.accessScope,
+            self.problemStatement,
+        )
+        if self.reusable and any(value is None for value in required):
+            raise ValueError("재사용 가능한 사례에는 본문과 공개 범위가 필요합니다")
+        if not self.reusable and (
+            any(value is not None for value in required)
+            or self.appliesToSystemVersion is not None
+            or self.limitations
+            or self.sourceMessageIds
+            or self.entityLinks
+        ):
+            raise ValueError("재사용하지 않는 사례에는 본문이나 출처를 포함할 수 없습니다")
+        return self
+
+
+class AiResult(WireModel):
+    contractVersion: Literal["hops-system-1"]
+    runId: WireUuid
+    kind: RunKind
+    inquiryId: WireUuid
+    inquiryVersion: Version
+    status: Literal["SUCCEEDED", "FAILED", "TIMED_OUT", "SUPERSEDED"]
+    answer: WireContent | None
+    problemProposals: list[ProblemProposal]
+    questions: list[QuestionProposal]
+    guide: GuideProposal | None
+    ticketProposals: list[TicketProposal]
+    caseProposal: CaseProposal | None
+    evidence: list[KnowledgeEvidence]
+    error: AiError | None
+
+    @model_validator(mode="after")
+    def validate_result(self) -> "AiResult":
+        if self.status != "SUCCEEDED":
+            if (
+                self.error is None
+                or self.answer is not None
+                or self.guide is not None
+                or self.caseProposal is not None
+                or self.problemProposals
+                or self.questions
+                or self.ticketProposals
+                or self.evidence
+            ):
+                raise ValueError("실패 결과에는 오류만 포함하고 새 제안은 포함하지 않습니다")
+        elif self.error is not None:
+            raise ValueError("성공 결과에는 오류를 포함할 수 없습니다")
+        elif self.kind == "INQUIRY_ANALYSIS":
+            if self.answer is None or self.caseProposal is not None:
+                raise ValueError("상담 성공에는 답변이 필요하고 사례 제안은 포함하지 않습니다")
+            refs = [question.problemRef for question in self.questions]
+            if len(refs) != len(set(refs)) or any(
+                self.answer.count(q.text) != 1 for q in self.questions
+            ):
+                raise ValueError("문제별 질문과 답변 본문이 일치하지 않습니다")
+            if self.guide and (
+                self.answer.count(self.guide.messageText) != 1 or self.guide.problemRef in refs
+            ):
+                raise ValueError("가이드와 답변 또는 질문이 일치하지 않습니다")
+            if self.guide:
+                # 허용된 근거의 최신 승인과 권한은 실행기·Spring이 다시 확인한다.
+                evidence_by_id = {item.id: item for item in self.evidence}
+                if not self.guide.evidenceIds or any(
+                    ref not in evidence_by_id or evidence_by_id[ref].accessScope != "EMPLOYEE"
+                    for ref in self.guide.evidenceIds
+                ):
+                    raise ValueError("가이드에는 직원에게 허용된 근거가 필요합니다")
+            if any(
+                t.problemRef in refs or (self.guide and t.problemRef == self.guide.problemRef)
+                for t in self.ticketProposals
+            ):
+                raise ValueError("같은 문제에 질문·가이드와 티켓을 함께 제안할 수 없습니다")
+            by_ref = {p.problemRef: p.processingType for p in self.problemProposals}
+            if any(
+                t.problemRef in by_ref and by_ref[t.problemRef] != t.processingType
+                for t in self.ticketProposals
+            ):
+                raise ValueError("티켓과 문제의 처리 유형이 일치하지 않습니다")
+        elif (
+            self.caseProposal is None
+            or self.answer is not None
+            or self.guide is not None
+            or self.problemProposals
+            or self.questions
+            or self.ticketProposals
+        ):
+            raise ValueError("사례 초안 성공에는 사례 제안이 필요합니다")
+        return self
+
+
+class AiAccepted(WireModel):
+    contractVersion: Literal["hops-system-1"]
+    runId: WireUuid
+    status: Literal["QUEUED"]
+    eventsPath: WireText
+
+    @model_validator(mode="after")
+    def validate_events_path(self) -> "AiAccepted":
+        path = urlsplit(self.eventsPath)
+        if (
+            not self.eventsPath.startswith("/")
+            or self.eventsPath.startswith("//")
+            or path.scheme
+            or path.netloc
+            or path.query
+            or path.fragment
+            or "\\" in self.eventsPath
+        ):
+            raise ValueError("eventsPath는 고정 origin 안의 상대 경로여야 합니다")
+        return self
+
+
+class AiRunSnapshot(WireModel):
+    contractVersion: Literal["hops-system-1"]
+    runId: WireUuid
+    status: Literal[
+        "QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "TIMED_OUT", "SUPERSEDED", "UNKNOWN"
+    ]
+    lastSeq: NonNegative
+    result: AiResult | None
+    error: AiError | None
+
+    @model_validator(mode="after")
+    def validate_snapshot(self) -> "AiRunSnapshot":
+        if self.status in ("QUEUED", "RUNNING", "UNKNOWN"):
+            if self.result is not None:
+                raise ValueError("진행 중이거나 미확인인 실행에는 최종 결과가 없습니다")
+        elif (
+            self.result is None
+            or self.result.status != self.status
+            or self.result.runId != self.runId
+        ):
+            raise ValueError("종료 상태와 같은 실행의 최종 결과가 필요합니다")
+        if self.status == "SUCCEEDED" and self.error is not None:
+            raise ValueError("성공 상태에는 오류가 없습니다")
+        if self.status in ("FAILED", "TIMED_OUT", "SUPERSEDED") and (
+            self.error is None or (self.result is not None and self.error != self.result.error)
+        ):
+            raise ValueError("종료 오류는 결과의 오류와 일치해야 합니다")
+        return self
+
+
+class ProgressPayload(WireModel):
+    role: Literal["SUPERVISOR", "INQUIRY", "KNOWLEDGE", "TICKET", "CURATOR"]
+    displaySummary: WireText
+
+
+class DeltaPayload(WireModel):
+    messageId: WireUuid
+    chunkSeq: Version
+    text: WireText
+
+
+class AiEvent(WireModel):
+    contractVersion: Literal["hops-system-1"]
+    runId: WireUuid
+    seq: Version
+    eventType: Literal["progress", "answer.delta", "result"]
+    payload: ProgressPayload | DeltaPayload | AiResult
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "AiEvent":
+        expected = {"progress": ProgressPayload, "answer.delta": DeltaPayload, "result": AiResult}
+        if not isinstance(self.payload, expected[self.eventType]):
+            raise ValueError("이벤트 유형과 payload가 일치하지 않습니다")
+        if isinstance(self.payload, AiResult) and self.payload.runId != self.runId:
+            raise ValueError("이벤트와 결과의 runId가 일치하지 않습니다")
+        return self
