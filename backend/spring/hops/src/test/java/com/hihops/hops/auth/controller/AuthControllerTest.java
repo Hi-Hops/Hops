@@ -176,7 +176,7 @@ class AuthControllerTest {
 
     @Test
     void 로컬_개발_설정에서는_http라도_Secure_없이_쿠키를_준다() throws Exception {
-        // application.properties의 hops.auth.refresh-cookie.secure=false. 운영은 환경변수로 true를 넣는다.
+        // 로컬 개발처럼 hops.auth.refresh-cookie.secure=false (application-test.properties). 운영은 설정이 없어 기본값 true다.
         String cookie = refreshCookie(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
 
         assertThat(cookie).doesNotContain("Secure");
@@ -293,6 +293,18 @@ class AuthControllerTest {
     void 세션_저장소_장애_중에도_로그아웃은_쿠키를_지운다() throws Exception {
         // 프론트는 HttpOnly 쿠키를 직접 지울 수 없다. 서버가 지우지 않으면 장애가 끝난 뒤 그 쿠키로 세션이 되살아난다.
         doThrow(new RedisConnectionFailureException("Redis 장애")).when(refreshTokenService).revoke(anyString());
+
+        MockHttpServletResponse response = mockMvc.perform(logout("any-refresh"))
+                .andExpect(status().isNoContent())
+                .andReturn().getResponse();
+
+        assertThat(refreshCookie(response)).startsWith("hops_refresh=;").contains("Max-Age=0");
+    }
+
+    @Test
+    void 저장된_값이_깨져_예외가_나도_로그아웃은_쿠키를_지운다() throws Exception {
+        // WIRE_CONTRACT 12.2 "반복 시에도 쿠키 삭제". Redis 장애뿐 아니라 어떤 실패에도 쿠키 삭제 헤더는 나가야 한다.
+        doThrow(new IllegalArgumentException("손상된 Refresh 값")).when(refreshTokenService).revoke(anyString());
 
         MockHttpServletResponse response = mockMvc.perform(logout("any-refresh"))
                 .andExpect(status().isNoContent())

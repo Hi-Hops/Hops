@@ -12,7 +12,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -107,6 +114,39 @@ class RefreshTokenServiceTest {
         assertThat(service.ownerOf(first.value())).isEqualTo(member.getId());
         assertThat(service.ownerOf(first.value())).isEqualTo(member.getId());
         assertThat(service.rotate(first.value()).value()).isNotBlank();
+    }
+
+    @Test
+    void 같은_Refresh로_동시에_갱신하면_하나만_성공한다() throws Exception {
+        // 탭 여러 개가 같은 쿠키로 동시에 갱신하는 경우. 소비(CONSUME 스크립트)가 원자적이어야 새 Refresh가 하나만 생긴다.
+        IssuedRefreshToken first = service.issue(member);
+        int requests = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(requests);
+        try {
+            List<Future<Boolean>> results = new ArrayList<>();
+            for (int i = 0; i < requests; i++) {
+                Callable<Boolean> rotate = () -> {
+                    start.await();
+                    try {
+                        service.rotate(first.value());
+                        return true;
+                    } catch (BusinessException exception) {
+                        return false;
+                    }
+                };
+                results.add(pool.submit(rotate));
+            }
+            start.countDown(); // 모든 스레드를 한꺼번에 출발시킨다
+
+            int succeeded = 0;
+            for (Future<Boolean> result : results) {
+                succeeded += result.get() ? 1 : 0;
+            }
+            assertThat(succeeded).isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     private void assertRevoked(String refreshToken) {

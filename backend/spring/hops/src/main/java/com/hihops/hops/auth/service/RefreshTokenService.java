@@ -40,6 +40,9 @@ import lombok.extern.slf4j.Slf4j;
  *       다시 들어오면 재사용(탈취)을 알아채고, 갱신 직후 예전 값으로 온 로그아웃도 세션을 찾을 수 있다.
  *       세션 만료 시각까지 남긴다.</li>
  * </ul>
+ *
+ * <p>refresh·refresh-used 키의 해시 부분은 중괄호로 감싼다(Redis 해시태그). Redis Cluster에서도 두 키가 같은 슬롯에 놓여
+ * {@link #CONSUME} 스크립트가 함께 다룰 수 있다. 단일 Redis에서는 그냥 키 이름의 일부다.
  */
 @Slf4j
 @Service
@@ -94,7 +97,7 @@ public class RefreshTokenService {
      */
     public UUID ownerOf(String refreshToken) {
         String tokenHash = hash(refreshToken);
-        String stored = redis.opsForValue().get(REFRESH_KEY + tokenHash);
+        String stored = redis.opsForValue().get(refreshKey(tokenHash));
         if (stored == null) {
             revokeSessionIfReused(tokenHash);
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_REVOKED);
@@ -110,7 +113,7 @@ public class RefreshTokenService {
     public IssuedRefreshToken rotate(String refreshToken) {
         String tokenHash = hash(refreshToken);
         Instant now = clock.instant();
-        String stored = redis.execute(CONSUME, List.of(REFRESH_KEY + tokenHash, USED_KEY + tokenHash),
+        String stored = redis.execute(CONSUME, List.of(refreshKey(tokenHash), usedKey(tokenHash)),
                 String.valueOf(now.toEpochMilli()));
         if (stored == null) {
             revokeSessionIfReused(tokenHash);
@@ -140,13 +143,13 @@ public class RefreshTokenService {
      */
     public Optional<UUID> revoke(String refreshToken) {
         String tokenHash = hash(refreshToken);
-        String stored = redis.opsForValue().getAndDelete(REFRESH_KEY + tokenHash);
+        String stored = redis.opsForValue().getAndDelete(refreshKey(tokenHash));
         if (stored != null) {
             RefreshEntry entry = RefreshEntry.parse(stored);
             endSession(entry.sessionId(), entry.memberId());
             return Optional.of(entry.memberId());
         }
-        String used = redis.opsForValue().get(USED_KEY + tokenHash);
+        String used = redis.opsForValue().get(usedKey(tokenHash));
         if (used == null) {
             return Optional.empty();
         }
@@ -163,7 +166,7 @@ public class RefreshTokenService {
 
     // 이미 회전으로 쓴 값이 유예 시간 뒤에 다시 왔다 = 누군가 예전 값을 갖고 있다. 그 로그인 세션 전체를 끊는다.
     private void revokeSessionIfReused(String tokenHash) {
-        String used = redis.opsForValue().get(USED_KEY + tokenHash);
+        String used = redis.opsForValue().get(usedKey(tokenHash));
         if (used == null) {
             return; // 처음 보는 값이거나 이미 만료됨
         }
@@ -176,9 +179,17 @@ public class RefreshTokenService {
         log.warn("Refresh 재사용 감지: 로그인 세션 폐기 sessionId={} memberId={}", entry.sessionId(), entry.memberId());
     }
 
+    private static String refreshKey(String tokenHash) {
+        return REFRESH_KEY + "{" + tokenHash + "}";
+    }
+
+    private static String usedKey(String tokenHash) {
+        return USED_KEY + "{" + tokenHash + "}";
+    }
+
     private IssuedRefreshToken store(RefreshEntry entry, Duration ttl) {
         String value = newTokenValue();
-        redis.opsForValue().set(REFRESH_KEY + hash(value), entry.format(), ttl);
+        redis.opsForValue().set(refreshKey(hash(value)), entry.format(), ttl);
         return new IssuedRefreshToken(value, ttl);
     }
 

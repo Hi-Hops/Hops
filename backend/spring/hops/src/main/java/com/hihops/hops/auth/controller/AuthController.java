@@ -2,7 +2,6 @@ package com.hihops.hops.auth.controller;
 
 import java.util.UUID;
 
-import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -82,9 +81,10 @@ public class AuthController {
             // 세션을 끝내면 그 회원의 열린 SSE도 닫힌다(LoginSessionRevokedEvent). 남은 Access(최대 15분)는 프론트가 메모리에서 버린다.
             try {
                 refreshTokenService.revoke(refreshToken);
-            } catch (DataAccessException exception) {
-                // 세션 저장소 장애여도 쿠키는 지운다. 프론트는 HttpOnly 쿠키를 지울 수 없어서, 여기서 지우지 않으면 장애 뒤 세션이 되살아난다.
-                log.warn("로그아웃 중 세션 저장소 오류: 쿠키만 삭제 {}", exception.getClass().getSimpleName());
+            } catch (RuntimeException exception) {
+                // 어떤 실패(저장소 장애·손상된 값·SSE 정리 오류)여도 쿠키는 지운다 (WIRE_CONTRACT 12.2 "반복 시에도 쿠키 삭제").
+                // 프론트는 HttpOnly 쿠키를 지울 수 없어서, 여기서 지우지 않으면 장애 뒤 그 쿠키로 세션이 되살아난다.
+                log.error("로그아웃 중 세션 정리 실패: 쿠키만 삭제", exception);
             }
         }
         return ResponseEntity.noContent()
