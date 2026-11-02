@@ -45,11 +45,14 @@ CREATE TABLE agent_run (
         (task = 'CURATION' AND trigger_work_log_id IS NOT NULL)
         OR (task = 'INQUIRY_ANALYSIS' AND trigger_work_log_id IS NULL)),
     -- 대기 중에는 시작·종료 시각이 없고, 실행 중에는 시작 시각만, 끝난 실행에는 종료 시각이 있다
-    -- (대기 중에 취소·실패할 수 있어 끝난 실행의 시작 시각은 비어 있어도 된다)
+    -- 성공은 시작한 실행만 가능하다. 실패·시간 초과·취소는 대기 중에도 생길 수 있어 시작 시각이 비어 있어도 된다
     CONSTRAINT ck_agent_run_timestamps CHECK (
         (run_status = 'QUEUED' AND started_at IS NULL AND completed_at IS NULL)
         OR (run_status = 'RUNNING' AND started_at IS NOT NULL AND completed_at IS NULL)
-        OR (run_status IN ('SUCCEEDED', 'FAILED', 'TIMED_OUT', 'CANCELLED') AND completed_at IS NOT NULL))
+        OR (run_status = 'SUCCEEDED' AND started_at IS NOT NULL AND completed_at IS NOT NULL)
+        OR (run_status IN ('FAILED', 'TIMED_OUT', 'CANCELLED') AND completed_at IS NOT NULL)),
+    -- 종료 시각은 시작 시각보다 이를 수 없다 (둘 중 하나라도 비어 있으면 검사하지 않는다)
+    CONSTRAINT ck_agent_run_time_order CHECK (completed_at >= started_at)
 );
 
 -- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 문의의 실행 이력을 찾으려고 둔다.

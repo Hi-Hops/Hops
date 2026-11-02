@@ -135,4 +135,22 @@ class AgentRunRepositoryTest {
                 + "VALUES (gen_random_uuid(), ?, 'INQUIRY_ANALYSIS', 'QUEUED', 1, '{}', 'm', 'p', 's', now())", INQUIRY_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    void 시작하지_않은_실행이_성공으로_끝나면_DB가_거절한다() {
+        // 성공(SUCCEEDED)인데 시작 시각이 없다 (AgentRun.finish와 같은 규칙)
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, "
+                + "input_snapshot, model_version, prompt_version, schema_version, completed_at) "
+                + "VALUES (gen_random_uuid(), ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'm', 'p', 's', now())", INQUIRY_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 종료_시각이_시작_시각보다_이르면_DB가_거절한다() {
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, "
+                + "input_snapshot, model_version, prompt_version, schema_version, started_at, completed_at) "
+                + "VALUES (gen_random_uuid(), ?, 'INQUIRY_ANALYSIS', 'FAILED', 1, '{}', 'm', 'p', 's', "
+                + "now(), now() - interval '1 second')", INQUIRY_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
 }

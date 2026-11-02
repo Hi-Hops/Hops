@@ -88,4 +88,54 @@ class AgentRunTest {
         assertThatThrownBy(() -> run.finish(RunStatus.RUNNING, COMPLETED))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void 종료_시각이_시작_시각보다_이르면_거절한다() {
+        AgentRun run = newRun();
+        run.start(STARTED);
+
+        assertThatThrownBy(() -> run.finish(RunStatus.FAILED, STARTED.minusSeconds(1)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(run.getRunStatus()).isEqualTo(RunStatus.RUNNING);
+    }
+
+    @Test
+    void Curator_실행은_시작한_처리_기록_없이_만들_수_없다() {
+        // ck_agent_run_trigger_work_log: Curator 실행은 처리 기록이 반드시 있다
+        assertThatThrownBy(() -> new AgentRun(null, null, null, 1, "{}", "gpt-test", "prompt-v1", "schema-v1"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("triggerWorkLog");
+    }
+
+    @Test
+    void 시작_시각_없이_시작하면_바로_거절하고_상태를_바꾸지_않는다() {
+        AgentRun run = newRun();
+
+        assertThatThrownBy(() -> run.start(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("startedAt");
+        assertThat(run.getRunStatus()).isEqualTo(RunStatus.QUEUED);
+    }
+
+    @Test
+    void 결과_없이_끝내면_바로_거절하고_상태를_바꾸지_않는다() {
+        AgentRun run = newRun();
+        run.start(STARTED);
+
+        assertThatThrownBy(() -> run.finish(null, COMPLETED))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("outcome");
+        assertThat(run.getRunStatus()).isEqualTo(RunStatus.RUNNING);
+    }
+
+    @Test
+    void 종료_시각_없이_끝내면_바로_거절하고_상태를_바꾸지_않는다() {
+        AgentRun run = newRun();
+        run.start(STARTED);
+
+        assertThatThrownBy(() -> run.finish(RunStatus.SUCCEEDED, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("completedAt");
+        assertThat(run.getRunStatus()).isEqualTo(RunStatus.RUNNING);
+    }
 }

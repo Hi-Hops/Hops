@@ -134,12 +134,11 @@ class TicketWorkLogRepositoryTest {
 
     @Test
     void 검증_결과가_없는_해결_기록은_DB가_거절한다() {
-        Ticket ticket = ticketRepository.findById(TICKET_ID).orElseThrow();
-        Member author = memberRepository.findById(MEMBER_ID).orElseThrow();
-
         // 검증하지 않은 조치를 해결 완료로 남기지 않는다 (ck_ticket_work_log_verified)
-        assertThatThrownBy(() -> ticketWorkLogRepository.saveAndFlush(new TicketWorkLog(ticket, author,
-                WorkLogType.RESOLVED, "뷰어 캐시를 비움", null, "  ", null)))
+        // Entity 생성자가 먼저 막으므로, DB 규칙은 SQL로 직접 넣어 확인한다
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO ticket_work_log (ticket_id, author_member_id, "
+                + "log_type, action_detail, verification_result) VALUES (?, ?, 'RESOLVED', '뷰어 캐시를 비움', '  ')",
+                TICKET_ID, MEMBER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

@@ -76,6 +76,10 @@ public class InquiryProblem extends BaseEntity {
 
     public InquiryProblem(Inquiry inquiry, int problemNo, String title, String detail, ProblemStatus problemStatus,
             AgentRun agentRun) {
+        // 무티켓 해결은 문의자가 확인한 시각(resolved_at)이 있어야 해서(ck_inquiry_problem_resolved) 처음부터 만들 수 없다
+        if (problemStatus == ProblemStatus.RESOLVED_WITHOUT_TICKET) {
+            throw new IllegalArgumentException("무티켓 해결 상태로는 문제를 처음부터 만들 수 없다");
+        }
         this.inquiry = inquiry;
         this.problemNo = problemNo;
         this.title = title;

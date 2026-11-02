@@ -70,6 +70,10 @@ public class TicketAssignment extends BaseEntity {
 
     public TicketAssignment(Ticket ticket, ItSystem itSystem, Member assignee, AssignmentSource source,
             Member assignedBy, String reason, Instant assignedAt) {
+        // 수동 정정일 때만 정정자가 있다 (ck_ticket_assignment_assigned_by). 저장 때가 아니라 만들 때 바로 막는다
+        if ((source == AssignmentSource.MANUAL_CORRECTION) != (assignedBy != null)) {
+            throw new IllegalArgumentException("수동 정정일 때만 정정자가 있어야 한다: source=" + source);
+        }
         this.ticket = ticket;
         this.itSystem = itSystem;
         this.assignee = assignee;

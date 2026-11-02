@@ -54,6 +54,11 @@ public class TicketWorkLog extends CreatedOnlyEntity {
 
     public TicketWorkLog(Ticket ticket, Member author, WorkLogType logType, String actionDetail, String confirmedCause,
             String verificationResult, String appliedVersion) {
+        // 검증하지 않은 조치를 해결·구현 완료로 남기지 않는다 (ck_ticket_work_log_verified). 만들 때 바로 막는다
+        boolean completed = logType == WorkLogType.RESOLVED || logType == WorkLogType.IMPLEMENTED;
+        if (completed && (verificationResult == null || verificationResult.isBlank())) {
+            throw new IllegalArgumentException("해결·구현 기록에는 검증 결과가 있어야 한다: " + logType);
+        }
         this.ticket = ticket;
         this.author = author;
         this.logType = logType;

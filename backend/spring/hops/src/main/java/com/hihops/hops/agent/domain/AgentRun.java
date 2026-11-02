@@ -1,6 +1,7 @@
 package com.hihops.hops.agent.domain;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -147,6 +148,8 @@ public class AgentRun {
     /** Curator 실행. 해결·구현 기록(triggerWorkLog)이 저장되면 그 기록으로 사례 초안을 만든다. 작업 종류는 CURATION, 상태는 QUEUED로 시작한다. */
     public AgentRun(Inquiry inquiry, Ticket ticket, TicketWorkLog triggerWorkLog, int inputVersion, String inputSnapshot,
             String modelVersion, String promptVersion, String schemaVersion) {
+        // 처리 기록 없는 Curator 실행은 DB CHECK(ck_agent_run_trigger_work_log)에 걸리므로 만들 때 바로 막는다
+        Objects.requireNonNull(triggerWorkLog, "triggerWorkLog");
         this.inquiry = inquiry;
         this.ticket = ticket;
         this.triggerWorkLog = triggerWorkLog;
@@ -159,8 +162,13 @@ public class AgentRun {
         this.schemaVersion = schemaVersion;
     }
 
-    /** 실행을 시작한다. 대기(QUEUED) 중인 실행만 시작할 수 있다. */
+    /**
+     * 실행을 시작한다. 대기(QUEUED) 중인 실행만 시작할 수 있다.
+     *
+     * <p>시각이 null이면 바로 거절한다. 그대로 두면 저장(flush) 때에야 CHECK에 걸려 어디서 잘못 불렀는지 찾기 어렵다.
+     */
     public void start(Instant startedAt) {
+        Objects.requireNonNull(startedAt, "startedAt");
         if (runStatus != RunStatus.QUEUED) {
             throw new IllegalStateException("대기 중인 실행만 시작할 수 있다: " + runStatus);
         }
@@ -172,9 +180,12 @@ public class AgentRun {
      * 실행을 끝낸다. 결과는 SUCCEEDED / FAILED / TIMED_OUT / CANCELLED 중 하나다.
      *
      * <p>성공은 실행 중(RUNNING)이었던 실행만 가능하다. 실패·시간 초과·취소는 시작 전(QUEUED)에도 생길 수 있다.
-     * 이미 끝난 실행은 다시 끝낼 수 없다 (늦게 온 결과로 상태를 덮어쓰지 않게).
+     * 이미 끝난 실행은 다시 끝낼 수 없다 (늦게 온 결과로 상태를 덮어쓰지 않게). 결과·시각이 null이거나
+     * 종료 시각이 시작 시각보다 이르면 바로 거절한다 (DB CHECK ck_agent_run_timestamps·ck_agent_run_time_order와 같은 규칙).
      */
     public void finish(RunStatus outcome, Instant completedAt) {
+        Objects.requireNonNull(outcome, "outcome");
+        Objects.requireNonNull(completedAt, "completedAt");
         if (outcome == RunStatus.QUEUED || outcome == RunStatus.RUNNING) {
             throw new IllegalArgumentException("끝난 상태만 결과로 쓸 수 있다: " + outcome);
         }
@@ -183,6 +194,9 @@ public class AgentRun {
         }
         if (outcome == RunStatus.SUCCEEDED && runStatus != RunStatus.RUNNING) {
             throw new IllegalStateException("시작하지 않은 실행은 성공으로 끝낼 수 없다");
+        }
+        if (startedAt != null && completedAt.isBefore(startedAt)) {
+            throw new IllegalArgumentException("종료 시각이 시작 시각보다 이르다: " + completedAt + " < " + startedAt);
         }
         this.runStatus = outcome;
         this.completedAt = completedAt;
