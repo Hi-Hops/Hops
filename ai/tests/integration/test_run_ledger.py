@@ -6,7 +6,7 @@ import sys
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import psycopg
 import pytest
@@ -17,8 +17,9 @@ from psycopg.conninfo import conninfo_to_dict, make_conninfo
 from hops_ai.main import create_app
 from hops_ai.persistence.run_ledger import InvalidRunTransition, RunConflict, RunLedger
 from hops_ai.services.runs.admission import AdmissionRejected, ExecutionLimits, RunAdmissionService
+from hops_ai.services.runs.executor import RunExecutor, server_ceilings
 from hops_ai.settings import Settings
-from tests.doubles.run_requests import inquiry_request
+from tests.doubles.run_requests import expires_in, inquiry_request, succeeded
 
 
 @pytest.fixture
@@ -330,3 +331,40 @@ async def test_internal_snapshot_reads_persisted_and_recovered_run(ledger: RunLe
             assert await app.state.run_ledger.recover_abandoned() == 1
             response = await client.get(path, headers={"Authorization": f"Bearer {'A' * 43}"})
             assert response.json()["status"] == "UNKNOWN"
+
+
+async def test_executor_stores_result_and_shutdown_leaves_run_for_recovery(
+    ledger: RunLedger,
+) -> None:
+    settings = Settings(_env_file=None)
+    admission = RunAdmissionService(ledger, server_ceilings(settings))
+
+    class Succeeding:
+        async def run(self, request, context):
+            return succeeded(request)
+
+    class Blocking:
+        async def run(self, request, context):
+            await asyncio.Event().wait()
+
+    done = inquiry_request(expires_at=expires_in(60))
+    assert (await RunExecutor(ledger, admission, Succeeding(), settings).submit(done)).created
+    for _ in range(200):
+        snapshot = await ledger.get(UUID(done.runId))
+        if snapshot is not None and snapshot.status == "SUCCEEDED":
+            break
+        await asyncio.sleep(0.01)
+    assert snapshot.status == "SUCCEEDED"
+    assert snapshot.result["answer"] == "가상 안내 문구"
+
+    # 종료 중 멈춘 실행은 결과 없이 남고, 재기동한 소유자가 UNKNOWN으로 복구한다.
+    blocked_executor = RunExecutor(ledger, admission, Blocking(), settings)
+    interrupted = inquiry_request(expires_at=expires_in(60))
+    await blocked_executor.submit(interrupted)
+    await asyncio.sleep(0.05)
+    await blocked_executor.shutdown()
+    assert (await ledger.get(UUID(interrupted.runId))).status == "RUNNING"
+    await ledger.close()
+    async with RunLedger(ledger._conninfo) as restarted:
+        assert (await restarted.get(UUID(interrupted.runId))).status == "UNKNOWN"
+        assert (await restarted.get(UUID(done.runId))).status == "SUCCEEDED"
