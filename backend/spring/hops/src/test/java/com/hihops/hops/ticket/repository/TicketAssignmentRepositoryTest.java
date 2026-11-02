@@ -37,6 +37,25 @@ import jakarta.persistence.EntityManager;
 @Transactional
 class TicketAssignmentRepositoryTest {
 
+    // PostgreSQL은 한 트랜잭션에서 오류가 나면 이후 명령을 거부하므로, 위반은 테스트마다 하나씩 확인한다
+    @Test
+    void 수동_정정인데_정정자가_없으면_DB가_거절한다() {
+        // 수동 정정인데 정정자가 없다
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO ticket_assignment (ticket_id, it_system_id, "
+                + "assignee_member_id, source, reason, assigned_at, ended_at) "
+                + "VALUES (?, ?, ?, 'MANUAL_CORRECTION', '정정', now(), now())", TICKET_ID, SYSTEM_ID, MEMBER_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 자동_배정인데_정정자가_있으면_DB가_거절한다() {
+        // 자동 배정인데 정정자가 있다
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO ticket_assignment (ticket_id, it_system_id, "
+                + "assignee_member_id, source, assigned_by_member_id, reason, assigned_at, ended_at) "
+                + "VALUES (?, ?, ?, 'AUTO', ?, '자동', now(), now())", TICKET_ID, SYSTEM_ID, MEMBER_ID, MEMBER_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private static final UUID DEPARTMENT_ID = UUID.fromString("d0000000-0000-7000-8000-000000000099");
     private static final UUID MEMBER_ID = UUID.fromString("a0000000-0000-7000-8000-000000000099");
     private static final UUID SYSTEM_ID = UUID.fromString("c0000000-0000-7000-8000-000000000099");
@@ -77,8 +96,8 @@ class TicketAssignmentRepositoryTest {
         jdbcTemplate.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) "
                 + "VALUES (?, ?, 1, '결재 문서 열람 오류', 'TICKET_CREATED')", PROBLEM_ID, INQUIRY_ID);
         jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
-                + "model_version, prompt_version, schema_version, started_at) "
-                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+                + "model_version, prompt_version, schema_version, started_at, completed_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now(), now())",
                 RUN_ID, INQUIRY_ID);
         jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, "
                 + "work_type, responsible_system_id, summary) "

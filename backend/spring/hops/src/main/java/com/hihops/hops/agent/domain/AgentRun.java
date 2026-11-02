@@ -36,7 +36,7 @@ import jakarta.persistence.Table;
  * BaseEntity(삭제일시 있음)·CreatedOnlyEntity(수정일시 없음) 어느 쪽과도 맞지 않아 컬럼을 직접 둔다.
  *
  * <p>상담 실행(INQUIRY_ANALYSIS)은 시작 메시지(triggerMessage)를, Curator 실행(CURATION)은 대상 티켓(ticket)과
- * 시작 처리 기록(triggerWorkLog)을 가리킨다. 생성자도 실행 종류마다 하나씩 둔다.
+ * 시작 처리 기록(triggerWorkLog)을 가리킨다. 생성자도 실행 종류마다 하나씩 두고 작업 종류(task)를 각각 고정한다.
  */
 @Entity
 @Table(name = "agent_run")
@@ -126,11 +126,13 @@ public class AgentRun {
     protected AgentRun() {
     }
 
-    public AgentRun(Inquiry inquiry, Message triggerMessage, AgentTask task, RunStatus runStatus, int inputVersion,
+    /** 상담 실행. 사용자 메시지(triggerMessage)로 시작한다. 작업 종류는 INQUIRY_ANALYSIS로 고정한다. */
+    public AgentRun(Inquiry inquiry, Message triggerMessage, RunStatus runStatus, int inputVersion,
             String inputSnapshot, String modelVersion, String promptVersion, String schemaVersion, Instant startedAt) {
         this.inquiry = inquiry;
         this.triggerMessage = triggerMessage;
-        this.task = task;
+        // 작업 종류를 인자로 받으면 CURATION을 넘겨 DB CHECK(ck_agent_run_trigger_work_log)에 걸릴 수 있어 고정한다
+        this.task = AgentTask.INQUIRY_ANALYSIS;
         this.runStatus = runStatus;
         this.inputVersion = inputVersion;
         this.inputSnapshot = inputSnapshot;

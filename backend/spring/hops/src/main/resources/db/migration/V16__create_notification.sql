@@ -20,3 +20,6 @@ CREATE TABLE notification (
     CONSTRAINT ck_notification_type CHECK (notification_type IN ('TICKET_ASSIGNED', 'CONFIRM_REQUESTED',
         'RESULT_NOTIFIED', 'CASE_APPROVAL_REQUESTED'))
 );
+
+-- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 본인 알림함을 수신자로 찾으려고 둔다.
+CREATE INDEX idx_notification_recipient_member_id ON notification (recipient_member_id);

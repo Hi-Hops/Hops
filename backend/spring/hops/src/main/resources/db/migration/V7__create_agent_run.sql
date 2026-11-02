@@ -43,8 +43,17 @@ CREATE TABLE agent_run (
     -- Curator 실행은 시작한 처리 기록이 반드시 있고, 상담 실행에는 처리 기록이 없다
     CONSTRAINT ck_agent_run_trigger_work_log CHECK (
         (task = 'CURATION' AND trigger_work_log_id IS NOT NULL)
-        OR (task = 'INQUIRY_ANALYSIS' AND trigger_work_log_id IS NULL))
+        OR (task = 'INQUIRY_ANALYSIS' AND trigger_work_log_id IS NULL)),
+    -- 대기 중에는 시작·종료 시각이 없고, 실행 중에는 시작 시각만, 끝난 실행에는 종료 시각이 있다
+    -- (대기 중에 취소·실패할 수 있어 끝난 실행의 시작 시각은 비어 있어도 된다)
+    CONSTRAINT ck_agent_run_timestamps CHECK (
+        (run_status = 'QUEUED' AND started_at IS NULL AND completed_at IS NULL)
+        OR (run_status = 'RUNNING' AND started_at IS NOT NULL AND completed_at IS NULL)
+        OR (run_status IN ('SUCCEEDED', 'FAILED', 'TIMED_OUT', 'CANCELLED') AND completed_at IS NOT NULL))
 );
+
+-- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 문의의 실행 이력을 찾으려고 둔다.
+CREATE INDEX idx_agent_run_inquiry_id ON agent_run (inquiry_id);
 
 -- 처리 기록 하나로 Curator 실행을 두 번 만들지 않는다
 CREATE UNIQUE INDEX uk_agent_run_curation_work_log ON agent_run (trigger_work_log_id) WHERE task = 'CURATION';

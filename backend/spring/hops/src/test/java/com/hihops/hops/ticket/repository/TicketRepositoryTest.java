@@ -41,6 +41,27 @@ import jakarta.persistence.EntityManager;
 @Transactional
 class TicketRepositoryTest {
 
+    // PostgreSQL은 한 트랜잭션에서 오류가 나면 이후 명령을 거부하므로, 위반은 테스트마다 하나씩 확인한다
+    @Test
+    void 최종_완료인데_해결일시가_없으면_DB가_거절한다() {
+        ticketRepository.saveAndFlush(newTicket("TK-9999"));
+
+        // RESOLVED인데 해결일시가 없다
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE ticket SET ticket_status = 'RESOLVED' WHERE ticket_number = 'TK-9999'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 완료_전인데_해결일시가_있으면_DB가_거절한다() {
+        ticketRepository.saveAndFlush(newTicket("TK-9999"));
+
+        // 아직 OPEN인데 해결일시가 있다
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE ticket SET resolved_at = now() WHERE ticket_number = 'TK-9999'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private static final UUID DEPARTMENT_ID = UUID.fromString("d0000000-0000-7000-8000-000000000099");
     private static final UUID MEMBER_ID = UUID.fromString("a0000000-0000-7000-8000-000000000099");
     private static final UUID SYSTEM_ID = UUID.fromString("c0000000-0000-7000-8000-000000000099");
@@ -86,8 +107,8 @@ class TicketRepositoryTest {
         jdbcTemplate.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) "
                 + "VALUES (?, ?, 1, '결재 문서 열람 오류', 'TICKET_CREATED')", PROBLEM_ID, INQUIRY_ID);
         jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
-                + "model_version, prompt_version, schema_version, started_at) "
-                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now())",
+                + "model_version, prompt_version, schema_version, started_at, completed_at) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now(), now())",
                 RUN_ID, INQUIRY_ID);
         jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, "
                 + "work_type, responsible_system_id, summary) "

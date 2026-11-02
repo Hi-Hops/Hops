@@ -96,4 +96,21 @@ class InquiryProblemRepositoryTest {
                 "중복 문제 번호", null, ProblemStatus.CLARIFYING, null)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    // PostgreSQL은 한 트랜잭션에서 오류가 나면 이후 명령을 거부하므로, 위반은 테스트마다 하나씩 확인한다
+    @Test
+    void 무티켓_해결인데_해결일시가_없으면_DB가_거절한다() {
+        // 무티켓 해결인데 해결일시가 없다
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO inquiry_problem (inquiry_id, problem_no, title, "
+                + "problem_status) VALUES (?, 7, '해결된 문제', 'RESOLVED_WITHOUT_TICKET')", INQUIRY_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 질문_중인데_해결일시가_있으면_DB가_거절한다() {
+        // 아직 질문 중인데 해결일시가 있다
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO inquiry_problem (inquiry_id, problem_no, title, "
+                + "problem_status, resolved_at) VALUES (?, 8, '질문 중인 문제', 'CLARIFYING', now())", INQUIRY_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
 }

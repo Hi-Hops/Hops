@@ -26,3 +26,6 @@ CREATE TABLE inquiry (
     CONSTRAINT fk_inquiry_requester FOREIGN KEY (requester_member_id) REFERENCES member (id),
     CONSTRAINT ck_inquiry_status CHECK (inquiry_status IN ('IN_PROGRESS', 'WAITING_USER', 'RESOLVED', 'CLOSED'))
 );
+
+-- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. "내 문의 목록"을 문의자로 찾으려고 둔다.
+CREATE INDEX idx_inquiry_requester_member_id ON inquiry (requester_member_id);

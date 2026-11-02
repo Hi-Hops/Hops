@@ -25,6 +25,9 @@ CREATE TABLE ticket_work_log (
         OR (verification_result IS NOT NULL AND btrim(verification_result) <> ''))
 );
 
+-- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 티켓 상세의 처리 기록을 찾으려고 둔다.
+CREATE INDEX idx_ticket_work_log_ticket_id ON ticket_work_log (ticket_id);
+
 -- V7에서 컬럼만 만들어 둔 Curator 실행의 시작 처리 기록 FK를 이제 붙인다
 ALTER TABLE agent_run
     ADD CONSTRAINT fk_agent_run_trigger_work_log FOREIGN KEY (trigger_work_log_id) REFERENCES ticket_work_log (id);

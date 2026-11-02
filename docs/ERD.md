@@ -40,7 +40,9 @@
 | 기본키 | 모든 테이블 `id` UUID (UUIDv7 권장). 화면에는 Q-0142·TK-0001·CASE-0001 같은 표시 번호를 따로 씀 |
 | 시간 컬럼 | 바뀌는 테이블: 생성일시·수정일시·삭제일시 / 원본 이력·기록9개는 생성일시만. journal은 operation/tombstone 갱신, CASE는 현재 초안 편집 후 승인하면 읽기 전용(6절) / AI 실행: 생성일시·수정일시 |
 | 이력·기록 테이블 | 메시지 수정 이력, 표준 요청서, 티켓 변경 이력, 티켓 처리 기록, AI 실행 단계, 중복 요청 방지 기록, 알림, 문서 버전, 검색 조각 |
-| 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약. 마이그레이션에서 `ck_<테이블>_<컬럼>` 이름으로 34개 적용 |
+| 상태값 | 별도 코드 테이블 없이 VARCHAR(30) + CHECK 제약. 마이그레이션에서 `ck_<테이블>_<컬럼>` 이름으로 적용 (상태와 맞물린 규칙 포함 39개) |
+| 상태와 맞물린 값 | 상태에 따라 반드시 있거나 없어야 하는 값은 CHECK로 막는다: 티켓 `RESOLVED` ⇔ `resolved_at`, 문제 `RESOLVED_WITHOUT_TICKET` ⇔ `resolved_at`, 배정 `MANUAL_CORRECTION` ⇔ `assigned_by_member_id`, 사례 `APPROVED` ⇔ `approved_by_member_id`·`approved_at`(초안이면 둘 다 NULL), AI 실행 `QUEUED`는 시작·종료 시각 없음 / `RUNNING`은 시작 시각만 / 끝난 상태는 종료 시각 필수, 완료 처리 기록은 `verification_result` 필수, Curator 실행은 `trigger_work_log_id` 필수 |
+| 인덱스 | PostgreSQL은 FK에 인덱스를 자동으로 만들지 않아 목록 조회용 FK에 `idx_<테이블>_<컬럼>`을 둔다: `inquiry.requester_member_id`, `agent_run.inquiry_id`, `ticket.inquiry_id`·`assignee_member_id`·`responsible_system_id`, `ticket_event.ticket_id`, `ticket_assignment.ticket_id`, `ticket_work_log.ticket_id`, `notification.recipient_member_id`. 유일 제약의 앞 컬럼으로 이미 찾을 수 있는 경우(예: `message.inquiry_id`)는 따로 두지 않는다. 부분 유일 인덱스 2개(현재 배정, Curator 실행)는 각 테이블 설명 참고 |
 | 업무 데이터 쓰기 | Spring이 REST 변경 요청을 저장·확정하고 권한별 SSE를 전달. AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
 | 관계선 | 실제 DB는 FK 46개(원본 45개 + 6.1절 `inquiry.current_run_id`)를 적용한다. 추가 테이블의 FK는 만들지 않는다. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
 | 중복 방지 | REST `Idempotency-Key`는 중복 요청 방지 기록에 업무 변경과 같은 트랜잭션으로 저장. 문의 1:N 문제 → 문제당 티켓 최대 1개 (`ticket.inquiry_problem_id` 중복 불가) |

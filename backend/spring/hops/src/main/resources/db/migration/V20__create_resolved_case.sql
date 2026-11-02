@@ -54,5 +54,9 @@ CREATE TABLE resolved_case (
     CONSTRAINT ck_resolved_case_origin_type CHECK (origin_type IN ('SYNTHETIC', 'DEMO_VERIFIED', 'PRODUCTION')),
     CONSTRAINT ck_resolved_case_status CHECK (case_status IN ('DRAFT', 'APPROVED')),
     CONSTRAINT ck_resolved_case_vector_status CHECK (vector_status IN ('PENDING', 'SUCCEEDED', 'FAILED')),
-    CONSTRAINT ck_resolved_case_graph_status CHECK (graph_status IN ('PENDING', 'SUCCEEDED', 'FAILED'))
+    CONSTRAINT ck_resolved_case_graph_status CHECK (graph_status IN ('PENDING', 'SUCCEEDED', 'FAILED')),
+    -- 승인(APPROVED)이면 승인자·승인일시가 둘 다 있고, 초안(DRAFT)이면 둘 다 없다
+    CONSTRAINT ck_resolved_case_approval CHECK (
+        (case_status = 'APPROVED' AND approved_by_member_id IS NOT NULL AND approved_at IS NOT NULL)
+        OR (case_status = 'DRAFT' AND approved_by_member_id IS NULL AND approved_at IS NULL))
 );

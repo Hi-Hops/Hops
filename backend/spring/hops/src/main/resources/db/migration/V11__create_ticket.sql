@@ -36,8 +36,15 @@ CREATE TABLE ticket (
         'CHANGE_REQUEST', 'REVIEW_REQUIRED')),
     CONSTRAINT ck_ticket_status CHECK (ticket_status IN ('OPEN', 'IN_PROGRESS', 'WAITING_CONFIRM', 'RESOLVED')),
     -- 외부 ticketRevision(version+1)이 INT 범위를 넘지 않게 한다
-    CONSTRAINT ck_ticket_version CHECK (version BETWEEN 0 AND 2147483646)
+    CONSTRAINT ck_ticket_version CHECK (version BETWEEN 0 AND 2147483646),
+    -- 최종 완료(RESOLVED)일 때만 해결일시가 있다 (문의자가 확인하기 전이면 NULL, 완료 후 재오픈 없음)
+    CONSTRAINT ck_ticket_resolved CHECK ((ticket_status = 'RESOLVED') = (resolved_at IS NOT NULL))
 );
+
+-- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 문의 상세의 연결 티켓, 담당자·시스템별 티켓 목록을 찾으려고 둔다.
+CREATE INDEX idx_ticket_inquiry_id ON ticket (inquiry_id);
+CREATE INDEX idx_ticket_assignee_member_id ON ticket (assignee_member_id);
+CREATE INDEX idx_ticket_responsible_system_id ON ticket (responsible_system_id);
 
 -- V7에서 컬럼만 만들어 둔 AI 실행의 대상 티켓 FK를 이제 붙인다 (Curator 실행이 처리 기록이 달린 티켓을 가리킴)
 ALTER TABLE agent_run

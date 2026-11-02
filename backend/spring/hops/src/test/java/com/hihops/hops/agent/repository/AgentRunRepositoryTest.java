@@ -1,6 +1,7 @@
 package com.hihops.hops.agent.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.UUID;
 
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,8 +71,7 @@ class AgentRunRepositoryTest {
         Inquiry inquiry = inquiryRepository.findById(INQUIRY_ID).orElseThrow();
         Message triggerMessage = messageRepository.findById(MESSAGE_ID).orElseThrow();
         // 접수만 된 대기(QUEUED) 실행이라 아직 시작 시각이 없다
-        AgentRun saved = agentRunRepository.save(new AgentRun(inquiry, triggerMessage, AgentTask.INQUIRY_ANALYSIS,
-                RunStatus.QUEUED, 1, "{\"answerMessageId\": \"m-1\"}", "gpt-test", "prompt-v1", "schema-v1", null));
+        AgentRun saved = agentRunRepository.save(new AgentRun(inquiry, triggerMessage, RunStatus.QUEUED, 1, "{\"answerMessageId\": \"m-1\"}", "gpt-test", "prompt-v1", "schema-v1", null));
         entityManager.flush();
         entityManager.clear();
 
@@ -91,5 +92,24 @@ class AgentRunRepositoryTest {
         assertThat(found.getRoute()).isNull();
         assertThat(found.getResult()).isNull();
         assertThat(found.getCompletedAt()).isNull();
+    }
+
+    // PostgreSQL은 한 트랜잭션에서 오류가 나면 이후 명령을 거부하므로, 위반은 테스트마다 하나씩 확인한다
+    @Test
+    void 끝난_실행에_종료_시각이_없으면_DB가_거절한다() {
+        // 끝난 실행(SUCCEEDED)인데 종료 시각이 없다
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, "
+                + "input_snapshot, model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (gen_random_uuid(), ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'm', 'p', 's', now())", INQUIRY_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void 대기_중인_실행에_시작_시각이_있으면_DB가_거절한다() {
+        // 대기(QUEUED) 중인데 시작 시각이 있다
+        assertThatThrownBy(() -> jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, "
+                + "input_snapshot, model_version, prompt_version, schema_version, started_at) "
+                + "VALUES (gen_random_uuid(), ?, 'INQUIRY_ANALYSIS', 'QUEUED', 1, '{}', 'm', 'p', 's', now())", INQUIRY_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

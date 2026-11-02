@@ -32,5 +32,7 @@ CREATE TABLE inquiry_problem (
     CONSTRAINT fk_inquiry_problem_agent_run FOREIGN KEY (agent_run_id) REFERENCES agent_run (id),
     CONSTRAINT ck_inquiry_problem_status CHECK (problem_status IN ('CLARIFYING', 'SYSTEM_PENDING', 'GUIDED',
         'RESOLVED_WITHOUT_TICKET', 'TICKET_CREATED', 'TICKET_FAILED', 'OUT_OF_SCOPE')),
-    CONSTRAINT ck_inquiry_problem_creation_outcome CHECK (creation_outcome IN ('PENDING', 'STORED', 'NOT_CREATED', 'UNKNOWN'))
+    CONSTRAINT ck_inquiry_problem_creation_outcome CHECK (creation_outcome IN ('PENDING', 'STORED', 'NOT_CREATED', 'UNKNOWN')),
+    -- 무티켓 해결 상태일 때만 해결일시가 있다 (문의자가 확인하기 전이면 NULL)
+    CONSTRAINT ck_inquiry_problem_resolved CHECK ((problem_status = 'RESOLVED_WITHOUT_TICKET') = (resolved_at IS NOT NULL))
 );

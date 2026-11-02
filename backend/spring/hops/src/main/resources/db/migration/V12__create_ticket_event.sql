@@ -24,3 +24,6 @@ CREATE TABLE ticket_event (
         'CONTENT_CORRECTED', 'SUPPLEMENT_ADDED', 'USER_CONFIRMED', 'USER_NOT_RESOLVED')),
     CONSTRAINT ck_ticket_event_actor_type CHECK (actor_type IN ('MEMBER', 'AI', 'SYSTEM'))
 );
+
+-- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 티켓 상세의 변경 이력을 찾으려고 둔다.
+CREATE INDEX idx_ticket_event_ticket_id ON ticket_event (ticket_id);

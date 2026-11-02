@@ -25,9 +25,15 @@ CREATE TABLE ticket_assignment (
     CONSTRAINT fk_ticket_assignment_it_system FOREIGN KEY (it_system_id) REFERENCES it_system (id),
     CONSTRAINT fk_ticket_assignment_assignee FOREIGN KEY (assignee_member_id) REFERENCES member (id),
     CONSTRAINT fk_ticket_assignment_assigned_by FOREIGN KEY (assigned_by_member_id) REFERENCES member (id),
-    CONSTRAINT ck_ticket_assignment_source CHECK (source IN ('AUTO', 'MANUAL_CORRECTION'))
+    CONSTRAINT ck_ticket_assignment_source CHECK (source IN ('AUTO', 'MANUAL_CORRECTION')),
+    -- 수동 정정일 때만 정정자가 있다 (자동 배정이면 NULL)
+    CONSTRAINT ck_ticket_assignment_assigned_by CHECK ((source = 'MANUAL_CORRECTION') = (assigned_by_member_id IS NOT NULL))
 );
 
 -- 현재 배정(ended_at이 NULL)은 티켓당 1건 (ERD 규칙). 끝난 배정은 여러 건 쌓여도 된다.
 -- 두 사람이 동시에 재배정해도 현재 담당이 둘이 되지 않게 DB가 막는다.
 CREATE UNIQUE INDEX uk_ticket_assignment_current ON ticket_assignment (ticket_id) WHERE ended_at IS NULL;
+
+-- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 티켓의 배정 이력 전체(끝난 배정 포함)를 찾으려고 둔다.
+-- 위 부분 유일 인덱스는 현재 배정만 담아 이 용도로 쓸 수 없다.
+CREATE INDEX idx_ticket_assignment_ticket_id ON ticket_assignment (ticket_id);
