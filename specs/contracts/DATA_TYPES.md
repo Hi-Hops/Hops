@@ -1,15 +1,15 @@
 # 공통 데이터 필드
 
-> **PRD 1.44 전환 안내:** 이 문서는 신규 hops-system-1 리뷰 계약안과 기존 부서 기반 전환 전 타입을 구분한다. 신규 계약안의 팀 승인·코드 적용은 별도다. 제품 정책은 [PRD](../../docs/PRD.md), 전송은 [WIRE_CONTRACT](WIRE_CONTRACT.md)를 따른다. 이전 부서 배정·3회 질문·CS 검토·무응답 종료는 신규 목표가 아니다.
+> **PRD 1.44 전환 안내:** 이 문서는 신규 hops-system-1 목표 계약과 기존 부서 기반 전환 전 타입을 구분한다. 신규 계약의 코드 적용은 별도다. 제품 정책은 [PRD](../../docs/PRD.md), 전송은 [WIRE_CONTRACT](WIRE_CONTRACT.md)를 따른다. 이전 부서 배정·3회 질문·CS 검토·무응답 종료는 신규 목표가 아니다.
 
-상태: 2026-10-28 REST·SSE 타입 정리 / 기존 개발 기준 유지, ResyncRequiredEvent는 develop 확정 계약, 저장 결과는 프론트 연동 프로필 / 팀 리뷰·서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
+상태: 2026-10-28 REST·SSE 타입 정리 / 기존 개발 기준 유지, ResyncRequiredEvent는 develop 확정 계약, 저장 결과는 프론트 연동 프로필 / 서비스별 구현 검증 별도. 언어에 독립적인 데이터 계약 문서이며 각 서비스는 필요한 타입을 자기 코드에서 구현한다. 자동 생성 코드나 언어별 DTO를 공통 구현으로 제공하지 않는다. 정책과 구현/검증 구분은 [WIRE_CONTRACT 11절](WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다.
 
 프로필별 표현 규칙을 구분한다. 아래 기존 타입의 필수/null 규칙은 전환 전 프로필에 적용한다.
 
 
 ## 신규 계약 hops-system-1
 
-상태: PRD 1.44 PR #68 제출 결정안·필드/상태/명령 정의 완료. 이 절은 `/api/v2`용이며 아래의 전환 전 타입과 이름이 같아도 상호 교환하지 않는다. 의미·전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md), 전송은 [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따른다. 현재 런타임 타입·Mock은 변경하지 않았다.
+상태: PRD 1.44 hops-system-1 목표 계약·필드/상태/명령 정의. 이 절은 `/api/v2`용이며 아래의 전환 전 타입과 이름이 같아도 상호 교환하지 않는다. 의미·전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md), 전송은 [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따른다. 현재 런타임 타입·Mock은 변경하지 않았다.
 
 ### 공통 표현과 버전
 
@@ -444,7 +444,7 @@ inquiryNumber/ticketNumber는 서버가 생성한 표시 번호(각 최대20자)
 
 ## MutationResult · REST 저장 결과의 프론트 연동 프로필
 
-Q-INF-6: 기존 docs/API.md 2.4절의 저장 필드에 requestId를 포함한 프론트 REST 연동 프로필이다. Mock·REST 소비 타입에 구현했으며 백엔드는 동일 필드·필수/null 조건과 HTTP 상태를 맞춰 저장 API/DTO를 구현해야 한다. 프론트 구현과 팀 리뷰/병합·백엔드 구현·실제 서버 연결 완료는 구분한다. 변경 시 문서·fixture·각 서비스 타입을 함께 검토한다.
+Q-INF-6: 기존 docs/API.md 2.4절의 저장 필드에 requestId를 포함한 프론트 REST 연동 프로필이다. Mock·REST 소비 타입에 구현했으며 백엔드는 동일 필드·필수/null 조건과 HTTP 상태를 맞춰 저장 API/DTO를 구현해야 한다. 프론트 구현과 백엔드 구현·실제 서버 연결 완료는 구분한다. 변경 시 문서·fixture·각 서비스 타입을 함께 검토한다.
 
 프론트 구현 대상은 `POST /api/inquiries`·`POST /api/inquiries/{id}/messages`·`POST /api/inquiries/{id}/messages/{messageId}/revisions`의 공통 HTTP 200 응답이다. 성공 본문은 아래 객체 자체이며 `{data: ...}` wrapper나 `ok` 필드를 요구하지 않는다. 오류는 HTTP 오류 상태와 `ApiErrorBody`를 사용한다. `POST /api/runs/{id}/retries`의 응답은 `RunSummary`이며 이 타입을 사용하지 않는다.
 

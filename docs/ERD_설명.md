@@ -1,6 +1,6 @@
 # ERD 설명 — PRD 1.44 논리 모델
 
-상태: PRD1.44 논리 모델 · PR #69의 물리 ERD 대조 완료, 본 PR의 저장 보완안 팀 리뷰·DDL/실제 구현은 별도. 물리 명칭/제약은 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)과 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)을 따른다. 실제 구현된 구조는 현재 코드와 마이그레이션에서 확인한다. 목표 정책은 [PRD](PRD.md), 데이터 정본은 [DATA](DATA.md), 서비스 간 정보는 [목표 공통 계약](../specs/contracts/TARGET_CONTRACT.md)을 따른다.
+상태: PRD1.44 논리 모델 · PR #69의 물리 ERD 대조 완료, DDL/실제 구현은 별도. 물리 명칭/제약은 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)과 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)을 따른다. 실제 구현된 구조는 현재 코드와 마이그레이션에서 확인한다. 목표 정책은 [PRD](PRD.md), 데이터 정본은 [DATA](DATA.md), 서비스 간 정보는 [목표 공통 계약](../specs/contracts/TARGET_CONTRACT.md)을 따른다.
 
 ## 1. 관계 한눈에 보기
 
@@ -21,7 +21,7 @@
 시스템·기능·증상·가능 원인·확인 항목·사례·시스템 의존 ── Neo4j 관계
 ```
 
-그림의 이름과 연결은 논리 개념이다. 물리 모델은 병합 원본22개와 본 PR 보완4개로 정의했다. 메시지의 문제/구간 참조는 payload, workItemId는 problemId, 문제별 ticket은 UNIQUE FK로 대응한다. 이 추가 설계는 팀 리뷰 후 적용한다.
+그림의 이름과 연결은 논리 개념이다. 물리 모델은 원본 22개 테이블과 기존 컬럼·DTO 보완으로 정의했다. 메시지의 문제/구간 참조는 payload, workItemId는 problemId, 문제별 ticket은 UNIQUE FK로 대응한다. 실제 DB 적용은 별도다.
 
 ## 2. 논리 객체와 책임
 
