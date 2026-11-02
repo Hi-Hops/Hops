@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -32,7 +33,8 @@ import lombok.extern.slf4j.Slf4j;
  *   <li>{@code auth:session:{sessionId}} → 회원 ID. 로그인 1번 = 세션 1개. 최초 로그인 + 7일 뒤 자동 삭제.</li>
  *   <li>{@code auth:refresh:{토큰 해시}} → "세션ID|회원ID|세션 만료 시각". 원문 대신 해시를 키로 써서,
  *       Redis 내용이 새어 나가도 쿠키 값을 알아낼 수 없다(비밀번호를 해시로 저장하는 것과 같은 이유).</li>
- *   <li>{@code auth:refresh-used:{토큰 해시}} → "세션ID|회전한 시각". 회전으로 이미 쓴 값. 다시 들어오면 재사용(탈취)을 알아채는 데 쓴다.
+ *   <li>{@code auth:refresh-used:{토큰 해시}} → "세션ID|회원ID|회전한 시각". 회전으로 이미 쓴 값. 다시 들어오면 재사용(탈취)을 알아채고,
+ *       갱신 직후 예전 값으로 온 로그아웃도 세션을 찾을 수 있다.
  *       세션 만료 시각까지 남긴다.</li>
  * </ul>
  */
@@ -91,8 +93,34 @@ public class RefreshTokenService {
         if (remaining.isNegative() || remaining.isZero()) {
             throw new BusinessException(ErrorCode.REFRESH_TOKEN_REVOKED);
         }
-        redis.opsForValue().set(USED_KEY + tokenHash, entry.sessionId() + "|" + now.toEpochMilli(), remaining);
+        redis.opsForValue().set(USED_KEY + tokenHash, new UsedEntry(entry.sessionId(), entry.memberId(), now).format(),
+                remaining);
         return new Rotated(entry.memberId(), store(entry, remaining));
+    }
+
+    /**
+     * 로그아웃 시: 이 Refresh가 속한 로그인 세션을 폐기한다. 다른 기기의 로그인 세션은 그대로 둔다.
+     *
+     * <p>갱신 직후라 쿠키 값이 이미 회전으로 쓰였어도 "사용됨" 기록으로 세션을 찾아 끝낸다.
+     * 그러지 않으면 갱신과 로그아웃이 겹쳤을 때 로그아웃이 204로 끝나도 세션이 살아남는다.
+     *
+     * @return 폐기한 세션의 회원 ID. 모르는 값이거나 이미 만료됐으면 비어 있다(로그아웃은 그래도 성공으로 응답한다).
+     */
+    public Optional<UUID> revoke(String refreshToken) {
+        String tokenHash = hash(refreshToken);
+        String stored = redis.opsForValue().getAndDelete(REFRESH_KEY + tokenHash);
+        if (stored != null) {
+            RefreshEntry entry = RefreshEntry.parse(stored);
+            redis.delete(SESSION_KEY + entry.sessionId());
+            return Optional.of(entry.memberId());
+        }
+        String used = redis.opsForValue().get(USED_KEY + tokenHash);
+        if (used == null) {
+            return Optional.empty();
+        }
+        UsedEntry entry = UsedEntry.parse(used);
+        redis.delete(SESSION_KEY + entry.sessionId());
+        return Optional.of(entry.memberId());
     }
 
     // 이미 회전으로 쓴 값이 유예 시간 뒤에 다시 왔다 = 누군가 예전 값을 갖고 있다. 그 로그인 세션 전체를 끊는다.
@@ -101,15 +129,13 @@ public class RefreshTokenService {
         if (used == null) {
             return; // 처음 보는 값이거나 이미 만료됨
         }
-        String[] parts = used.split("\\|");
-        String sessionId = parts[0];
-        Instant rotatedAt = Instant.ofEpochMilli(Long.parseLong(parts[1]));
-        if (!clock.instant().isAfter(rotatedAt.plus(REUSE_GRACE))) {
-            log.info("Refresh 동시 갱신 경합: 늦은 요청만 거절 sessionId={}", sessionId);
+        UsedEntry entry = UsedEntry.parse(used);
+        if (!clock.instant().isAfter(entry.rotatedAt().plus(REUSE_GRACE))) {
+            log.info("Refresh 동시 갱신 경합: 늦은 요청만 거절 sessionId={}", entry.sessionId());
             return;
         }
-        redis.delete(SESSION_KEY + sessionId);
-        log.warn("Refresh 재사용 감지: 로그인 세션 폐기 sessionId={}", sessionId);
+        redis.delete(SESSION_KEY + entry.sessionId());
+        log.warn("Refresh 재사용 감지: 로그인 세션 폐기 sessionId={} memberId={}", entry.sessionId(), entry.memberId());
     }
 
     private IssuedRefreshToken store(RefreshEntry entry, Duration ttl) {
@@ -145,6 +171,20 @@ public class RefreshTokenService {
             String[] parts = value.split("\\|");
             return new RefreshEntry(UUID.fromString(parts[0]), UUID.fromString(parts[1]),
                     Instant.ofEpochSecond(Long.parseLong(parts[2])));
+        }
+    }
+
+    /** 회전으로 이미 쓴 Refresh의 기록. 어느 세션·회원의 값이었고 언제 회전했는지. */
+    private record UsedEntry(UUID sessionId, UUID memberId, Instant rotatedAt) {
+
+        String format() {
+            return sessionId + "|" + memberId + "|" + rotatedAt.toEpochMilli();
+        }
+
+        static UsedEntry parse(String value) {
+            String[] parts = value.split("\\|");
+            return new UsedEntry(UUID.fromString(parts[0]), UUID.fromString(parts[1]),
+                    Instant.ofEpochMilli(Long.parseLong(parts[2])));
         }
     }
 

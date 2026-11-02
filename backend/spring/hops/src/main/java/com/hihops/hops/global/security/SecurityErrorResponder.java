@@ -26,6 +26,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <ul>
  *   <li>401 {@code UNAUTHENTICATED}: 로그인(유효한 토큰) 없이 보호된 API를 호출함</li>
  *   <li>403 {@code ACCESS_DENIED}: 로그인은 했지만 그 API를 쓸 권한이 없음</li>
+ *   <li>403 {@code ORIGIN_DENIED}: 허용하지 않은 주소에서 Refresh 쿠키 요청을 보냄 ({@link CookieOriginFilter})</li>
  * </ul>
  */
 @Component
@@ -51,7 +52,8 @@ public class SecurityErrorResponder implements AuthenticationEntryPoint, AccessD
         write(response, ErrorCode.ACCESS_DENIED);
     }
 
-    private void write(HttpServletResponse response, ErrorCode errorCode) throws IOException {
+    // 필터에서 요청을 막을 때 공통 오류 형식으로 쓴다 (CookieOriginFilter도 사용)
+    void write(HttpServletResponse response, ErrorCode errorCode) throws IOException {
         response.setStatus(errorCode.status().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");

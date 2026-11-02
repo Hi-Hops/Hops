@@ -92,6 +92,13 @@ public class RealtimeService {
                 });
     }
 
+    /** 로그아웃한 회원의 열린 연결을 모두 닫는다 (WIRE_CONTRACT 10절). 연결의 JWT sub가 회원 ID다. */
+    public void disconnect(UUID memberId) {
+        String subject = memberId.toString();
+        connections.values().stream().filter(connection -> subject.equals(connection.jwt.getSubject()))
+                .forEach(Connection::close);
+    }
+
     @PreDestroy
     public void shutdown() {
         connections.values().forEach(Connection::close);

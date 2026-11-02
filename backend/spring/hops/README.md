@@ -189,7 +189,8 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
 | `POST /api/v2/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` + `Set-Cookie: hops_refresh` | 400 `INVALID_INPUT`(빈 값·형식 오류), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
-| `POST /api/v2/auth/refresh` | 본문 없음, `hops_refresh` 쿠키 | 200 `{accessToken, expiresAt, user}` + 새 `Set-Cookie: hops_refresh` | 401 `REFRESH_TOKEN_REVOKED`(쿠키 없음·이미 쓰인 값·만료) |
+| `POST /api/v2/auth/refresh` | 본문 없음, `hops_refresh` 쿠키 | 200 `{accessToken, expiresAt, user}` + 새 `Set-Cookie: hops_refresh` | 401 `REFRESH_TOKEN_REVOKED`(쿠키 없음·이미 쓰인 값·만료), 403 `ORIGIN_DENIED` |
+| `POST /api/v2/auth/logout` | 본문 없음, `hops_refresh` 쿠키 | 204 + 쿠키 삭제(`Max-Age=0`). 쿠키가 없거나 이미 끝난 세션이어도 같음 | 403 `ORIGIN_DENIED` |
 | `GET /api/v2/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles}` | 401 `UNAUTHENTICATED`(토큰 없음·위조·만료, 회원 없음·차단) |
 
 - **동작 순서:** 로그인 ID로 회원·부서·역할을 DB에서 찾고(삭제된 회원 제외) → BCrypt로 비밀번호 해시 비교 → `AccessTokenIssuer`가 토큰 발급 (`auth/service`).
@@ -199,7 +200,8 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
 - **Refresh 쿠키:** `HttpOnly`, `SameSite=Lax`, `Path=/api/v2/auth`, HTTPS에서만 `Secure`. 원문은 JSON에 넣지 않고 Redis에는 SHA-256 해시만 키로 둡니다. 갱신할 때마다 새 값으로 바꾸고(이전 값은 즉시 폐기), 만료는 최초 로그인부터 7일로 늘어나지 않습니다.
 - **재사용 검출:** 회전으로 이미 쓴 Refresh가 10초 안에 다시 오면 탭 두 개의 동시 갱신 경합으로 보고 그 요청만 401입니다. 10초가 지나서 오면 탈취로 보고 그 로그인 세션 전체를 폐기합니다(정상 사용자도 재로그인).
-- **아직 없음:** `POST /api/v2/auth/logout`.
+- **로그아웃:** 그 쿠키의 로그인 세션만 끝내고(다른 기기 로그인은 유지) 그 회원의 열린 SSE를 닫습니다. 이미 발급한 Access는 최대 15분 남지만 프론트가 메모리에서 버립니다.
+- **Origin 검사:** 쿠키를 쓰는 refresh·logout은 `Origin` 헤더가 `hops.cors.allowed-origins`에 있을 때만 받습니다(없거나 다르면 403 `ORIGIN_DENIED`). 프론트와 API를 같은 주소로 배포해도 그 주소를 이 목록에 넣어야 합니다. Swagger 화면(`localhost:8080`)에서는 이 둘을 호출할 수 없으니 curl에 `-H "Origin: http://localhost:5173"`을 붙여 확인합니다.
 
 ### 토큰 직접 확인하기
 

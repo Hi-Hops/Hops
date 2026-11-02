@@ -34,4 +34,15 @@ public final class RefreshCookies {
                 .maxAge(token.maxAge())
                 .build();
     }
+
+    /** 로그아웃 시: 같은 이름·경로·속성에 빈 값과 Max-Age=0을 보내면 브라우저가 쿠키를 지운다. */
+    public static ResponseCookie expire(boolean secure) {
+        return ResponseCookie.from(NAME, "")
+                .httpOnly(true)
+                .secure(secure)
+                .sameSite("Lax")
+                .path(PATH)
+                .maxAge(0)
+                .build();
+    }
 }

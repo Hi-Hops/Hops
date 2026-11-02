@@ -1,6 +1,7 @@
 package com.hihops.hops.auth.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -26,9 +27,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.hihops.hops.realtime.service.RealtimeService;
 
 import jakarta.servlet.http.Cookie;
 
@@ -53,6 +57,10 @@ class AuthControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    // 열린 SSE 종료는 RealtimeServiceTest가 확인한다. 여기서는 로그아웃이 그 회원으로 종료를 부르는지만 본다.
+    @MockitoBean
+    private RealtimeService realtimeService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -172,6 +180,61 @@ class AuthControllerTest {
     }
 
     @Test
+    void 로그아웃하면_204와_쿠키_삭제를_받고_그_Refresh로는_다시_갱신할_수_없다() throws Exception {
+        // WIRE_CONTRACT 12.2: POST /api/v2/auth/logout 본문 없음·cookie → 204. 10절: 현재 로그인 세션을 폐기한다.
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        MockHttpServletResponse response = mockMvc.perform(logout(refresh))
+                .andExpect(status().isNoContent())
+                .andReturn().getResponse();
+
+        // 같은 이름·경로에 Max-Age=0을 보내면 브라우저가 쿠키를 지운다.
+        assertThat(refreshCookie(response)).startsWith("hops_refresh=;").contains("Max-Age=0").contains("Path=/api/v2/auth");
+        mockMvc.perform(refresh(refresh))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("REFRESH_TOKEN_REVOKED"));
+    }
+
+    @Test
+    void 쿠키_없이_다시_로그아웃해도_204와_쿠키_삭제로_응답한다() throws Exception {
+        // WIRE_CONTRACT 12.2: "반복 시에도 쿠키 삭제". 이미 끝난 세션을 오류로 돌려주지 않는다.
+        MockHttpServletResponse response = mockMvc.perform(post("/api/v2/auth/logout").header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(status().isNoContent())
+                .andReturn().getResponse();
+
+        assertThat(refreshCookie(response)).startsWith("hops_refresh=;").contains("Max-Age=0");
+    }
+
+    @Test
+    void 허용하지_않은_Origin의_갱신과_로그아웃은_403이고_세션은_그대로다() throws Exception {
+        // WIRE_CONTRACT 12.1: refresh/logout은 허용 Origin 검증, 실패 시 403 ORIGIN_DENIED (다른 사이트가 쿠키로 몰래 부르는 것을 막는다)
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        for (String path : new String[] {"/api/v2/auth/refresh", "/api/v2/auth/logout"}) {
+            mockMvc.perform(post(path).header(HttpHeaders.ORIGIN, "https://evil.example")
+                            .cookie(new Cookie("hops_refresh", refresh)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("ORIGIN_DENIED"));
+            // Origin이 없는 요청도 출처를 확인할 수 없으므로 막는다.
+            mockMvc.perform(post(path).cookie(new Cookie("hops_refresh", refresh)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("ORIGIN_DENIED"));
+        }
+
+        // 막힌 요청은 쿠키를 쓰지도 세션을 끝내지도 않았다.
+        mockMvc.perform(refresh(refresh)).andExpect(status().isOk());
+    }
+
+    @Test
+    void 로그아웃하면_그_회원의_열린_SSE를_닫는다() throws Exception {
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        mockMvc.perform(logout(refresh)).andExpect(status().isNoContent());
+
+        verify(realtimeService).disconnect(MEMBER_ID);
+    }
+
+    @Test
     void 토큰과_사용자_정보에_소속_부서를_담는다() throws Exception {
         // 계약: JWT departmentId·departmentCode·departmentName (docs/API.md §2.5), user.department (DATA_TYPES.md Department)
         String body = mockMvc.perform(login("requester", "hops1234!"))
@@ -275,9 +338,18 @@ class AuthControllerTest {
                 .content("{\"loginId\": \"%s\", \"password\": \"%s\"}".formatted(loginId, password));
     }
 
-    // 브라우저처럼 Refresh 쿠키만 붙여 본문 없이 갱신을 요청한다.
+    // 허용된 프론트 주소(application.properties hops.cors.allowed-origins). 쿠키를 쓰는 refresh·logout은 이 Origin만 받는다.
+    private static final String ALLOWED_ORIGIN = "http://localhost:5173";
+
+    // 브라우저처럼 Refresh 쿠키와 Origin만 붙여 본문 없이 갱신을 요청한다.
     private static MockHttpServletRequestBuilder refresh(String refreshToken) {
-        return post("/api/v2/auth/refresh").cookie(new Cookie("hops_refresh", refreshToken));
+        return post("/api/v2/auth/refresh").header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                .cookie(new Cookie("hops_refresh", refreshToken));
+    }
+
+    private static MockHttpServletRequestBuilder logout(String refreshToken) {
+        return post("/api/v2/auth/logout").header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                .cookie(new Cookie("hops_refresh", refreshToken));
     }
 
     private static String refreshValue(MockHttpServletResponse response) {

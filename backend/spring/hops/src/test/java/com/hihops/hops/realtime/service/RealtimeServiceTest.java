@@ -122,6 +122,18 @@ class RealtimeServiceTest {
     }
 
     @Test
+    void 로그아웃한_회원의_열린_연결만_닫는다() throws Exception {
+        // WIRE_CONTRACT 10절: 로그아웃은 해당 사용자의 열린 SSE를 종료한다.
+        MvcResult result = connect(null);
+        service.disconnect(UUID.randomUUID()); // 다른 회원의 로그아웃은 영향이 없다
+        service.stateChanged(event(departmentId));
+        assertThat(result.getResponse().getContentAsString()).contains("event:state.changed");
+
+        service.disconnect(UUID.fromString(jwt.getSubject()));
+        assertThat(result.getAsyncResult()).isNull();
+    }
+
+    @Test
     void 잘못된_대상은_스트림을_열기_전에_거부한다() throws Exception {
         mvc.perform(get("/realtime/events").param("targetType", "INVALID")
                         .param("targetId", departmentId.toString()))

@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 
 import com.hihops.hops.global.config.ApiPathConfig;
 
@@ -36,11 +37,14 @@ public class SecurityConfig {
     };
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorResponder errorResponder)
-            throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityErrorResponder errorResponder,
+            CorsProperties corsProperties) throws Exception {
         http
-                // 토큰을 Authorization 헤더로 보내는 방식(docs/API.md §1 계약안)이라 CSRF 공격 대상이 아니다.
-                // 토큰을 쿠키에 담는 방식으로 바뀌면 CSRF 보호를 다시 켜야 한다.
+                // refresh·logout은 허용한 프론트 주소에서 온 요청만 받는다. CORS 필터보다 먼저 공통 오류 형식으로 막는다.
+                .addFilterBefore(new CookieOriginFilter(corsProperties.allowedOrigins(), errorResponder), CorsFilter.class)
+                // 업무 API는 Access를 Authorization 헤더로 보내므로 CSRF 공격 대상이 아니다.
+                // 쿠키를 쓰는 refresh·logout은 SameSite=Lax 쿠키와 위 CookieOriginFilter(허용 Origin 검사)로 막는다.
+                // 그 밖의 API가 쿠키로 인증하게 바뀌면 CSRF 보호를 다시 설계해야 한다.
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults()) // 아래 corsConfigurationSource() 사용
                 .httpBasic(AbstractHttpConfigurer::disable) // 브라우저 기본 로그인 창 사용 안 함
@@ -51,6 +55,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/login").permitAll() // 로그인 전에는 토큰이 없다
                         // Access가 만료된 뒤에 부르는 곳이라 Bearer 대신 Refresh 쿠키로 확인한다 (AuthController)
                         .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/refresh").permitAll()
+                        // Access가 이미 만료됐어도 로그아웃할 수 있어야 한다. 대상 세션은 Refresh 쿠키로 찾는다.
+                        .requestMatchers(HttpMethod.POST, ApiPathConfig.PREFIX + "/auth/logout").permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated())
                 // Bearer 토큰 검증. 토큰이 틀리거나 만료되면 errorResponder가 401 공통 오류로 응답한다.

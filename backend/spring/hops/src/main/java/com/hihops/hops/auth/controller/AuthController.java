@@ -24,6 +24,7 @@ import com.hihops.hops.auth.service.RefreshTokenService.IssuedRefreshToken;
 import com.hihops.hops.auth.service.RefreshTokenService.Rotated;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.realtime.service.RealtimeService;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.dto.CurrentUserResponse;
 
@@ -40,6 +41,7 @@ public class AuthController {
     private final AuthService authService;
     private final AccessTokenIssuer accessTokenIssuer;
     private final RefreshTokenService refreshTokenService;
+    private final RealtimeService realtimeService;
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
@@ -62,6 +64,23 @@ public class AuthController {
         // 토큰이 아니라 DB를 다시 읽는다. 그 사이 바뀐 부서·역할로 새 Access를 만들고, 차단된 회원은 401로 막는다.
         Member member = authService.currentMember(rotated.memberId());
         return withTokens(member, rotated.token(), httpRequest);
+    }
+
+    /**
+     * 현재 로그인 세션을 끝낸다 (WIRE_CONTRACT 12.2). 쿠키가 없거나 이미 끝난 세션이어도 204와 쿠키 삭제로 응답한다:
+     * 프론트는 결과와 관계없이 화면 정리를 하고, 반복 호출도 같은 결과가 된다.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @CookieValue(name = RefreshCookies.NAME, required = false) String refreshToken,
+            HttpServletRequest httpRequest) {
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            // 세션을 끝낸 뒤 그 회원의 열린 SSE도 닫는다. 남은 Access(최대 15분)는 프론트가 메모리에서 버린다.
+            refreshTokenService.revoke(refreshToken).ifPresent(realtimeService::disconnect);
+        }
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, RefreshCookies.expire(httpRequest.isSecure()).toString())
+                .build();
     }
 
     // Access는 본문(JSON)으로, Refresh는 Set-Cookie 헤더로 따로 내려준다. Refresh 원문은 JSON에 넣지 않는다.

@@ -80,6 +80,17 @@ class RefreshTokenServiceTest {
         assertRevoked(first.value());
     }
 
+    @Test
+    void 갱신과_로그아웃이_겹쳐_예전_Refresh로_로그아웃해도_세션을_끝낸다() {
+        // 갱신 요청이 먼저 처리되어 쿠키 값이 바뀐 직후에 로그아웃이 도착한 경우. 로그아웃이 조용히 무시되면 세션이 살아남는다.
+        IssuedRefreshToken first = service.issue(member);
+        IssuedRefreshToken latest = service.rotate(first.value()).token();
+
+        assertThat(service.revoke(first.value())).contains(member.getId());
+
+        assertRevoked(latest.value());
+    }
+
     private void assertRevoked(String refreshToken) {
         assertThatThrownBy(() -> service.rotate(refreshToken))
                 .isInstanceOf(BusinessException.class)
