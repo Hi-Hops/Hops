@@ -19,8 +19,8 @@ import jakarta.servlet.http.HttpServletResponse;
  *
  * <p>로그 예시 (requestId는 RequestIdFilter가 붙인다):
  * <pre>
- * INFO [requestId=4e95e5b4-...] → GET /api/tickets
- * INFO [requestId=4e95e5b4-...] ← GET /api/tickets 200 (35ms)
+ * INFO [requestId=4e95e5b4-...] → GET /api/v2/tickets
+ * INFO [requestId=4e95e5b4-...] ← GET /api/v2/tickets 200 (35ms)
  * </pre>
  *
  * <p>남기지 않는 것: 요청·응답 본문(비밀번호), Authorization 헤더(JWT), 쿼리 문자열(민감 값이 섞일 수 있음).

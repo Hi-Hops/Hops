@@ -118,7 +118,7 @@ docker compose --env-file .env -f frontend/compose.yaml run --rm --no-deps front
 
 실제 Spring 연결 검사는 `src/test/springBackend.integration.test.ts`로 별도 실행한다. `HOPS_TEST_SPRING_URL`·`HOPS_TEST_LOGIN_ID`·`HOPS_TEST_PASSWORD` 환경변수를 개발 서버 주소와 개발용 처리 부서 계정으로 설정한 뒤 `npx vitest run src/test/springBackend.integration.test.ts`를 실행한다. 값이 없으면 이 검사는 생략하며 운영 계정을 사용하지 않는다. 로그인·Bearer 내 정보 조회·현재 부서 SSE 연결/해제·resync.required의 실제 응답을 검사한다. 화면 조작·브라우저 CORS·미구현 업무 API 성공 검증은 포함하지 않는다.
 
-현재 Spring 공개 구현은 `POST /api/auth/login`, `GET /api/auth/me`, `GET /api/realtime/events`다. SSE는 `DEPARTMENT_TICKETS`만 허용하고 `INQUIRY`·`TICKET`은 503을 반환한다. 문의 저장·티켓 조회·refresh·로그아웃의 프론트 호출이 있어도 해당 백엔드 기능의 연결 완료로 보지 않는다.
+현재 Spring 공개 구현은 `POST /api/v2/auth/login`·`refresh`·`logout`, `GET /api/v2/auth/me`, `GET /api/v2/realtime/events`다(PR #88부터 `/api/v2`). 프론트는 아직 `/api/auth/*`·`/api/realtime/events`를 호출하므로 경로를 옮기는 프론트 작업 전까지 live 모드 연동은 실패한다. Mock 모드는 영향이 없다. SSE는 `DEPARTMENT_TICKETS`만 허용하고 `INQUIRY`·`TICKET`은 503을 반환한다. 문의 저장·티켓 조회의 프론트 호출이 있어도 해당 백엔드 기능의 연결 완료로 보지 않는다.
 
 ## 7. 지원 범위
 

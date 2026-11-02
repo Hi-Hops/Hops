@@ -21,7 +21,7 @@ public interface MemberRepository extends JpaRepository<Member, UUID> {
     @EntityGraph(attributePaths = {"department", "memberRoles"})
     Optional<Member> findByLoginIdAndDeletedAtIsNull(String loginId);
 
-    // 토큰의 sub(회원 UUID)로 현재 정보를 다시 읽을 때 쓴다 (GET /api/auth/me). 메서드 이름의 "WithDepartmentAndRoles"는 설명용이다.
+    // 토큰의 sub(회원 UUID)로 현재 정보를 다시 읽을 때 쓴다 (GET /api/v2/auth/me). 메서드 이름의 "WithDepartmentAndRoles"는 설명용이다.
     @EntityGraph(attributePaths = {"department", "memberRoles"})
     Optional<Member> findWithDepartmentAndRolesByIdAndDeletedAtIsNull(UUID id);
 }

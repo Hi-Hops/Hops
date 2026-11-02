@@ -26,6 +26,8 @@ dependencies {
     // DB 테이블 생성·변경을 버전 붙은 SQL 파일(src/main/resources/db/migration)로 관리한다.
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
+    // Refresh 토큰·로그인 세션 저장소(#58). 키마다 만료 시간(TTL)을 걸 수 있어 7일 뒤 자동으로 지워진다.
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-security")

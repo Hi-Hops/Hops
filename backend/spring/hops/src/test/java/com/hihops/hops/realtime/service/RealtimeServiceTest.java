@@ -55,6 +55,7 @@ class RealtimeServiceTest {
     void setup() {
         service = new RealtimeService(authorization,
                 new RealtimeProperties(Duration.ofSeconds(15), Duration.ofMinutes(5)), scheduler);
+        // standalone은 컨트롤러만 띄워 ApiPathConfig 접두사가 붙지 않는다. 실제 주소(/api/v2/...)는 RealtimeHttpIntegrationTest가 확인한다.
         mvc = MockMvcBuilders.standaloneSetup(new RealtimeController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setCustomArgumentResolvers(new HandlerMethodArgumentResolver() {
@@ -121,8 +122,20 @@ class RealtimeServiceTest {
     }
 
     @Test
+    void 로그아웃한_회원의_열린_연결만_닫는다() throws Exception {
+        // WIRE_CONTRACT 10절: 로그아웃은 해당 사용자의 열린 SSE를 종료한다.
+        MvcResult result = connect(null);
+        service.disconnect(UUID.randomUUID()); // 다른 회원의 로그아웃은 영향이 없다
+        service.stateChanged(event(departmentId));
+        assertThat(result.getResponse().getContentAsString()).contains("event:state.changed");
+
+        service.disconnect(UUID.fromString(jwt.getSubject()));
+        assertThat(result.getAsyncResult()).isNull();
+    }
+
+    @Test
     void 잘못된_대상은_스트림을_열기_전에_거부한다() throws Exception {
-        mvc.perform(get("/api/realtime/events").param("targetType", "INVALID")
+        mvc.perform(get("/realtime/events").param("targetType", "INVALID")
                         .param("targetId", departmentId.toString()))
                 .andExpect(status().isBadRequest()).andExpect(request().asyncNotStarted());
     }
@@ -213,7 +226,7 @@ class RealtimeServiceTest {
     void 연결_전_DB_일시_장애는_503_JSON으로_반환한다() throws Exception {
         doThrow(new org.springframework.dao.DataAccessResourceFailureException("test database unavailable"))
                 .when(authorization).check(any(), any());
-        mvc.perform(get("/api/realtime/events").param("targetType", "DEPARTMENT_TICKETS")
+        mvc.perform(get("/realtime/events").param("targetType", "DEPARTMENT_TICKETS")
                         .param("targetId", departmentId.toString()).header("Accept", "text/event-stream"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.code")
@@ -227,7 +240,7 @@ class RealtimeServiceTest {
     }
 
     private MvcResult connect(String cursor) throws Exception {
-        var request = get("/api/realtime/events").param("targetType", "DEPARTMENT_TICKETS")
+        var request = get("/realtime/events").param("targetType", "DEPARTMENT_TICKETS")
                 .param("targetId", departmentId.toString());
         if (cursor != null) {
             request.header("Last-Event-ID", cursor);

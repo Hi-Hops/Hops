@@ -241,9 +241,9 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 ### 백엔드 구현과 남은 작업
 
-- 구현: PostgreSQL 계정·부서 마이그레이션과 개발 seed, JWT 로그인 `POST /api/auth/login`, Bearer 내 정보 `GET /api/auth/me`, 부서 SSE `GET /api/realtime/events`와 대상 권한 검사.
+- 구현: PostgreSQL 계정·부서 마이그레이션과 개발 seed, JWT 로그인 `POST /api/v2/auth/login`, Bearer 내 정보 `GET /api/v2/auth/me`, 부서 SSE `GET /api/v2/realtime/events`와 대상 권한 검사. Refresh 쿠키 갱신(회전·재사용 검출) `POST /api/v2/auth/refresh`와 서버 로그아웃 `POST /api/v2/auth/logout`(Redis 세션, 허용 Origin 검사). Spring 공개 API는 12절의 `/api/v2` 경로로 옮겼고, 프론트 live 호출의 경로 이전은 남아 있다.
 - 부서 SSE는 comment heartbeat, timeout·완료·오류 정리, 토큰 만료 종료와 전송 전 DB 권한 재검사, 커밋 후 `state.changed` 전달 기반을 제공한다. `Last-Event-ID` 요청은 `resync.required`를 보낸 뒤 종료한다. 이벤트 보존/replay는 제공하지 않는다.
-- 문의·개별 티켓 SSE는 권한 저장소 연결 전 503이다. 문의·티켓 조회/변경, 분석 재시도, Refresh·서버 로그아웃 API와 업무/AI 이벤트 생산자 연결은 미완료다. `auth.invalidated`의 서버 발행과 권한 변경 즉시 통지도 남아 있다.
+- 문의·개별 티켓 SSE는 권한 저장소 연결 전 503이다. 문의·티켓 조회/변경, 분석 재시도와 업무/AI 이벤트 생산자 연결은 미완료다. `auth.invalidated`의 서버 발행과 권한 변경 즉시 통지도 남아 있다.
 
 남은 구현·운영 검증:
 
