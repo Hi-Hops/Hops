@@ -11,7 +11,7 @@ from hops_ai.persistence.run_ledger import RunConflict
 from hops_ai.services.runs.admission import RunAdmissionService
 from hops_ai.services.runs.executor import ExecutorBusy, RunExecutor, server_ceilings
 from hops_ai.settings import Settings
-from tests.doubles.ledger import TERMINAL, MemoryLedger
+from tests.doubles.ledger import SETTLED, TERMINAL, MemoryLedger
 from tests.doubles.run_requests import expires_in, inquiry_request, succeeded
 
 
@@ -29,24 +29,31 @@ class Pipeline:
         return await self.behaviour(request)
 
 
-def make_executor(pipeline, **settings) -> tuple[RunExecutor, MemoryLedger]:
+def make_executor(pipeline, ledger=None, **settings) -> tuple[RunExecutor, MemoryLedger]:
     resolved = Settings(_env_file=None, **settings)
-    ledger = MemoryLedger()
+    ledger = ledger or MemoryLedger()
     admission = RunAdmissionService(ledger, server_ceilings(resolved))
-    return RunExecutor(ledger, admission, pipeline, resolved), ledger
+    executor = RunExecutor(ledger, admission, pipeline, resolved, store_retry_delays=(0, 0))
+    return executor, ledger
 
 
 def request(**overrides) -> AiRunRequest:
     return inquiry_request(expires_at=overrides.pop("expires_at", expires_in(60)), **overrides)
 
 
-async def finished(ledger: MemoryLedger, run_id: str) -> dict:
+async def settled(ledger: MemoryLedger, run_id: str):
     for _ in range(200):
         snapshot = await ledger.get(UUID(run_id))
-        if snapshot is not None and snapshot.status in TERMINAL:
-            return snapshot.result
+        if snapshot is not None and snapshot.status in SETTLED:
+            return snapshot
         await asyncio.sleep(0.01)
     raise AssertionError("실행이 종료 상태가 되지 않았다")
+
+
+async def finished(ledger: MemoryLedger, run_id: str) -> dict:
+    snapshot = await settled(ledger, run_id)
+    assert snapshot.status in TERMINAL
+    return snapshot.result
 
 
 async def test_new_run_is_executed_and_checked_result_is_stored() -> None:
@@ -168,8 +175,58 @@ async def test_budget_uses_the_smaller_of_server_and_request_limits() -> None:
     await finished(ledger, req.runId)
     budget = pipeline.contexts[0].budget
     assert budget.max_llm_calls == 3
-    assert budget.max_auto_retries == 1  # 요청 maxRetries=1
+    assert budget.max_auto_retries == 2  # 호출당 상한은 서버 설정
+    assert budget.max_run_retries == 1  # 실행 전체 누적 상한은 요청 maxRetries
     assert pipeline.contexts[0].access_scope_ref == req.runId
+
+
+async def test_result_returned_after_deadline_is_not_stored_as_success() -> None:
+    async def ignores_cancel(req):
+        # 기한 취소를 삼키고 늦게 성공 결과를 돌려주는 파이프라인
+        try:
+            await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            pass
+        return succeeded(req)
+
+    executor, ledger = make_executor(Pipeline(ignores_cancel))
+    req = request(expires_at=expires_in(0.2))
+    await executor.submit(req)
+    result = await finished(ledger, req.runId)
+    assert result["status"] == "TIMED_OUT"
+    assert result["error"]["code"] == "DEADLINE_EXCEEDED"
+    assert result["answer"] is None
+
+
+async def test_transient_store_failures_are_retried_without_rerunning_pipeline() -> None:
+    async def ok(req):
+        return succeeded(req)
+
+    pipeline = Pipeline(ok)
+    ledger = MemoryLedger(start_failures=1, finish_failures=2)
+    executor, _ = make_executor(pipeline, ledger)
+    req = request()
+    await executor.submit(req)
+    assert (await finished(ledger, req.runId))["status"] == "SUCCEEDED"
+    assert ledger.finish_calls == 3
+    assert pipeline.calls == 1
+
+
+@pytest.mark.parametrize("failing", ["start_failures", "finish_failures"])
+async def test_persistent_store_failure_moves_run_to_unknown(failing) -> None:
+    async def ok(req):
+        return succeeded(req)
+
+    pipeline = Pipeline(ok)
+    ledger = MemoryLedger(**{failing: 10})
+    executor, _ = make_executor(pipeline, ledger)
+    req = request()
+    await executor.submit(req)
+    snapshot = await settled(ledger, req.runId)
+    assert snapshot.status == "UNKNOWN"
+    assert snapshot.result is None
+    assert pipeline.calls == (0 if failing == "start_failures" else 1)
+    assert executor.active_runs == 0
 
 
 async def test_busy_executor_rejects_new_runs_but_allows_replay() -> None:

@@ -368,3 +368,29 @@ async def test_executor_stores_result_and_shutdown_leaves_run_for_recovery(
     async with RunLedger(ledger._conninfo) as restarted:
         assert (await restarted.get(UUID(interrupted.runId))).status == "UNKNOWN"
         assert (await restarted.get(UUID(done.runId))).status == "SUCCEEDED"
+
+
+async def test_abandon_moves_only_own_unfinished_run_to_unknown(ledger: RunLedger) -> None:
+    running = uuid4()
+    await ledger.accept(running, {"message": "저장이 실패한 가상 실행"})
+    await ledger.start(running)
+    assert await ledger.abandon(running)
+    snapshot = await ledger.get(running)
+    assert snapshot.status == "UNKNOWN" and snapshot.result is None
+    assert not await ledger.abandon(running)
+
+    done = uuid4()
+    await ledger.accept(done, {"message": "끝난 가상 실행"})
+    await ledger.start(done)
+    result = {"runId": str(done), "status": "SUCCEEDED", "answer": "안내"}
+    await ledger.finish(done, "SUCCEEDED", result, 0)
+    assert not await ledger.abandon(done)
+    assert (await ledger.get(done)).status == "SUCCEEDED"
+
+    async with RunLedger(ledger._conninfo) as other:
+        foreign = uuid4()
+        await other.accept(foreign, {"message": "다른 소유자의 가상 실행"})
+        await other.start(foreign)
+        # 살아 있는 다른 소유자의 run은 바꾸지 않는다.
+        assert not await ledger.abandon(foreign)
+        assert (await other.get(foreign)).status == "RUNNING"

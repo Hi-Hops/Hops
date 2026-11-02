@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+import psycopg
+
 from hops_ai.persistence.run_ledger import (
     InvalidRunTransition,
     RunAcceptance,
@@ -13,6 +15,7 @@ from hops_ai.persistence.run_ledger import (
 )
 
 TERMINAL = ("SUCCEEDED", "FAILED", "TIMED_OUT", "SUPERSEDED")
+SETTLED = (*TERMINAL, "UNKNOWN")
 
 
 @dataclass
@@ -27,8 +30,17 @@ class _Row:
 class MemoryLedger:
     rows: dict[UUID, _Row] = field(default_factory=dict)
     accept_failure: Exception | None = None
+    # 남은 횟수만큼 DB 일시 오류를 낸다. 저장 재시도·UNKNOWN 전환 검사용이다.
+    start_failures: int = 0
+    finish_failures: int = 0
     finish_calls: int = 0
     opened: bool = False
+
+    def _maybe_fail(self, name: str) -> None:
+        remaining = getattr(self, name)
+        if remaining > 0:
+            setattr(self, name, remaining - 1)
+            raise psycopg.OperationalError("가상 DB 일시 오류")
 
     async def __aenter__(self) -> "MemoryLedger":
         self.opened = True
@@ -56,6 +68,7 @@ class MemoryLedger:
         return RunAcceptance(created=True, snapshot=self._snapshot(run_id))
 
     async def start(self, run_id: UUID) -> bool:
+        self._maybe_fail("start_failures")
         row = self.rows.get(run_id)
         if row is None or row.status != "QUEUED":
             return False
@@ -66,6 +79,7 @@ class MemoryLedger:
         self, run_id: UUID, status: str, result: dict[str, Any], last_seq: int
     ) -> None:
         self.finish_calls += 1
+        self._maybe_fail("finish_failures")
         row = self.rows.get(run_id)
         if row is None or row.status in TERMINAL or last_seq < row.last_seq:
             raise InvalidRunTransition("종료할 수 없는 실행 상태 또는 순번입니다")
@@ -74,3 +88,10 @@ class MemoryLedger:
         if result.get("status") != status or result.get("runId") != str(run_id):
             raise ValueError("최종 결과의 실행 ID와 상태가 일치하지 않습니다")
         row.status, row.result, row.last_seq = status, result, last_seq
+
+    async def abandon(self, run_id: UUID) -> bool:
+        row = self.rows.get(run_id)
+        if row is None or row.status not in ("QUEUED", "RUNNING"):
+            return False
+        row.status = "UNKNOWN"
+        return True

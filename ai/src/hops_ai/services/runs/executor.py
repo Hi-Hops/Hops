@@ -6,11 +6,13 @@
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import replace
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from psycopg import Error as PsycopgError
 from pydantic import ValidationError
 
 from hops_ai.contracts.runtime import AgentErrorCode, ResultStatus
@@ -19,7 +21,12 @@ from hops_ai.harness.budget import Clock, RunBudget
 from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import describe_failure
 from hops_ai.harness.policy import ToolPolicy
-from hops_ai.persistence.run_ledger import RunAcceptance, RunLedger
+from hops_ai.persistence.run_ledger import (
+    InvalidRunTransition,
+    RunAcceptance,
+    RunConflict,
+    RunLedger,
+)
 from hops_ai.services.runs.admission import ExecutionLimits, RunAdmissionService
 from hops_ai.settings import Settings
 
@@ -27,6 +34,8 @@ logger = logging.getLogger(__name__)
 
 # 동시 실행 상한에 걸렸을 때 Spring에 알려 줄 대기 시간(초).
 BUSY_RETRY_AFTER_SECONDS = 5
+# 실행 상태 저장이 DB 일시 오류로 실패할 때 다시 시도하기 전 대기 시간(초). 시도는 최대 3회다.
+STORE_RETRY_DELAYS = (0.2, 1.0)
 
 # 하네스 내부 오류 코드를 Spring과 주고받는 AiError 코드로 바꾼다.
 _WIRE_CODES: dict[AgentErrorCode, str] = {
@@ -105,6 +114,14 @@ def _failure_from_exception(request: AiRunRequest, error: BaseException) -> AiRe
     )
 
 
+def _timed_out(request: AiRunRequest) -> AiResult:
+    return failure_result(
+        request,
+        "TIMED_OUT",
+        AiError(code="DEADLINE_EXCEEDED", message="실행 제한 시간을 초과했습니다", retryable=False),
+    )
+
+
 def _invalid_output(request: AiRunRequest) -> AiResult:
     return failure_result(
         request,
@@ -144,12 +161,14 @@ class RunExecutor:
         settings: Settings,
         *,
         clock: Clock | None = None,
+        store_retry_delays: Sequence[float] = STORE_RETRY_DELAYS,
     ) -> None:
         self._ledger = ledger
         self._admission = admission
         self._pipeline = pipeline
         self._settings = settings
         self._clock = clock
+        self._store_retry_delays = tuple(store_retry_delays)
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
         # 동시 실행 수 확인과 접수가 경쟁하지 않도록 한 번에 하나씩 처리한다.
         self._submit_lock = asyncio.Lock()
@@ -185,12 +204,13 @@ class RunExecutor:
     def _context(self, request: AiRunRequest) -> RunContext:
         deadline_at = datetime.fromisoformat(request.expiresAt)
         budget = RunBudget.start(self._settings, deadline_at=deadline_at, clock=self._clock)
-        # 서버 설정과 요청 한도 중 작은 쪽을 쓴다.
+        # 모델 호출 수는 서버 설정과 요청 중 작은 쪽, 재시도는 호출당 상한(서버)과
+        # 실행 전체 누적 상한(요청 maxRetries)을 함께 적용한다.
         # 토큰·도구 호출 누적 한도는 모델·도구를 연결할 때 적용한다.
         budget = replace(
             budget,
             max_llm_calls=min(budget.max_llm_calls, request.limits.maxModelCalls),
-            max_auto_retries=min(budget.max_auto_retries, request.limits.maxRetries),
+            max_run_retries=request.limits.maxRetries,
         )
         return RunContext(
             run_id=request.runId,
@@ -203,42 +223,71 @@ class RunExecutor:
             tool_policy=ToolPolicy(),
         )
 
+    async def _store[T](self, operation: Callable[[], Awaitable[T]]) -> T:
+        """DB 일시 오류만 짧게 다시 시도한다. 모델·파이프라인은 다시 호출하지 않는다."""
+        for delay in self._store_retry_delays:
+            try:
+                return await operation()
+            except PsycopgError:
+                await asyncio.sleep(delay)
+        return await operation()
+
+    async def _abandon(self, run_id: UUID) -> None:
+        """끝내지 못한 run을 UNKNOWN으로 넘긴다. 이마저 실패하면 소유 세션 종료 후 복구에 맡긴다."""
+        try:
+            await self._store(lambda: self._ledger.abandon(run_id))
+        except Exception as exc:  # noqa: BLE001 - 정리 실패가 이벤트 루프를 멈추지 않게 한다
+            logger.warning(
+                "끝내지 못한 실행을 UNKNOWN으로 바꾸지 못했습니다: %s", type(exc).__name__
+            )
+
+    async def _run_pipeline(self, request: AiRunRequest, context: RunContext) -> AiResult:
+        try:
+            raw = await asyncio.wait_for(
+                self._pipeline.run(request, context),
+                timeout=context.budget.remaining_seconds(),
+            )
+        except TimeoutError:
+            return _timed_out(request)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 원시 예외를 안전한 실패로 바꾼다
+            # 예외 메시지에 문의 원문이 담길 수 있어 종류만 기록한다.
+            logger.warning("AI 실행이 실패했습니다: %s", type(exc).__name__)
+            return _failure_from_exception(request, exc)
+        # 파이프라인이 기한 취소를 무시하고 늦게 결과를 돌려줘도 저장하지 않는다.
+        if context.budget.remaining_seconds() <= 0:
+            return _timed_out(request)
+        return _checked_result(request, raw)
+
     async def _execute(self, request: AiRunRequest) -> None:
         run_id = UUID(request.runId)
         try:
-            if not await self._ledger.start(run_id):
+            try:
+                started = await self._store(lambda: self._ledger.start(run_id))
+            except Exception as exc:  # noqa: BLE001 - 시작 저장 실패도 진행 상태로 남기지 않는다
+                logger.warning("실행 시작을 저장하지 못했습니다: %s", type(exc).__name__)
+                await self._abandon(run_id)
+                return
+            if not started:
+                # 이미 다른 상태로 바뀌었다(예: 복구로 UNKNOWN). 실행하지 않는다.
                 logger.warning("접수한 실행을 시작 상태로 바꾸지 못했습니다")
                 return
             context = self._context(request)
+            result = await self._run_pipeline(request, context)
+            # 이벤트 순번은 SSE(#92) 연결 시 발급한 값을 넘긴다. 지금은 발급하지 않는다.
+            last_seq = 0
+            payload = result.model_dump(mode="json")
             try:
-                raw = await asyncio.wait_for(
-                    self._pipeline.run(request, context),
-                    timeout=context.budget.remaining_seconds(),
+                await self._store(
+                    lambda: self._ledger.finish(run_id, result.status, payload, last_seq)
                 )
-                result = _checked_result(request, raw)
-            except TimeoutError:
-                result = failure_result(
-                    request,
-                    "TIMED_OUT",
-                    AiError(
-                        code="DEADLINE_EXCEEDED",
-                        message="실행 제한 시간을 초과했습니다",
-                        retryable=False,
-                    ),
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # noqa: BLE001 - 원시 예외를 안전한 실패로 바꾼다
-                # 예외 메시지에 문의 원문이 담길 수 있어 종류만 기록한다.
-                logger.warning("AI 실행이 실패했습니다: %s", type(exc).__name__)
-                result = _failure_from_exception(request, exc)
-            snapshot = await self._ledger.get(run_id)
-            last_seq = snapshot.last_seq if snapshot is not None else 0
-            await self._ledger.finish(
-                run_id, result.status, result.model_dump(mode="json"), last_seq
-            )
+            except (RunConflict, InvalidRunTransition) as exc:
+                # 이미 다른 결과로 확정됐거나 소유권을 잃었다. 덮어쓰지 않는다.
+                logger.warning("실행 결과를 확정하지 못했습니다: %s", type(exc).__name__)
+            except Exception as exc:  # noqa: BLE001 - 저장 실패 run을 진행 상태로 남기지 않는다
+                logger.warning("AI 실행 결과를 저장하지 못했습니다: %s", type(exc).__name__)
+                await self._abandon(run_id)
         except asyncio.CancelledError:
             # 종료 중 취소는 결과를 만들지 않는다. 소유 세션이 닫히면 복구가 UNKNOWN으로 바꾼다.
             raise
-        except Exception as exc:  # noqa: BLE001 - 저장 실패가 이벤트 루프를 멈추지 않게 한다
-            logger.warning("AI 실행 결과를 저장하지 못했습니다: %s", type(exc).__name__)
