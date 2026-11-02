@@ -49,5 +49,7 @@ class MemberRepositoryTest {
         assertThat(member.getEmployeeNo()).isEqualTo("29990001");
         assertThat(member.getName()).isEqualTo("테스트 담당자");
         assertThat(member.getDepartment().getCode()).isEqualTo("TEST_NETWORK");
+        // 권한 문맥이 아직 바뀐 적 없어 1이다 (V21)
+        assertThat(member.getPolicyRevision()).isEqualTo(1);
     }
 }

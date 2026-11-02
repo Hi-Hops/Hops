@@ -4,7 +4,9 @@
 
 ## 시스템 기반 화면 실행
 
-기본 모드는 `live`다. `frontend/.env.example`을 `.env`로 복사하고 다음 두 값을 설정한다. 기존 `.env`의 다른 설정과 비밀값을 덮어쓰지 않는다.
+기본 모드는 `live`다. Docker 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)에 따라 저장소 루트의 [.env.example](../.env.example)을 같은 위치의 `.env`로 한 번만 복사해 관리한다. 기존 `.env`의 다른 설정과 비밀값을 덮어쓰지 않는다.
+
+Node로 직접 실행할 때는 다음 두 값을 프로세스 환경변수로 설정한다. 저장소 루트 `.env`는 Vite가 자동으로 읽지 않는다. 기존 `frontend/.env`가 있으면 Vite가 해당 파일을 읽으므로 필요한 항목만 조정한다.
 
 ```dotenv
 VITE_DATA_MODE=live
@@ -65,18 +67,18 @@ npm run dev:demo
 
 ## 실행·종료
 
-아래 명령은 `frontend/`에서 실행한다. Docker Engine·Compose 2.20 이상과 첫 빌드의 의존성 다운로드가 필요하다.
+Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 [루트 Docker Compose 안내](../README.md#docker-compose로-실행)를 따른다. 아래는 프론트 단독 실행이며 Docker Engine·Compose 2.20 이상과 첫 빌드의 의존성 다운로드가 필요하다. Docker 명령은 저장소 루트에서 실행한다.
 
 ```sh
-docker compose up --build -d --wait
-docker compose ps
-docker compose logs -f frontend
-docker compose down
+docker compose --env-file .env -f frontend/compose.yaml up --build -d
+docker compose --env-file .env -f frontend/compose.yaml ps
+docker compose --env-file .env -f frontend/compose.yaml logs -f frontend
+docker compose --env-file .env -f frontend/compose.yaml down
 ```
 
-프론트 단독 Compose는 Spring·DB·AI를 실행하지 않는다. 포트는 loopback에만 바인딩하고 `FRONTEND_PORT`로 변경한다. `.env` 변경은 컨테이너 재생성, 소스 변경은 재빌드 후 반영된다. 기존 `.env`가 있으면 덮어쓰지 않는다.
+프론트 단독 Compose는 Spring·DB·AI를 실행하지 않는다. 통합 Compose로 기동해도 각 서버의 신규 `/api/v2` 구현과 실제 연동 검증은 별도다. 포트는 loopback에만 바인딩하고 `FRONTEND_PORT`로 변경한다. `.env` 변경은 컨테이너 재생성, 소스 변경은 재빌드 후 반영된다. 기존 `.env`가 있으면 덮어쓰지 않는다.
 
-Node.js 24.22.0을 사용해 직접 실행할 수도 있다.
+Node.js 24.22.0을 사용해 `frontend/`에서 직접 실행할 수도 있다. 필요한 `VITE_*` 프로세스 환경변수를 먼저 설정한다.
 
 ```sh
 npm ci
