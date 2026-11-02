@@ -3,6 +3,8 @@ package com.hihops.hops.agent.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -71,7 +73,7 @@ class AgentRunRepositoryTest {
         Inquiry inquiry = inquiryRepository.findById(INQUIRY_ID).orElseThrow();
         Message triggerMessage = messageRepository.findById(MESSAGE_ID).orElseThrow();
         // 접수만 된 대기(QUEUED) 실행이라 아직 시작 시각이 없다
-        AgentRun saved = agentRunRepository.save(new AgentRun(inquiry, triggerMessage, RunStatus.QUEUED, 1, "{\"answerMessageId\": \"m-1\"}", "gpt-test", "prompt-v1", "schema-v1", null));
+        AgentRun saved = agentRunRepository.save(new AgentRun(inquiry, triggerMessage, 1, "{\"answerMessageId\": \"m-1\"}", "gpt-test", "prompt-v1", "schema-v1"));
         entityManager.flush();
         entityManager.clear();
 
@@ -95,6 +97,27 @@ class AgentRunRepositoryTest {
     }
 
     // PostgreSQL은 한 트랜잭션에서 오류가 나면 이후 명령을 거부하므로, 위반은 테스트마다 하나씩 확인한다
+    @Test
+    void 끝낸_실행을_저장하면_시작_종료_시각과_함께_DB에_남는다() {
+        Inquiry inquiry = inquiryRepository.findById(INQUIRY_ID).orElseThrow();
+        Message triggerMessage = messageRepository.findById(MESSAGE_ID).orElseThrow();
+        AgentRun run = new AgentRun(inquiry, triggerMessage, 1, "{}", "gpt-test", "prompt-v1", "schema-v1");
+        // DB는 마이크로초까지만 저장하므로 비교가 어긋나지 않게 잘라둔다
+        Instant startedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        Instant completedAt = startedAt.plusSeconds(30);
+        run.start(startedAt);
+        run.finish(RunStatus.SUCCEEDED, completedAt);
+
+        // 상태 변경 메서드로 끝내면 ck_agent_run_timestamps에 걸리지 않고 저장된다
+        AgentRun saved = agentRunRepository.saveAndFlush(run);
+        entityManager.clear();
+
+        AgentRun found = agentRunRepository.findById(saved.getId()).orElseThrow();
+        assertThat(found.getRunStatus()).isEqualTo(RunStatus.SUCCEEDED);
+        assertThat(found.getStartedAt()).isEqualTo(startedAt);
+        assertThat(found.getCompletedAt()).isEqualTo(completedAt);
+    }
+
     @Test
     void 끝난_실행에_종료_시각이_없으면_DB가_거절한다() {
         // 끝난 실행(SUCCEEDED)인데 종료 시각이 없다

@@ -22,4 +22,5 @@ CREATE TABLE notification (
 );
 
 -- PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 본인 알림함을 수신자로 찾으려고 둔다.
-CREATE INDEX idx_notification_recipient_member_id ON notification (recipient_member_id);
+-- 알림함은 "내 알림 최신순"으로 보므로 생성일시를 내림차순으로 함께 둬, 따로 정렬하지 않고 인덱스 순서대로 읽는다.
+CREATE INDEX idx_notification_recipient_created_at ON notification (recipient_member_id, created_at DESC);

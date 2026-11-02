@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.AgentTask;
-import com.hihops.hops.agent.domain.RunStatus;
 import com.hihops.hops.agent.repository.AgentRunRepository;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
@@ -119,8 +118,9 @@ class TicketWorkLogRepositoryTest {
         Inquiry inquiry = inquiryRepository.findById(INQUIRY_ID).orElseThrow();
         Ticket ticket = ticketRepository.findById(TICKET_ID).orElseThrow();
 
-        AgentRun saved = agentRunRepository.save(new AgentRun(inquiry, ticket, workLog, RunStatus.RUNNING, 1,
-                "{}", "gpt-test", "prompt-v1", "schema-v1", Instant.now()));
+        AgentRun curation = new AgentRun(inquiry, ticket, workLog, 1, "{}", "gpt-test", "prompt-v1", "schema-v1");
+        curation.start(Instant.now());
+        AgentRun saved = agentRunRepository.save(curation);
         entityManager.flush();
         entityManager.clear();
 

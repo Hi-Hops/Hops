@@ -32,6 +32,9 @@ import jakarta.persistence.Table;
  * inputSnapshot은 AI 서버에 보낸 검증된 입력(AiRunRequest) 원본이며, 상담 실행의 answerMessageId도 여기 고정한다.
  * startedAt은 실제로 시작한 시각이라 대기(QUEUED) 중에는 비어 있다.
  *
+ * <p>상태는 생성자로 정하지 않고 메서드로만 바꾼다: 만들면 QUEUED → {@link #start}로 RUNNING → {@link #finish}로 끝.
+ * DB CHECK(ck_agent_run_timestamps)와 같은 규칙이라, 이 메서드만 쓰면 상태와 시작·종료 시각이 어긋난 채 저장되지 않는다.
+ *
  * <p>공통 부모를 상속하지 않는 이유: 이 테이블은 수정일시는 있지만 삭제일시가 없다(실행 기록은 지우지 않음).
  * BaseEntity(삭제일시 있음)·CreatedOnlyEntity(수정일시 없음) 어느 쪽과도 맞지 않아 컬럼을 직접 둔다.
  *
@@ -126,36 +129,63 @@ public class AgentRun {
     protected AgentRun() {
     }
 
-    /** 상담 실행. 사용자 메시지(triggerMessage)로 시작한다. 작업 종류는 INQUIRY_ANALYSIS로 고정한다. */
-    public AgentRun(Inquiry inquiry, Message triggerMessage, RunStatus runStatus, int inputVersion,
-            String inputSnapshot, String modelVersion, String promptVersion, String schemaVersion, Instant startedAt) {
+    /** 상담 실행. 사용자 메시지(triggerMessage)로 시작한다. 작업 종류는 INQUIRY_ANALYSIS, 상태는 QUEUED로 시작한다. */
+    public AgentRun(Inquiry inquiry, Message triggerMessage, int inputVersion, String inputSnapshot,
+            String modelVersion, String promptVersion, String schemaVersion) {
         this.inquiry = inquiry;
         this.triggerMessage = triggerMessage;
         // 작업 종류를 인자로 받으면 CURATION을 넘겨 DB CHECK(ck_agent_run_trigger_work_log)에 걸릴 수 있어 고정한다
         this.task = AgentTask.INQUIRY_ANALYSIS;
-        this.runStatus = runStatus;
+        this.runStatus = RunStatus.QUEUED;
         this.inputVersion = inputVersion;
         this.inputSnapshot = inputSnapshot;
         this.modelVersion = modelVersion;
         this.promptVersion = promptVersion;
         this.schemaVersion = schemaVersion;
-        this.startedAt = startedAt;
     }
 
-    /** Curator 실행. 해결·구현 기록(triggerWorkLog)이 저장되면 그 기록으로 사례 초안을 만든다. 작업 종류는 CURATION으로 고정한다. */
-    public AgentRun(Inquiry inquiry, Ticket ticket, TicketWorkLog triggerWorkLog, RunStatus runStatus, int inputVersion,
-            String inputSnapshot, String modelVersion, String promptVersion, String schemaVersion, Instant startedAt) {
+    /** Curator 실행. 해결·구현 기록(triggerWorkLog)이 저장되면 그 기록으로 사례 초안을 만든다. 작업 종류는 CURATION, 상태는 QUEUED로 시작한다. */
+    public AgentRun(Inquiry inquiry, Ticket ticket, TicketWorkLog triggerWorkLog, int inputVersion, String inputSnapshot,
+            String modelVersion, String promptVersion, String schemaVersion) {
         this.inquiry = inquiry;
         this.ticket = ticket;
         this.triggerWorkLog = triggerWorkLog;
         this.task = AgentTask.CURATION;
-        this.runStatus = runStatus;
+        this.runStatus = RunStatus.QUEUED;
         this.inputVersion = inputVersion;
         this.inputSnapshot = inputSnapshot;
         this.modelVersion = modelVersion;
         this.promptVersion = promptVersion;
         this.schemaVersion = schemaVersion;
+    }
+
+    /** 실행을 시작한다. 대기(QUEUED) 중인 실행만 시작할 수 있다. */
+    public void start(Instant startedAt) {
+        if (runStatus != RunStatus.QUEUED) {
+            throw new IllegalStateException("대기 중인 실행만 시작할 수 있다: " + runStatus);
+        }
+        this.runStatus = RunStatus.RUNNING;
         this.startedAt = startedAt;
+    }
+
+    /**
+     * 실행을 끝낸다. 결과는 SUCCEEDED / FAILED / TIMED_OUT / CANCELLED 중 하나다.
+     *
+     * <p>성공은 실행 중(RUNNING)이었던 실행만 가능하다. 실패·시간 초과·취소는 시작 전(QUEUED)에도 생길 수 있다.
+     * 이미 끝난 실행은 다시 끝낼 수 없다 (늦게 온 결과로 상태를 덮어쓰지 않게).
+     */
+    public void finish(RunStatus outcome, Instant completedAt) {
+        if (outcome == RunStatus.QUEUED || outcome == RunStatus.RUNNING) {
+            throw new IllegalArgumentException("끝난 상태만 결과로 쓸 수 있다: " + outcome);
+        }
+        if (runStatus != RunStatus.QUEUED && runStatus != RunStatus.RUNNING) {
+            throw new IllegalStateException("이미 끝난 실행이다: " + runStatus);
+        }
+        if (outcome == RunStatus.SUCCEEDED && runStatus != RunStatus.RUNNING) {
+            throw new IllegalStateException("시작하지 않은 실행은 성공으로 끝낼 수 없다");
+        }
+        this.runStatus = outcome;
+        this.completedAt = completedAt;
     }
 
     public UUID getId() {

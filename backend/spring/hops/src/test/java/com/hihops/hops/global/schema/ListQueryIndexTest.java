@@ -16,6 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
  * <p>PostgreSQL은 FK 컬럼에 인덱스를 자동으로 만들지 않는다. 없으면 "내 문의 목록", "담당 티켓 목록", "알림함"처럼
  * 사람·시스템·티켓 기준으로 찾는 조회가 행이 많아질수록 테이블 전체를 훑게 된다.
  * 유일 제약이 앞 컬럼으로 이미 인덱스를 만드는 경우(예: message의 inquiry_id)는 여기서 다시 만들지 않는다.
+ * 알림함은 "내 알림 최신순"으로 보므로 (수신자, 생성일시 DESC) 복합 인덱스로 정렬까지 인덱스에서 끝낸다.
  */
 @SpringBootTest
 @ActiveProfiles({"db", "test"})
@@ -38,6 +39,6 @@ class ListQueryIndexTest {
                 "idx_ticket_event_ticket_id",
                 "idx_ticket_assignment_ticket_id",
                 "idx_ticket_work_log_ticket_id",
-                "idx_notification_recipient_member_id");
+                "idx_notification_recipient_created_at");
     }
 }
