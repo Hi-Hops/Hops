@@ -66,8 +66,8 @@ afterEach(async () => {
 });
 
 describe('F002 fetch SSE 실제 HTTP 대역', () => {
-  it('F002-AC01 초기 REST 조회가 실패해도 정상 SSE에서 이벤트를 계속 수신한다', async () => {
-    const sync = vi.fn(() => Promise.reject(new Error('조회 API 준비 중')));
+  it('F002-TARGET-04 REST 실패 중에도 이벤트를 수신하며 재연결·조회 성공 후 connected가 된다', async () => {
+    const sync = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('조회 API 준비 중'));
     const received = vi.fn();
     transport.onSync(sync);
     transport.on('state.changed', received);
@@ -89,6 +89,13 @@ describe('F002 fetch SSE 실제 HTTP 대역', () => {
     });
     expect(transport.getState()).toBe('connecting');
     expect(requests).toHaveLength(1);
+    sync.mockResolvedValue(undefined);
+    transport.connect(token);
+    await vi.waitFor(() => {
+      expect(transport.getState()).toBe('connected');
+    });
+    expect(sync).toHaveBeenCalledTimes(2);
+    expect(requests).toHaveLength(2);
   });
   it('F002-AC01/02 Bearer·대상을 전달하고 같은 대상 연결을 공유하며 마지막 해제 때 취소한다', async () => {
     transport.connect(token);

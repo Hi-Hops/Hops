@@ -228,7 +228,8 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
           request.signal,
         );
         // 첫 연결/재연결 모두 스트림을 읽기 시작한 뒤 REST로 확정 상태를 맞춘다.
-        // 조회 실패는 조회 화면에서 안내한다. 정상 스트림까지 끊어 재시도하지 않는다.
+        // connected는 REST 복구 완료까지 포함한다. 실패 시 connecting으로 보호 영역을 가린다.
+        // 조회 실패는 조회 화면에서 안내하며 정상 스트림은 이벤트를 계속 수신한다.
         // resync.required 이후의 필수 REST 복구 실패는 아래 복구 분기에서 별도로 처리한다.
         await Promise.all([
           reading,
@@ -298,10 +299,9 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
         this.emit('stream.reset', { target: entry.target });
         if (!this.current(entry, controller)) return;
       }
-      const delay = Math.max(
-        retryAfter,
-        this.baseDelay * ([1, 2, 5, 10, 30][Math.min(attempt++, 4)] ?? 30),
-      );
+      const ceiling = this.baseDelay * ([1, 2, 5, 10, 30][Math.min(attempt++, 4)] ?? 30);
+      // 신규 계약의 단계별 상한을 지키면서 재시도 시점을 분산한다. Retry-After는 하한이다.
+      const delay = Math.max(retryAfter, Math.round(ceiling * (0.8 + Math.random() * 0.2)));
       this.update(entry, 'connecting');
       await pause(delay, controller.signal);
     }
