@@ -1,7 +1,7 @@
 import { readMockAuth } from '@/shared/config/mockAuth';
 import { contentError } from '@/shared/lib/content';
 import { isRecord, isUuid } from './wire';
-import { mockError } from './mockError';
+import { mockError, MockHttpError } from './mockError';
 import { systems, users } from './systemMockData';
 import { SystemMockWorkflow } from './systemMockWorkflow';
 import { mockExamples } from './systemMockExamples';
@@ -429,6 +429,7 @@ export class SystemMockBackend {
   }
   private analyze(
     workspace: Workspace,
+    requestId: string,
     problemIds = workspace.result.problems.map((problem) => problem.id),
   ) {
     const run: D.RunSummary = {
@@ -449,69 +450,84 @@ export class SystemMockBackend {
         run.status === 'SUPERSEDED'
       )
         return;
-      const latest =
-        [...workspace.messages]
-          .reverse()
-          .find((m) => m.sender === 'USER' && m.problemIds.some((id) => problemIds.includes(id)))
-          ?.content ?? '';
-      let answer = 'Mock에서 확인한 접수 결과예요. 실제 업무 처리 결과가 아니에요.';
-      if (/시간 초과|모델 오류/u.test(latest)) {
-        run.status = latest.includes('시간 초과') ? 'TIMED_OUT' : 'FAILED';
-        run.error = {
-          code: 'MODEL_UNAVAILABLE',
-          message: 'Mock 분석을 마치지 못했어요.',
-          requestId: workspace.messages[0]?.requestId ?? crypto.randomUUID(),
-          retryable: true,
-          fieldErrors: [],
-        };
-      } else {
-        for (const problem of workspace.result.problems) {
-          if (
-            !problemIds.includes(problem.id) ||
-            problem.ticket ||
-            problem.state === 'OUT_OF_SCOPE'
-          )
-            continue;
-          const content =
-            [...workspace.messages]
-              .reverse()
-              .find((m) => m.sender === 'USER' && m.problemIds.includes(problem.id))?.content ?? '';
-          if (/사용법|안내만/u.test(content) && problem.reportedSystemId) {
-            this.workflow.guide(problem, run.answerMessageId);
-            answer = 'Mock 직원용 안내예요. 안내를 확인하고 문제별 해결 여부를 알려 주세요.';
-            continue;
+      try {
+        const latest =
+          [...workspace.messages]
+            .reverse()
+            .find((m) => m.sender === 'USER' && m.problemIds.some((id) => problemIds.includes(id)))
+            ?.content ?? '';
+        let answer = 'Mock에서 확인한 접수 결과예요. 실제 업무 처리 결과가 아니에요.';
+        if (/시간 초과|모델 오류/u.test(latest)) {
+          run.status = latest.includes('시간 초과') ? 'TIMED_OUT' : 'FAILED';
+          run.error = {
+            code: 'MODEL_UNAVAILABLE',
+            message: 'Mock 분석을 마치지 못했어요.',
+            requestId,
+            retryable: true,
+            fieldErrors: [],
+          };
+        } else {
+          for (const problem of workspace.result.problems) {
+            if (
+              !problemIds.includes(problem.id) ||
+              problem.ticket ||
+              problem.state === 'OUT_OF_SCOPE'
+            )
+              continue;
+            const content =
+              [...workspace.messages]
+                .reverse()
+                .find((m) => m.sender === 'USER' && m.problemIds.includes(problem.id))?.content ??
+              '';
+            if (/사용법|안내만/u.test(content) && problem.reportedSystemId) {
+              this.workflow.guide(problem, run.answerMessageId);
+              answer = 'Mock 직원용 안내예요. 안내를 확인하고 문제별 해결 여부를 알려 주세요.';
+              continue;
+            }
+            if (/날씨|범위 밖/u.test(content)) {
+              problem.state = 'OUT_OF_SCOPE';
+              answer = '지원 범위 밖 문의예요. 전자결재·공통 로그인·파일 공유를 지원해요.';
+            } else if (
+              problem.questionCount === 0 ||
+              (!problem.reportedSystemId && problem.questionCount < 5)
+            ) {
+              problem.questionCount++;
+              problem.state = 'WAITING_USER';
+              answer = '어떤 시스템에서 언제 발생했는지, 기대한 동작과 실제 현상을 알려 주세요.';
+            } else if (!problem.reportedSystemId) {
+              problem.state = 'WAITING_SYSTEM';
+              answer = '질문 한도에 도달했어요. 아래에서 지원 시스템을 선택해 주세요.';
+            } else if (content.includes('저장 미확인') || content.includes('생성 실패')) {
+              problem.state = 'TICKET_PENDING';
+              problem.creationResult = {
+                workItemId: problem.id,
+                problemId: problem.id,
+                inquiryVersion: workspace.result.inquiryVersion,
+                outcome: content.includes('저장 미확인') ? 'UNKNOWN' : 'NOT_CREATED',
+                ticketId: null,
+                error: null,
+                updatedAt: now(),
+              };
+              workspace.result.resultRevision++;
+            } else this.storeTicket(workspace, problem);
           }
-          if (/날씨|범위 밖/u.test(content)) {
-            problem.state = 'OUT_OF_SCOPE';
-            answer = '지원 범위 밖 문의예요. 전자결재·공통 로그인·파일 공유를 지원해요.';
-          } else if (
-            problem.questionCount === 0 ||
-            (!problem.reportedSystemId && problem.questionCount < 5)
-          ) {
-            problem.questionCount++;
-            problem.state = 'WAITING_USER';
-            answer = '어떤 시스템에서 언제 발생했는지, 기대한 동작과 실제 현상을 알려 주세요.';
-          } else if (!problem.reportedSystemId) {
-            problem.state = 'WAITING_SYSTEM';
-            answer = '질문 한도에 도달했어요. 아래에서 지원 시스템을 선택해 주세요.';
-          } else if (content.includes('저장 미확인') || content.includes('생성 실패')) {
-            problem.state = 'TICKET_PENDING';
-            problem.creationResult = {
-              workItemId: problem.id,
-              problemId: problem.id,
-              inquiryVersion: workspace.result.inquiryVersion,
-              outcome: content.includes('저장 미확인') ? 'UNKNOWN' : 'NOT_CREATED',
-              ticketId: null,
-              error: null,
-              updatedAt: now(),
-            };
-            workspace.result.resultRevision++;
-          } else this.storeTicket(workspace, problem);
+          this.message(workspace, answer, 'AI', null, run.answerMessageId).problemIds = [
+            ...problemIds,
+          ];
+          run.status = 'SUCCEEDED';
         }
-        this.message(workspace, answer, 'AI', null, run.answerMessageId).problemIds = [
-          ...problemIds,
-        ];
-        run.status = 'SUCCEEDED';
+      } catch (cause) {
+        run.status = 'FAILED';
+        run.error =
+          cause instanceof MockHttpError
+            ? { ...cause.body, requestId }
+            : {
+                code: 'SERVICE_UNAVAILABLE',
+                message: 'Mock 분석을 마치지 못했어요. 잠시 후 다시 시도해 주세요.',
+                requestId,
+                retryable: true,
+                fieldErrors: [],
+              };
       }
       this.aggregate(workspace);
       this.changed();
@@ -629,7 +645,7 @@ export class SystemMockBackend {
           body.reportedSystemId as string | null,
           body.requestId,
         );
-        this.analyze(workspace);
+        this.analyze(workspace, body.requestId);
         resource = { type: 'INQUIRY', id: workspace.result.id };
       } else if (parts[0] === 'inquiries' && parts[1]) {
         const workspace = this.workspace(user, parts[1]);
@@ -704,7 +720,7 @@ export class SystemMockBackend {
             (p) => analysisProblemIds.includes(p.id) && !p.ticket && p.state !== 'OUT_OF_SCOPE',
           )
         )
-          this.analyze(workspace, analysisProblemIds);
+          this.analyze(workspace, body.requestId, analysisProblemIds);
         resource = { type: 'INQUIRY', id: workspace.result.id };
       } else if (parts[0] === 'runs' && parts[1]) {
         const workspace = [...this.inquiries.values()].find(
@@ -719,7 +735,10 @@ export class SystemMockBackend {
           !['FAILED', 'TIMED_OUT'].includes(workspace.result.currentRun?.status ?? '')
         )
           mockError(409, 'RUN_NOT_RETRYABLE', '재분석할 수 없는 실행이에요.');
-        resource = { type: 'RUN', id: this.analyze(workspace, workspace.runProblemIds).id };
+        resource = {
+          type: 'RUN',
+          id: this.analyze(workspace, body.requestId, workspace.runProblemIds).id,
+        };
       } else if (parts[0] === 'work-items' && parts[1]) {
         const workspace = [...this.inquiries.values()].find((w) =>
           w.result.problems.some((p) => p.id === parts[1]),
