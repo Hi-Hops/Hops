@@ -14,7 +14,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃과 [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API는 아래 [인증](#인증), [시스템·티켓 조회](#시스템티켓-조회), [SSE 공통 기반](#spring-sse-공통-기반)의 구현 범위를 따릅니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -33,7 +33,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리는 구현했습니다. 시스템 담당 관계 DTO·업무 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증, Refresh 회전·로그아웃, 시스템·티켓 조회와 `DEPARTMENT_TICKETS`·`SYSTEM_TICKETS`·`TICKET` SSE 연결을 제공합니다. 시스템·티켓 SSE는 조회와 같은 현재 PRIMARY·관리자 정책을 사용합니다. 업무 저장과 신규 업무 이벤트 생산자 연결, 권한 세대 변경과 전송의 원자적 처리는 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 서비스별 구현과 검증 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
@@ -189,7 +189,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 
 ## 인증
 
-로그인하면 Spring이 서명한 액세스 토큰(JWT)을 발급하고, 이후 요청은 `Authorization: Bearer <토큰>`으로 인증합니다. 현재 응답은 아래 표와 코드의 `LoginResponse`·`CurrentUserResponse`를 따릅니다. [데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)의 신규 `CurrentUser`가 요구하는 `primarySystemIds`는 아직 반환하지 않습니다. 현재 프론트는 신규 DTO를 검증하므로 이 필드와 시스템 권한 연결이 필요합니다. 계정은 위 "가상 데이터"의 표를 참고합니다.
+로그인하면 Spring이 서명한 액세스 토큰(JWT)을 발급하고, 이후 요청은 `Authorization: Bearer <토큰>`으로 인증합니다. 응답은 `LoginResponse`·`CurrentUserResponse`와 [신규 데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)을 따르며, `primarySystemIds`는 현재 DB 관계에서 읽습니다. 업무 조회는 이 메뉴용 스냅샷과 별도로 현재 회원·역할·시스템 담당 관계를 검사합니다. 계정은 위 "가상 데이터"의 표를 참고합니다.
 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
@@ -226,17 +226,33 @@ curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhos
 
 Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
 
+## 시스템·티켓 조회
+
+`hops-system-1`의 읽기 API를 제공합니다. Controller는 경로·입력 검증, Service는 현재 권한·읽기 트랜잭션·DTO 조립, 기존 JPA Repository는 DB 조회를 담당합니다. 경로·필드·페이지·오류 정본은 [WIRE12절](../../../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)과 [DATA_TYPES](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)입니다.
+
+- 시스템 목록·주담당자: `GET /api/v2/systems`, `GET /api/v2/systems/{systemId}/primary`.
+- 티켓 목록·담당자 상세·관련 대화: `GET /api/v2/tickets`, `GET /api/v2/tickets/{ticketId}`, `GET /api/v2/tickets/{ticketId}/related-messages`.
+- 관리자 제한 상세: `GET /api/v2/management/tickets/{ticketId}`. 표준 요청·처리 내용·대화는 포함하지 않습니다.
+- 저장된 사례 생성 상태: `GET /api/v2/case-generations/{generationId}`. 조회가 Curator를 실행하지 않습니다.
+
+관련 대화는 `message.payload.problemLinks`의 문제·revision별 Unicode 코드 포인트 구간만 반환하고, 정정 이력에도 같은 검사를 적용합니다. 안전한 구간이 없는 원문은 제외합니다. 커서는 티켓·메시지 ID에 연결하며 전체 문의의 sequenceNo를 노출하지 않습니다. 저장된 근거도 현재 승인·ACL과 CASE의 동일 승인 버전·양쪽 색인 성공을 DB에서 확인합니다.
+
+현재 확인 요청 조회는 `ticket_event.after_data.resolutionRequest`에 저장한 신규 `ResolutionRequest` 스냅샷을 검증합니다. `confirm_requested_at`만 있고 원 요청 메타데이터를 확인할 수 없으면 요청 ID나 성공 상태를 만들지 않고 503을 반환합니다. 저장 생산자와 이 형식을 맞추는 작업 및 실제 서비스 통합 검증은 별도입니다.
+
+`TicketControllerTest`는 F007/F009와 공통 계약의 정상 조회·페이지·현재 권한·접근 회수·관련 원문·잘못된 저장 참조·DB 장애를 실제 테스트 DB와 MockMvc로 검사합니다. 이 검사를 실제 브라우저 E2E나 문의·처리·확인·정정 저장의 완료로 간주하지 않습니다.
+
 ## Spring SSE 공통 기반
 
 [전송 계약](../../../specs/contracts/WIRE_CONTRACT.md#5-sse-연결이벤트복구)에 따라
 `GET /api/v2/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
+신규 화면은 [WIRE12.4절](../../../specs/contracts/WIRE_CONTRACT.md#124-sse와-복구)에 따라 `SYSTEM_TICKETS`·`TICKET`과 해당 시스템·티켓 UUID를 사용합니다. 이 두 대상은 연결·권한 재검사·heartbeat·REST 재동기화를 지원하며 신규 `state.changed` 생산자 연결은 후속입니다.
 `Authorization: Bearer <accessToken>`과 `Accept: text/event-stream`을 전달합니다.
 프론트는 Bearer 헤더를 지정할 수 있는 fetch 기반 SSE 소비자가 필요합니다.
 
 | 구현 항목 | 현재 동작 |
 |---|---|
 | 대상 권한 | 현재 DB 회원·부서·역할과 토큰 문맥을 비교합니다. 현재 처리 부서 구성원 또는 BIZ_ADMIN만 허용합니다. 없는 부서는 404입니다. |
-| 문의·개별 티켓 대상 | 소유권 저장소가 아직 없으므로 `INQUIRY`·`TICKET`은 503입니다. 도메인 구현 후 연결해야 합니다. |
+| 신규 시스템·티켓 대상 | `SYSTEM_TICKETS`는 현재 PRIMARY 또는 관리자, `TICKET`은 현재 PRIMARY만 허용합니다. 전송 전에도 같은 업무 권한을 검사합니다. `INQUIRY`는 소유권 연결 전이므로 503입니다. |
 | 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
 | 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
 | 확정 이벤트 | 트랜잭션 안에서 `StateChangedEvent`를 발행하면 커밋 후 해당 부서 연결에 `state.changed`를 전달합니다. 롤백·트랜잭션 없는 발행은 전달하지 않습니다. |

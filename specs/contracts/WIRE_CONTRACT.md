@@ -243,9 +243,9 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 - 인증은 `/api/v2/auth/login`·`me`·`refresh`·`logout`을 제공한다. PostgreSQL 계정 조회, JWT, Redis 기반 Refresh 회전·재사용 검출·절대 만료와 쿠키 삭제, 허용 Origin 검사를 구현했다.
 - 로그인 세션 종료 이벤트는 해당 회원의 열린 SSE를 닫는다. Access에 세션 ID가 없어 기기별 연결을 구분하지 않으며 이미 발급한 Access의 즉시 폐기를 뜻하지 않는다. 역할·시스템 권한 변경의 즉시 `auth.invalidated` 통지·세대 검증은 남아 있다.
-- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. 시스템/사례 구독과 문의·업무 이벤트 생산자는 미연결이다.
+- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. SYSTEM_TICKETS·TICKET은 현재 업무 권한으로 연결·heartbeat·REST 재동기화를 지원한다. 사례 구독과 신규 문의·업무 이벤트 생산자는 미연결이다.
 - 업무 테이블·Entity와 V1~V21 Flyway는 존재한다. 테이블·Repository 검사는 문의·티켓·처리·확인·승인 API의 서비스 저장·권한·경합 구현을 대신하지 않는다.
-- 신규 CurrentUser.primarySystemIds와 시스템/PRIMARY 조회, 문의·문제·메시지·티켓·관리 DTO, 처리·확인·정정·사례 및 operation/journal의 신규 계약 연결은 구현·통합 검증이 남아 있다.
+- 신규 CurrentUser.primarySystemIds, 시스템/PRIMARY·티켓 목록/상세·관리 제한 상세·관련 대화·사례 생성 상태의 읽기 API를 구현했다. 현재 권한·원문 구간·저장 참조·오류는 PostgreSQL/MockMvc로 검사하며 실제 브라우저 통합과 구분한다. 문의·문제·메시지 저장/조회, 처리·확인·정정·사례 및 operation/journal 연결은 별도다.
 
 인증·쿠키·Redis 실행 설정과 현재 응답은 [Spring 안내](../../backend/spring/hops/README.md)를 따른다. 신규 SSE는 12절대로 replay 없이 REST 재동기화한다. 1~10절의 replay 목표를 신규 필수 작업으로 옮기지 않는다. 다중 인스턴스·프록시·부하와 실제 브라우저의 인증·권한 회수 검증은 별도다.
 
