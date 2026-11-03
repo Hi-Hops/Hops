@@ -79,7 +79,7 @@
 
 ## 현재 구현과 남은 작업
 
-현재 프론트는 PRIMARY 기준 시스템 업무 보드/목록·상세 모달, 표준 요청·허용 관련 대화, 모달 안의 처리·검증 탭과 책임 시스템/조사·장애 정정을 구현했다. PROGRESS·FAILED_ATTEMPT·VERIFIED_RESOLUTION·IMPLEMENTED_VERIFIED를 구분하고 입력 보존·버전 충돌을 Mock·UI로 검사한다. Spring의 목록·상세·관련 대화·처리/확인/사례 생성 상태 조회, 현재 PRIMARY 검사, 처리 기록·해결 확인·정정 저장과 commit 뒤 Curator/재분석 전달도 구현했다. PostgreSQL/MockMvc로 권한·원문 구간·참조·상태·동시 버전을 검사하며 외부 AI는 HTTP 대역으로 검증했다. 실제 모델·상담 결과 적용·전체 서비스 및 브라우저 통합 검증은 남아 있다.
+현재 프론트는 PRIMARY 기준 시스템 업무 보드/목록·상세 모달, 표준 요청·허용 관련 대화, 모달 안의 처리·검증 탭과 책임 시스템/조사·장애 정정을 구현했다. PROGRESS·FAILED_ATTEMPT·VERIFIED_RESOLUTION·IMPLEMENTED_VERIFIED를 구분하고 입력 보존·버전 충돌을 Mock·UI로 검사한다. Spring의 티켓 목록·상세·관련 대화와 저장된 처리/확인/사례 생성 상태 조회, 현재 PRIMARY·공개 범위 검사를 구현하고 PostgreSQL/MockMvc로 검증한다. 처리·정정·해결 확인 응답과 Curator 실행은 후속 범위이며 실제 서비스·브라우저 통합 검증은 남아 있다.
 
 실행법과 현재 화면·호출 범위는 [프론트 안내](../../frontend/README.md), 서비스별 실제 구현은 [공통 계약 11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 신규 계약의 프론트 검사를 실제 Spring 저장·권한, AI·검색 및 전체 E2E 검증으로 대신하지 않는다.
 
