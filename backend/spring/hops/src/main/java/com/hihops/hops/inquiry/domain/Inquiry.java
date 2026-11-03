@@ -113,4 +113,9 @@ public class Inquiry extends BaseEntity {
     public Instant getSummaryUpdatedAt() {
         return summaryUpdatedAt;
     }
+
+    public void resumeAnalysis(AgentRun run) {
+        currentRun = run;
+        inquiryStatus = InquiryStatus.IN_PROGRESS;
+    }
 }
