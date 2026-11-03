@@ -133,6 +133,12 @@ class TicketControllerTest {
                 .andExpect(jsonPath("$.assignmentHistory[0].evidenceMessageIds").isEmpty());
     }
 
+    @Test void 계약에_없는_시스템_코드를_성공으로_반환하지_않는다() throws Exception {
+        jdbc.update("UPDATE it_system SET code='UNSUPPORTED_DEMO' WHERE id=?", SYSTEM);
+        mvc.perform(as(STAFF, "/systems")).andExpect(status().isServiceUnavailable());
+        mvc.perform(as(STAFF, "/tickets")).andExpect(status().isServiceUnavailable());
+    }
+
     @Test void 시스템_목록에는_기능만_있고_담당자_정보는_없다() throws Exception {
         mvc.perform(as(REQUESTER, "/systems")).andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].code").value("ELECTRONIC_APPROVAL"))
