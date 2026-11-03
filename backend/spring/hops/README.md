@@ -107,7 +107,7 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 
 ## 가상 데이터 (로컬 개발용)
 
-`src/main/resources/db/seed/R__seed_dev_department_member.sql`에 있습니다. 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
+`src/main/resources/db/seed/`의 `R__seed_dev_department_member.sql`(부서·회원·역할)과 `R__seed_dev_it_system.sql`(시스템·기능)에 있습니다. 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
 
 - 부서 11개: IT 처리 부서 8개(`is_routable=true`) + 요청자 소속 부서 3개(영업팀·인사팀·경영지원팀)
 - 회원 20명, **모든 계정 비밀번호 `hops1234!`**
@@ -121,6 +121,16 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 | `opsadmin` | 20260004 | 경영지원팀 | `AGENT_OPS_ADMIN` | 에이전트 운영 관리자 |
 | `20260020` | 20260020 | 경영지원팀 | `BIZ_ADMIN`, `AGENT_OPS_ADMIN` | 역할 두 개 확인용 |
 | `20260005`~`20260019` (15명) | 로그인 ID와 같음 | 처리 부서별 담당자·일반 직원 | 없음 | 부서별 테스트 |
+
+시스템 3개와 기능 10개의 ID는 [데이터 저장 계약 2절](../../../docs/DATA.md#2-고정-카탈로그) 값과 같습니다(프론트 Mock·AI 테스트와 같은 ID). 기능 코드는 DATA.md에 없어 seed 파일에서 정했습니다.
+
+| 시스템 | 코드 | 기능 | 주담당자 |
+|---|---|---|---|
+| 전자결재 | `ELECTRONIC_APPROVAL` | 문서 작성·문서 조회·결재 상태·첨부 열람 | `network` |
+| 공통 로그인 | `COMMON_LOGIN` | 로그인·SSO·계정 접근·권한 신청 | `network` |
+| 파일 공유 | `FILE_SHARING` | 파일 열람·파일 공유·접근 권한 | `20260010` |
+
+- `network`로 로그인하면 `primarySystemIds`에 시스템 2개가 담깁니다(담당자 화면 확인용).
 
 - 이 계정으로 `POST /api/v2/auth/login`에 로그인할 수 있습니다(아래 [인증](#인증)). DB에서 직접 보려면:
   ```bash
