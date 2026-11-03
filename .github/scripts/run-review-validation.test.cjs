@@ -7,9 +7,17 @@ const { selectAreas, validate } = require('./run-review-validation.cjs');
 
 test('계약 변경은 세 소비자 영역을 검증하고 문서만 바뀌면 실행 검사를 추가하지 않는다', () => {
   assert.deepEqual(selectAreas(['contracts/agents/input.json']),
-    { ci: false, frontend: true, ai: true, backend: true });
+    { ci: false, compose: false, frontend: true, ai: true, backend: true });
   assert.deepEqual(selectAreas(['docs/PRD.md']),
-    { ci: false, frontend: false, ai: false, backend: false });
+    { ci: false, compose: false, frontend: false, ai: false, backend: false });
+});
+
+test('Compose·서비스 환경변수 예시 변경은 실제 Compose 설정 검사를 선택한다', () => {
+  for (const file of ['compose.yaml', '.env.example', 'frontend/.env.example',
+    'backend/spring/hops/.env.example', 'ai/.env.example', 'infra/postgres/.env.example',
+    'scripts/compose-env.test.cjs']) {
+    assert.equal(selectAreas([file]).compose, true, file);
+  }
 });
 
 test('설치 실패는 후속 검사를 skip하고 다른 변경 영역 검증을 계속한다', () => {

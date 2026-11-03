@@ -6,17 +6,17 @@
 
 ## 1. 실행 환경
 
-Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 Compose는 프론트 단독 실행용이다.
+Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 프론트 단독 실행도 루트 Compose의 서비스 선택으로 관리하며 별도 `frontend/compose.yaml`은 두지 않는다.
 
 Docker Engine과 Docker Compose **2.20 이상**을 준비한다. Windows/macOS는 Docker Desktop을 실행하고 Windows는 Linux 컨테이너 모드를 사용한다. 최초 실행은 이미지·npm 패키지를 내려받을 네트워크가 필요하다. 저장소의 `frontend/`와 `specs/`가 함께 있어야 한다.
 
-Docker 초기 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)에 따라 루트 `.env.example`을 `.env`로 한 번만 복사한다. 이후 프론트 설정도 같은 루트 `.env`에 입력한다. 아래 Docker 명령은 모두 **저장소 루트에서** 실행한다.
+프론트 설정은 이 폴더의 [.env.example](.env.example)을 `frontend/.env`로 복사해 관리한다. 기존 개인 파일은 덮어쓰지 않는다. 루트 `.env.example`은 선택적인 공개 포트 설정만 담는다. Docker를 실행할 때는 [루트 실행 안내](../README.md#docker-compose로-실행)대로 서비스별 `.env` 네 개를 먼저 준비한다. 아래 Docker 명령은 모두 **저장소 루트에서** 실행한다.
 
 ## 2. 실행 모드와 .env
 
 ### 서버 없이 Mock으로 실행
 
-루트 `.env`의 `VITE_DATA_MODE`를 `mock`으로 바꾼다. 루트 예시의 기본값은 `live`다. **한 계정으로 전체 화면을 체험하려면 아래 두 값만 직접 채운다.**
+`frontend/.env`의 `VITE_DATA_MODE`를 `mock`으로 바꾼다. 예시의 기본값은 `live`다. **한 계정으로 전체 화면을 체험하려면 아래 두 값만 직접 채운다.**
 
 - `VITE_MOCK_PREVIEW_ID`: 한 계정 체험용 아이디.
 - `VITE_MOCK_PASSWORD`: 체험용 가상 비밀번호.
@@ -36,17 +36,16 @@ Docker 초기 설정은 [루트 실행 안내](../README.md#docker-compose로-�
 
 ### 팀원 서버와 실제로 연동
 
-`.env`에서 다음 항목을 설정한다. 아래는 같은 PC에서 서버를 실행하는 예시이며 각 담당자가 실행한 주소로 바꾼다.
+`frontend/.env`에서 다음 항목을 설정한다. 아래는 같은 PC에서 서버를 실행하는 예시이며 각 담당자가 실행한 주소로 바꾼다.
 
 ```dotenv
 VITE_DATA_MODE=live
 VITE_API_BASE_URL=http://localhost:8080
-FRONTEND_PORT=5173
 ```
 
 - `VITE_API_BASE_URL`은 브라우저에서 접근 가능한 Spring origin이다. `/api`나 SSE 쿼리·인증 정보를 값에 붙이지 않는다. REST와 `/api/realtime/events` SSE가 같은 origin을 사용한다.
 - 프론트가 Docker에서 실행돼도 요청은 사용자의 브라우저에서 나간다. 같은 PC의 서버에는 `localhost`, 다른 팀원 PC에는 접근 가능한 IP/도메인을 사용한다. Docker 서비스 이름은 브라우저에서 일반적으로 해석되지 않는다.
-- `VITE_MOCK_*`는 live에서 사용하지 않는다. 실제 서버 계정은 로그인 화면에 입력한다. `VITE_*`에는 실제 계정·비밀번호·JWT·서버 비밀키를 적지 않는다. 루트 `.env`의 DB 비밀번호와 JWT 비밀키는 서버 컨테이너에만 전달한다.
+- `VITE_MOCK_*`는 live에서 사용하지 않는다. 실제 서버 계정은 로그인 화면에 입력한다. `VITE_*`에는 실제 계정·비밀번호·JWT·서버 비밀키를 적지 않는다. DB·JWT 비밀값은 해당 서버의 `.env`에서 관리하고 프론트에 전달하지 않는다.
 - 서버 주소가 없거나 잘못되면 설정 오류를 안내한다. 통신 실패를 Mock 데이터로 대체하지 않는다. 모드는 실행 중 바꾸지 않고 변경 후 서버/컨테이너를 재시작한다.
 - Access Token은 메모리에 보관하고 REST와 fetch 기반 SSE의 Bearer 헤더로 전달한다. 만료 시 `POST /api/auth/refresh`를 한 번 공유해 갱신하고 SSE를 새 토큰으로 다시 연다. Refresh Token 무효·부서/역할 변경은 입력을 보존한 재로그인으로 처리한다. 일반 403은 권한 안내다. 갱신 네트워크 장애는 인증 만료로 단정하지 않는다. 새로고침 시 자동 로그인 복원은 제공하지 않으며 live 저장 데이터는 서버가 관리한다.
 - 로그인·refresh·로그아웃 요청은 `credentials: include`를 사용한다. Spring은 HttpOnly Refresh 쿠키 발급/회전/삭제와 허용 Origin·CSRF 검증, 정확한 CORS origin 및 Allow-Credentials를 구현해야 한다. 업무 REST는 쿠키 없이 Bearer를 사용한다. HTTPS Secure·SameSite 정책 등 서버 설정은 [추가 계약](../specs/contracts/WIRE_CONTRACT.md#10-인증재접속최신-대화분석-재시도-추가-프로필)을 함께 검토한다. 프론트의 호출 구현만으로 실제 쿠키 인증 검증 완료를 뜻하지 않는다.
@@ -54,17 +53,17 @@ FRONTEND_PORT=5173
 ## 3. Docker 실행·종료
 
 ```sh
-docker compose --env-file .env -f frontend/compose.yaml up --build -d
-docker compose --env-file .env -f frontend/compose.yaml ps
-docker compose --env-file .env -f frontend/compose.yaml logs -f frontend
-docker compose --env-file .env -f frontend/compose.yaml down
+docker compose up --build --no-deps -d frontend
+docker compose ps frontend
+docker compose logs -f frontend
+docker compose stop frontend
 ```
 
-기본 주소는 **http://127.0.0.1:5173/** 이다. 포트가 사용 중이면 `.env`의 `FRONTEND_PORT`를 바꾼다. 포트는 로컬 PC에만 바인딩한다. 로그 확인은 `Ctrl+C`, 서버 종료는 `down`이다.
+기본 주소는 **http://127.0.0.1:5173/** 이다. 포트가 사용 중이면 루트 `.env`의 `FRONTEND_PORT`와 백엔드 `.env`의 CORS Origin을 맞춘다. `BACKEND_PORT` 변경 시 프론트의 `VITE_API_BASE_URL`도 맞춘다. 포트는 로컬 PC에만 바인딩한다. 로그 확인은 `Ctrl+C`, 프론트만 종료할 때는 `stop frontend`를 사용한다.
 
-루트 `.env`만 바꿨다면 위 `up` 명령에서 `--build`를 생략할 수 있다. 이 이미지는 프론트 Vite 개발 서버만 실행한다. 전체 서비스는 루트 Compose로 실행한다.
+`.env`만 바꿨다면 위 `up` 명령에서 `--build`를 생략할 수 있다. `--no-deps`로 실행하면 백엔드·DB·AI를 기동하지 않는다. 전체 서비스 실행은 루트 안내를 따른다.
 
-Node.js **24.22.0**을 PC에 설치했다면 `frontend/`에서 직접 실행할 수도 있다. 이 방식은 Docker의 루트 `.env`를 자동으로 읽지 않으므로 필요한 `VITE_*` 프로세스 환경변수를 설정한다.
+Node.js **24.22.0**을 PC에 설치했다면 `frontend/`에서 직접 실행할 수도 있다. 이 경우 `frontend/.env`만 준비하면 Vite가 자동으로 읽는다. 프로세스 환경변수·모드별 파일·개인 `.env.local` 등의 우선순위도 적용된다. 루트 `.env`는 앱 설정으로 읽지 않는다.
 
 ```sh
 npm ci
@@ -108,8 +107,8 @@ Mock에서는 직접 정한 가상 로그인 값을 사용한다. `VPN 연결이
 ## 6. 자동 검사
 
 ```sh
-docker compose --env-file .env -f frontend/compose.yaml run --rm --no-deps frontend npm run check
-docker compose --env-file .env -f frontend/compose.yaml run --rm --no-deps frontend npm run build
+docker compose run --rm --no-deps frontend npm run check
+docker compose run --rm --no-deps frontend npm run build
 ```
 
 `check`는 타입·린트·포맷·Vitest 검사다. 목표 테스트는 Mock·화면 테스트와 임시 HTTP/SSE 서버를 실제로 띄우는 어댑터 통신 테스트를 포함한다. HTTP/SSE 대역 서버 테스트는 Bearer·대상별 연결·중복·Last-Event-ID·PR #59의 replay 미지원 종료·REST 복구·제어 이벤트를 검사한다. 개인 `.env`나 팀원 서버·실제 계정 없이 실행한다.

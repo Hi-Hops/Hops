@@ -2,6 +2,10 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../../../README.md#docker-compose로-실행)를 따릅니다. 아래 직접 설치 절차는 PC에서 Spring을 실행할 때 사용합니다.
 
+Docker의 백엔드 설정은 이 폴더의 [.env.example](.env.example)을 `.env`로 복사해 관리합니다. DB 이름·사용자·비밀번호는 `infra/postgres/.env`와 맞춥니다. 기존 개인 파일은 덮어쓰지 않습니다. Compose의 `env_file`이 이 파일을 백엔드에만 주입하며 루트 `.env`는 공개 포트 설정만 담당합니다. `FRONTEND_PORT`를 바꾸면 이 파일의 CORS Origin도 맞춥니다.
+
+Gradle·IntelliJ 직접 실행은 `.env`를 자동으로 읽지 않습니다. 아래 기존 로컬 properties 방식을 사용하거나 IDE의 환경변수 파일 기능으로 이 파일을 명시적으로 로딩합니다. 직접 실행용 값은 PostgreSQL·Redis·AI 주소를 `localhost`와 각 호스트 포트로 바꾸고, Docker로 다시 실행할 때는 예시의 컨테이너 주소로 되돌립니다. 환경변수는 로컬 properties보다 우선합니다.
+
 > **PRD 1.44 전환:** 아래 부서·시드·SSE·API 내용은 현재 구현 설명이다. 새 목표의 시스템별 주담당자 배정·처리·확인·사례 승인·검색 반영은 이 문서 변경으로 구현되지 않았다. [PRD](../../../docs/PRD.md), [API](../../../docs/API.md), [데이터](../../../docs/DATA.md)를 기준으로 별도 계약·migration·구현이 필요하다.
 
 Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에서는 해당 디렉터리를 Gradle 프로젝트로 엽니다. 빌드·테스트·실행 명령은 이 디렉터리에서 실행합니다.
@@ -199,7 +203,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 - **`/me`는 토큰이 아니라 DB를 다시 읽습니다.** 토큰 발급 뒤 역할 회수·부서 변경·계정 차단이 있었을 수 있기 때문입니다.
 - 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD](../../../docs/ERD.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
-- **Refresh 쿠키:** `HttpOnly`, `SameSite=Lax`, `Path=/api/v2/auth`. `Secure`는 요청이 아니라 설정 `hops.auth.refresh-cookie.secure`로 정합니다(로컬 `false`, 설정이 없으면 `true`). 설정 파일 기본값에는 넣지 않으므로 공용·운영(HTTPS) 서버는 따로 설정하지 않으면 `Secure`입니다. 로컬은 `application-db.local.properties`(아래 "pull 받은 뒤 할 일"), Docker는 루트 `.env`의 `HOPS_AUTH_REFRESHCOOKIE_SECURE=false`로 끕니다. 원문은 JSON에 넣지 않고 Redis에는 SHA-256 해시만 키로 둡니다. 갱신할 때마다 새 값으로 바꾸고(이전 값은 즉시 폐기), 만료는 최초 로그인부터 7일로 늘어나지 않습니다.
+- **Refresh 쿠키:** `HttpOnly`, `SameSite=Lax`, `Path=/api/v2/auth`. `Secure`는 요청이 아니라 설정 `hops.auth.refresh-cookie.secure`로 정합니다(로컬 `false`, 설정이 없으면 `true`). 설정 파일 기본값에는 넣지 않으므로 공용·운영(HTTPS) 서버는 따로 설정하지 않으면 `Secure`입니다. 로컬은 `application-db.local.properties`(아래 "pull 받은 뒤 할 일"), Docker는 이 폴더의 `.env`에서 `HOPS_AUTH_REFRESHCOOKIE_SECURE=false`로 끕니다. 원문은 JSON에 넣지 않고 Redis에는 SHA-256 해시만 키로 둡니다. 갱신할 때마다 새 값으로 바꾸고(이전 값은 즉시 폐기), 만료는 최초 로그인부터 7일로 늘어나지 않습니다.
 - **재사용 검출:** 회전으로 이미 쓴 Refresh가 10초 안에 다시 오면 탭 두 개의 동시 갱신 경합으로 보고 그 요청만 401입니다. 10초가 지나서 오면 탈취로 보고 그 로그인 세션 전체를 폐기합니다(정상 사용자도 재로그인).
 - **갱신 순서:** 회원을 DB에서 먼저 확인하고 Refresh 회전은 마지막에 합니다. DB가 일시 실패해도 같은 쿠키로 다시 갱신할 수 있습니다. 삭제·차단된 회원은 그 세션을 끝내고 401 `REFRESH_TOKEN_REVOKED`입니다.
 - **로그아웃:** 그 쿠키의 로그인 세션만 끝냅니다(다른 기기 로그인은 유지). 세션 저장소 장애 중에도 쿠키 삭제는 내려보냅니다. 이미 발급한 Access는 최대 15분 남지만 프론트가 메모리에서 버립니다.

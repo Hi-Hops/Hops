@@ -35,17 +35,38 @@ def test_invalid_or_retired_configuration_is_rejected(make_settings, overrides) 
         make_settings(**overrides)
 
 
-def test_env_example_contains_only_current_defaults(monkeypatch, make_settings) -> None:
-    known = {f"HOPS_AI_{name.upper()}" for name in Settings.model_fields}
+def test_env_example_contains_only_current_defaults(make_settings) -> None:
     defaults = make_settings().model_dump()
     example = Path(__file__).resolve().parents[2] / ".env.example"
-    for line in example.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            name, value = line.split("=", 1)
-            assert name in known
-            monkeypatch.setenv(name, value)
-    assert make_settings().model_dump() == defaults
+    # 실제 dotenv 로딩을 검사한다. 프로세스 env만 설정하면 extra=forbid 문제를 놓친다.
+    assert Settings(_env_file=example).model_dump() == defaults
+
+
+def test_service_env_loads_optional_keys_without_exposing_secrets(tmp_path, monkeypatch) -> None:
+    example = Path(__file__).resolve().parents[2] / ".env.example"
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        example.read_text(encoding="utf-8")
+        .replace("OPENAI_API_KEY=", "OPENAI_API_KEY=synthetic-openai-key")
+        .replace("LANGFUSE_SECRET_KEY=", "LANGFUSE_SECRET_KEY=synthetic-langfuse-key")
+        .replace("HOPS_AI_MAX_LLM_CALLS=8", "HOPS_AI_MAX_LLM_CALLS=3"),
+        encoding="utf-8",
+    )
+    settings = Settings(_env_file=env_file)
+    assert settings.max_llm_calls == 3
+    assert settings.openai_api_key.get_secret_value() == "synthetic-openai-key"
+    assert settings.langfuse_secret_key.get_secret_value() == "synthetic-langfuse-key"
+    assert "synthetic-openai-key" not in repr(settings)
+    assert "synthetic-langfuse-key" not in repr(settings)
+    monkeypatch.setenv("HOPS_AI_MAX_LLM_CALLS", "4")
+    assert Settings(_env_file=env_file).max_llm_calls == 4
+
+
+def test_service_env_still_rejects_unknown_settings(tmp_path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("HOPS_AI_MDOE=scaffold\n", encoding="utf-8")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=env_file)
 
 
 # 가상 값만 사용한다. 실제 토큰·DB 접속 정보를 테스트에 넣지 않는다.

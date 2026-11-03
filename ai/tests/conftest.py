@@ -13,7 +13,10 @@ from hops_ai.settings import Settings
 @pytest.fixture(autouse=True)
 def _isolate_hops_ai_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in list(os.environ):
-        if name.startswith("HOPS_AI_") or name == "AI_SERVICE_TOKEN":
+        if name.startswith(("HOPS_AI_", "LANGFUSE_")) or name in {
+            "AI_SERVICE_TOKEN",
+            "OPENAI_API_KEY",
+        }:
             monkeypatch.delenv(name)
 
 

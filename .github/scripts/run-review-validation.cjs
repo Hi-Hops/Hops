@@ -6,6 +6,8 @@ function selectAreas(files) {
   const contracts = files.some(file => /^(contracts|specs\/contracts)\//.test(file));
   return {
     ci: files.some(file => /^(\.github|\.agents)\//.test(file)),
+    compose: files.some(file => /^(compose\.yaml|\.env\.example|scripts\/compose-env\.test\.cjs)$/.test(file)
+      || /^(frontend|ai|backend\/spring\/hops|infra\/postgres)\/\.env\.example$/.test(file)),
     frontend: contracts || files.some(file => file.startsWith('frontend/')),
     ai: contracts || files.some(file => file.startsWith('ai/')),
     backend: contracts || files.some(file => file.startsWith('backend/')),
@@ -47,6 +49,7 @@ function validate({ root, files, baseSha, headSha, output, run = execute }) {
     if (tests.length) check('CI 스크립트 회귀 테스트', 'node', ['--test', ...tests]);
     check('Actions 문법·표현식 검사', 'actionlint', ['-shellcheck=']);
   }
+  if (areas.compose) check('Compose 환경변수 분리 검사', 'node', ['--test', 'scripts/compose-env.test.cjs']);
   if (areas.frontend) {
     const installed = check('frontend 의존성 설치', 'npm', ['ci', '--ignore-scripts'], 'frontend');
     for (const task of ['typecheck', 'lint', 'format:check', 'test', 'build']) {
