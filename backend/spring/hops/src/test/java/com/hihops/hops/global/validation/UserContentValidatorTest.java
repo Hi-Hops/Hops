@@ -44,6 +44,12 @@ class UserContentValidatorTest {
     }
 
     @Test
+    void DB에_저장할_수_없는_NUL은_거부한다() {
+        assertThat(valid("a\u0000b")).isFalse();
+        assertThat(valid("\u0000")).isFalse();
+    }
+
+    @Test
     void null은_NotNull이_맡도록_통과시킨다() {
         assertThat(valid(null)).isTrue();
     }

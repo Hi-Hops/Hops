@@ -276,8 +276,8 @@ class InquiryCreateControllerTest {
 
     @Test
     void 잘못된_입력은_400이고_아무것도_저장하지_않는다() throws Exception {
-        // 공백만(전각 공백·줄바꿈 포함), 4,001자
-        for (String content : List.of("　 \n\t﻿", "가".repeat(4001))) {
+        // 공백만(전각 공백·줄바꿈 포함), 4,001자, PostgreSQL TEXT에 저장할 수 없는 NUL
+        for (String content : List.of("　 \n\t﻿", "가".repeat(4001), "a\u0000b")) {
             create(memberId, UUID.randomUUID(), content, null)
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
