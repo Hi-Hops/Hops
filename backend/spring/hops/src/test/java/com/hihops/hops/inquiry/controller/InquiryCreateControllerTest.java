@@ -40,6 +40,9 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>문의 생성은 멱등 처리 때문에 트랜잭션 밖에서 실행되고 실제로 commit한다. 그래서 {@code @Transactional}로 되돌리지 않고
  * 넣은 행을 {@link #cleanup()}에서 지운다. 테스트 DB에는 다른 시스템 행이 있을 수 있어 시스템 목록은 포함 여부만 본다.
+ *
+ * <p>시스템 코드는 계약 코드(SystemCode)만 응답할 수 있다. 다른 테스트가 트랜잭션 안에서 넣는
+ * ELECTRONIC_APPROVAL·FILE_SHARING과 겹치지 않도록 COMMON_LOGIN을 쓴다(code는 유일 값).
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -78,8 +81,8 @@ class InquiryCreateControllerTest {
             jdbc.update("INSERT INTO member (id, login_id, employee_no, password_hash, name, department_id) "
                     + "VALUES (?, ?, ?, 'unused-test-hash', '문의 생성 테스트 회원', ?)", id, id.toString(), id.toString(), departmentId);
         }
-        jdbc.update("INSERT INTO it_system (id, code, name, primary_owner_member_id) VALUES (?, ?, '테스트 결재', ?)",
-                systemId, "TEST_" + suffix, otherMemberId);
+        jdbc.update("INSERT INTO it_system (id, code, name, primary_owner_member_id) VALUES (?, 'COMMON_LOGIN', '테스트 로그인', ?)",
+                systemId, otherMemberId);
         jdbc.update("INSERT INTO system_feature (id, it_system_id, code, name) VALUES (?, ?, ?, '문서 조회')",
                 featureId, systemId, "TEST_FEATURE_" + suffix);
     }
