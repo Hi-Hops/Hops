@@ -70,6 +70,7 @@ class DemoSeedIntegrationTest {
     private void executeSql(String path) throws Exception {
         String sql = new ClassPathResource(path).getContentAsString(StandardCharsets.UTF_8);
         // 테스트의 트랜잭션으로 묶어 각 seed와 함께 롤백한다.
-        jdbcTemplate.execute(sql.replace("\nBEGIN;\n", "\n").replace("\nCOMMIT;\n", "\n"));
+        jdbcTemplate.execute(sql.replace("\r\n", "\n")
+                .replace("\nBEGIN;\n", "\n").replace("\nCOMMIT;\n", "\n"));
     }
 }
