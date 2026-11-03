@@ -15,7 +15,7 @@ from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import InputMessage, Intent, SupportedSystem
 
-PROMPT_VERSION = "inquiry-extraction-v1"
+PROMPT_VERSION = "inquiry-extraction-v2"
 MAX_PROBLEMS = 3
 MAX_OUTPUT_TOKENS = 1200
 
@@ -41,7 +41,18 @@ SYSTEM_PROMPT = """\
 1. 사용자(USER) 메시지에 실제로 있는 내용만 추출한다. 각 필드는 그 메시지에서 해당 내용을
    말한 구절을 한 글자도 바꾸지 말고 quote에 그대로 옮기고, 그 메시지의 messageId를
    함께 적는다. 근거가 없으면 null이다.
+   quote는 원문에서 이어진 한 구절이어야 한다. 떨어져 있는 문장을 이어 붙이거나 줄이지 않는다.
+   근거가 여러 곳이면 가장 핵심인 한 구절만 옮긴다.
    추정, 요약, 번역, 보충은 하지 않는다. AI 메시지는 근거로 쓰지 않는다.
+   필드의 뜻
+   - taskOrScreen: 사용자가 하려던 업무, 또는 사용 중인 화면·기능
+   - currentWorkflow: 지금 그 일을 진행하는 방식
+   - expectedBehavior: 원래 기대한 동작
+   - actualBehavior: 실제로 일어난 일(오류 문구 포함)
+   - occurredAt: 언제부터, 또는 언제 그랬는지
+   - requestedAccess: 필요하다고 한 기능이나 권한
+   - businessPurpose: 그것이 필요한 업무 목적
+   - desiredChange: 바라는 변경이나 결과
 2. 서로 다른 요청이 섞여 있으면 문제를 나눈다(최대 3개).
    한 가지 증상의 여러 원인 후보를 문제로 나누지 않는다.
 3. intent 정의
