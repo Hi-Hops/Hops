@@ -13,16 +13,17 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.method.ParameterErrors;
 import org.springframework.validation.method.ParameterValidationResult;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -30,6 +31,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 import com.hihops.hops.global.exception.ErrorResponse.FieldErrorResponse;
 import com.hihops.hops.global.filter.RequestIdFilter;
+import com.hihops.hops.ticket.domain.Ticket;
 
 /**
  * 어디서 예외가 나든 받아서 공통 오류 응답({@link ErrorResponse})으로 바꾸는 곳.
@@ -72,6 +74,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     // DB 연결·일시 조회 장애는 빈 성공이나 인증 실패가 아니다. 접속 정보·SQL을 응답과 로그에 넣지 않는다.
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleVersionConflict(ObjectOptimisticLockingFailureException exception) {
+        return toResponse(Ticket.class.getName().equals(exception.getPersistentClassName())
+                ? ErrorCode.TICKET_REVISION_CONFLICT : ErrorCode.CONFLICT);
+    }
+
     @ExceptionHandler({DataAccessResourceFailureException.class, TransientDataAccessException.class,
             CannotCreateTransactionException.class})
     public ResponseEntity<ErrorResponse> handleDatabaseUnavailable(Exception exception) {

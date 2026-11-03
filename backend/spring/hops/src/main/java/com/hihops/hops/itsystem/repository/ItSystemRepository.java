@@ -5,12 +5,18 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import com.hihops.hops.itsystem.domain.ItSystem;
 
+import jakarta.persistence.LockModeType;
+
 /** it_system 테이블 저장·조회. 기본 save·findById는 JpaRepository가 제공한다. */
 public interface ItSystemRepository extends JpaRepository<ItSystem, UUID> {
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("SELECT s FROM ItSystem s WHERE s.id=:id AND s.deletedAt IS NULL")
+    Optional<ItSystem> findForRead(UUID id);
 
     /**
      * 이 회원이 주담당자인 시스템 ID (CurrentUser.primarySystemIds). 삭제된 시스템은 뺀다.
