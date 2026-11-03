@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
@@ -199,10 +199,11 @@ function RequestContent({ ticket }: RequestContentProps) {
     </div>
   );
 }
-type SystemTicketDetailProps = { id: string; onClose?: () => void };
-export function SystemTicketDetail({ id, onClose }: SystemTicketDetailProps) {
+type SystemTicketDetailProps = { id: string; onClose: () => void; returnFocusId?: string };
+export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketDetailProps) {
   const user = useSession((s) => s.user);
   const location = useLocation();
+  const navigationState: unknown = location.state;
   const [search] = useSearchParams();
   const admin = location.pathname.startsWith('/admin/');
   const tab = admin ? 'request' : (search.get('tab') ?? 'request');
@@ -219,10 +220,6 @@ export function SystemTicketDetail({ id, onClose }: SystemTicketDetailProps) {
     refetchInterval: 5000,
   });
   const [correction, setCorrection] = useState<'assignment' | 'processing' | null>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => {
-    if (query.isSuccess && !onClose) titleRef.current?.focus();
-  }, [query.isSuccess, id, onClose]);
   const data = query.data;
   const back = new URLSearchParams(search);
   back.delete('tab');
@@ -276,6 +273,8 @@ export function SystemTicketDetail({ id, onClose }: SystemTicketDetailProps) {
                   key={value}
                   aria-current={tab === value ? 'page' : undefined}
                   to={linkFor(value ?? 'request')}
+                  replace
+                  state={navigationState}
                 >
                   {label}
                 </Link>
@@ -411,39 +410,16 @@ export function SystemTicketDetail({ id, onClose }: SystemTicketDetailProps) {
         </>
       )
     );
-  return onClose ? (
+  return (
     <RouteModal
       title={heading}
       description={admin ? '업무 관리자 · 제한된 상세' : '표준 요청·근거·배정 정보'}
       onClose={onClose}
-      returnFocusId={'ticket-' + id}
+      returnFocusId={returnFocusId ?? 'ticket-' + id}
       padded={false}
       footer={null}
     >
       {content}
     </RouteModal>
-  ) : (
-    <main className={styles.page}>
-      <header className={styles.pageHead}>
-        <div>
-          <h1 ref={titleRef} tabIndex={-1}>
-            {heading}
-          </h1>
-          <p>
-            {tab === 'work'
-              ? '기록 저장 후 문의자에게 해결 확인을 요청해요.'
-              : '저장된 업무 정보를 확인하세요.'}
-          </p>
-        </div>
-        <Link
-          className={styles.detailLink}
-          to={{ pathname: base + '/' + id, search: back.toString() }}
-        >
-          요청·대화 보기
-        </Link>
-        <Link to={{ pathname: base, search: back.toString() }}>목록으로</Link>
-      </header>
-      {content}
-    </main>
   );
 }

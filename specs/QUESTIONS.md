@@ -22,7 +22,7 @@
 | C05 | 검증 완료 WorkRecord별 PENDING 확인 요청 하나. 해결·미해결은 문제별 한 번, 무응답 대기·미해결 같은 티켓 계속 | [F006](F006-my-inquiries/spec.md)·[F009](F009-department-tickets/spec.md) |
 | C06 | 현재 초안 편집·승인 후 읽기 전용. 승인과 함께 기존 문서 버전의 indexRequests를 보존하고 미전달은 같은 키로 수동 재접수. FAILED에서만 새 attempt, 현재 승인 버전의 양쪽 성공 전 비공개 | [F011](F011-case-lifecycle/spec.md)·[수동 복구](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구) |
 | C07 | AiRunRequest/Result/Event + IndexApplyRequest/Snapshot + KnowledgeAuthorizationRequest/Response, 서비스 Bearer 인증 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
-| C08 | 기존 frontend 구성·공통 토큰을 확장하고 기능 책임·상태 소유를 고정. 현재 구현은 티켓 상세 모달·독립 처리 입력·사례 최소 목록·채팅 안 해결 확인이며 배치는 ROUTES 참조 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[구조 결정](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
+| C08 | 기존 frontend 구성·공통 토큰을 확장하고 기능 책임·상태 소유를 고정. 현재 구현은 처리 입력을 포함한 티켓 상세 모달·사례 최소 목록·채팅 안 해결 확인이며 배치는 ROUTES 참조 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[구조 결정](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
 | C09 | workItemId=problemId, 생성 상태는 inquiry_problem, 티켓은 ticket.inquiry_problem_id UNIQUE. 현재 PRIMARY는 it_system의 FK, 당시 배정은 ticket_assignment 이력 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안) |
 | C10 | AI input 읽기 전용·State 단일 작성자·검증된 patch 병합, 종료 결과 불변. 외부 DTO의 필드·타입·조건을 Markdown 계약으로 정의 | [State 계약](../contracts/agents/README.md#내부-state와-wire-검증-계약) |
 | C11 | 상담 run당 최종 AI 메시지 하나. Spring 발급 answerMessageId를 입력·delta·최종 저장에 사용. answer가 채팅 본문 정본, questions/guide는 본문에 포함된 내용의 메타데이터. 답변·질문/가이드 상태 저장 뒤 공개 Run 성공·REST 본문으로 임시 답변 교체 | [채팅 송수신](contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)·[AI 답변 연결](../contracts/agents/README.md#상담-답변과-저장-메시지-연결) |

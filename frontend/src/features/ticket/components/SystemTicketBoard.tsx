@@ -23,6 +23,7 @@ function TicketLink({ ticket, base, search }: TicketLinkProps) {
       id={'ticket-' + ticket.id}
       className={styles.kanbanCard}
       to={{ pathname: base + '/' + encodeURIComponent(ticket.id), search }}
+      state={{ ticketModalOrigin: 'list' }}
     >
       <div className={styles.cardTop}>
         <span className={styles.ticketNumber}>{ticket.ticketNumber}</span>
@@ -296,6 +297,7 @@ export function SystemTicketBoard() {
                         <Link
                           id={'ticket-' + ticket.id}
                           to={{ pathname: base + '/' + ticket.id, search: linkSearch.toString() }}
+                          state={{ ticketModalOrigin: 'list' }}
                         >
                           <strong>{ticket.title}</strong>
                           <span className={styles.cardMeta}>
@@ -317,6 +319,7 @@ export function SystemTicketBoard() {
                         <Link
                           className={styles.detailLink}
                           to={{ pathname: base + '/' + ticket.id, search: linkSearch.toString() }}
+                          state={{ ticketModalOrigin: 'list' }}
                         >
                           상세보기
                         </Link>
