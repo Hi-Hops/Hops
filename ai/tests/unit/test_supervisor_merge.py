@@ -119,6 +119,51 @@ def test_new_problem_uses_temporary_ref() -> None:
     assert "new:download" in merge_inquiry_result(state, result)["problems"]
 
 
+def test_inquiry_cannot_replace_a_server_confirmed_reported_system() -> None:
+    """지원 시스템이라도 기존 보고 시스템을 다른 시스템으로 덮어쓸 수 없다."""
+    state = reserve(running_state(), AgentRole.INQUIRY, "i1")
+    before = deepcopy(state)
+    proposal = make_problem().model_copy(update={"reportedSystemCandidateId": OTHER_SYSTEM})
+
+    with pytest.raises(OutputRejected, match="보고 시스템"):
+        merge_inquiry_result(
+            state, InquiryResult(invocationId="i1", problems=[proposal], questions=[])
+        )
+
+    assert state == before
+    assert state["input"].problems[0].reportedSystemId == SYSTEM
+
+
+def test_inquiry_preserves_reported_system_when_proposal_omits_it() -> None:
+    """null 제안을 삭제나 정정으로 해석하지 않고 서버의 보고 시스템을 유지한다."""
+    state = running_state()
+    proposal = make_problem().model_copy(update={"reportedSystemCandidateId": None})
+    merged = merge_inquiry_result(
+        reserve(state, AgentRole.INQUIRY, "i1"),
+        InquiryResult(invocationId="i1", problems=[proposal], questions=[]),
+    )
+
+    assert merged["problems"][PROBLEM].reportedSystemCandidateId == SYSTEM
+    assert merged["input"].problems[0].reportedSystemId == SYSTEM
+    assert proposal.reportedSystemCandidateId is None
+
+
+@pytest.mark.parametrize("server_system", [None, OTHER_SYSTEM])
+def test_reported_system_can_be_identified_or_corrected_by_new_server_input(server_system) -> None:
+    """최초 식별과 서버가 이미 정정한 새 입력을 기존 값 변조와 구분한다."""
+    request = make_request()
+    original = request.problems[0].model_copy(update={"reportedSystemId": server_system})
+    state = running_state(request.model_copy(update={"problems": [original]}))
+    proposal = make_problem().model_copy(update={"reportedSystemCandidateId": OTHER_SYSTEM})
+    merged = merge_inquiry_result(
+        reserve(state, AgentRole.INQUIRY, "i1"),
+        InquiryResult(invocationId="i1", problems=[proposal], questions=[]),
+    )
+
+    assert merged["problems"][PROBLEM].reportedSystemCandidateId == OTHER_SYSTEM
+    assert merged["input"].problems[0].reportedSystemId == server_system
+
+
 def test_inquiry_preserves_server_facts_details_and_confirmed_criteria_on_omission() -> None:
     """모델의 빈 목록·null이 기존 확인 정보를 최종 결과에서 삭제하지 못한다."""
     request = make_request()
@@ -422,6 +467,40 @@ def test_invalid_ticket_references_are_rejected(reason) -> None:
         )
 
 
+@pytest.mark.parametrize("changed_system", [None, OTHER_SYSTEM])
+def test_ticket_cannot_use_a_changed_reported_system_to_skip_responsibility_evidence(
+    changed_system,
+) -> None:
+    """중간 State가 달라져도 기존 보고 시스템을 바꿔 책임 근거 검사를 우회하지 못한다."""
+    state = running_state()
+    state["problems"][PROBLEM] = make_problem().model_copy(
+        update={"reportedSystemCandidateId": changed_system}
+    )
+    state = reserve(state, AgentRole.TICKET, "t1")
+    before = deepcopy(state)
+    with pytest.raises(OutputRejected, match="보고 시스템"):
+        merge_ticket_result(
+            state, TicketResult(invocationId="t1", proposals=[make_ticket(system=OTHER_SYSTEM)])
+        )
+    assert state == before
+
+
+@pytest.mark.parametrize("has_evidence", [False, True])
+def test_different_responsible_system_still_requires_evidence(has_evidence) -> None:
+    """보고 시스템은 보존하되 근거가 있는 다른 책임 시스템 후보는 허용한다."""
+    state = reserve(running_state(), AgentRole.TICKET, "t1")
+    ticket = make_ticket(system=OTHER_SYSTEM)
+    if has_evidence:
+        ticket = ticket.model_copy(update={"evidenceIds": [MESSAGE]})
+        merged = merge_ticket_result(state, TicketResult(invocationId="t1", proposals=[ticket]))
+        result = finalize_result(merged)["finalResult"]
+        assert result.problemProposals[0].reportedSystemCandidateId == SYSTEM
+        assert result.ticketProposals[0].responsibleSystemCandidateId == OTHER_SYSTEM
+    else:
+        with pytest.raises(OutputRejected, match="다른 책임 시스템"):
+            merge_ticket_result(state, TicketResult(invocationId="t1", proposals=[ticket]))
+
+
 @pytest.mark.parametrize("processing_type", ["OUT_OF_SCOPE", "SERVICE_REQUEST"])
 def test_ticket_type_mismatch_is_rejected_before_state_merge(processing_type) -> None:
     """최종 DTO 검사까지 기다리지 않고 문제와 다른 유형의 티켓을 원자적으로 거부한다."""
@@ -582,3 +661,46 @@ def test_search_result_does_not_hide_errors_as_empty(state, evidence, error) -> 
     """검색 상태에 맞지 않는 근거·오류 조합을 거부한다."""
     with pytest.raises(ValidationError):
         SearchResult(state=state, evidence=evidence, error=error)
+
+
+@pytest.mark.parametrize("field", ["evidenceIds", "responsibilityEvidenceIds"])
+@pytest.mark.parametrize("linked_to_target", [False, True])
+def test_ticket_responsibility_message_must_belong_to_target_problem(
+    field, linked_to_target
+) -> None:
+    """책임 시스템 변경의 근거도 대상 문제의 메시지 연결을 따른다."""
+    from hops_ai.contracts.wire import AiRunRequest
+
+    payload = make_request().model_dump(mode="json")
+    other_problem, source_message = uid(800), uid(801)
+    payload["problems"].append(payload["problems"][0] | {"id": other_problem})
+    payload["messages"].append(
+        payload["messages"][0]
+        | {
+            "id": source_message,
+            "sequenceNo": 2,
+            "problemIds": [PROBLEM if linked_to_target else other_problem],
+            "content": "가상 책임 시스템 판단 근거",
+        }
+    )
+    state = reserve(running_state(AiRunRequest.model_validate(payload)), AgentRole.TICKET, "t1")
+    ticket = make_ticket(system=OTHER_SYSTEM)
+    if field == "evidenceIds":
+        ticket = ticket.model_copy(update={"evidenceIds": [source_message]})
+    else:
+        ticket = ticket.model_copy(
+            update={
+                "standardRequestSnapshot": ticket.standardRequestSnapshot.model_copy(
+                    update={"responsibilityEvidenceIds": [source_message]}
+                )
+            }
+        )
+    before = deepcopy(state)
+    result = TicketResult(invocationId="t1", proposals=[ticket])
+    if linked_to_target:
+        merged = merge_ticket_result(state, result)
+        assert merged["ticketProposals"][PROBLEM] == ticket
+    else:
+        with pytest.raises(OutputRejected, match="대상 문제"):
+            merge_ticket_result(state, result)
+    assert state == before

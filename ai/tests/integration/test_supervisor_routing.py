@@ -21,6 +21,7 @@ from hops_ai.supervisor.execution import RoleResponse
 from hops_ai.supervisor.graph import Supervisor
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
+    OTHER_SYSTEM,
     PROBLEM,
     authorize,
     make_evidence,
@@ -222,3 +223,103 @@ async def test_rewritten_excerpt_cannot_reach_a_successful_final_result() -> Non
     assert result.answer is result.guide is None
     assert result.evidence == []
     assert "REWRITTEN_EVIDENCE_SENTINEL" not in result.model_dump_json()
+
+
+async def test_reported_system_cannot_be_changed_to_skip_responsibility_evidence() -> None:
+    """보고 시스템을 바꿔 책임 시스템의 근거 검사를 우회할 수 없다."""
+
+    class SwitchingInquiry:
+        role = AgentRole.INQUIRY
+
+        async def run(self, request, services):
+            return InquiryResult(
+                invocationId=request.invocation_id,
+                problems=[
+                    make_problem().model_copy(update={"reportedSystemCandidateId": OTHER_SYSTEM})
+                ],
+                questions=[],
+            )
+
+    class UnjustifiedTicket:
+        role = AgentRole.TICKET
+        calls = 0
+
+        async def run(self, request, services):
+            self.calls += 1
+            return TicketResult(
+                invocationId=request.invocation_id,
+                proposals=[make_ticket(system=OTHER_SYSTEM)],
+            )
+
+    request = make_request()
+    original = request.model_copy(deep=True)
+    ticket = UnjustifiedTicket()
+    result = await run_scenario(
+        request,
+        {AgentRole.INQUIRY: SwitchingInquiry(), AgentRole.TICKET: ticket},
+        choice("CALL_ROLE", AgentRole.INQUIRY),
+        choice("CALL_ROLE", AgentRole.TICKET),
+        choice("PROPOSE_TICKETS"),
+    )
+
+    assert result.status == "FAILED"
+    assert result.error.code == "INVALID_OUTPUT"
+    assert result.answer is None and result.ticketProposals == []
+    assert ticket.calls == 0
+    assert request == original
+
+
+@pytest.mark.parametrize("role", [AgentRole.INQUIRY, AgentRole.TICKET])
+async def test_another_problems_message_cannot_reach_final_facts_or_ticket(role) -> None:
+    """원문이 같은 문의 안에 있어도 다른 기존 문제의 사실·티켓 출처로 복사하지 않는다."""
+    fields = make_request().model_dump(mode="json")
+    second_problem, second_message = uid(800), uid(801)
+    fields["problemIds"] = [second_problem]
+    fields["problems"].append(
+        fields["problems"][0] | {"id": second_problem, "summary": "두 번째 문제"}
+    )
+    fields["messages"].append(
+        fields["messages"][0]
+        | {
+            "id": second_message,
+            "sequenceNo": 2,
+            "problemIds": [second_problem],
+            "content": "두 번째 문제의 원문",
+        }
+    )
+    request = AiRunRequest.model_validate(fields)
+    original = request.model_copy(deep=True)
+
+    class CrossProblemAgent:
+        async def run(self, request, services):
+            if self.role == AgentRole.INQUIRY:
+                return InquiryResult(
+                    invocationId=request.invocation_id,
+                    problems=[make_problem(second_problem)],
+                    questions=[
+                        QuestionProposal(
+                            problemRef=second_problem,
+                            bundleRef="second-question",
+                            text="두 번째 문제의 화면을 알려 주세요.",
+                            requestedFields=["taskOrScreen"],
+                        )
+                    ],
+                )
+            return TicketResult(
+                invocationId=request.invocation_id, proposals=[make_ticket(second_problem)]
+            )
+
+    agent = CrossProblemAgent()
+    agent.role = role
+    result = await run_scenario(
+        request,
+        {role: agent},
+        choice("CALL_ROLE", role),
+        choice("ASK_USER" if role == AgentRole.INQUIRY else "PROPOSE_TICKETS"),
+    )
+
+    assert result.status == "FAILED"
+    assert result.error.code == "INVALID_OUTPUT"
+    assert result.answer is None
+    assert result.problemProposals == result.questions == result.ticketProposals == []
+    assert request == original

@@ -26,6 +26,7 @@ from hops_ai.supervisor.policy import validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
     ensure_active,
+    get_problem_message_ids,
     validate_details,
     validate_evidence_scope,
     validate_problem_ref,
@@ -79,7 +80,11 @@ def validate_guide(state: SupervisorState, guide: GuideProposal) -> None:
 
 
 def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
-    """티켓 대상·기존 저장 결과·책임 시스템·표준 요청의 출처를 대조한다."""
+    """티켓 대상·보고/책임 시스템·기존 저장 결과·표준 요청의 출처를 대조한다.
+
+    서버가 확인한 보고 시스템은 고정한다. 내부 상태가 달라졌어도 그 값을
+    책임 시스템의 무근거 변경에 이용할 수 없으며, 정정은 다음 서버 입력으로 받는다.
+    """
     validate_problem_ref(state, proposal.problemRef)
     problem = state["problems"][proposal.problemRef]
     if proposal.processingType != problem.processingType:
@@ -87,6 +92,12 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     original = next(
         (item for item in state["input"].problems if item.id == proposal.problemRef), None
     )
+    if (
+        original is not None
+        and original.reportedSystemId is not None
+        and problem.reportedSystemCandidateId != original.reportedSystemId
+    ):
+        raise OutputRejected("서버가 확인한 보고 시스템이 변경됐다")
     if original is not None and original.state in ("RESOLVED", "OUT_OF_SCOPE"):
         raise OutputRejected("종료된 문제에 새 티켓을 제안할 수 없다")
     for ids in (proposal.evidenceIds, proposal.standardRequestSnapshot.responsibilityEvidenceIds):
@@ -103,9 +114,9 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     snapshot = proposal.standardRequestSnapshot
     if snapshot.responsibleSystemCandidateId != proposal.responsibleSystemCandidateId:
         raise OutputRejected("티켓과 표준 요청의 책임 시스템이 다르다")
-    known_ids = set(state["evidence"]) | {message.id for message in state["input"].messages}
+    known_ids = set(state["evidence"]) | get_problem_message_ids(state, proposal.problemRef)
     if not set(proposal.evidenceIds + snapshot.responsibilityEvidenceIds) <= known_ids:
-        raise OutputRejected("티켓 책임 판단에 실제로 없는 근거를 사용했다")
+        raise OutputRejected("티켓 책임 판단에 대상 문제에서 허용되지 않은 근거를 사용했다")
     if proposal.responsibleSystemCandidateId != problem.reportedSystemCandidateId and not (
         proposal.evidenceIds or snapshot.responsibilityEvidenceIds
     ):
@@ -113,8 +124,12 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     for item in snapshot.knowledge:
         if state["evidence"].get(item.id) != item:
             raise OutputRejected("표준 요청에 허용되지 않은 지식이 포함됐다")
-    validate_statements(state, snapshot.confirmedFacts, confirmed=True)
-    validate_statements(state, snapshot.assumptions, confirmed=False)
+    validate_statements(
+        state, snapshot.confirmedFacts, problem_ref=proposal.problemRef, confirmed=True
+    )
+    validate_statements(
+        state, snapshot.assumptions, problem_ref=proposal.problemRef, confirmed=False
+    )
     validate_details(state, proposal.problemRef, snapshot.details)
     if state["guide"] is not None and state["guide"].problemRef == proposal.problemRef:
         raise OutputRejected("같은 문제에 안내 확인과 티켓을 동시에 제안할 수 없다")
@@ -169,6 +184,8 @@ def merge_inquiry_result(state: SupervisorState, result: InquiryResult) -> Super
     기존 UUID는 입력의 문제와 대조하고 신규 문제는 new: 참조만 허용한다.
     질문은 문제당 하나만 허용하며 동일 bundleRef·동일 내용의 재전달은 추가하지 않는다.
     기존 확인 사실·상세 값의 단순 누락은 보존하며 모호한 사실 교체는 거부한다.
+    서버가 확인한 보고 시스템은 모델이 바꾸지 못한다. null 제안은 누락으로 보고
+    서버 값을 유지하며, 서버 입력부터 미확인인 경우에는 최초 식별을 허용한다.
     검증 실패 시 전달받은 State와 Spring의 questionCount는 그대로 유지한다.
 
     Args:
@@ -204,6 +221,12 @@ def merge_inquiry_result(state: SupervisorState, result: InquiryResult) -> Super
         original = next(
             (item for item in state["input"].problems if item.id == proposal.problemRef), None
         )
+        if original is not None and original.reportedSystemId is not None:
+            if proposal.reportedSystemCandidateId not in (None, original.reportedSystemId):
+                raise OutputRejected("서버가 확인한 보고 시스템을 모델이 변경할 수 없다")
+            proposal = proposal.model_copy(
+                update={"reportedSystemCandidateId": original.reportedSystemId}
+            )
         if proposal.processingType == "INCIDENT" and (
             original is None or original.processingType != "INCIDENT"
         ):
@@ -215,8 +238,10 @@ def merge_inquiry_result(state: SupervisorState, result: InquiryResult) -> Super
             and problems[proposal.problemRef] != proposal
         ):
             raise OutputRejected("티켓 제안 후 원 문제를 변경할 수 없다")
-        validate_statements(state, proposal.facts, confirmed=True)
-        validate_statements(state, proposal.assumptions, confirmed=False)
+        validate_statements(state, proposal.facts, problem_ref=proposal.problemRef, confirmed=True)
+        validate_statements(
+            state, proposal.assumptions, problem_ref=proposal.problemRef, confirmed=False
+        )
         validate_details(state, proposal.problemRef, proposal.details)
         problems[proposal.problemRef] = proposal
     questions = dict(state["questions"])

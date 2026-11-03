@@ -108,9 +108,10 @@ def compose_public_answer(state: SupervisorState) -> str:
 
 
 def _validate_final_state(state: SupervisorState) -> None:
-    """최종화 직전에 출처·참조·제안 충돌을 다시 확인한다."""
+    """최종화 직전에 서버의 보고 시스템·출처·참조·제안 충돌을 다시 확인한다."""
     systems = {item.id for item in state["input"].systems}
-    original_ids = {item.id for item in state["input"].problems}
+    originals = {item.id: item for item in state["input"].problems}
+    original_ids = set(originals)
     if not original_ids <= state["problems"].keys():
         raise OutputRejected("기존 문제가 최종 State에서 사라졌다")
     for key, problem in state["problems"].items():
@@ -118,13 +119,22 @@ def _validate_final_state(state: SupervisorState) -> None:
             raise OutputRejected("새 문제에 실제 DB UUID를 임의로 부여할 수 없다")
         if key != problem.problemRef:
             raise OutputRejected("문제 map의 키와 참조가 다르다")
+        original = originals.get(key)
+        if (
+            original is not None
+            and original.reportedSystemId is not None
+            and problem.reportedSystemCandidateId != original.reportedSystemId
+        ):
+            raise OutputRejected("서버가 확인한 보고 시스템이 변경됐다")
         if (
             problem.reportedSystemCandidateId is not None
             and problem.reportedSystemCandidateId not in systems
         ):
             raise OutputRejected("지원하지 않는 보고 시스템이다")
-        validate_statements(state, problem.facts, confirmed=True)
-        validate_statements(state, problem.assumptions, confirmed=False)
+        validate_statements(state, problem.facts, problem_ref=problem.problemRef, confirmed=True)
+        validate_statements(
+            state, problem.assumptions, problem_ref=problem.problemRef, confirmed=False
+        )
         validate_details(state, problem.problemRef, problem.details)
     for key, evidence in state["evidence"].items():
         if key != evidence.id:

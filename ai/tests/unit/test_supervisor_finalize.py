@@ -26,6 +26,7 @@ from hops_ai.supervisor.merge import (
 from hops_ai.supervisor.state import transition_phase
 from tests.supervisor_fixtures import (
     EVIDENCE,
+    OTHER_SYSTEM,
     PROBLEM,
     SYSTEM,
     authorize,
@@ -349,6 +350,19 @@ def test_final_validation_rechecks_question_limit_and_evidence_scope() -> None:
     state["evidence"][EVIDENCE] = make_evidence(accessScope="SYSTEM_STAFF")
     with pytest.raises(OutputRejected):
         finalize_result(state)
+
+
+@pytest.mark.parametrize("changed_system", [None, OTHER_SYSTEM])
+def test_final_validation_rejects_changed_server_reported_system(changed_system) -> None:
+    """병합 이후 보고 시스템이 변조돼도 질문 답변을 성공 결과로 확정하지 않는다."""
+    state, _ = with_question()
+    state["problems"][PROBLEM] = state["problems"][PROBLEM].model_copy(
+        update={"reportedSystemCandidateId": changed_system}
+    )
+    before = deepcopy(state)
+    with pytest.raises(OutputRejected, match="보고 시스템"):
+        finalize_result(state)
+    assert state == before
 
 
 def test_final_result_does_not_share_nested_lists_with_working_state() -> None:
