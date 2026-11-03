@@ -33,6 +33,10 @@ public enum ErrorCode {
     IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "이미 다른 요청에 사용한 요청 키입니다.", false),
     // 같은 키의 상세 결과 보존 기간(24시간)이 지남. 새 키로 자동 재실행하지 않는다 (WIRE_CONTRACT 12.1, 12.3)
     OPERATION_RESULT_EXPIRED(HttpStatus.GONE, "요청 결과의 확인 기간이 지났습니다. 최신 내용을 다시 불러와 주세요.", false),
+    // 보낸 expectedInquiryVersion이 현재 문의 버전과 다름. 최신 문의·대화를 다시 읽고 새 requestId로 보낸다 (WIRE_CONTRACT 10절)
+    INQUIRY_VERSION_CONFLICT(HttpStatus.CONFLICT, "문의 내용이 바뀌었습니다. 최신 내용을 확인해 주세요.", false),
+    // 현재 실행이 아니거나 재분석할 수 없는 상태. 최신 실행 상태를 다시 조회한다 (WIRE_CONTRACT 10절)
+    RUN_NOT_RETRYABLE(HttpStatus.CONFLICT, "지금은 다시 분석할 수 없습니다. 최신 상태를 확인해 주세요.", false),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 본문 형식입니다.", false),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", true),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.", false),

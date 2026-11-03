@@ -35,7 +35,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 문의 생성(POST /api/v2/inquiries)과 실행 조회(GET /api/v2/runs/{runId})를 실제 테스트 DB로 확인한다 (WIRE_CONTRACT 12.2·12.8).
+ * 문의 생성(POST /api/v2/inquiries)과 실행 조회·재분석(GET /api/v2/runs/{runId}, POST /api/v2/runs/{runId}/retries)을
+ * 실제 테스트 DB로 확인한다 (WIRE_CONTRACT 12.2·12.8).
  *
  * <p>문의 생성은 멱등 처리 때문에 트랜잭션 밖에서 실행되고 실제로 commit한다. 그래서 {@code @Transactional}로 되돌리지 않고
  * 넣은 행을 {@link #cleanup()}에서 지운다. 테스트 DB에는 다른 시스템 행이 있을 수 있어 시스템 목록은 포함 여부만 본다.
@@ -309,6 +310,102 @@ class InquiryCreateControllerTest {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value("NOT_FOUND"));
         }
+    }
+
+    @Test
+    void 실패한_현재_실행을_다시_분석하면_새_대기_실행을_접수한다() throws Exception {
+        create(memberId, UUID.randomUUID(), "결재 문서가 안 열려요", null).andExpect(status().isOk());
+        String failedId = currentRunId();
+        finishRun(failedId, "FAILED", "MODEL_UNAVAILABLE");
+        UUID retryRequestId = UUID.randomUUID();
+
+        String receipt = retry(memberId, failedId, retryRequestId, 1)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.resource.type").value("RUN"))
+                .andReturn().getResponse().getContentAsString();
+        String nextId = jsonMapper.readTree(receipt).path("resource").path("id").asString();
+
+        assertThat(nextId).isNotEqualTo(failedId).isEqualTo(currentRunId());
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, failedId))
+                .isEqualTo("FAILED"); // 실패한 실행은 되돌리지 않는다
+        Map<String, Object> next = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", nextId);
+        Map<String, Object> failed = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", failedId);
+        assertThat(next.get("run_status")).isEqualTo("QUEUED");
+        assertThat(next.get("input_version")).isEqualTo(1);
+        assertThat(next.get("trigger_message_id")).isEqualTo(failed.get("trigger_message_id"));
+        JsonNode nextInput = jsonMapper.readTree(next.get("input_snapshot").toString());
+        JsonNode failedInput = jsonMapper.readTree(failed.get("input_snapshot").toString());
+        assertThat(new HashSet<>(nextInput.propertyNames())).isEqualTo(AI_RUN_REQUEST_FIELDS);
+        assertThat(nextInput.path("runId").asString()).isEqualTo(nextId);
+        assertThat(nextInput.path("answerMessageId").asString()).isNotEqualTo(failedInput.path("answerMessageId").asString());
+        assertThat(nextInput.path("messages")).isEqualTo(failedInput.path("messages"));
+        assertThat(events.stream(AgentRunQueued.class)).contains(new AgentRunQueued(UUID.fromString(nextId)));
+
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + nextId)))
+                .andExpect(jsonPath("$.status").value("QUEUED"))
+                .andExpect(jsonPath("$.answerMessageId").value(nextInput.path("answerMessageId").asString()));
+        // 재분석 실행의 실패 오류에는 그 재분석 요청 ID를 넣는다
+        finishRun(nextId, "TIMED_OUT", null);
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + nextId)))
+                .andExpect(jsonPath("$.error.code").value("DEADLINE_EXCEEDED"))
+                .andExpect(jsonPath("$.error.requestId").value(retryRequestId.toString()));
+
+        // 같은 요청 키는 처음 결과이고 새 실행을 더 만들지 않는다
+        retry(memberId, failedId, retryRequestId, 1)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resource.id").value(nextId));
+        assertThat(count("SELECT count(*) FROM agent_run r JOIN inquiry i ON i.id = r.inquiry_id "
+                + "WHERE i.requester_member_id = ?")).isEqualTo(2);
+    }
+
+    @Test
+    void 다시_분석할_수_없으면_409이고_새_실행을_만들지_않는다() throws Exception {
+        create(memberId, UUID.randomUUID(), "결재 문서가 안 열려요", null).andExpect(status().isOk());
+        String runId = currentRunId();
+
+        // 아직 대기 중인 실행
+        retry(memberId, runId, UUID.randomUUID(), 1)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RUN_NOT_RETRYABLE"));
+        // 권한 문맥이 바뀐 실패는 재분석 대상이 아니다 (retryable=false)
+        finishRun(runId, "FAILED", "AUTH_CONTEXT_INVALID");
+        retry(memberId, runId, UUID.randomUUID(), 1)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RUN_NOT_RETRYABLE"));
+
+        finishRun(runId, "FAILED", "INVALID_OUTPUT");
+        retry(memberId, runId, UUID.randomUUID(), 2)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INQUIRY_VERSION_CONFLICT"));
+        // 남의 실행·없는 실행은 존재를 알리지 않는다
+        for (String target : List.of(runId, UUID.randomUUID().toString())) {
+            retry(otherMemberId, target, UUID.randomUUID(), 1)
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        }
+        // 이미 다시 분석한 실행은 현재 실행이 아니다
+        retry(memberId, runId, UUID.randomUUID(), 1).andExpect(status().isOk());
+        retry(memberId, runId, UUID.randomUUID(), 1)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RUN_NOT_RETRYABLE"));
+
+        assertThat(count("SELECT count(*) FROM agent_run r JOIN inquiry i ON i.id = r.inquiry_id "
+                + "WHERE i.requester_member_id = ?")).isEqualTo(2);
+    }
+
+    private ResultActions retry(UUID actorId, String runId, UUID requestId, int expectedInquiryVersion)
+            throws Exception {
+        return mockMvc.perform(as(actorId, post("/api/v2/runs/" + runId + "/retries"))
+                .header("Idempotency-Key", requestId.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonMapper.writeValueAsString(
+                        Map.of("requestId", requestId, "expectedInquiryVersion", expectedInquiryVersion))));
+    }
+
+    private String currentRunId() {
+        return jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE requester_member_id = ?",
+                UUID.class, memberId).toString();
     }
 
     private ResultActions create(UUID actorId, UUID requestId, String content, UUID reportedSystemId) throws Exception {

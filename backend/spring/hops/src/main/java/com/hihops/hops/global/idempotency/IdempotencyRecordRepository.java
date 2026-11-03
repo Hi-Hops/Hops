@@ -14,4 +14,7 @@ public interface IdempotencyRecordRepository extends JpaRepository<IdempotencyRe
 
     /** 작업 번호로 찾되 요청자 본인 것만. 남의 작업은 없는 것과 같이 보인다. */
     Optional<IdempotencyRecord> findByOperationIdAndActor_Id(UUID operationId, UUID actorId);
+
+    /** 이 업무 대상을 만든 요청. resource 표식은 보존 기간이 지나도 남는다. */
+    Optional<IdempotencyRecord> findFirstByResourceTypeAndResourceId(String resourceType, UUID resourceId);
 }
