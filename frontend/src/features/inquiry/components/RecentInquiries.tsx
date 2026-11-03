@@ -3,7 +3,7 @@ import { paths } from '@/shared/config/paths';
 import { displayDate } from '@/shared/lib/date';
 import { Button } from '@/shared/ui/Button';
 import { useInquirySessions } from '../api/inquiryApi';
-import { inquiryStatus } from '../model/status';
+import { systemStatus } from '../model/systemStatus';
 import styles from './InquiryList.module.css';
 
 export function RecentInquiries() {
@@ -29,13 +29,13 @@ export function RecentInquiries() {
           >
             <span
               className={styles.dot}
-              data-tone={inquiryStatus[item.status].tone}
+              data-tone={systemStatus(item.status).tone}
               aria-hidden="true"
             />
             <div className={styles.sessionText}>
               <strong>{item.title}</strong>
               <span>
-                {inquiryStatus[item.status].label} · {displayDate(item.createdAt)}
+                {systemStatus(item.status).label} · {displayDate(item.createdAt)}
               </span>
             </div>
           </NavLink>

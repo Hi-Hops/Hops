@@ -52,7 +52,7 @@ class RunBudget:
     max_input_tokens: int | None = None
     max_total_output_tokens: int | None = None
     max_tool_calls: int | None = None
-    max_total_retries: int | None = None
+    max_run_retries: int | None = None
     input_tokens_used: int = 0
     output_tokens_used: int = 0
     tool_calls_used: int = 0
@@ -99,7 +99,7 @@ class RunBudget:
         max_input_tokens: int,
         max_total_output_tokens: int,
         max_tool_calls: int,
-        max_total_retries: int,
+        max_run_retries: int,
         deadline_at: datetime,
     ) -> None:
         """요청의 누적 한도로 기존 서버 예산을 좁히고 사용량은 보존한다.
@@ -109,7 +109,7 @@ class RunBudget:
             max_input_tokens: 공급자가 보고한 누적 입력 토큰 상한.
             max_total_output_tokens: 누적 출력 토큰 상한. 호출당 상한과 별개다.
             max_tool_calls: 실행 전체의 도구 호출 상한.
-            max_total_retries: 여러 모델 호출에 걸친 총 재시도 상한. 0도 허용한다.
+            max_run_retries: 여러 모델 호출에 걸친 총 재시도 상한. 0도 허용한다.
             deadline_at: 시간대가 있는 요청 마감. 서버 마감을 연장하지 않는다.
 
         Raises:
@@ -123,7 +123,7 @@ class RunBudget:
             ("max_input_tokens", max_input_tokens, 1),
             ("max_total_output_tokens", max_total_output_tokens, 1),
             ("max_tool_calls", max_tool_calls, 1),
-            ("max_total_retries", max_total_retries, 0),
+            ("max_run_retries", max_run_retries, 0),
         )
         if any(type(value) is not int or value < minimum for _, value, minimum in limits):
             raise OutputRejected("실행 상한의 형식이 올바르지 않다")
@@ -144,7 +144,7 @@ class RunBudget:
             (self.input_tokens_used, self.max_input_tokens),
             (self.output_tokens_used, self.max_total_output_tokens),
             (self.tool_calls_used, self.max_tool_calls),
-            (self.retries_used, self.max_total_retries),
+            (self.retries_used, self.max_run_retries),
         )
         for used, maximum in usage:
             if type(used) is not int or used < 0:
@@ -204,8 +204,8 @@ class RunBudget:
             raise OutputRejected("재시도 여부는 boolean이어야 한다")
         if self.llm_calls_used >= self.max_llm_calls:
             raise LlmCallLimitExceeded(f"허용 {self.max_llm_calls}회를 모두 사용했다")
-        if is_retry and self.max_total_retries is not None:
-            if self.retries_used >= self.max_total_retries:
+        if is_retry and self.max_run_retries is not None:
+            if self.retries_used >= self.max_run_retries:
                 raise BudgetExceeded
         self.llm_calls_used += 1
         if is_retry:

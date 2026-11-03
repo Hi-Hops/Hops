@@ -8,6 +8,8 @@ import {
   registerUnauthorizedHandler,
 } from '@/shared/api/client';
 import { emitSessionEvent } from '@/shared/lib/sessionEvents';
+import { apiPath } from '@/shared/config/api';
+import { readLogin } from '@/shared/api/systemWire';
 
 type SessionState = {
   user: CurrentUser | null;
@@ -55,13 +57,16 @@ export function refreshSession(token: string): Promise<boolean> {
     const previous = useSession.getState();
     if (previous.token !== token || !previous.user) return false;
     try {
-      const result = await apiRequest<LoginResponse>('/api/auth/refresh', {
+      const raw = await apiRequest<unknown>(apiPath('/auth/refresh'), {
         method: 'POST',
         skipRefresh: true,
       });
+      const result = readLogin(raw);
       if (useSession.getState().token !== token) return false;
       if (
         result.user.id !== previous.user.id ||
+        JSON.stringify([...result.user.primarySystemIds].sort()) !==
+          JSON.stringify([...previous.user.primarySystemIds].sort()) ||
         result.user.department.id !== previous.user.department.id ||
         JSON.stringify([...result.user.roles].sort()) !==
           JSON.stringify([...previous.user.roles].sort())

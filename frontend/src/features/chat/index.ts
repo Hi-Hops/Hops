@@ -1,2 +1,2 @@
-export { ChatView } from './components/ChatView';
-export { MessageComposer } from './components/MessageComposer';
+export { SystemMessageComposer } from './components/SystemMessageComposer';
+export { SystemChatView } from './components/SystemChatView';

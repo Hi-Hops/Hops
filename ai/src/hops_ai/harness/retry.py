@@ -48,9 +48,9 @@ async def call_with_retry[T](
     - 호출 시간 제한은 이 함수가 강제한다. 초과하면 일시 오류로 보고 재시도 대상이 된다.
     - 서버가 알려 준 대기 시간(retry_after)이 있으면 그만큼 기다린다.
     - 남은 시간이 대기 시간보다 짧으면 기다리지 않고 마지막 오류를 낸다.
+    - 재시도는 호출당 상한(max_auto_retries)과 실행 전체 누적 상한(max_run_retries)을 모두 지킨다.
     - 일시 오류가 아닌 예외와 취소(CancelledError)는 그대로 전달하며 재시도하지 않는다.
     - ensure_active가 주어지면 각 시도 전후와 대기 전후에 호출하여 취소·종료도 검사한다.
-    - max_auto_retries는 이번 호출의 상한, max_total_retries는 run 전체 재시도 상한이다.
     """
 
     def check_active() -> None:
@@ -78,7 +78,7 @@ async def call_with_retry[T](
         check_active()
         if retries >= budget.max_auto_retries:
             raise failure
-        if budget.max_total_retries is not None and budget.retries_used >= budget.max_total_retries:
+        if budget.max_run_retries is not None and budget.retries_used >= budget.max_run_retries:
             raise failure
         if budget.llm_calls_used >= budget.max_llm_calls:
             raise LlmCallLimitExceeded

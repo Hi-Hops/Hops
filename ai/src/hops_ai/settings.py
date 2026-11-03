@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # LLM 일시 오류에만 적용. 업무 저장·색인 반영 자동 재시도 설정이 아니다.
     max_auto_retries: int = Field(default=2, ge=0)
     max_output_tokens: int = Field(default=1500, gt=0)
+    # Spring이 요청한 실행 한도의 서버 상한. 초과 요청은 접수하지 않는다. 실측 후 검토한다.
+    max_run_input_tokens: int = Field(default=60000, gt=0)
+    max_tool_calls: int = Field(default=10, gt=0)
+    # 한 인스턴스가 동시에 실행하는 run 수. 넘으면 429와 Retry-After로 응답한다.
+    max_concurrent_runs: int = Field(default=4, gt=0)
 
     @model_validator(mode="after")
     def _call_timeout_fits_in_deadline(self) -> "Settings":

@@ -230,20 +230,6 @@ def test_backoff_applies_full_jitter() -> None:
     assert backoff_delay(2, rng=lambda: 0.5) == 1.0
 
 
-async def test_total_retry_limit_is_shared_across_separate_model_calls(
-    clock, make_settings, sleeper
-) -> None:
-    budget = budget_for(clock, make_settings)
-    budget.max_total_retries = 1
-    first = Script(TransientError(), "ok")
-    second = Script(TransientError("마지막 오류"), "호출하면 안 됨")
-    assert await call_with_retry(first, budget, sleep=sleeper) == "ok"
-    with pytest.raises(TransientError, match="마지막 오류"):
-        await call_with_retry(second, budget, sleep=sleeper)
-    assert (first.calls, second.calls) == (2, 1)
-    assert (budget.llm_calls_used, budget.retries_used) == (3, 1)
-
-
 @pytest.mark.parametrize("delay", [True, -1, float("inf"), float("nan"), "1"])
 async def test_invalid_retry_after_never_sleeps_or_starts_another_call(
     clock, make_settings, sleeper, delay
@@ -305,3 +291,19 @@ async def test_cancellation_during_backoff_prevents_retry(clock, make_settings) 
         await call_with_retry(operation, budget, sleep=sleep, ensure_active=ensure_active)
     assert operation.calls == 1
     assert budget.retries_used == 0
+
+
+async def test_run_wide_retry_limit_is_shared_across_calls(clock, make_settings, sleeper) -> None:
+    # 호출당 2회까지 허용해도 실행 전체 누적 1회를 넘지 않는다.
+    budget = budget_for(clock, make_settings, max_auto_retries=2)
+    budget.max_run_retries = 1
+    first = Script(TransientError(), "ok")
+    assert await call_with_retry(first, budget, sleep=sleeper, rng=lambda: 0.0) == "ok"
+
+    second = Script(TransientError("again"), "ok")
+    with pytest.raises(TransientError, match="again"):
+        await call_with_retry(second, budget, sleep=sleeper, rng=lambda: 0.0)
+
+    assert second.calls == 1
+    assert budget.retries_used == 1
+    assert budget.llm_calls_used == 3

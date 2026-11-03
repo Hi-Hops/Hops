@@ -127,7 +127,7 @@ def constrain_budget(budget: RunBudget, **changes) -> None:
         "max_input_tokens": 20,
         "max_total_output_tokens": 10,
         "max_tool_calls": 2,
-        "max_total_retries": 1,
+        "max_run_retries": 1,
         "deadline_at": budget.clock.now() + timedelta(seconds=30),
     }
     budget.constrain(**(limits | changes))
@@ -144,7 +144,7 @@ def test_constrain_only_tightens_limits_and_keeps_recorded_usage(clock, make_set
         max_input_tokens=100,
         max_total_output_tokens=50,
         max_tool_calls=10,
-        max_total_retries=5,
+        max_run_retries=5,
         deadline_at=clock.now() + timedelta(seconds=100),
     )
     assert budget.remaining_seconds() == 30
@@ -152,14 +152,14 @@ def test_constrain_only_tightens_limits_and_keeps_recorded_usage(clock, make_set
     assert budget.max_input_tokens == 20
     assert budget.max_total_output_tokens == 10
     assert budget.max_tool_calls == 2
-    assert budget.max_total_retries == 1
+    assert budget.max_run_retries == 1
     assert (budget.llm_calls_used, budget.input_tokens_used, budget.output_tokens_used) == (1, 3, 2)
 
 
 def test_invalid_constrain_does_not_partially_change_limits(clock, make_settings) -> None:
     budget = RunBudget.start(make_settings(), clock=clock)
     with pytest.raises(OutputRejected):
-        constrain_budget(budget, max_model_calls=1, max_total_retries=True)
+        constrain_budget(budget, max_model_calls=1, max_run_retries=True)
     assert budget.max_llm_calls == 8
     assert budget.max_input_tokens is None
     assert budget.remaining_seconds() == 60

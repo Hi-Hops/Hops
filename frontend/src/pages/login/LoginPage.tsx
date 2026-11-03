@@ -17,7 +17,7 @@ export function LoginPage() {
       safeFrom ??
       (user.roles.includes('BIZ_ADMIN')
         ? '/admin/tickets'
-        : user.department.isRoutable
+        : user.primarySystemIds.length > 0
           ? '/tickets'
           : '/')
     );

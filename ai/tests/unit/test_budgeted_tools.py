@@ -33,7 +33,7 @@ def gateway_for(clock, make_settings, *, outcome=None, guarded=True, allowed=Tru
         max_input_tokens=1000,
         max_total_output_tokens=1000,
         max_tool_calls=1,
-        max_total_retries=2,
+        max_run_retries=2,
         deadline_at=clock.now() + timedelta(seconds=60),
     )
     result = outcome or fake_tool_ok(

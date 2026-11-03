@@ -1,12 +1,12 @@
-# 공용 Mock 데이터·시나리오
+# 전환 전 공용 Mock 데이터·시나리오
 
-> **PRD 1.44 전환:** 아래 `hops-mock-1` JSON은 현재 부서 기반 코드·테스트의 호환 데이터다. 새 3개 시스템·주담당자·확인·사례 공개 예제가 아니며 실제 기획의 검증 근거로 쓰지 않는다. 새 계약 합의 후 fixture·시나리오·소비 코드·테스트를 함께 전환한다.
+> **PRD 1.44 전환:** 아래 `hops-mock-1` JSON은 전환 전 부서 기반 계약의 보존 자료다. 현재 프론트·테스트는 이 JSON을 읽지 않으며 `hops-system-1`의 메모리 Mock을 사용한다. 가상 로그인·예시·실행법은 [Frontend 안내](../../frontend/README.md#mock으로-화면-개발)를 따른다. 아래 계정·시나리오·검사 설명은 이전 프로필의 기록이다.
 
 상태: `hops-mock-1` · 2026-10-27 REST·SSE 기준 문서 반영 · 전부 가상 데이터 · **실제 인증·업무 저장·AI 품질 평가가 아님**
 
 추가 프로필의 `message-history-empty`(MessageHistoryPage)·`run-retry-request`(RunRetryRequest) 예시를 fixtures.json에 포함한다. 최신 30개·이전 커서, 토큰 갱신, 분석 재시도는 WIRE_CONTRACT 10절을 따른다. 기존 messages/MessagePage 예제는 전방 조회 호환용이다. 실행 Mock의 시간 초과·모델 오류는 다시 분석 시 정상 진행을 재현하며 실제 체크포인트 저장이나 서버 쿠키 구현을 뜻하지 않는다.
 
-언어별로 예시를 다시 타이핑하지 않고 같은 JSON을 읽는다. 프론트의 테스트 fixture는 이 파일을 import/복사 변환하는 얇은 어댑터로 작성하고 중복 데이터 원본으로 관리하지 않는다. 서버 코드·실제 Mock HTTP/SSE 서버는 이번 제출물에 포함하지 않는다.
+이전 프로필에서는 같은 JSON을 얇은 테스트 어댑터로 읽는 방식으로 사용했다. 현재 프론트의 신규 DTO·카탈로그·시나리오는 `frontend/src/shared/api/systemMock*.ts`와 신규 계약 테스트에서 관리한다. 이 디렉터리의 JSON 자체는 Mock HTTP/SSE 서버가 아니다.
 
 ## 읽는 순서와 실행
 
@@ -39,7 +39,7 @@
 
 이 JSON 예시만으로 실제 JWT·서버 동시성·DB 트랜잭션·서비스 인증·SSE 네트워크·브라우저·LLM 호출·모델 품질·E2E를 검증할 수 없다.
 
-미정 계약은 Mock에서 재현 가능한 형태를 제공한 것이다. 질문이 팀에서 합의되면 데이터 타입·입출력 문서·fixture·시나리오·각 서비스 구현·관련 스펙을 함께 수정한다.
+이 자료는 전환 전 계약의 재현 예시다. 신규 계약의 채택값은 [결정 대장](../QUESTIONS.md)을 따르며 이 JSON의 누락이나 이전 제안을 현재 미정 항목으로 해석하지 않는다.
 
 `login-request`의 아이디·비밀번호 문자열은 JSON 형식 설명용 자리표시자이며 로그인 가능한 값이 아니다. 프론트 실행 값은 `.env`, 자동 테스트 값은 테스트 실행 시 생성한 임시 값을 사용한다.
 
@@ -47,15 +47,15 @@
 
 계약 정책은 WIRE_CONTRACT 10절, 실제 담당 구현·미검증은 11절을 따른다. fixtures는 모든 상태/오류·제어 이벤트를 포괄하지 않는다. 기존 실행 Mock의 Access 15분·메모리 Refresh는 확정한 실제 Access 15분·7일 절대 만료/회전 쿠키를 검증하지 않는다.
 
-프론트의 `auth.invalidated`·`resync.required` 수신·복구 분기와 429 대기 안내는 구현하고 Mock/HTTP·SSE 대역 테스트로 검사했다. 실제 Spring의 부서 SSE와 eventId 단일 필드 `resync.required` 수신도 검사했다. 이는 업무 REST 복구·서버 auth.invalidated 발행·쿠키 회전, 실제 업무 DB 유일성/트랜잭션·AI 예산 강제·품질/비용 검증을 대신하지 않는다.
+전환 전 프론트에서 `auth.invalidated`·`resync.required` 수신·복구와 429 대기 안내, 실제 Spring 부서 SSE의 eventId 단일 필드 수신을 검사한 이력이 있다. 현재 신규 계약의 UI·대역 검사와 구분하며 실제 업무 저장·권한·AI/검색 통합을 대신하지 않는다.
 
-fixtures의 저장 응답은 MutationResult, 오류는 ApiErrorBody, 연결 대상은 SubscriptionTarget이다. 응답 객체 자체를 사용하며 별도 성공 외피나 구독 응답은 요구하지 않는다. MutationResult는 프론트에서 구현한 REST 연동 프로필이며 백엔드의 동일 DTO·저장 API 구현은 Q-INF-6으로 추적한다. 스냅샷 커서·replay는 미구현이다.
+fixtures의 저장 응답은 전환 전 MutationResult, 오류는 ApiErrorBody, 연결 대상은 SubscriptionTarget이다. 현재 프론트의 저장 응답은 신규 CommandReceipt이며 이 자료의 MutationResult·당시 replay 목표를 사용하지 않는다.
 
 ## 신규 계약의 호출 예시와 검증
 
 PRD 1.44 신규 기능은 [에이전트 계약의 호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)를 참고한다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에 seed 코드로 정의한다. 별도 예시 JSON 파일은 두지 않는다. 문서의 예시는 실제 확인·승인·서비스 통합 증거가 아니다.
 
-기존 contracts/mock-profile.json·accounts.json·fixtures.json·scenarios.json은 현재 소비 코드와 함께 보존한다. 새 실행 Mock으로 전환할 때에는 profile 선택·신규 DTO·권한·시나리오 소비 어댑터와 함께 적용하고 기존 프로필의 테스트를 별도로 유지한다. 전체 기능의 설계/검증 범위를 이번 계약에서 미루지 않는다.
+기존 contracts/mock-profile.json·accounts.json·fixtures.json·scenarios.json은 참고용으로 보존한다. 현재 프론트는 신규 DTO·권한·시나리오와 hops-system-1 하나로 전환됐으며 계약 선택 설정을 제공하지 않는다. 실제 Spring·AI·검색 연동 검증은 별도다.
 
 필수 전환 시나리오는 현재 PRIMARY 접근/회수, 5회 질문 중복 방지·대기 재진입, 복합 일부 성공, 저장 후 응답 유실·조회 불가·동시 재시도, 처리/구현 검증·문제별 확인·미해결/무응답, Curator 중복·초안 실패, 승인 버전·반영 부분 실패/미확인/불일치·양쪽 비공개·성공 뒤 권한 검색이다. 각 spec의 Fxxx-CONTRACT 번호와 연결한다.
 

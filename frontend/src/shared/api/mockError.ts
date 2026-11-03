@@ -16,5 +16,6 @@ export function mockError(status: number, code: string, message: string): never 
     message,
     requestId: crypto.randomUUID(),
     retryable: status === 503,
+    fieldErrors: [],
   });
 }

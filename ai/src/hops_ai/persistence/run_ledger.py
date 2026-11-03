@@ -221,6 +221,22 @@ class RunLedger:
                     (status, Jsonb(result), last_seq, run_id),
                 )
 
+    async def abandon(self, run_id: UUID) -> bool:
+        """이 소유자가 끝내지 못한 run을 UNKNOWN으로 넘긴다. 결과를 추정해 저장하지 않는다.
+
+        최종 결과 저장이 계속 실패할 때 run이 진행 상태로 방치되지 않게 한다.
+        UNKNOWN인 run은 다시 실행하지 않으며 재분석은 Spring이 새 runId로 요청한다.
+        """
+        async with self._owner_mutex:
+            conn, owner_id = self._owner()
+            cursor = await conn.execute(
+                """UPDATE ai_run_ledger SET status = 'UNKNOWN', updated_at = CURRENT_TIMESTAMP
+                   WHERE run_id = %s AND owner_id = %s AND status IN ('QUEUED', 'RUNNING')
+                   RETURNING run_id""",
+                (run_id, owner_id),
+            )
+            return await cursor.fetchone() is not None
+
     async def recover_abandoned(self) -> int:
         """소유 세션의 잠금이 해제된 미완료 run만 UNKNOWN으로 전환한다.
 

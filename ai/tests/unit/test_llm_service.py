@@ -188,7 +188,7 @@ def constrain_budget(budget, clock, *, output_tokens=10, input_tokens=1000):
         max_input_tokens=input_tokens,
         max_total_output_tokens=output_tokens,
         max_tool_calls=1,
-        max_total_retries=2,
+        max_run_retries=2,
         deadline_at=clock.now() + timedelta(seconds=60),
     )
 

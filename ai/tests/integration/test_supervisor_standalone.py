@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from uuid import UUID
 
 import pytest
 
@@ -12,12 +13,16 @@ from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMMessage, LLMRequest, LLMResponse, LLMUsage
 from hops_ai.services.retrieval.neo4j import Neo4jRetriever
 from hops_ai.services.retrieval.pgvector import PgVectorRetriever
+from hops_ai.services.runs.admission import RunAdmissionService
+from hops_ai.services.runs.executor import RunExecutor, server_ceilings
+from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.guarded import GuardedToolGateway
 from hops_ai.services.tools.registry import ToolRegistry
 from hops_ai.settings import Settings
 from hops_ai.supervisor.bootstrap import create_run_services
 from hops_ai.supervisor.decision import SupervisorDecision
 from hops_ai.supervisor.graph import Supervisor
+from tests.doubles.ledger import MemoryLedger
 from tests.supervisor_fixtures import make_problem, make_request, uid
 
 
@@ -183,3 +188,50 @@ async def test_default_pending_role_returns_safe_failure_without_automatic_repla
     assert result.answer is None
     assert result.problemProposals == result.questions == result.ticketProposals == []
     assert len(llm.calls) == 1
+
+
+async def test_executor_context_reaches_supervisor_and_checked_result_is_stored() -> None:
+    """실행 관리자가 만든 문맥을 재생성하지 않고 Supervisor에 연결한다.
+
+    실제 모델·PostgreSQL·HTTP는 사용하지 않는다. 팀이 RunPipeline 어댑터를
+    구현할 때 같은 문맥과 재시도 상한을 유지해야 한다는 연결 조건을 검사한다.
+    """
+    request = make_request()
+    settings = Settings(_env_file=None)
+    llm = ContextualLLM()
+    inquiry = InjectedInquiry(use_model=False)
+    supervisor = Supervisor({AgentRole.INQUIRY: inquiry})
+    contexts = []
+
+    class InjectedPipeline:
+        async def run(self, request, context):
+            contexts.append(context)
+            services = SharedServices(
+                runtime=context,
+                llm=llm,
+                vector=PgVectorRetriever(),
+                graph=Neo4jRetriever(),
+                tools=UnusedTool(),
+            )
+            return await supervisor.analyze(request, services)
+
+    ledger = MemoryLedger()
+    admission = RunAdmissionService(ledger, server_ceilings(settings))
+    executor = RunExecutor(ledger, admission, InjectedPipeline(), settings)
+    try:
+        accepted = await executor.submit(request)
+        assert accepted.created
+        async with asyncio.timeout(2):
+            while True:
+                snapshot = await ledger.get(UUID(request.runId))
+                if snapshot.result is not None:
+                    break
+                await asyncio.sleep(0)
+        assert snapshot.status == "SUCCEEDED"
+        assert snapshot.result["questions"][0]["problemRef"] == request.problemIds[0]
+        assert snapshot.result["answer"].count(snapshot.result["questions"][0]["text"]) == 1
+        assert inquiry.contexts[0][1].runtime is contexts[0]
+        assert contexts[0].budget.llm_calls_used == 2
+        assert contexts[0].budget.max_run_retries == request.limits.maxRetries
+    finally:
+        await executor.shutdown()

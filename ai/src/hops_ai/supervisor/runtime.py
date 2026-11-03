@@ -75,7 +75,7 @@ class SupervisorRuntime:
             max_input_tokens=limits.maxInputTokens,
             max_total_output_tokens=limits.maxOutputTokens,
             max_tool_calls=limits.maxToolCalls,
-            max_total_retries=limits.maxRetries,
+            max_run_retries=limits.maxRetries,
             deadline_at=datetime.fromisoformat(request.expiresAt),
         )
         self._request = request

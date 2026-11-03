@@ -5,6 +5,8 @@ export const paths = {
   inquiries: '/inquiries',
   tickets: '/tickets',
   adminTickets: '/admin/tickets',
+  cases: '/cases',
+  case: (id: string) => '/cases/' + encodeURIComponent(id),
   inquiryChat: (id: string) => `/inquiries/${encodeURIComponent(id)}/chat`,
   ticket: (id: string) => `/tickets/${encodeURIComponent(id)}`,
 };

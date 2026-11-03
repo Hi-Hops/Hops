@@ -10,12 +10,14 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
-        '@fixtures': fileURLToPath(new URL('../specs/mocks', import.meta.url)),
       },
     },
     server: {
       proxy: {
-        '/api': { target: env.DEV_API_PROXY_TARGET ?? 'http://localhost:8080', changeOrigin: true },
+        '/api/v2': {
+          target: env.DEV_API_PROXY_TARGET ?? 'http://localhost:8080',
+          changeOrigin: true,
+        },
       },
     },
     test: {
