@@ -36,15 +36,26 @@ export function SystemMessageRevision({
           </Button>
         </>
       ) : (
-        <Button
-          variant="ghost"
+        <button
+          type="button"
+          className={styles.editButton}
+          aria-label="내용 정정"
+          title="내용 정정"
           disabled={disabled}
           onClick={() => {
             setEditing(true);
           }}
         >
-          내용 정정
-        </Button>
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+            <path
+              d="M11.1 2.6a1.5 1.5 0 0 1 2.1 0l.2.2a1.5 1.5 0 0 1 0 2.1L6 12.3l-3 .7.7-3z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
       )}
       {message.revision > 1 && <span>정정됨 · {message.revision}차</span>}
       {message.revisions.length > 0 && (

@@ -287,11 +287,6 @@ export function SystemResultPanel({ result }: { result: InquiryResult }) {
       {result.pendingTargetMessageIds.map((id) => (
         <PendingTarget key={id} inquiry={result} messageId={id} />
       ))}
-      {result.problems.length > 1 && (
-        <p className={styles.footer}>
-          판별된 문제는 먼저 티켓으로 만들고, 확인이 필요한 문제만 질문해요.
-        </p>
-      )}
       {hasResult && result.resultRevision > dismissed && (
         <RouteModal
           title="티켓 접수 결과"

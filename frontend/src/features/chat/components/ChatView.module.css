@@ -171,11 +171,10 @@
 .attached {
   margin-top: calc(var(--space-3) - var(--space-6));
 }
+/* 봇 답변은 카드 없이 글로만 두고, 카드는 결과 영역에만 쓴다. 들여쓰기는 작성자 이름에 맞춘다. */
 .aiBubble {
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  margin: 0;
+  padding-left: calc(20px + var(--space-2));
   font-size: var(--font-size-body);
   line-height: 1.65;
   white-space: pre-wrap;
