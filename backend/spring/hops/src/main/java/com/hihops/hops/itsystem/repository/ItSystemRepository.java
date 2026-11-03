@@ -1,6 +1,7 @@
 package com.hihops.hops.itsystem.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,4 +18,15 @@ public interface ItSystemRepository extends JpaRepository<ItSystem, UUID> {
      */
     @Query("SELECT s.id FROM ItSystem s WHERE s.primaryOwner.id = :memberId AND s.deletedAt IS NULL ORDER BY s.code")
     List<UUID> findActiveIdsByPrimaryOwnerId(UUID memberId);
+
+    List<ItSystem> findByDeletedAtIsNullOrderByCodeAsc();
+
+    Optional<ItSystem> findByIdAndDeletedAtIsNull(UUID id);
+
+    @Query("SELECT s.id FROM ItSystem s WHERE s.deletedAt IS NULL ORDER BY s.code")
+    List<UUID> findActiveIds();
+
+    @Query("SELECT s.primaryOwner.id FROM ItSystem s WHERE s.id = :systemId AND s.deletedAt IS NULL "
+            + "AND s.primaryOwner.deletedAt IS NULL AND s.primaryOwner.department.deletedAt IS NULL")
+    Optional<UUID> findActivePrimaryOwnerId(UUID systemId);
 }
