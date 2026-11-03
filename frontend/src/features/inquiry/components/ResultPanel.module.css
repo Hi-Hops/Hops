@@ -1,41 +1,148 @@
 .panel {
-  width: 100%;
+  width: min(var(--answer-width), 100%);
   flex-shrink: 0;
-}
-.header {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  padding: 0 0 var(--space-3);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-.header h2 {
-  font-size: var(--font-size-label);
-}
-.problems {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
-  gap: var(--space-4);
-}
-.problem {
-  padding: var(--space-5);
+  overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
+}
+.banner {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+}
+.banner.success {
+  color: var(--color-success);
+}
+.banner.attention {
+  color: var(--color-attention);
+  background: var(--color-attention-bg);
+  border-bottom-color: var(--color-attention-border);
+}
+.banner.danger {
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+  border-bottom-color: var(--color-danger-border);
+}
+.banner.neutral {
+  color: var(--color-text-secondary);
+}
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
   min-width: 0;
 }
-.problem label {
-  display: block;
-  margin-top: var(--space-3);
-  margin-bottom: var(--space-2);
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+.row.danger {
+  background: var(--color-danger-bg);
+}
+.row.attention {
+  background: var(--color-attention-bg);
+}
+.rowHead {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-md);
+}
+.lead {
+  font-weight: var(--font-weight-bold);
+  overflow-wrap: anywhere;
+}
+.lead.attention {
+  color: var(--color-attention);
+}
+.lead.muted {
+  color: var(--color-text-secondary);
+}
+.rowTitle {
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.aside {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+.chip {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-sunken);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.count {
+  color: var(--color-attention);
+  font-weight: var(--font-weight-semibold);
+}
+.note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.row.danger .note {
+  color: var(--color-danger);
+}
+.row.attention .note {
+  color: var(--color-attention);
+}
+.evidence {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
   font-size: var(--font-size-label);
 }
+.evidence small {
+  color: var(--color-text-muted);
+}
+.systemDock {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-attention-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-attention-bg);
+  font-size: var(--font-size-label);
+}
+.systemDock > strong {
+  color: var(--color-attention);
+}
+.systemSelect,
+.problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-label);
+}
+.problem {
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.systemSelect label {
+  flex: 1 1 200px;
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.problem label {
+  flex-basis: 100%;
+}
+.systemSelect select,
 .problem select {
   max-width: 100%;
   min-height: var(--control-height);
-  margin-bottom: var(--space-2);
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
@@ -43,75 +150,32 @@
   color: var(--color-text);
   font: inherit;
 }
-.heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  font-size: var(--font-size-md);
+.systemSelect [role='alert'] {
+  flex-basis: 100%;
+  color: var(--color-danger);
 }
-.heading h3 {
-  font-size: var(--font-size-md);
-  margin-right: auto;
-}
-.number {
+.footer {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-nav);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
-}
-.ticket {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  margin-top: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-.ticket > span {
-  justify-self: start;
-}
-.statuses {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  flex-wrap: wrap;
-  font-size: var(--font-size-label);
 }
 .meta {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
-  margin-top: var(--space-2);
-}
-.failure {
-  margin-top: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-danger-bg);
-  color: var(--color-danger);
-  font-size: var(--font-size-label);
-}
-.failure p {
-  margin-top: var(--space-1);
-}
-.question {
-  margin-top: var(--space-2);
-  color: var(--color-attention);
-  font-size: var(--font-size-label);
-}
-.footer {
-  background: var(--color-nav);
-  padding: var(--space-3) var(--space-4);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
 }
 .confirmation {
   display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-progress-border);
-  background: var(--color-progress-bg);
+  border: 1px solid var(--color-success-border);
+  background: var(--color-success-bg);
   font-size: var(--font-size-label);
+}
+.confirmation > strong {
+  color: var(--color-success);
 }
 .confirmActions {
   display: flex;
@@ -121,4 +185,12 @@
 }
 .confirmActions button {
   white-space: normal;
+}
+@media (max-width: 600px) {
+  .rowHead {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .lead {
+    grid-column: 1 / -1;
+  }
 }

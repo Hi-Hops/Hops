@@ -1,13 +1,17 @@
-import { useRef } from 'react';
+import { Fragment, useRef } from 'react';
 import { Link } from 'react-router';
+import { useSession } from '@/features/auth';
 import {
   SystemCommandButton,
   SystemResultPanel,
+  SystemConfirmations,
   systemStatus,
   editableInquiryStatus,
+  inquiryTitle,
+  resultMetaParts,
 } from '@/features/inquiry';
 import { ApiError } from '@/shared/api/client';
-import { displayDate } from '@/shared/lib/date';
+import { displayChatTime, isToday } from '@/shared/lib/date';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
 import { Button } from '@/shared/ui/Button';
@@ -15,12 +19,14 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { useSystemChat } from '../hooks/useSystemChat';
 import { retryRunCommand } from '../api/systemChatApi';
 import { useChatScroll } from '../hooks/useChatScroll';
+import { ProgressSteps } from './ProgressSteps';
 import { SystemMessageComposer } from './SystemMessageComposer';
 import { SystemMessageRevision } from './SystemMessageRevision';
 import styles from './ChatView.module.css';
 
 export function SystemChatView({ inquiryId }: { inquiryId: string }) {
   const chat = useSystemChat(inquiryId);
+  const userName = useSession((s) => s.user?.name) ?? '나';
   const { log, hasNew, observe, remember, bottom, cancelPrepend } = useChatScroll(
     inquiryId,
     chat.items.map((m) => `${m.id}:${m.revision}`).join(','),
@@ -60,16 +66,33 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
     );
   if (!inquiry) return null;
   const closed = ['RESOLVED', 'CLOSED'].includes(inquiry.status);
+  const title = inquiryTitle(inquiry, chat.items.find((m) => m.sender === 'USER')?.content);
+  const meta = [
+    ...resultMetaParts(inquiry),
+    `${isToday(inquiry.createdAt) ? '오늘 ' : ''}${displayChatTime(inquiry.createdAt)} 시작`,
+  ];
+  // 문제별 결과 카드는 문제를 참조한 마지막 AI 답변 아래에 붙인다. 분석 중에는 진행 표시 아래로,
+  // 참조한 답변이 없으면 대화 끝에 둔다.
+  const problemIds = new Set(inquiry.problems.map((p) => p.id));
+  const anchorId = chat.active
+    ? undefined
+    : [...chat.items]
+        .reverse()
+        .find((m) => m.sender === 'AI' && m.problemIds.some((id) => problemIds.has(id)))?.id;
+  const results = inquiry.problems.length > 0 ? <SystemResultPanel result={inquiry} /> : null;
+  const steps = chat.live?.steps.length
+    ? chat.live.steps
+    : [{ stepNo: 0, text: '문의 내용을 확인하고 있어요' }];
   return (
     <main className={styles.chat}>
       <header className={styles.head}>
-        <div>
-          <h1 id="chat-title" tabIndex={-1}>
-            {inquiry.inquiryNumber} · {inquiry.problems[0]?.summary ?? '문의'}
+        <div className={styles.titleBlock}>
+          <h1 id="chat-title" tabIndex={-1} title={`${inquiry.inquiryNumber} · ${title}`}>
+            {title}
           </h1>
           <div className={styles.metadata}>
             <StatusBadge {...systemStatus(inquiry.status)} />
-            <span>티켓 {inquiry.problems.filter((p) => p.ticket).length}개</span>
+            <span>{meta.join(' · ')}</span>
           </div>
         </div>
         <Link className={styles.newInquiry} to="/">
@@ -109,37 +132,46 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
           />
         )}
         {chat.items.map((message) => (
-          <article
-            key={message.id}
-            data-message-id={message.id}
-            className={message.sender === 'USER' ? styles.userRow : styles.aiRow}
-            aria-label={message.sender === 'USER' ? '사용자 메시지' : 'Hops 답변'}
-          >
-            {message.sender === 'AI' && (
+          <Fragment key={message.id}>
+            <article
+              data-message-id={message.id}
+              className={message.sender === 'USER' ? styles.userRow : styles.aiRow}
+              aria-label={message.sender === 'USER' ? '사용자 메시지' : 'Hops 답변'}
+            >
               <div className={styles.author}>
-                <span>H</span>Hops · {displayDate(message.createdAt)}
+                {message.sender === 'AI' && (
+                  <span className={styles.avatar} aria-hidden="true">
+                    H
+                  </span>
+                )}
+                <strong>{message.sender === 'USER' ? userName : 'Hops'}</strong>
+                <time dateTime={message.createdAt}>{displayChatTime(message.createdAt)}</time>
               </div>
-            )}
-            <div className={message.sender === 'USER' ? styles.userBubble : styles.aiBubble}>
-              {message.sender === 'USER' && <small>나 · {displayDate(message.createdAt)}</small>}
-              <p>{message.content}</p>
-            </div>
-            {message.sender === 'USER' && !closed && (
-              <SystemMessageRevision message={message} inquiry={inquiry} disabled={!chat.ready} />
-            )}
-          </article>
+              <div className={message.sender === 'USER' ? styles.userBubble : styles.aiBubble}>
+                <p>{message.content}</p>
+              </div>
+              {message.sender === 'USER' && !closed && (
+                <SystemMessageRevision message={message} inquiry={inquiry} disabled={!chat.ready} />
+              )}
+            </article>
+            {message.id === anchorId && results && <div className={styles.attached}>{results}</div>}
+          </Fragment>
         ))}
         {chat.active && (
           <div role="status" className={styles.aiRow}>
             <div className={styles.author}>
-              <span>H</span>Hops · {chat.run?.status === 'QUEUED' ? '분석 대기' : '분석 중'}
+              <span className={styles.avatar} aria-hidden="true">
+                H
+              </span>
+              <strong>Hops</strong>
+              <span>{chat.run?.status === 'QUEUED' ? '분석 대기' : '분석 중'}</span>
             </div>
-            <p className={styles.progress}>
-              {chat.live?.progress ?? '문의 내용을 확인하고 있어요.'}
-            </p>
+            <ProgressSteps key={chat.run?.id} steps={steps} />
             {chat.live?.text && <p className={styles.aiBubble}>{chat.live.text}</p>}
-            <small>작성 중인 답변이에요. 저장된 결과가 아니에요.</small>
           </div>
+        )}
+        {!anchorId && results && (
+          <div className={chat.active ? styles.attached : undefined}>{results}</div>
         )}
         {chat.active && chat.runQuery.isError && (
           <ErrorState
@@ -169,7 +201,6 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
             )}
           </div>
         )}
-        {inquiry.problems.length > 0 && <SystemResultPanel result={inquiry} />}
       </div>
       {hasNew && (
         <Button variant="secondary" onClick={bottom}>
@@ -178,6 +209,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
       )}
       {!closed && (
         <div className={styles.dock}>
+          {!chat.active && <SystemConfirmations inquiry={inquiry} />}
           <SystemMessageComposer
             inquiry={inquiry}
             disabled={!chat.ready}
