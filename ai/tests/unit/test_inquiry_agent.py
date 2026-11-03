@@ -314,8 +314,7 @@ def test_runtime_registry_implements_inquiry_and_keeps_the_rest_pending() -> Non
 
     assert isinstance(runtime[AgentRole.INQUIRY], ExtractionInquiryAgent)
     assert all(
-        isinstance(runtime[role], PendingAgent)
-        for role in (AgentRole.KNOWLEDGE, AgentRole.TICKET, AgentRole.CURATOR)
+        isinstance(runtime[role], PendingAgent) for role in (AgentRole.KNOWLEDGE, AgentRole.CURATOR)
     )
     # 팀이 쓰는 기본 registry는 그대로 연결 전 자리다
     assert all(isinstance(agent, PendingAgent) for agent in build_registry().values())
