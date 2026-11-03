@@ -1,5 +1,6 @@
 """모델 판단 → 역할 실행·병합 → 재판단 → 최종화를 연결하는 실행 그래프."""
 
+import logging
 from collections.abc import Callable, Mapping
 from typing import Literal, TypedDict
 
@@ -14,8 +15,14 @@ from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.decision import SupervisorDecision, decide_next_action
 from hops_ai.supervisor.execution import execute_role
 from hops_ai.supervisor.finalize import finalize_result
-from hops_ai.supervisor.runtime import SupervisorRuntime, describe_run_failure
+from hops_ai.supervisor.runtime import (
+    SupervisorRuntime,
+    describe_failure_for_log,
+    describe_run_failure,
+)
 from hops_ai.supervisor.state import SupervisorState, create_initial_state, transition_phase
+
+logger = logging.getLogger(__name__)
 
 
 class _GraphState(TypedDict):
@@ -133,6 +140,11 @@ class Supervisor:
             services.runtime.ensure_active()
             current = candidate
         except Exception as error:
+            # 외부에는 고정된 안전한 오류만 나가므로
+            # 운영자가 원인을 찾을 수 있게 서버 로그에 남긴다.
+            logger.warning(
+                "상담 실행 실패: runId=%s %s", request.runId, describe_failure_for_log(error)
+            )
             phase, failure = describe_run_failure(error)
             current = transition_phase(runtime.sync_state(current), phase, error=failure)
             current = finalize_result(current)
