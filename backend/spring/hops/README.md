@@ -261,6 +261,23 @@ curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhos
 
 Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
 
+## 티켓 조회 API
+
+현재 PRIMARY의 티켓 목록·상세·허용된 관련 대화, BIZ_ADMIN의 제한된 관리 상세와 시스템 주담당자를 조회합니다. 티켓 상세의 처리 기록·해결 확인·사례 생성 상태는 기존 DB 기록만 읽으며 GET에서 업무 상태나 AI 실행을 만들지 않습니다.
+
+- `GET /api/v2/systems/{systemId}/primary`
+- `GET /api/v2/tickets`
+- `GET /api/v2/tickets/{ticketId}`
+- `GET /api/v2/tickets/{ticketId}/related-messages`
+- `GET /api/v2/management/tickets/{ticketId}`
+- `GET /api/v2/case-generations/{generationId}`
+
+시스템 목록은 기존 `GET /api/v2/systems`를 사용합니다. 현재 DB 권한과 Access 발급 당시의 담당 문맥을 비교하므로 기존 Access는 재로그인이 필요합니다. 원문·배정 근거는 현재 문제와 조회자의 공개 범위로 제한하고, 관리자 역할만으로 담당자 내부 내용을 공개하지 않습니다.
+
+조회 쿼리는 `TicketQueryRepository`, `ItSystemQueryRepository`, `TicketProgressQueryRepository`로 분리하며 agent 실행·결과 저장용 Repository와 도메인은 변경하지 않습니다. 사례 생성 결과는 저장된 초안 또는 재사용 없음 결과를 확인해 반환합니다. 처리·정정·해결 확인 응답, AI 호출과 사례 생성·승인·색인은 이 조회 구현에 포함하지 않습니다.
+
+`SYSTEM_TICKETS`·`TICKET` SSE는 연결·권한 재검사·heartbeat와 재연결 시 REST 재동기화를 지원합니다. 업무 변경 이벤트 생산자는 후속 연동 범위입니다. `TicketControllerTest`는 실제 PostgreSQL/MockMvc로 조회·권한·공개 범위와 저장된 상태를 검사하며 실제 AI나 브라우저 E2E 검증을 대신하지 않습니다.
+
 ## 문의 생성·조회 API
 
 모두 로그인이 필요합니다(없으면 401 `UNAUTHENTICATED`). 형식은 [전송 계약 12.2](../../../specs/contracts/WIRE_CONTRACT.md#122-rest-연결표)와 [데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)을 따릅니다. null 값도 키를 생략하지 않고, 빈 목록은 `[]`입니다.
@@ -295,7 +312,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 | 구현 항목 | 현재 동작 |
 |---|---|
 | 대상 권한 | 현재 DB 회원·부서·역할과 토큰 문맥을 비교합니다. 현재 처리 부서 구성원 또는 BIZ_ADMIN만 허용합니다. 없는 부서는 404입니다. |
-| 문의·개별 티켓 대상 | 소유권 저장소가 아직 없으므로 `INQUIRY`·`TICKET`은 503입니다. 도메인 구현 후 연결해야 합니다. |
+| 문의·시스템·개별 티켓 대상 | `SYSTEM_TICKETS`·`TICKET`은 현재 시스템 담당 관계와 관리자 공개 범위를 검사해 구독합니다. `INQUIRY`는 후속 범위이며 503입니다. 업무 변경 이벤트 생산자는 아직 연결하지 않았습니다. |
 | 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
 | 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
 | 확정 이벤트 | 트랜잭션 안에서 `StateChangedEvent`를 발행하면 커밋 후 해당 부서 연결에 `state.changed`를 전달합니다. 롤백·트랜잭션 없는 발행은 전달하지 않습니다. |

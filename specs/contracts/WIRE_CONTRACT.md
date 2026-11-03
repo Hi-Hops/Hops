@@ -243,10 +243,11 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 - 인증은 `/api/v2/auth/login`·`me`·`refresh`·`logout`을 제공한다. PostgreSQL 계정 조회, JWT, Redis 기반 Refresh 회전·재사용 검출·절대 만료와 쿠키 삭제, 허용 Origin 검사를 구현했다.
 - 로그인 세션 종료 이벤트는 해당 회원의 열린 SSE를 닫는다. Access에 세션 ID가 없어 기기별 연결을 구분하지 않으며 이미 발급한 Access의 즉시 폐기를 뜻하지 않는다. 역할·시스템 권한 변경의 즉시 `auth.invalidated` 통지·세대 검증은 남아 있다.
-- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. 시스템/사례 구독과 문의·업무 이벤트 생산자는 미연결이다.
+- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. 사례 구독과 문의·업무 이벤트 생산자는 미연결이다.
 - 업무 테이블·Entity와 V1~V22 Flyway는 존재한다. 테이블·Repository 검사는 문의·티켓·처리·확인·승인 API의 서비스 저장·권한·경합 구현을 대신하지 않는다.
 - CurrentUser.primarySystemIds, 시스템 목록(`GET /systems`), 문의 생성(`POST /inquiries`: 문의·첫 메시지·QUEUED 상담 실행·불변 입력·currentRun을 한 거래로 저장), 본인 문의 목록·상세·대화 조회, 상담 실행 조회(`GET /runs/{runId}`)와 RunSummary 투영, 수동 재분석(`POST /runs/{runId}/retries`), 변경 요청의 멱등 journal과 operations 결과 확인을 구현했다. 문의 생성은 AI 서버에 전달하지 않으며 commit 후 전달이 연결돼야 실행이 시작된다. 문의 상세는 문제가 없는 문의만 반환하며 Problem 투영은 남아 있다. journal의 REJECTED 기록과 만료 응답 tombstone 정리도 후속이다.
-- PRIMARY 조회, 메시지·정정 저장 명령, 티켓·관리 DTO, 처리·확인·정정·사례의 신규 계약 연결과 통합 검증은 남아 있다.
+- PRIMARY 조회, 티켓 목록·담당자 상세·관리 제한 상세·관련 대화·저장된 처리/확인/사례 생성 상태 조회와 현재 권한 검사를 구현했다. 조회 쿼리는 agent 실행·결과 저장과 분리했다. SYSTEM_TICKETS·TICKET은 연결·권한 재검사·heartbeat와 REST 재동기화를 제공하며 업무 변경 이벤트 생산자는 후속이다.
+- 메시지·정정 저장 명령, 처리·확인 응답·사례 생성/승인/색인, AI 실행 전달·결과 저장 연동과 실제 서비스·브라우저 통합 검증은 남아 있다.
 
 인증·쿠키·Redis 실행 설정과 현재 응답은 [Spring 안내](../../backend/spring/hops/README.md)를 따른다. 신규 SSE는 12절대로 replay 없이 REST 재동기화한다. 1~10절의 replay 목표를 신규 필수 작업으로 옮기지 않는다. 다중 인스턴스·프록시·부하와 실제 브라우저의 인증·권한 회수 검증은 별도다.
 

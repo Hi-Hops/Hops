@@ -1,7 +1,10 @@
 package com.hihops.hops.inquiry.repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+
+import org.springframework.data.domain.Pageable;
 
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,6 +18,14 @@ import com.hihops.hops.inquiry.domain.Message;
  * <p>대화 조회는 저장이 끝난(COMPLETED) 메시지만 본다 (WIRE_CONTRACT 12.8). 예약만 된 AI 답변 ID는 행이 없으므로 나오지 않는다.
  */
 public interface MessageRepository extends JpaRepository<Message, UUID> {
+    @Query(value = "SELECT * FROM message WHERE payload->'resolutionRequest'->>'id'=CAST(:id AS text) AND deleted_at IS NULL AND message_status='COMPLETED'", nativeQuery = true)
+    Optional<Message> findResolution(UUID id);
+    Optional<Message> findByIdAndInquiryIdAndDeletedAtIsNull(UUID id, UUID inquiryId);
+
+    @Query("SELECT m FROM Message m WHERE m.inquiry.id = :inquiryId AND m.deletedAt IS NULL "
+            + "AND m.messageStatus = com.hihops.hops.inquiry.domain.MessageStatus.COMPLETED "
+            + "AND m.sequenceNo > :afterSequence ORDER BY m.sequenceNo, m.id")
+    List<Message> findCompletedAfter(UUID inquiryId, int afterSequence, Pageable pageable);
 
     /** 가장 최근 메시지부터 limit개 (순번 내림차순). */
     @Query("""
