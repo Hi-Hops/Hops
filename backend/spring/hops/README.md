@@ -107,6 +107,8 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 
 ## 가상 데이터 (로컬 개발용)
 
+문의 목록·상세·대화 조회를 위한 수동 시연 데이터는 [시연 seed 안내](src/main/resources/db/demo/README.md)를 참고합니다. 기본 개발용 회원·시스템을 먼저 준비해야 하며 Flyway가 자동으로 실행하지 않습니다.
+
 `src/main/resources/db/seed/`의 `R__seed_dev_department_member.sql`(부서·회원·역할)과 `R__seed_dev_it_system.sql`(시스템·기능)에 있습니다. 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
 
 - 부서 11개: IT 처리 부서 8개(`is_routable=true`) + 요청자 소속 부서 3개(영업팀·인사팀·경영지원팀)
