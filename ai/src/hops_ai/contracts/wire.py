@@ -502,12 +502,15 @@ class AiResult(WireModel):
             if self.answer is None or self.caseProposal is not None:
                 raise ValueError("상담 성공에는 답변이 필요하고 사례 제안은 포함하지 않습니다")
             refs = [question.problemRef for question in self.questions]
+            # 질문 횟수는 문제별 질문 묶음을 기준으로 서버가 집계한다. 여기서는
+            # 필수 본문의 누락만 검사한다. 다른 질문 안의 같은 문구까지 세면
+            # 정상적인 복합 문의가 실패하므로 부분 문자열 출현 횟수는 사용하지 않는다.
             if len(refs) != len(set(refs)) or any(
-                self.answer.count(q.text) != 1 for q in self.questions
+                q.text not in self.answer for q in self.questions
             ):
                 raise ValueError("문제별 질문과 답변 본문이 일치하지 않습니다")
             if self.guide and (
-                self.answer.count(self.guide.messageText) != 1 or self.guide.problemRef in refs
+                self.guide.messageText not in self.answer or self.guide.problemRef in refs
             ):
                 raise ValueError("가이드와 답변 또는 질문이 일치하지 않습니다")
             if self.guide:

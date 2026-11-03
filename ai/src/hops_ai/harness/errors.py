@@ -24,7 +24,10 @@ class HarnessError(Exception):
 
 
 class BudgetExceeded(HarnessError):
-    """실행 예산(시간·호출 횟수)을 넘었다. 같은 실행에서 자동으로 반복하지 않는다."""
+    """실행 전체의 시간·호출·토큰·도구 예산을 넘었다. 자동으로 반복하지 않는다."""
+
+    code = "BUDGET_EXCEEDED"
+    safe_message = "실행 예산을 초과했다"
 
 
 class DeadlineExceeded(BudgetExceeded):

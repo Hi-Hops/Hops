@@ -87,3 +87,11 @@ def test_detail_is_for_logs_and_is_not_put_into_the_contract_error() -> None:
 def test_retry_after_is_kept_on_transient_errors() -> None:
     assert TransientError(retry_after=3.0).retry_after == 3.0
     assert TransientError().retry_after is None
+
+
+def test_cumulative_budget_error_has_safe_budget_code() -> None:
+    """토큰·도구를 포함한 일반 예산 초과도 안전한 한도 오류로 변환한다."""
+    failure = describe_failure(BudgetExceeded("내부 사용량 상세"))
+    assert failure.error.code == "BUDGET_EXCEEDED"
+    assert failure.error.message == "실행 예산을 초과했다"
+    assert not failure.error.retryable
