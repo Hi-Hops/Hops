@@ -156,6 +156,13 @@ public class ResolvedCase extends BaseEntity {
         return caseNumber;
     }
 
+    public void recordDraftMetadata(String applicability, String cause, String appliedVersion, String relations) {
+        this.applicability = applicability;
+        this.confirmedCause = cause;
+        this.appliedVersion = appliedVersion;
+        this.relationCandidates = relations;
+    }
+
     public int getVersionNo() {
         return versionNo;
     }
