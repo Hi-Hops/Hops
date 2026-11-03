@@ -12,6 +12,7 @@ import com.hihops.hops.department.repository.DepartmentRepository;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
+import com.hihops.hops.ticket.service.TicketService;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.domain.Role;
 import com.hihops.hops.user.repository.MemberRepository;
@@ -20,14 +21,24 @@ import com.hihops.hops.user.repository.MemberRepository;
 public class RealtimeAuthorization {
     private final MemberRepository members;
     private final DepartmentRepository departments;
+    private final TicketService tickets;
 
-    public RealtimeAuthorization(MemberRepository members, DepartmentRepository departments) {
+    public RealtimeAuthorization(MemberRepository members, DepartmentRepository departments, TicketService tickets) {
         this.members = members;
         this.departments = departments;
+        this.tickets = tickets;
     }
 
     @Transactional(readOnly = true)
     public void check(Jwt jwt, RealtimeTarget target) {
+        if (target.type() == RealtimeTarget.Type.TICKET) {
+            tickets.requireStaffTicket(jwt, target.id());
+            return;
+        }
+        if (target.type() == RealtimeTarget.Type.SYSTEM_TICKETS) {
+            tickets.checkSystemSubscription(jwt, target.id());
+            return;
+        }
         if (jwt.getExpiresAt() == null) {
             throw new BusinessException(ErrorCode.UNAUTHENTICATED);
         }
