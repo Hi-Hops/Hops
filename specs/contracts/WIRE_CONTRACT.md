@@ -241,13 +241,12 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 ### 백엔드 구현과 남은 작업
 
-- 인증은 `/api/v2/auth/login`·`me`·`refresh`·`logout`을 제공한다. PostgreSQL 계정 조회, JWT, Redis 기반 Refresh 회전·재사용 검출·절대 만료와 쿠키 삭제, 허용 Origin 검사를 구현했다.
-- 로그인 세션 종료 이벤트는 해당 회원의 열린 SSE를 닫는다. Access에 세션 ID가 없어 기기별 연결을 구분하지 않으며 이미 발급한 Access의 즉시 폐기를 뜻하지 않는다. 역할·시스템 권한 변경의 즉시 `auth.invalidated` 통지·세대 검증은 남아 있다.
-- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. SYSTEM_TICKETS·TICKET은 현재 업무 권한으로 연결·heartbeat·REST 재동기화를 지원한다. 사례 구독과 신규 문의·업무 이벤트 생산자는 미연결이다.
-- 업무 테이블·Entity와 V1~V21 Flyway는 존재한다. 테이블·Repository 검사는 문의·티켓·처리·확인·승인 API의 서비스 저장·권한·경합 구현을 대신하지 않는다.
-- 신규 CurrentUser.primarySystemIds, 시스템/PRIMARY·티켓 목록/상세·관리 제한 상세·관련 대화·사례 생성 상태의 읽기 API를 구현했다. 현재 권한·원문 구간·저장 참조·오류는 PostgreSQL/MockMvc로 검사하며 실제 브라우저 통합과 구분한다. 문의·문제·메시지 저장/조회, 처리·확인·정정·사례 및 operation/journal 연결은 별도다.
-- CurrentUser.primarySystemIds, 시스템 목록(`GET /systems`), 본인 문의 목록·상세·대화 조회, 변경 요청의 멱등 journal과 operations 결과 확인을 구현했다. 문의 상세는 문제·실행이 없는 문의만 반환하며 Problem·RunSummary 투영은 남아 있다. journal의 REJECTED 기록과 만료 응답 tombstone 정리도 후속이다.
-- PRIMARY 조회, 문의·메시지·정정 저장 명령, 티켓·관리 DTO, 처리·확인·정정·사례의 신규 계약 연결과 통합 검증은 남아 있다.
+- 인증·Refresh·로그아웃과 CurrentUser.primarySystemIds를 제공한다. 업무 요청은 Access의 권한 문맥과 현재 DB를 비교한다. 이전 문맥 없는 Access는 재로그인이 필요하며 즉시 auth.invalidated 통지와 권한 세대/전송의 원자적 처리는 후속이다.
+- 시스템/PRIMARY, 티켓 목록·담당자 상세·관리 제한 상세·관련 대화·사례 생성 상태와 본인 문의 목록·대화 조회를 구현했다. 문의 상세는 문제·실행이 없는 경우만 반환하고 Problem·RunSummary 투영은 남아 있다.
+- 처리·검증 기록, 조사/장애 유형 정정, 책임 시스템/담당자 정정, 해결 확인 독립 조회·문의자 응답을 구현했다. 기존 멱등 journal과 operations를 사용하며 현재 권한·도메인 버전·상태·근거를 검증한다. journal의 REJECTED 기록과 만료 응답 tombstone 정리는 후속이다.
+- SYSTEM_TICKETS·TICKET은 연결·heartbeat·현재 권한 재검사와 업무 commit 후 신규 state.changed를 제공한다. 기존 DEPARTMENT_TICKETS 동작은 유지하며 INQUIRY·CASE 구독과 문의 메시지 이벤트 생산자는 남아 있다.
+- 검증 기록은 commit 뒤 Curator 접수·상태 확인, GUIDE 미해결은 같은 문제/입력 버전의 재분석 전달로 연결한다. AI 실패는 업무와 별도 기록하고 Curator 초안의 원 조치·검증·원인을 보존한다. AI 상담 결과의 최종 메시지/문제 적용, 사례 승인/색인, 영속 전달·재시작 복구와 실제 모델·브라우저 전체 통합은 미완료다.
+- 업무 저장은 기존 V1~V21 테이블과 ticket_event/message.payload의 확인 메타데이터를 사용한다. 현재 동작은 PostgreSQL/MockMvc·내부 HTTP 대역으로 검사하며 실제 서비스 연결·E2E 완료와 구분한다.
 
 인증·쿠키·Redis 실행 설정과 현재 응답은 [Spring 안내](../../backend/spring/hops/README.md)를 따른다. 신규 SSE는 12절대로 replay 없이 REST 재동기화한다. 1~10절의 replay 목표를 신규 필수 작업으로 옮기지 않는다. 다중 인스턴스·프록시·부하와 실제 브라우저의 인증·권한 회수 검증은 별도다.
 

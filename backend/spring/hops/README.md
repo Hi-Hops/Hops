@@ -14,8 +14,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API는 아래 [인증](#인증), [시스템·티켓 조회](#시스템티켓-조회), [SSE 공통 기반](#spring-sse-공통-기반)의 구현 범위를 따릅니다.
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃, [조회 API](#조회-api)의 시스템 목록·내 문의·대화·변경 요청 결과 확인, [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 클래스가 생긴 폴더의 역할 안내용 `package-info.java`는 삭제합니다. 공개 API는 아래 인증, 조회 API, 시스템·티켓 조회와 변경, SSE 공통 기반의 구현 범위를 따릅니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -34,8 +33,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증, Refresh 회전·로그아웃, 시스템·티켓 조회와 `DEPARTMENT_TICKETS`·`SYSTEM_TICKETS`·`TICKET` SSE 연결을 제공합니다. 시스템·티켓 SSE는 조회와 같은 현재 PRIMARY·관리자 정책을 사용합니다. 업무 저장과 신규 업무 이벤트 생산자 연결, 권한 세대 변경과 전송의 원자적 처리는 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 서비스별 구현과 검증 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리, 시스템 목록·내 문의·대화 조회와 변경 요청 결과 확인(`/operations`)은 구현했습니다. 문의·메시지 저장 등 업무 변경 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 범위입니다. 인증·Refresh, 시스템·문의·메시지 조회, 티켓 조회·처리·정정·해결 확인 및 부서·시스템·티켓 SSE를 제공합니다. 현재 PRIMARY·관리자·문의자 권한을 확인하며 변경 명령은 기존 멱등 journal을 사용합니다. 문의·메시지 저장 명령, AI 상담 결과의 최종 메시지·문제 적용, 사례 승인·색인 및 권한 세대와 전송의 원자적 처리는 후속입니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
@@ -241,18 +239,25 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 ## 시스템·티켓 조회
 
-`hops-system-1`의 읽기 API를 제공합니다. Controller는 경로·입력 검증, Service는 현재 권한·읽기 트랜잭션·DTO 조립, 기존 JPA Repository는 DB 조회를 담당합니다. 경로·필드·페이지·오류 정본은 [WIRE12절](../../../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)과 [DATA_TYPES](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)입니다.
+`hops-system-1`의 조회·처리·정정·해결 확인 API를 제공합니다. Controller는 경로·입력 검증, Service는 현재 권한·읽기 트랜잭션·DTO 조립, 기존 JPA Repository는 DB 조회를 담당합니다. 경로·필드·페이지·오류 정본은 [WIRE12절](../../../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)과 [DATA_TYPES](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)입니다.
 
 - 시스템 목록·주담당자: `GET /api/v2/systems`, `GET /api/v2/systems/{systemId}/primary`.
 - 티켓 목록·담당자 상세·관련 대화: `GET /api/v2/tickets`, `GET /api/v2/tickets/{ticketId}`, `GET /api/v2/tickets/{ticketId}/related-messages`.
 - 관리자 제한 상세: `GET /api/v2/management/tickets/{ticketId}`. 표준 요청·처리 내용·대화는 포함하지 않습니다.
 - 저장된 사례 생성 상태: `GET /api/v2/case-generations/{generationId}`. 조회가 Curator를 실행하지 않습니다.
+- 처리 기록: `POST /api/v2/tickets/{ticketId}/work-records`. 검증 완료 두 종류만 해결 확인 요청·Curator 실행 접수를 저장합니다.
+- 정정: `POST /api/v2/tickets/{ticketId}/processing-type-corrections`, `POST /api/v2/tickets/{ticketId}/assignment-corrections`. 이력과 티켓 버전을 함께 변경하고 확인 요청은 보존합니다.
+- 해결 확인: `GET /api/v2/resolution-requests/{id}`, `POST /api/v2/resolution-requests/{id}/responses`. 변경 요청의 `requestId`와 `Idempotency-Key`는 같아야 합니다.
+
+Access에는 내부 권한 문맥인 `policyRevision`·담당 시스템 스냅샷을 서명해 넣고 현재 DB와 비교합니다. 문맥이 없는 이전 토큰은 재로그인이 필요하며, 문맥 변경은 `AUTH_CONTEXT_CHANGED`, 현재 대상 접근 불가는 `ACCESS_DENIED`입니다. 배정 근거 메시지 ID도 조회자의 현재 문제별 공개 범위로 제한합니다.
+
+검증 완료 기록 commit 뒤 AI 요청을 비동기로 전달하고 고정 내부 경로로 상태를 확인합니다. Backend에도 `AI_SERVICE_TOKEN`을 설정해야 하며 AI 서버의 내부 실행 API·runtime DB 설정은 AI 안내를 따릅니다. 미설정·실행 실패는 사례 생성 실패로 분리해 원 업무를 보존합니다. 재사용 가능한 Curator 결과는 비공개 DRAFT로 저장하고 원 조치·검증·원인·버전은 처리 기록에 고정합니다. 영속 전달 큐·서버 재시작 복구·상담 결과의 최종 메시지/문제 적용·사례 승인/색인은 이 구현에 포함하지 않습니다.
 
 관련 대화는 `message.payload.problemLinks`의 문제·revision별 Unicode 코드 포인트 구간만 반환하고, 정정 이력에도 같은 검사를 적용합니다. 안전한 구간이 없는 원문은 제외합니다. 커서는 티켓·메시지 ID에 연결하며 전체 문의의 sequenceNo를 노출하지 않습니다. 저장된 근거도 현재 승인·ACL과 CASE의 동일 승인 버전·양쪽 색인 성공을 DB에서 확인합니다.
 
-현재 확인 요청 조회는 `ticket_event.after_data.resolutionRequest`에 저장한 신규 `ResolutionRequest` 스냅샷을 검증합니다. `confirm_requested_at`만 있고 원 요청 메타데이터를 확인할 수 없으면 요청 ID나 성공 상태를 만들지 않고 503을 반환합니다. 저장 생산자와 이 형식을 맞추는 작업 및 실제 서비스 통합 검증은 별도입니다.
+확인 요청은 WORK_RECORD의 경우 `ticket_event.after_data.resolutionRequest`, GUIDE는 `message.payload.resolutionRequest`에 현재 스냅샷을 저장합니다. 독립 GET은 문의자 또는 현재 담당자, 응답 POST는 문의 소유자만 허용합니다. 시각만 있고 원 요청 메타데이터가 없으면 503입니다. 응답은 버전 1→2로 한 번 확정하며 미해결은 같은 티켓의 진행 재개 또는 같은 문제의 GUIDE 재분석으로 연결합니다.
 
-`TicketControllerTest`는 F007/F009와 공통 계약의 정상 조회·페이지·현재 권한·접근 회수·관련 원문·잘못된 저장 참조·DB 장애를 실제 테스트 DB와 MockMvc로 검사합니다. 이 검사를 실제 브라우저 E2E나 문의·처리·확인·정정 저장의 완료로 간주하지 않습니다.
+`TicketControllerTest`와 기능별 명령 테스트는 PostgreSQL/MockMvc로 현재 권한·공개 범위·상태 전이·멱등 재확인·Unicode 입력·동시 버전 충돌을 검사합니다. AI 접수·응답 검증 및 commit 후 전달·실패 보존은 HTTP 대역과 가상 결과로 검사하며 실제 모델·브라우저 E2E·전체 AI 업무 통합과 구분합니다.
 ## 조회 API
 
 모두 로그인이 필요합니다(없으면 401 `UNAUTHENTICATED`). 형식은 [전송 계약 12.2](../../../specs/contracts/WIRE_CONTRACT.md#122-rest-연결표)와 [데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)을 따릅니다. null 값도 키를 생략하지 않고, 빈 목록은 `[]`입니다.
@@ -272,7 +277,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 [전송 계약](../../../specs/contracts/WIRE_CONTRACT.md#5-sse-연결이벤트복구)에 따라
 `GET /api/v2/realtime/events?targetType=DEPARTMENT_TICKETS&targetId=<부서 UUID>`로 연결합니다.
-신규 화면은 [WIRE12.4절](../../../specs/contracts/WIRE_CONTRACT.md#124-sse와-복구)에 따라 `SYSTEM_TICKETS`·`TICKET`과 해당 시스템·티켓 UUID를 사용합니다. 이 두 대상은 연결·권한 재검사·heartbeat·REST 재동기화를 지원하며 신규 `state.changed` 생산자 연결은 후속입니다.
+신규 화면은 [WIRE12.4절](../../../specs/contracts/WIRE_CONTRACT.md#124-sse와-복구)에 따라 `SYSTEM_TICKETS`·`TICKET`과 해당 시스템·티켓 UUID를 사용합니다. 이 두 대상은 연결·권한 재검사·heartbeat·REST 재동기화와 업무 commit 후 신규 `state.changed`를 지원합니다. 알림 revision은 프로세스 내 단조 증가 순번이며 도메인 버전과 다릅니다.
 `Authorization: Bearer <accessToken>`과 `Accept: text/event-stream`을 전달합니다.
 프론트는 Bearer 헤더를 지정할 수 있는 fetch 기반 SSE 소비자가 필요합니다.
 
