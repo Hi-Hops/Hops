@@ -1,6 +1,5 @@
 package com.hihops.hops.itsystem.controller;
 
-import java.util.List;
 import java.util.UUID;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -11,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hihops.hops.itsystem.dto.PrimaryAssignmentResponse;
-import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 import com.hihops.hops.itsystem.service.ItSystemService;
 
 import lombok.RequiredArgsConstructor;
@@ -21,11 +19,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ItSystemController {
     private final ItSystemService systems;
-
-    @GetMapping
-    public List<SupportedSystemResponse> list(@AuthenticationPrincipal Jwt jwt) {
-        return systems.list(jwt);
-    }
 
     @GetMapping("/{systemId}/primary")
     public PrimaryAssignmentResponse primary(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID systemId) {

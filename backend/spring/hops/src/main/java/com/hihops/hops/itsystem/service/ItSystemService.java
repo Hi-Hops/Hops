@@ -18,6 +18,7 @@ import com.hihops.hops.itsystem.domain.ItSystem;
 import com.hihops.hops.itsystem.domain.SystemFeature;
 import com.hihops.hops.itsystem.dto.PrimaryAssignmentResponse;
 import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
+import com.hihops.hops.itsystem.dto.SystemFeatureResponse;
 import com.hihops.hops.itsystem.repository.ItSystemRepository;
 import com.hihops.hops.itsystem.repository.SystemFeatureRepository;
 import com.hihops.hops.user.domain.Role;
@@ -44,14 +45,6 @@ public class ItSystemService {
         return new PrimaryAssignmentResponse(systemId, UserSummaryResponse.from(authService.currentMember(owner)));
     }
 
-    @Transactional(readOnly = true)
-    public List<SupportedSystemResponse> list(Jwt jwt) {
-        authService.currentMember(jwt);
-        List<ItSystem> active = systems.findByDeletedAtIsNullOrderByCodeAsc();
-        Map<UUID, SupportedSystemResponse> responses = responses(active);
-        return active.stream().map(system -> responses.get(system.getId())).toList();
-    }
-
     /** 목록 안의 시스템 기능을 한 번에 읽는다. 티켓 Service의 읽기 트랜잭션 안에서도 사용한다. */
     @Transactional(readOnly = true)
     public Map<UUID, SupportedSystemResponse> responses(Collection<ItSystem> values) {
@@ -61,6 +54,6 @@ public class ItSystemService {
         Map<UUID, List<SystemFeature>> bySystem = features.findActiveBySystemIds(unique.keySet()).stream()
                 .collect(Collectors.groupingBy(feature -> feature.getItSystem().getId()));
         return unique.values().stream().collect(Collectors.toMap(ItSystem::getId,
-                system -> SupportedSystemResponse.of(system, bySystem.getOrDefault(system.getId(), List.of()))));
+                system -> SupportedSystemResponse.of(system, bySystem.getOrDefault(system.getId(), List.of()).stream().map(SystemFeatureResponse::from).toList())));
     }
 }

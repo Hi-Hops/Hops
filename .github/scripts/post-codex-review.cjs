@@ -98,11 +98,17 @@ function locationLink(finding, { repoUrl, headSha }) {
 }
 
 // 리뷰 본문에는 이번 실행에서 새로 알릴 내용만 담는다.
-function renderReviewBody(review, { repoUrl, headSha, threads, skipped, unplaced }) {
+function renderReviewBody(review, { repoUrl, headSha, threads, skipped, unplaced, hidden = 0 }) {
   const unread = Array.isArray(review.unread_files) ? review.unread_files : [];
+  const count = list => (Array.isArray(list) ? list.length : 0);
+  // 게시할 지적이 없으면 무엇을 확인했는지 알려 리뷰가 실행되지 않은 경우와 구분한다.
+  const tally = threads || skipped || unplaced.length ?
+    `새 스레드 ${threads}개` + (skipped ? ` · 이미 열린 스레드와 같은 지적 ${skipped}개 생략` : '') :
+    `검토한 파일 ${count(review.covered_files)}개 · 확인한 동작 ${count(review.verified_behaviors)}건` +
+      (hidden ? ` · 신뢰도가 낮아 게시하지 않은 지적 ${hidden}건(Actions 실행 요약)` : '');
   let body = `**Codex 리뷰:** ${VERDICTS[review.overall_correctness] ?? inline(review.overall_correctness)}` +
     ` (${review.mode === 'deep' ? 'deep' : 'fast'} 모드)\n\n${inline(review.overall_explanation, 1000)}\n\n` +
-    `새 스레드 ${threads}개` + (skipped ? ` · 이미 열린 스레드와 같은 지적 ${skipped}개 생략` : '') + '\n';
+    tally + '\n';
   if (review.complete === false || unread.length) {
     body += `\n> 일부 파일을 읽지 못했습니다. 이 리뷰는 전체 변경에 대한 검토가 아닙니다.\n` +
       unread.slice(0, 30).map(file => `> - \`${inline(file, 200)}\``).join('\n') + '\n';
@@ -196,7 +202,8 @@ async function postReview({ github, context, core, review, appendix = '' }) {
   const fileComments = [];
   const unplaced = [];
   let skipped = 0;
-  for (const finding of findings.filter(item => (item.confidence ?? 1) >= LOW_CONFIDENCE)) {
+  const confident = findings.filter(item => (item.confidence ?? 1) >= LOW_CONFIDENCE);
+  for (const finding of confident) {
     // 같은 지적의 스레드가 해결되기 전에는 새 스레드를 만들지 않는다.
     if (open.has(findingKey(finding))) {
       skipped += 1;
@@ -222,13 +229,16 @@ async function postReview({ github, context, core, review, appendix = '' }) {
       unplaced.push(finding);
     }
   }
-  // 알릴 내용이 없으면 리뷰를 만들지 않는다. 결과는 Actions 실행 요약에서 확인한다.
-  if (!comments.length && !unplaced.length && parsed.complete !== false && !appendix.trim()) {
+  // 이미 열린 스레드나 파일 단위 스레드로 알린 지적만 있으면 리뷰를 만들지 않는다.
+  // 게시할 지적이 하나도 없으면 문제없음을 리뷰로 남긴다.
+  if (confident.length && !comments.length && !unplaced.length && parsed.complete !== false &&
+      !appendix.trim()) {
     core.info(`새 줄 단위 스레드 없음. 파일 단위 스레드 ${fileThreads}개, 열린 스레드와 같은 지적 ${skipped}개 생략.`);
     return;
   }
+  const hidden = findings.length - confident.length;
   const bodyFor = (threads, moved) =>
-    limit(renderReviewBody(parsed, { ...options, threads, skipped, unplaced: moved }) + appendix) + FOOTER;
+    limit(renderReviewBody(parsed, { ...options, threads, skipped, unplaced: moved, hidden }) + appendix) + FOOTER;
   try {
     await github.rest.pulls.createReview({ ...target,
       comments: comments.map(({ finding, ...comment }) => comment),

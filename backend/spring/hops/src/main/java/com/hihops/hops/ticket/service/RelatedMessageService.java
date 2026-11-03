@@ -48,7 +48,7 @@ public class RelatedMessageService {
         while (visible.size() <= size) {
             List<Message> batch = messages.findCompletedAfter(ticket.getInquiry().getId(), afterSequence, PageRequest.of(0, 100));
             if (batch.isEmpty()) break;
-            var histories = revisions.findByMessageIdInOrderByRevisionNoAsc(batch.stream().map(Message::getId).toList()).stream()
+            var histories = revisions.findByMessageIds(batch.stream().map(Message::getId).toList()).stream()
                     .collect(Collectors.groupingBy(old -> old.getMessage().getId()));
             for (Message message : batch) {
                 projector.project(message, ticket.getInquiryProblem().getId(), histories.getOrDefault(message.getId(), List.of()))
