@@ -36,7 +36,14 @@ public enum ErrorCode {
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 본문 형식입니다.", false),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", true),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.", false),
-    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "일시적으로 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.", true);
+    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "일시적으로 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.", true),
+    // 아래는 실패한 AI 실행을 공개 Run 오류로 바꿀 때 쓴다 (WIRE_CONTRACT 12.8 끝). retryable=true는 수동 재분석을 제공한다는 뜻이다.
+    // fromStatus(503)이 SERVICE_UNAVAILABLE을 고르도록 같은 상태 항목은 그 뒤에 둔다.
+    AI_INVALID_OUTPUT(HttpStatus.SERVICE_UNAVAILABLE, "AI 응답을 확인하지 못했습니다. 다시 분석해 주세요.", true),
+    MODEL_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 모델을 일시적으로 사용할 수 없습니다. 잠시 후 다시 분석해 주세요.", true),
+    SEARCH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "자료 검색을 일시적으로 사용할 수 없습니다. 잠시 후 다시 분석해 주세요.", true),
+    AI_RUN_STATE_UNKNOWN(HttpStatus.SERVICE_UNAVAILABLE, "분석 결과를 확인하지 못했습니다. 다시 분석해 주세요.", true),
+    DEADLINE_EXCEEDED(HttpStatus.GATEWAY_TIMEOUT, "분석 시간이 초과되었습니다. 다시 분석해 주세요.", true);
 
     private final HttpStatus status;
     private final String message;
