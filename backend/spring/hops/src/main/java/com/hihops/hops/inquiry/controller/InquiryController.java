@@ -2,6 +2,7 @@ package com.hihops.hops.inquiry.controller;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hihops.hops.global.dto.PageResponse;
 import com.hihops.hops.inquiry.dto.InquiryResultResponse;
 import com.hihops.hops.inquiry.dto.InquirySummaryResponse;
+import com.hihops.hops.inquiry.dto.MessagePageResponse;
 import com.hihops.hops.inquiry.service.InquiryQueryService;
 
 import jakarta.validation.constraints.Max;
@@ -42,6 +44,13 @@ public class InquiryController {
     @GetMapping("/{inquiryId}")
     public InquiryResultResponse inquiry(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID inquiryId) {
         return inquiryQueryService.findMyInquiry(actorId(jwt), inquiryId);
+    }
+
+    @GetMapping("/{inquiryId}/messages")
+    public MessagePageResponse messages(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID inquiryId,
+            @RequestParam(defaultValue = "30") @Min(1) @Max(100) int size,
+            @RequestParam(required = false) @Min(1) @Nullable Integer beforeSequenceNo) {
+        return inquiryQueryService.findMyMessages(actorId(jwt), inquiryId, size, beforeSequenceNo);
     }
 
     private static UUID actorId(Jwt jwt) {

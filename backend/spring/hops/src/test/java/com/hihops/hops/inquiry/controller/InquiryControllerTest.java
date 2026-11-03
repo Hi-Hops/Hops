@@ -20,8 +20,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 문의자 조회 API(GET /api/v2/inquiries, /{id})가 본인 문의만, 계약 형식으로 돌려주는지 확인한다
- * (WIRE_CONTRACT 12.2, DATA_TYPES 신규 절). 넣은 행은 테스트가 끝나면 되돌려진다.
+ * 문의자 조회 API(GET /api/v2/inquiries, /{id}, /{id}/messages)가 본인 문의만, 계약 형식으로 돌려주는지 확인한다
+ * (WIRE_CONTRACT 12.2·12.8, DATA_TYPES 신규 절). 넣은 행은 테스트가 끝나면 되돌려진다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -38,6 +38,10 @@ class InquiryControllerTest {
     private static final UUID NEW_INQUIRY_ID = UUID.fromString("10000000-0000-7000-8000-000000000002");
     private static final UUID DELETED_INQUIRY_ID = UUID.fromString("10000000-0000-7000-8000-000000000003");
     private static final UUID OTHER_INQUIRY_ID = UUID.fromString("10000000-0000-7000-8000-000000000004");
+
+    private static final UUID REQUEST_ID = UUID.fromString("20000000-0000-7000-8000-000000000001");
+    private static final UUID PROBLEM_A = UUID.fromString("30000000-0000-7000-8000-00000000000a");
+    private static final UUID PROBLEM_B = UUID.fromString("30000000-0000-7000-8000-00000000000b");
 
     @Autowired
     private MockMvc mockMvc;
@@ -114,6 +118,9 @@ class InquiryControllerTest {
                     .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
                     .andExpect(jsonPath("$.fieldErrors[0].field").value(param[0]));
         }
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID + "/messages").param("beforeSequenceNo", "0")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("beforeSequenceNo"));
     }
 
     @Test
@@ -144,6 +151,9 @@ class InquiryControllerTest {
             mockMvc.perform(asMember(get("/api/v2/inquiries/" + id)))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+            mockMvc.perform(asMember(get("/api/v2/inquiries/" + id + "/messages")))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("NOT_FOUND"));
         }
     }
 
@@ -157,8 +167,65 @@ class InquiryControllerTest {
     }
 
     @Test
+    void 저장된_메시지를_최신_페이지부터_오래된_순으로_돌려준다() throws Exception {
+        UUID first = insertMessage(NEW_INQUIRY_ID, 1, "USER", "처음 내용", "{\"requestId\": \"" + REQUEST_ID + "\"}", "COMPLETED");
+        insertMessage(NEW_INQUIRY_ID, 2, "AI", "어떤 문서인가요?", "{}", "COMPLETED");
+        UUID third = insertMessage(NEW_INQUIRY_ID, 3, "USER", "고친 내용",
+                "{\"problemLinks\": [{\"problemId\": \"" + PROBLEM_A + "\", \"spans\": [{\"start\": 0, \"end\": 2}]},"
+                        + " {\"problemId\": \"" + PROBLEM_B + "\"}, {\"problemId\": \"" + PROBLEM_A + "\"}]}", "COMPLETED");
+        // 0시에 보내고 1시·2시에 두 번 고쳤다. 이력 행의 시각은 "고친 시각"이다
+        jdbcTemplate.update("UPDATE message SET revision = 3, created_at = '2026-11-01T00:00:00Z' WHERE id = ?", third);
+        jdbcTemplate.update("INSERT INTO message_revision (message_id, revision_no, content, created_at) "
+                + "VALUES (?, 1, '처음 원문', '2026-11-01T01:00:00Z')", third);
+        jdbcTemplate.update("INSERT INTO message_revision (message_id, revision_no, content, created_at) "
+                + "VALUES (?, 2, '고치기 전', '2026-11-01T02:00:00Z')", third);
+        insertMessage(NEW_INQUIRY_ID, 4, "AI", "", "{}", "GENERATING"); // 저장이 끝나지 않은 메시지는 보이지 않는다
+        insertMessage(OTHER_INQUIRY_ID, 1, "USER", "다른 문의", "{}", "COMPLETED");
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID + "/messages").param("size", "2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].sequenceNo").value(contains(2, 3)))
+                .andExpect(jsonPath("$.nextBeforeSequenceNo").value(2))
+                .andExpect(jsonPath("$.items[0].sender").value("AI"))
+                .andExpect(jsonPath("$.items[0].requestId").hasJsonPath())
+                .andExpect(jsonPath("$.items[0].requestId").isEmpty())
+                .andExpect(jsonPath("$.items[0].problemIds").isEmpty())
+                .andExpect(jsonPath("$.items[0].revisions").isEmpty())
+                .andExpect(jsonPath("$.items[1].id").value(third.toString()))
+                .andExpect(jsonPath("$.items[1].inquiryId").value(NEW_INQUIRY_ID.toString()))
+                .andExpect(jsonPath("$.items[1].sender").value("USER"))
+                .andExpect(jsonPath("$.items[1].content").value("고친 내용"))
+                .andExpect(jsonPath("$.items[1].revision").value(3))
+                // 같은 문제가 여러 구간으로 이어져도 한 번만
+                .andExpect(jsonPath("$.items[1].problemIds").value(contains(PROBLEM_A.toString(), PROBLEM_B.toString())))
+                .andExpect(jsonPath("$.items[1].createdAt").value("2026-11-01T00:00:00Z"))
+                // 각 원문의 시각은 그 내용을 쓴 시각이다: 1차는 처음 보낸 시각, 2차는 1차를 고친 시각
+                .andExpect(jsonPath("$.items[1].revisions[*].revisionNo").value(contains(1, 2)))
+                .andExpect(jsonPath("$.items[1].revisions[*].content").value(contains("처음 원문", "고치기 전")))
+                .andExpect(jsonPath("$.items[1].revisions[*].createdAt")
+                        .value(contains("2026-11-01T00:00:00Z", "2026-11-01T01:00:00Z")));
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID + "/messages")
+                        .param("size", "2").param("beforeSequenceNo", "2")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id").value(contains(first.toString())))
+                .andExpect(jsonPath("$.items[0].requestId").value(REQUEST_ID.toString()))
+                .andExpect(jsonPath("$.nextBeforeSequenceNo").hasJsonPath())
+                .andExpect(jsonPath("$.nextBeforeSequenceNo").isEmpty());
+    }
+
+    @Test
+    void 메시지가_없으면_빈_페이지다() throws Exception {
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + OLD_INQUIRY_ID + "/messages")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.nextBeforeSequenceNo").isEmpty());
+    }
+
+    @Test
     void 로그인하지_않으면_401이다() throws Exception {
-        for (String path : new String[] {"/api/v2/inquiries", "/api/v2/inquiries/" + NEW_INQUIRY_ID}) {
+        for (String path : new String[] {"/api/v2/inquiries", "/api/v2/inquiries/" + NEW_INQUIRY_ID,
+                "/api/v2/inquiries/" + NEW_INQUIRY_ID + "/messages"}) {
             mockMvc.perform(get(path))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
