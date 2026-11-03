@@ -118,8 +118,4 @@ public class TicketAssignment extends BaseEntity {
     public Instant getEndedAt() {
         return endedAt;
     }
-
-    public void end(Instant at) { endedAt = at; }
-
-    public void recordEvidence(String evidence) { this.evidence = evidence; }
 }

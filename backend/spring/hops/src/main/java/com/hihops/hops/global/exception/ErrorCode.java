@@ -29,9 +29,6 @@ public enum ErrorCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 대상을 찾을 수 없습니다.", false),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 방식입니다.", false),
     CONFLICT(HttpStatus.CONFLICT, "다른 요청과 충돌했습니다. 최신 내용을 다시 불러와 주세요.", false),
-    TICKET_REVISION_CONFLICT(HttpStatus.CONFLICT, "티켓이 변경되었습니다. 최신 내용을 확인해 주세요.", false),
-    RESOLUTION_REVISION_CONFLICT(HttpStatus.CONFLICT, "이미 응답했거나 확인 요청이 변경되었습니다.", false),
-    INVALID_STATE(HttpStatus.CONFLICT, "현재 상태에서는 요청을 처리할 수 없습니다.", false),
     // 같은 Idempotency-Key로 다른 메서드·경로·본문을 보냄. 같은 키는 한 가지 업무 의도에만 쓴다 (WIRE_CONTRACT 12.1)
     IDEMPOTENCY_KEY_REUSED(HttpStatus.CONFLICT, "이미 다른 요청에 사용한 요청 키입니다.", false),
     // 같은 키의 상세 결과 보존 기간(24시간)이 지남. 새 키로 자동 재실행하지 않는다 (WIRE_CONTRACT 12.1, 12.3)

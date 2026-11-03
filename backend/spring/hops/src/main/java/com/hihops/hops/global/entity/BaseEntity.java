@@ -63,11 +63,6 @@ public abstract class BaseEntity {
         return deletedAt != null;
     }
 
-    /** 자식 기록 추가도 집계의 변경으로 처리해 버전과 최근 변경 시각을 갱신한다. */
-    protected void markUpdated() {
-        updatedAt = Instant.now();
-    }
-
     public UUID getId() {
         return id;
     }

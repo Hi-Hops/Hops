@@ -92,8 +92,6 @@ public class Message extends BaseEntity {
         return payload;
     }
 
-    public void recordResolution(String payload) { this.payload = payload; }
-
     public MessageStatus getMessageStatus() {
         return messageStatus;
     }
