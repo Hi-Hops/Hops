@@ -4,6 +4,6 @@ import java.util.UUID;
 
 public record RealtimeTarget(Type type, UUID id) {
     public enum Type {
-        INQUIRY, DEPARTMENT_TICKETS, TICKET
+        INQUIRY, DEPARTMENT_TICKETS, TICKET, SYSTEM_TICKETS
     }
 }

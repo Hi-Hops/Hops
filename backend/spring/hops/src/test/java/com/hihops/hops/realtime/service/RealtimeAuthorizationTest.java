@@ -18,6 +18,7 @@ import com.hihops.hops.department.repository.DepartmentRepository;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
+import com.hihops.hops.ticket.service.TicketService;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.domain.Role;
 import com.hihops.hops.user.repository.MemberRepository;
@@ -25,7 +26,7 @@ import com.hihops.hops.user.repository.MemberRepository;
 class RealtimeAuthorizationTest {
     private final MemberRepository members = mock(MemberRepository.class);
     private final DepartmentRepository departments = mock(DepartmentRepository.class);
-    private final RealtimeAuthorization authorization = new RealtimeAuthorization(members, departments);
+    private final RealtimeAuthorization authorization = new RealtimeAuthorization(members, departments, mock(TicketService.class));
     private final UUID userId = UUID.randomUUID();
     private final UUID departmentId = UUID.randomUUID();
     private final Member member = mock(Member.class);
