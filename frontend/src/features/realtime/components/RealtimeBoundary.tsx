@@ -29,14 +29,20 @@ export function RealtimeBoundary({ children }: { children: ReactNode }) {
             {
               predicate: (query) => {
                 const parts = query.queryKey;
-                if (target.type === 'INQUIRY')
-                  return (
-                    parts[0] === 'inquiries' ||
-                    (parts[0] === 'chat' && (parts[1] === target.id || parts[1] === 'run'))
-                  );
-                if (target.type === 'DEPARTMENT_TICKETS')
-                  return parts[0] === 'tickets' && parts[1] === 'list';
-                return parts[0] === 'tickets' && parts[1] === 'detail' && parts[3] === target.id;
+                if (parts[0] === 'hops-system-1') {
+                  if (target.type === 'INQUIRY')
+                    return parts[1] === 'chat' && parts[3] === target.id;
+                  return [
+                    'tickets',
+                    'related',
+                    'cases',
+                    'generation',
+                    'resolution',
+                    'case-source',
+                  ].includes(String(parts[1]));
+                }
+                if (target.type === 'INQUIRY') return parts[0] === 'inquiries';
+                return false;
               },
             },
             { throwOnError: true, cancelRefetch: false },
@@ -58,6 +64,12 @@ export function RealtimeBoundary({ children }: { children: ReactNode }) {
       void synchronize({ type: 'INQUIRY', id: event.inquiryId }).catch(() => undefined);
     });
     const offSync = realtime.onSync((target) => synchronize(target));
+    const offAuth = realtime.on('auth.invalidated', (event) => {
+      if (event.code !== 'ACCESS_TOKEN_EXPIRED') {
+        client.clear();
+        useSession.getState().expire();
+      }
+    });
     try {
       if (token) realtime.connect(token);
       else realtime.disconnect();
@@ -72,6 +84,7 @@ export function RealtimeBoundary({ children }: { children: ReactNode }) {
       offState();
       offMessage();
       offSync();
+      offAuth();
     };
   }, [client, token]);
   useEffect(

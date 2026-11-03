@@ -9,8 +9,9 @@ import { liveConnection } from '@/shared/config/connection';
 import type { SubscriptionTarget } from '@/shared/api/types';
 import { TransportEvents } from './transportEvents';
 import { readSse } from './sseParser';
-import { decodeEvent } from './sseEvents';
 import type { RealtimeTransport, TargetState } from './types';
+import { apiPath } from '@/shared/config/api';
+import { decodeSystemEvent } from './systemSseEvents';
 
 type Entry = {
   target: SubscriptionTarget;
@@ -39,7 +40,6 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
   private entries = new Map<string, Entry>();
   constructor(
     private connectTimeout = 5000,
-    private reconnectWindow = 30_000,
     private baseDelay = 1000,
   ) {
     super();
@@ -116,7 +116,6 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
     });
   }
   private async run(entry: Entry, controller: AbortController) {
-    let failedAt: number | null = null;
     let attempt = 0;
     while (this.current(entry, controller) && this.token) {
       const token = this.token;
@@ -139,7 +138,7 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
           targetId: entry.target.id,
         });
         const response = await fetch(
-          `${liveConnection().apiBaseUrl}/api/realtime/events?${query.toString()}`,
+          `${liveConnection().apiBaseUrl}${apiPath('/realtime/events')}?${query.toString()}`,
           {
             headers: {
               Accept: 'text/event-stream',
@@ -181,7 +180,6 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
           await response.body?.cancel();
           throw new Error('SSE 응답 형식이 달라요.');
         }
-        this.update(entry, 'connected');
         reading = readSse(
           response.body,
           (message) => {
@@ -206,12 +204,11 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
             } catch {
               throw new Error('SSE JSON이 올바르지 않아요.');
             }
-            const event = decodeEvent(message.event, input, entry.target);
+            const event = decodeSystemEvent(message.event, input, entry.target);
             if (!event) throw new Error('SSE 이벤트 필드 또는 대상이 달라요.');
             if (message.id && message.id !== event.value.eventId)
               throw new Error('SSE 이벤트 식별자가 일치하지 않아요.');
             outcome.received = true;
-            failedAt = null;
             attempt = 0;
             if (event.name === 'auth.invalidated') {
               this.emit(event.name, event.value);
@@ -231,12 +228,19 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
           request.signal,
         );
         // 첫 연결/재연결 모두 스트림을 읽기 시작한 뒤 REST로 확정 상태를 맞춘다.
-        // 조회 실패는 조회 화면에서 안내한다. 정상 스트림까지 끊어 재시도하지 않는다.
+        // connected는 REST 복구 완료까지 포함한다. 실패 시 connecting으로 보호 영역을 가린다.
+        // 조회 실패는 조회 화면에서 안내하며 정상 스트림은 이벤트를 계속 수신한다.
         // resync.required 이후의 필수 REST 복구 실패는 아래 복구 분기에서 별도로 처리한다.
-        await Promise.all([reading, this.synchronize(entry.target).catch(() => undefined)]);
+        await Promise.all([
+          reading,
+          this.synchronize(entry.target)
+            .then(() => {
+              if (this.current(entry, controller)) this.update(entry, 'connected');
+            })
+            .catch(() => undefined),
+        ]);
         if (!this.current(entry, controller)) return;
         if (Date.now() - openedAt > this.connectTimeout) {
-          failedAt = null;
           attempt = 0;
         }
       } catch (error) {
@@ -252,6 +256,11 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
             return;
           }
           if (error.status === 401) {
+            if (error.body.code !== 'ACCESS_TOKEN_EXPIRED') {
+              reportUnauthorized(token);
+              this.update(entry, 'denied');
+              return;
+            }
             try {
               const recovered = await recoverAuthorization(token);
               const fresh = currentAccessToken();
@@ -279,27 +288,20 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
       if (!this.current(entry, controller)) return;
       // 제어 이벤트와 알림 유실에 따른 EOF 모두 REST 복구 후 커서를 초기화한다.
       if (outcome.resync || (sentCursor && !outcome.received)) {
-        entry.cursor = '';
-        entry.seen.clear();
-        this.emit('stream.reset', { target: entry.target });
         try {
           await this.synchronize(entry.target);
         } catch {
           this.update(entry, 'disconnected');
           return;
         }
+        entry.cursor = '';
+        entry.seen.clear();
+        this.emit('stream.reset', { target: entry.target });
         if (!this.current(entry, controller)) return;
       }
-      failedAt ??= Date.now();
-      const remaining = this.reconnectWindow - (Date.now() - failedAt);
-      const delay = Math.max(
-        retryAfter,
-        Math.min(5000, this.baseDelay * 2 ** Math.min(attempt++, 3) * (0.8 + Math.random() * 0.4)),
-      );
-      if (remaining <= 0 || delay >= remaining) {
-        this.update(entry, 'disconnected');
-        return;
-      }
+      const ceiling = this.baseDelay * ([1, 2, 5, 10, 30][Math.min(attempt++, 4)] ?? 30);
+      // 신규 계약의 단계별 상한을 지키면서 재시도 시점을 분산한다. Retry-After는 하한이다.
+      const delay = Math.max(retryAfter, Math.round(ceiling * (0.8 + Math.random() * 0.2)));
       this.update(entry, 'connecting');
       await pause(delay, controller.signal);
     }

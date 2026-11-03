@@ -1,5 +1,5 @@
 import { useSession } from '@/features/auth';
-import { MessageComposer } from '@/features/chat';
+import { SystemMessageComposer } from '@/features/chat';
 import { useLocation, useNavigate } from 'react-router';
 import { paths } from '@/shared/config/paths';
 import { connectionMode } from '@/shared/config/connection';
@@ -13,15 +13,14 @@ export function HomePage() {
     <main className={styles.page}>
       <h1>무엇을 도와드릴까요, {name} 님?</h1>
       <p>
-        원인이나 담당 부서를 몰라도 괜찮아요. 겪고 있는 문제를 그대로 적어 주시면 Hops가 확인하고,
-        필요하면 담당 부서로 연결합니다.
+        원인이나 담당 시스템을 몰라도 괜찮아요. 겪고 있는 문제를 그대로 적어 주시면 Hops가 확인하고,
+        필요하면 시스템 주담당자로 연결합니다.
       </p>
       <div className={styles.composer}>
-        <MessageComposer
-          isHome
+        <SystemMessageComposer
           focusKey={location.key}
-          onStored={(ack) => {
-            void navigate(paths.inquiryChat(ack.inquiryId));
+          onStored={(id) => {
+            void navigate(paths.inquiryChat(id));
           }}
         />
       </div>

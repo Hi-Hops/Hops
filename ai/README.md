@@ -2,11 +2,11 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
 
-[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증과 저장된 실행 상태 조회를 제공한다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
+[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증·실행 조회와 파이프라인 주입 시 접수·백그라운드 실행을 제공한다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
-신규 역할·State·서버 간 DTO의 구현 기준은 [공통 구현 계약](../specs/contracts/README.md)과 [에이전트 계약](../contracts/agents/README.md)에서 확인한다. 문서의 신규 hops-system-1과 현재 미구현 골격의 상태를 구분한다.
+신규 역할·State·서버 간 DTO의 구현 기준은 [공통 구현 계약](../specs/contracts/README.md)과 [에이전트 계약](../contracts/agents/README.md)에서 확인한다. wire 검증·기술 기반의 구현과 역할 실행·서비스 전체 통합 상태를 구분한다.
 
 ## 현재 실행 범위
 
@@ -87,7 +87,7 @@ curl -i http://127.0.0.1:8000/readyz
 |---|---|
 | `GET /internal/v2/runs/{runId}` | Bearer 인증 후 저장된 snapshot 조회. 없는 실행은 404, DB/저장 형식 오류는 안전한 503 |
 | `POST /internal/v2/runs` | 파이프라인 미주입 시 503(접수 안 함). 주입 시 신규·재전송 202 `AiAccepted`, 다른 입력 409, 기한 지남 422, 서버 상한 초과 429 `BUDGET_EXCEEDED`, 동시 실행 초과 429 `RATE_LIMITED`+`Retry-After`, 저장소 오류 503 |
-| `GET /internal/v2/runs/{runId}/events` | 실행기·SSE 미준비 503 |
+| `GET /internal/v2/runs/{runId}/events` | 실행 이벤트 SSE 미준비 503 |
 | `POST /internal/v2/runs/{runId}/cancel` | 취소 전파 미구현 503 |
 
 `/internal` 아래 모든 경로는 요청 본문을 읽기 전에 서비스 인증을 수행한다. 아직 등록되지 않은 내부 경로도 인증 전에는 401을 반환한다. 인증 실패는 안전한 오류 본문의 401이며 중복 Authorization 헤더도 거부한다. 생존·준비 상태 경로는 인증하지 않는다. `readyz`는 내부 조회 활성화 여부와 관계없이 503이며, 현재 프로필은 운영 배포·실제 모델 실행을 뜻하지 않는다.
@@ -110,7 +110,7 @@ RunLedger는 Spring 업무 DB가 아닌 별도 `hops_ai_runtime` DB를 사용한
 
 `RunLedger.open()`은 인스턴스별 PostgreSQL 세션 잠금을 확보하고, 소유 세션이 사라진 미완료 run을 `UNKNOWN`으로 복구한다. 살아 있는 다른 인스턴스의 잠금은 건드리지 않는다. 접수·실행 변경은 잠금을 보유한 같은 DB 세션을 사용하므로 직접 연결 또는 세션 수명이 유지되는 연결 구성이 필요하다. 트랜잭션 단위 연결 풀은 사용할 수 없다. 네트워크 단절 시 PostgreSQL이 기존 세션 종료를 확인하기 전까지 복구가 지연될 수 있다. 스캔 중 종료된 다른 인스턴스는 다음 `recover_abandoned()` 호출에서 확인할 수 있으며 주기 실행은 아직 연결하지 않았다.
 
-테스트처럼 `create_app(..., ledger=ledger)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 종료 시 세션을 닫는다. 기본 골격 실행은 DB에 연결하지 않고, 실제 실행 모드·인증·업무 API·Supervisor는 여전히 미구현이다.
+테스트처럼 `create_app(..., ledger=ledger, pipeline=pipeline)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 백그라운드 실행기를 연결하며 종료 시 실행기·세션을 정리한다. pipeline 없이 내부 API만 활성화하면 저장된 실행 조회만 제공하고 새 접수는 503이다. 기본 골격 실행은 DB에 연결하지 않는다. 실제 모델·Supervisor·Spring 업무·실행 SSE 연결은 미완료다.
 
 PostgreSQL 통합 검사는 별도 테스트 전용 DB `hops_ai_runtime_test`가 준비된 경우에만 실행한다. 해당 DB에 위 SQL을 적용하며 테스트용 실행 기록을 추가한다. 기본 테스트에서는 접속 설정이 없으면 이 검사들을 건너뛴다.
 
@@ -134,6 +134,6 @@ DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 
 - **Inquiry·Ticket:** 의도와 내부 처리 유형을 분리한다. 질문 묶음은 독립 문제당 최대 5회다. 보고 시스템·책임 시스템 후보·근거와 미확인을 보존한다. 구체 질문 전이·서버 저장 검증은 구현 전이다.
 - **Knowledge:** 권한이 허용된 가이드·업무 정책·런북·승인 사례를 검색한다. 조건부 분석을 포함하며 그래프 연결만으로 원인을 확정하지 않는다. 검색 0건과 검색 오류를 구분한다.
 - **Curator·색인:** 처리 기록으로 초안을 제안한다. 문의자 해결 확인·시스템 담당자 승인과 같은 승인 버전의 양쪽 반영 성공 전에는 사례를 어느 검색 경로에서도 공개하지 않는다. 업무 승인·공개 확정은 Spring의 책임이다.
-- **공통:** Python은 업무 DB에 직접 쓰지 않는다. 새 실행/SSE·오류·인증·멱등성·취소·버전·공개 검증 계약을 생산자·소비자와 정한 뒤 연결한다. 읽기 전용 Mock은 기능 명세가 정해진 뒤 구현하며 실제 운영 관측과 구분한다.
+- **공통:** Python은 업무 DB에 직접 쓰지 않는다. 실행/SSE·오류·인증·멱등성·취소·버전·공개 검증은 공통·에이전트 계약의 채택값을 적용하고 생산자·소비자의 실제 연결을 검증한다. 읽기 전용 도구 Mock은 해당 기능 명세에 따라 구현하며 실제 운영 관측과 구분한다.
 
 먼저 [가상 기업 명세](../docs/knowledge/VIRTUAL_COMPANY.md)와 [데이터 구축 계획](../docs/knowledge/DATASETS.md)으로 소량 데이터를 검토한다. [에이전트 계약](../contracts/agents/README.md)과 [목표 공통 계약](../specs/contracts/TARGET_CONTRACT.md)을 구체화한 뒤 검색·실행·역할을 연결한다. Curator 담당 범위는 관련 담당자와 합의한다.

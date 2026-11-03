@@ -1,6 +1,6 @@
 # 공통 데이터·전송 계약
 
-기준: [PRD 1.44](../../docs/PRD.md). 신규 `hops-system-1`은 목표 계약이며 실제 구현·통합 완료와 구분한다. 현재 프론트의 hops-mock-1과 새 Python 골격·신규 목표 계약을 구분한다. 옛 Python agent-1 실행 API는 제거됐으며 프로필을 혼용하지 않는다.
+기준: [PRD 1.44](../../docs/PRD.md). `hops-system-1`은 현재 프론트의 단일 계약이며 서비스 전체의 구현·통합 완료와 구분한다. Spring·AI의 부분 구현과 전환 전 hops-mock-1 기록은 아래에서 따로 설명한다. 옛 Python agent-1 실행 API는 제거됐으며 프로필을 혼용하지 않는다.
 
 ## 정본과 읽는 순서
 
@@ -23,14 +23,14 @@
 
 | 프로필 | 용도 | 구현 상태 |
 |---|---|---|
-| hops-system-1 | PRD 1.44 전체 MVP의 /api/v2·신규 AI wire 계약안 | 이 문서 변경은 코드·DB·새 경로를 구현하지 않음 |
-| hops-mock-1 | DATA_TYPES 전환 전 절·WIRE 1~11절·기존 mock-profile.json과 공용 Mock | 현재 프론트/테스트가 읽는 이전 부서 기반 데이터 |
-| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 업무 실행·모델·검색·새 wire 어댑터는 미구현. 옛 agent-1 실행 API는 제거됨 |
+| hops-system-1 | PRD 1.44 전체 MVP의 /api/v2·신규 AI wire 계약 | 프론트 UI·DTO·REST/SSE 어댑터·메모리 Mock 구현. Spring은 v2 인증·부서 SSE를 제공하며 신규 업무·시스템 권한 연결은 미완료 |
+| hops-mock-1 | DATA_TYPES 전환 전 절·WIRE 1~10절·기존 mock-profile.json과 공용 JSON | 전환 전 부서 기반 참고 자료. 현재 프론트/테스트는 읽지 않음 |
+| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 실행 wire 검증·서비스 인증·실행 조회·파이프라인 주입 시 접수·백그라운드 실행 구현. 실제 역할·모델·검색 파이프라인·실행 SSE는 미연결 |
 
 새 프로필은 시스템·주담당자, 5회 질문·대기, 무티켓 안내·문제별 해결 확인, 처리 기록, 사례 승인·동일 버전 두 저장소 반영을 모두 포함한다. 선점·수락·자동 재배정·무응답 종료·전용 복구 화면은 신규 필수 기능으로 추가하지 않는다.
 
 ## 예시와 전환
 
-[호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)는 명령·상태 경계를 검토하는 Markdown 코드다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에서 확인한다. 예시는 실행 Mock·실제 서버 응답·승인 증거가 아니며, 기존 mock-profile.json·accounts.json·fixtures.json·scenarios.json은 소비 코드와 함께 전환하기 전까지 그대로 둔다.
+[호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)는 명령·상태 경계를 검토하는 Markdown 코드다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에서 확인한다. Markdown 예시는 실제 서버 응답·승인 증거가 아니다. 현재 프론트의 실행 Mock은 `systemMockBackend.ts`·`systemMockWorkflow.ts`와 같은 신규 계약을 사용하며 실행법은 [프론트 안내](../../frontend/README.md#mock으로-화면-개발)를 따른다. 기존 mock-profile.json·accounts.json·fixtures.json·scenarios.json은 전환 전 기록으로 보존한다.
 
 전환은 신규 API/DB/AI 구현 → 신규 어댑터·DTO → 프로필별 fixture/계약 검사 → 서비스 저장·권한 검사 → 실제 모델/검색 → 브라우저 E2E 순으로 검증한다. 전체 설계는 이번 계약에 포함하고 구현만 순서대로 진행한다. 통신 실패 시 다른 프로필이나 Fake로 자동 대체하지 않는다.

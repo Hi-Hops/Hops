@@ -1,6 +1,6 @@
 export function connectionMode() {
-  const mode = import.meta.env.VITE_DATA_MODE?.trim() ?? 'mock';
-  if (mode === '') return 'mock';
+  const mode = import.meta.env.VITE_DATA_MODE?.trim() ?? 'live';
+  if (mode === '') return 'live';
   if (mode !== 'mock' && mode !== 'live')
     throw new Error('VITE_DATA_MODE는 mock 또는 live로 설정해 주세요.');
   return mode;

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import type { CurrentUser } from '@/shared/api/types';
 import { ApiError } from '@/shared/api/client';
+import { apiErrorMessage } from '@/shared/api/errorMessage';
 import { Button } from '@/shared/ui/Button';
 import { TextField } from '@/shared/ui/TextField';
 import { login } from '../api/authApi';
@@ -78,7 +79,7 @@ export function LoginForm({
         {mutation.isError && (
           <p className={styles.error} role="alert">
             {mutation.error instanceof ApiError
-              ? mutation.error.body.message
+              ? apiErrorMessage(mutation.error, '로그인하지 못했어요.')
               : '로그인하지 못했어요. 다시 시도해 주세요.'}
           </p>
         )}

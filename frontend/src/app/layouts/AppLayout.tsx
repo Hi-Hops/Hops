@@ -1,11 +1,12 @@
 import { paths } from '@/shared/config/paths';
 import { connectionMode } from '@/shared/config/connection';
 import { NavLink, Outlet, useNavigate } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { logout, refreshSession, useSession } from '@/features/auth';
 import { RealtimeBoundary } from '@/features/realtime';
 import { RecentInquiries } from '@/features/inquiry';
+import { getSystems } from '@/features/ticket';
 import { Button } from '@/shared/ui/Button';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
 import styles from './AppLayout.module.css';
@@ -16,6 +17,11 @@ export function AppLayout() {
   const [refreshError, setRefreshError] = useState(false);
   const client = useQueryClient();
   const navigate = useNavigate();
+  const catalog = useQuery({
+    queryKey: ['hops-system-1', 'systems', user?.id],
+    queryFn: ({ signal }) => getSystems(signal),
+    enabled: Boolean(user),
+  });
   useEffect(
     () =>
       onSessionEvent(() => {
@@ -55,19 +61,6 @@ export function AppLayout() {
             <p>{user.department.name}</p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            void logout()
-              .catch(() => undefined)
-              .finally(() => {
-                client.clear();
-                void navigate('/login', { replace: true });
-              });
-          }}
-        >
-          로그아웃
-        </Button>
       </header>
       {refreshError && (
         <div role="alert">
@@ -97,17 +90,28 @@ export function AppLayout() {
               to="/"
               className={({ isActive }) => (isActive ? styles.active : styles.link)}
             >
-              <span className={styles.navIcon} aria-hidden="true" />+ 새 문의
+              + 새 문의
             </NavLink>
-            {(user.department.isRoutable || user.roles.includes('BIZ_ADMIN')) && (
+            <NavLink
+              to={paths.inquiries}
+              className={({ isActive }) => (isActive ? styles.active : styles.link)}
+            >
+              내 문의
+            </NavLink>
+            {user.primarySystemIds.length > 0 && (
               <>
                 <p className={styles.group}>업무</p>
                 <NavLink
                   to={paths.tickets}
                   className={({ isActive }) => (isActive ? styles.active : styles.link)}
                 >
-                  <span className={styles.navIcon} aria-hidden="true" />
-                  부서 티켓 현황
+                  담당 시스템 업무
+                </NavLink>
+                <NavLink
+                  to={paths.cases}
+                  className={({ isActive }) => (isActive ? styles.active : styles.link)}
+                >
+                  사례 검토
                 </NavLink>
               </>
             )}
@@ -116,12 +120,27 @@ export function AppLayout() {
                 to={paths.adminTickets}
                 className={({ isActive }) => (isActive ? styles.active : styles.link)}
               >
-                <span className={styles.navIcon} aria-hidden="true" />
-                관리자 페이지
+                업무 관리
               </NavLink>
             )}
           </nav>
           <RecentInquiries />
+          <footer className={styles.sidebarFooter}>
+            <p>{catalog.data?.map((system) => system.name).join(' · ')}</p>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void logout()
+                  .catch(() => undefined)
+                  .finally(() => {
+                    client.clear();
+                    void navigate('/login', { replace: true });
+                  });
+              }}
+            >
+              로그아웃
+            </Button>
+          </footer>
         </aside>
         <div className={styles.content}>
           <RealtimeBoundary>

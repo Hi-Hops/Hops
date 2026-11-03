@@ -14,7 +14,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급과 `/api/v2/auth/me`, [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃과 [부서 SSE](#spring-sse-공통-기반)입니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -33,7 +33,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·갱신(회전)은 구현했습니다. 로그아웃, 문의 변경 REST·문의/티켓 조회와 문의·개별 티켓 SSE는 아직 구현하지 않았습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 실제 서버 연결 검사 범위는 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따릅니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리는 구현했습니다. 시스템 담당 관계 DTO·업무 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
@@ -189,7 +189,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 
 ## 인증
 
-로그인하면 Spring이 서명한 액세스 토큰(JWT)을 발급하고, 이후 요청은 `Authorization: Bearer <토큰>`으로 인증합니다. 응답·토큰 모양은 [데이터 타입](../../../specs/contracts/DATA_TYPES.md)의 `LoginResponse`·`CurrentUser`와 [API 설계](../../../docs/API.md) §2.5를 따릅니다. 계정은 위 "가상 데이터"의 표를 참고합니다.
+로그인하면 Spring이 서명한 액세스 토큰(JWT)을 발급하고, 이후 요청은 `Authorization: Bearer <토큰>`으로 인증합니다. 현재 응답은 아래 표와 코드의 `LoginResponse`·`CurrentUserResponse`를 따릅니다. [데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)의 신규 `CurrentUser`가 요구하는 `primarySystemIds`는 아직 반환하지 않습니다. 현재 프론트는 신규 DTO를 검증하므로 이 필드와 시스템 권한 연결이 필요합니다. 계정은 위 "가상 데이터"의 표를 참고합니다.
 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
@@ -245,8 +245,8 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
 외부 이벤트 발행용 HTTP API는 제공하지 않습니다. 문의·답변 이벤트 생산자와 업무 저장 API는 아직 연결하지 않았습니다.
 
-현재는 단일 Spring 프로세스의 연결만 관리합니다. DB 재검사로 전송을 막지만, 부서·역할 변경을
-즉시 모든 연결에 통지하는 `auth.invalidated`와 현재 세션 로그아웃 연계는 아직 없습니다.
+현재는 단일 Spring 프로세스의 연결만 관리합니다. 로그인 세션 종료 시 회원 단위 SSE 정리는 연결했습니다.
+부서·역할 변경을 즉시 모든 연결에 통지하는 `auth.invalidated`는 아직 없습니다.
 유휴 연결은 다음 heartbeat에서 회수를 확인하며, 업무 이벤트는 전송 전 재검사합니다.
 권한 변경 트랜잭션과 전송 간 경합을 완전히 직렬화하지는 않습니다.
 다중 인스턴스 전달·이벤트 보존/replay·프록시 buffering·최대 연결 수·느린 소비자에 대한
@@ -259,7 +259,7 @@ DB 없이 SSE 기반 테스트만 실행할 수 있습니다.
 ./gradlew test --tests '*RealtimeAuthorizationTest' --tests '*RealtimeServiceTest' --tests '*RealtimeSecurityTest'
 ```
 
-DB 없는 SSE 테스트 21개는 연결·대상별 전달·권한 회수·만료·재생 불가 종료·커밋/롤백·Security/CORS와
+위 DB 없는 SSE 테스트는 연결·대상별 전달·권한 회수·만료·재생 불가 종료·커밋/롤백·Security/CORS와
 예약 작업 취소·스케줄러 거부 시 정리를 검증합니다.
 Mock 권한·MVC 테스트는 실제 JWT/DB·브라우저·운영 프록시 E2E 검증을 대신하지 않습니다.
 

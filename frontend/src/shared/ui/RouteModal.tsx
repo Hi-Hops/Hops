@@ -8,6 +8,9 @@ type RouteModalProps = {
   onClose: () => void;
   returnFocusId?: string;
   children: ReactNode;
+  footer?: ReactNode;
+  size?: 'wide' | 'compact';
+  padded?: boolean;
 };
 export function RouteModal({
   title,
@@ -15,6 +18,9 @@ export function RouteModal({
   onClose,
   returnFocusId,
   children,
+  footer,
+  size = 'wide',
+  padded = true,
 }: RouteModalProps) {
   return (
     <Dialog.Root
@@ -26,11 +32,15 @@ export function RouteModal({
       <Dialog.Portal>
         <Dialog.Overlay className={styles.overlay} />
         <Dialog.Content
-          className={styles.content}
+          className={
+            (styles.content ?? '') + (size === 'compact' ? ' ' + (styles.compact ?? '') : '')
+          }
           onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            const target = returnFocusId ? document.getElementById(returnFocusId) : null;
-            (target ?? document.getElementById('page-title'))?.focus();
+            if (returnFocusId) {
+              event.preventDefault();
+              const target = document.getElementById(returnFocusId);
+              (target ?? document.getElementById('page-title'))?.focus();
+            }
           }}
         >
           <header className={styles.header}>
@@ -44,13 +54,17 @@ export function RouteModal({
               </Button>
             </Dialog.Close>
           </header>
-          <div className={styles.body}>{children}</div>
-          <footer className={styles.footer}>
-            <span>조회 전용 · 변경 작업은 후속 기능이에요</span>
-            <Dialog.Close asChild>
-              <Button variant="secondary">닫기</Button>
-            </Dialog.Close>
-          </footer>
+          <div className={(styles.body ?? '') + (padded ? ' ' + (styles.padded ?? '') : '')}>
+            {children}
+          </div>
+          {footer !== null && (
+            <footer className={styles.footer}>
+              {footer}
+              <Dialog.Close asChild>
+                <Button variant="secondary">닫기</Button>
+              </Dialog.Close>
+            </footer>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

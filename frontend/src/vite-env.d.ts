@@ -8,6 +8,7 @@ interface ImportMetaEnv {
   readonly VITE_MOCK_BACKEND_ID?: string;
   readonly VITE_MOCK_ADMIN_ID?: string;
   readonly VITE_MOCK_PASSWORD?: string;
+  readonly VITE_MOCK_EXAMPLES?: string;
   readonly VITE_API_BASE_URL?: string;
 }
 
