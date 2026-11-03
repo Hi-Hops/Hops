@@ -4,7 +4,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.types import QuestionCount
-from hops_ai.harness.errors import ComponentNotReady
+from hops_ai.harness.errors import ComponentNotReady, InputRejected
 from hops_ai.services.llm.client import LLMRequest
 from hops_ai.services.llm.openai import OpenAIClient
 from hops_ai.services.retrieval.base import RetrievalQuery
@@ -19,8 +19,8 @@ async def test_pending_role_never_generates_success_or_assignment(role) -> None:
         await build_registry()[role].run(object(), None)
 
 
-async def test_pending_supervisor_has_no_fixed_business_routing() -> None:
-    with pytest.raises(ComponentNotReady):
+async def test_supervisor_rejects_missing_request_and_services() -> None:
+    with pytest.raises(InputRejected):
         await Supervisor().analyze(object(), None)
 
 
