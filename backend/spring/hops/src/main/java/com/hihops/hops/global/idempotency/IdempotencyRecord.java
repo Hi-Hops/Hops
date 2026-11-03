@@ -106,6 +106,26 @@ public class IdempotencyRecord extends CreatedOnlyEntity {
         this.expiresAt = expiresAt;
     }
 
+    /**
+     * 업무 반영이 끝나 최종 응답을 기록한다. 접수(PENDING) 기록과 같은 트랜잭션에서 호출한다.
+     *
+     * @param resource       저장한 업무 대상
+     * @param responseStatus 처음 응답한 HTTP 상태
+     * @param responseBody   처음 응답한 JSON. 같은 키로 다시 오면 이 본문을 그대로 돌려준다
+     */
+    public void succeed(ResourceRef resource, int responseStatus, String responseBody) {
+        this.operationState = OperationState.SUCCEEDED;
+        this.resourceType = resource.type().name();
+        this.resourceId = resource.id();
+        this.responseStatus = responseStatus;
+        this.responseBody = responseBody;
+    }
+
+    /** 상세 결과 보존 기간이 지났거나 응답을 비웠으면 true. 이때는 결과 대신 410을 돌려준다. */
+    public boolean isExpired(Instant now) {
+        return tombstonedAt != null || !now.isBefore(expiresAt);
+    }
+
     public Member getActor() {
         return actor;
     }
