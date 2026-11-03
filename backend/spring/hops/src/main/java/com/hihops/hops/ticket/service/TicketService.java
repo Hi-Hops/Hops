@@ -30,7 +30,7 @@ import com.hihops.hops.ticket.dto.TicketState;
 import com.hihops.hops.ticket.dto.TicketSummaryResponse;
 import com.hihops.hops.ticket.dto.WorkRecordResponse;
 import com.hihops.hops.ticket.repository.TicketAssignmentRepository;
-import com.hihops.hops.ticket.repository.TicketRepository;
+import com.hihops.hops.ticket.repository.TicketQueryRepository;
 import com.hihops.hops.ticket.repository.TicketWorkLogRepository;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.domain.Role;
@@ -43,7 +43,7 @@ import lombok.RequiredArgsConstructor;
 public class TicketService {
     private final AuthService authService;
     private final TicketAuthorization authorization;
-    private final TicketRepository tickets;
+    private final TicketQueryRepository tickets;
     private final ItSystemService systems;
     private final TicketAssignmentRepository assignments;
     private final TicketWorkLogRepository workLogs;

@@ -8,18 +8,17 @@ import org.springframework.stereotype.Service;
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.AgentTask;
 import com.hihops.hops.agent.domain.RunStatus;
-import com.hihops.hops.agent.repository.AgentRunRepository;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.global.exception.ErrorResponse;
 import com.hihops.hops.global.filter.RequestIdFilter;
-import com.hihops.hops.knowledge.repository.ResolvedCaseRepository;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.domain.TicketWorkLog;
 import com.hihops.hops.ticket.domain.WorkLogType;
 import com.hihops.hops.ticket.dto.CaseGenerationResponse;
 import com.hihops.hops.ticket.dto.ResolutionRequestResponse;
 import com.hihops.hops.ticket.repository.TicketEventRepository;
+import com.hihops.hops.ticket.repository.TicketProgressQueryRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -28,8 +27,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TicketProgressReader {
     private final TicketEventRepository events;
-    private final AgentRunRepository runs;
-    private final ResolvedCaseRepository cases;
+    private final TicketProgressQueryRepository runs;
     private final TicketStoredData data;
 
     public ResolutionRequestResponse resolution(Ticket ticket, List<TicketWorkLog> records) {
@@ -88,10 +86,10 @@ public class TicketProgressReader {
             state = "RUNNING";
         } else if (run.getRunStatus() == RunStatus.SUCCEEDED) {
             var validation = run.getValidationResult() == null ? null : data.parse(run.getValidationResult());
-            if (validation != null && "NO_REUSABLE_CASE".equals(validation.path("caseGenerationState").asString())) {
+            if (noReusableCase(run, validation)) {
                 state = "NO_REUSABLE_CASE";
             } else {
-                var resolved = cases.findBySourceWorkLogIdAndDeletedAtIsNull(run.getTriggerWorkLog().getId())
+                var resolved = runs.findCaseByWorkLogId(run.getTriggerWorkLog().getId())
                         .orElseThrow(() -> new BusinessException(ErrorCode.SERVICE_UNAVAILABLE));
                 if (resolved.getCuratorRun() == null || !resolved.getCuratorRun().getId().equals(run.getId())) unavailable();
                 state = "SUCCEEDED";
@@ -102,6 +100,17 @@ public class TicketProgressReader {
             error = ErrorResponse.of(ErrorCode.SERVICE_UNAVAILABLE, RequestIdFilter.currentRequestId());
         }
         return new CaseGenerationResponse(run.getId(), run.getTriggerWorkLog().getId(), state, caseId, error);
+    }
+
+    private boolean noReusableCase(AgentRun run, tools.jackson.databind.JsonNode validation) {
+        if (validation == null) return false;
+        if ("NO_REUSABLE_CASE".equals(validation.path("caseGenerationState").asString())) return true;
+        // 별도 사례 저장 흐름은 적용 여부와 저장 자원 목록을 기록한다. 빈 자원만으로 성공을 추측하지 않는다.
+        if (!validation.path("applied").isBoolean() || !validation.path("applied").asBoolean()
+                || !validation.path("resources").isArray() || !validation.path("resources").isEmpty()
+                || run.getResult() == null) return false;
+        var reusable = data.parse(run.getResult()).path("caseProposal").path("reusable");
+        return reusable.isBoolean() && !reusable.asBoolean();
     }
 
     private static void unavailable() {

@@ -11,7 +11,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.hihops.hops.itsystem.repository.ItSystemRepository;
+import com.hihops.hops.itsystem.repository.ItSystemQueryRepository;
 import com.hihops.hops.knowledge.domain.AccessLevel;
 import com.hihops.hops.knowledge.domain.DataSplit;
 import com.hihops.hops.knowledge.domain.DocumentType;
@@ -29,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TicketKnowledgeReader {
     private final KnowledgeDocumentVersionRepository versions;
-    private final ItSystemRepository systems;
+    private final ItSystemQueryRepository systems;
     private final TicketStoredData data;
 
     public List<KnowledgeEvidenceResponse> visible(String stored, Member member) {

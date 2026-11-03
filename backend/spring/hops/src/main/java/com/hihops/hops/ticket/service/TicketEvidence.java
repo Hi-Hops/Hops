@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 import com.hihops.hops.inquiry.domain.MessageStatus;
 import com.hihops.hops.inquiry.repository.MessageRepository;
-import com.hihops.hops.itsystem.repository.ItSystemRepository;
+import com.hihops.hops.itsystem.repository.ItSystemQueryRepository;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.user.domain.Member;
 
@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class TicketEvidence {
     private final MessageRepository messages;
-    private final ItSystemRepository systems;
+    private final ItSystemQueryRepository systems;
     private final RelatedMessageProjector projector;
 
     public List<UUID> visible(Ticket ticket, Member member, List<UUID> ids) {

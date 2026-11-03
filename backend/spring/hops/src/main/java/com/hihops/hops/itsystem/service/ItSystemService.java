@@ -19,7 +19,7 @@ import com.hihops.hops.itsystem.domain.SystemFeature;
 import com.hihops.hops.itsystem.dto.PrimaryAssignmentResponse;
 import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 import com.hihops.hops.itsystem.dto.SystemFeatureResponse;
-import com.hihops.hops.itsystem.repository.ItSystemRepository;
+import com.hihops.hops.itsystem.repository.ItSystemQueryRepository;
 import com.hihops.hops.itsystem.repository.SystemFeatureRepository;
 import com.hihops.hops.user.domain.Role;
 import com.hihops.hops.user.dto.UserSummaryResponse;
@@ -30,7 +30,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ItSystemService {
     private final AuthService authService;
-    private final ItSystemRepository systems;
+    private final ItSystemQueryRepository systems;
     private final SystemFeatureRepository features;
 
     @Transactional(readOnly = true)

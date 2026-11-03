@@ -206,18 +206,6 @@ public class AgentRun {
         return id;
     }
 
-    /** commit 전에 서버가 검증한 요청을 고정한다. 실행 후에는 입력을 교체하지 않는다. */
-    public void prepareInput(String snapshot) {
-        if (runStatus != RunStatus.QUEUED) throw new IllegalStateException("대기 실행의 입력만 고정할 수 있다");
-        inputSnapshot = Objects.requireNonNull(snapshot);
-    }
-
-    public void storeOutcome(String result, String validation, String errorCode) {
-        this.result = result;
-        this.validationResult = validation;
-        this.errorCode = errorCode;
-    }
-
     public Inquiry getInquiry() {
         return inquiry;
     }

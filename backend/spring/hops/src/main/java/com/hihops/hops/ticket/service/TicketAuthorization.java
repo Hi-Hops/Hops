@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
-import com.hihops.hops.itsystem.repository.ItSystemRepository;
+import com.hihops.hops.itsystem.repository.ItSystemQueryRepository;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.dto.TicketScope;
 import com.hihops.hops.user.domain.Member;
@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class TicketAuthorization {
-    private final ItSystemRepository systems;
+    private final ItSystemQueryRepository systems;
 
     public List<UUID> allowedSystemIds(Member member, TicketScope scope, UUID requestedSystem) {
         List<UUID> allowed;

@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.realtime.service.RealtimeService;
-import com.hihops.hops.ticket.repository.TicketRepository;
+import com.hihops.hops.ticket.repository.TicketQueryRepository;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -38,6 +38,36 @@ import tools.jackson.databind.ObjectMapper;
 @ActiveProfiles({"db", "test"})
 @Transactional
 class TicketControllerTest {
+    @Test void 조회_PR은_티켓_처리와_정정과_해결응답_명령을_제공하지_않는다() throws Exception {
+        for (var path : List.of("/tickets/" + TICKET + "/work-records",
+                "/tickets/" + TICKET + "/processing-type-corrections",
+                "/tickets/" + TICKET + "/assignment-corrections",
+                "/resolution-requests/" + UUID.randomUUID() + "/responses")) {
+            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v2" + path)
+                    .with(jwt().jwt(value -> value.subject(STAFF.toString())
+                            .claim("policyRevision", 1).claim("primarySystemIds", List.of(SYSTEM.toString()))))
+                    .contentType("application/json").content("{}"))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
+    @Test void 다른_사례_저장흐름의_재사용없음_결과도_저장된_사실로_조회한다() throws Exception {
+        UUID workRecord = jdbc.queryForObject("SELECT id FROM ticket_work_log WHERE ticket_id=?", UUID.class, TICKET);
+        UUID generation = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO agent_run(id,inquiry_id,ticket_id,trigger_work_log_id,task,run_status,input_version,input_snapshot,
+                    model_version,prompt_version,schema_version,started_at,completed_at,result,validation_result)
+                VALUES (?,?,?,?,'CURATION','SUCCEEDED',1,'{}','test','test','hops-system-1',now(),now(),
+                    '{"caseProposal":{"reusable":false}}','{"applied":true,"resources":[]}')
+                """, generation, INQUIRY, TICKET, workRecord);
+        mvc.perform(as(STAFF, "/case-generations/" + generation)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("NO_REUSABLE_CASE"))
+                .andExpect(jsonPath("$.caseId").isEmpty());
+        jdbc.update("UPDATE agent_run SET result='{\"caseProposal\":{\"reusable\":true}}' WHERE id=?", generation);
+        entities.clear();
+        mvc.perform(as(STAFF, "/case-generations/" + generation)).andExpect(status().isServiceUnavailable());
+    }
+
     private static final UUID DEPARTMENT = UUID.fromString("71000000-0000-7000-8000-000000000001");
     private static final UUID STAFF = UUID.fromString("71000000-0000-7000-8000-000000000002");
     private static final UUID OTHER = UUID.fromString("71000000-0000-7000-8000-000000000003");
@@ -59,8 +89,10 @@ class TicketControllerTest {
     private JdbcTemplate jdbc;
     @Autowired
     private ObjectMapper mapper;
+    @Autowired
+    private jakarta.persistence.EntityManager entities;
     @MockitoSpyBean
-    private TicketRepository tickets;
+    private TicketQueryRepository tickets;
     @Autowired
     private RealtimeService realtime;
 
