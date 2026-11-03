@@ -135,6 +135,37 @@ class InquiryAnswerHandlerTest {
     }
 
     @Test
+    void 결과를_쓰기_직전에_권한_세대가_바뀌었으면_답변을_저장하지_않는다() {
+        // 접수 때(policyRevision=3)는 유효했지만 AI가 답하는 동안 바뀌었다
+        when(member.getPolicyRevision()).thenReturn(4);
+
+        assertThatThrownBy(() -> handler.apply(run, input(), result(""))).isInstanceOfSatisfying(
+                AgentResultRejectedException.class, e -> assertThat(e.code()).isEqualTo("AUTH_CONTEXT_INVALID"));
+        verify(writer, never()).insert(any(), any(), any(), anyString());
+        verify(inquiry, never()).recordAnalysisResult();
+    }
+
+    @Test
+    void 결과를_쓰기_직전에_문의자가_삭제됐으면_답변을_저장하지_않는다() {
+        when(member.isDeleted()).thenReturn(true);
+
+        assertThatThrownBy(() -> handler.apply(run, input(), result(""))).isInstanceOfSatisfying(
+                AgentResultRejectedException.class, e -> assertThat(e.code()).isEqualTo("AUTH_CONTEXT_INVALID"));
+        verify(writer, never()).insert(any(), any(), any(), anyString());
+    }
+
+    @Test
+    void 늦은_결과와_권한_변경이_겹치면_늦은_결과로_먼저_본다() {
+        AgentRun newer = mock(AgentRun.class);
+        when(newer.getId()).thenReturn(UUID.randomUUID());
+        when(inquiry.getCurrentRun()).thenReturn(newer);
+        when(member.getPolicyRevision()).thenReturn(4);
+
+        assertThatThrownBy(() -> handler.apply(run, input(), result(""))).isInstanceOfSatisfying(
+                AgentResultRejectedException.class, e -> assertThat(e.code()).isEqualTo("SUPERSEDED"));
+    }
+
+    @Test
     void 이_실행이_현재_실행이_아니면_늦은_결과로_보고_저장하지_않는다() {
         AgentRun newer = mock(AgentRun.class);
         when(newer.getId()).thenReturn(UUID.randomUUID());

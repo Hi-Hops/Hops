@@ -49,7 +49,16 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
 
     @Override
     public void verifyAccess(AgentRun run, JsonNode input) {
-        Inquiry inquiry = run.getInquiry();
+        checkAccess(run.getInquiry(), input);
+    }
+
+    /**
+     * 접수 때 AI 입력에 고정한 권한 문맥(문의자·policyRevision)이 지금도 유효한지 확인한다.
+     * AI에 보내기 전({@link #verifyAccess})과 결과를 쓰기 직전({@link #apply}) 모두 부른다.
+     * AI가 답하는 동안 권한 세대가 바뀔 수 있고, 결과 적용은 최신 policyRevision을 다시 검증해야 한다
+     * (contracts/agents/README.md, docs/SECURITY.md SEC-01).
+     */
+    private static void checkAccess(Inquiry inquiry, JsonNode input) {
         Member requester = inquiry.getRequester();
         JsonNode access = input.path("accessContext");
         boolean valid = !inquiry.isDeleted() && !requester.isDeleted()
@@ -72,6 +81,8 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
             throw new AgentResultRejectedException(AgentResultRejectedException.SUPERSEDED,
                     "더 새 입력이나 실행이 있어 이 결과를 반영하지 않습니다");
         }
+        // 늦은 결과는 위에서 SUPERSEDED로 걸러졌다. 현재 결과라면 쓰기 직전에 권한 세대를 다시 확인한다.
+        checkAccess(inquiry, input);
 
         String answer = answerOf(result);
         UUID answerMessageId = reservedAnswerMessageId(input);

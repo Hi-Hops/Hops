@@ -170,6 +170,31 @@ class InquiryAnswerFlowTest {
     }
 
     @Test
+    void AI가_답하는_동안_권한_세대가_바뀌면_답변을_저장하지_않고_권한_오류로_끝낸다() throws Exception {
+        UUID inquiryId = createInquiry("결재 문서가 안 열려요");
+        UUID runId = runOf(inquiryId);
+        // 접수 전달(권한 재확인)은 통과하고, AI 결과를 기다리는 사이에 문의자의 권한 세대가 바뀐다
+        when(client.snapshot(runId.toString())).thenAnswer(invocation -> {
+            jdbc.update("UPDATE member SET policy_revision = policy_revision + 1 WHERE id = ?", memberId);
+            return succeeded(runId, inquiryId, 1, ANSWER);
+        });
+
+        dispatcher.deliver(runId);
+
+        verify(client).submit(any());
+        Map<String, Object> run = jdbc.queryForMap("SELECT run_status, error_code, result FROM agent_run WHERE id = ?", runId);
+        assertThat(run.get("run_status")).isEqualTo("FAILED");
+        assertThat(run.get("error_code")).isEqualTo("AUTH_CONTEXT_INVALID");
+        assertThat(run.get("result")).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id = ?", Long.class, inquiryId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT result_revision FROM inquiry WHERE id = ?", Integer.class, inquiryId))
+                .isEqualTo(1);
+        mockMvc.perform(as(get("/api/v2/runs/" + runId)))
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error.code").value("AUTH_CONTEXT_CHANGED"));
+    }
+
+    @Test
     void 더_새_입력이_생긴_문의의_늦은_결과는_답변으로_저장하지_않는다() throws Exception {
         UUID inquiryId = createInquiry("결재 문서가 안 열려요");
         UUID runId = runOf(inquiryId);
