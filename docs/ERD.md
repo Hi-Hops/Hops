@@ -67,7 +67,7 @@
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 |  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
 
-**현재 DB와의 차이:** `is_routable` 컬럼과 `AGENT_OPS_ADMIN` 역할은 V1 마이그레이션·seed·코드(`Department`, `DepartmentResponse`, `RealtimeAuthorization`, `Role`)와 공통 계약 `Department.isRoutable`에서 아직 사용 중이다. 이 문서에서는 목표 구조로 뺐고, 실제 제거는 V2 마이그레이션과 코드·계약 전환 이슈에서 함께 한다. 적용된 V1 파일은 고치지 않는다.
+**현재 DB와의 차이:** `is_routable` 컬럼과 `AGENT_OPS_ADMIN` 역할은 V1 마이그레이션·seed·코드(`Department`, `DepartmentResponse`, `RealtimeAuthorization`, `Role`)와 전환 전 계약 `Department.isRoutable`에서 아직 사용 중이다. 현재 프론트의 시스템 권한과 구분하며 실제 제거는 후속 Flyway와 서버 DTO·권한 코드 전환에서 함께 한다. 이미 적용된 마이그레이션 파일은 고치지 않는다.
 
 #### 회원 `member`
 로그인 계정과 소속 부서를 관리해요. 담당자 여부는 소속 부서가 아니라 시스템의 주담당자 지정으로 판단해요. *(근거: 최종기획서 2.1, 3)*
@@ -558,8 +558,8 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 ## 5. 물리 적용 상태
 
 - 22개 테이블 전부 [Flyway 마이그레이션](../backend/spring/hops/src/main/resources/db/migration/) V1~V21로 실제 DB에 적용했다 (#23). 테이블마다 파일 하나(V2~V20)이며, 순환 참조 FK는 뒤 파일에서 `ALTER TABLE`로 붙인다 (`inquiry.current_run_id`→V7, `agent_run.ticket_id`→V11, `agent_run.trigger_work_log_id`→V14).
-- 검색 조각은 pgvector `vector` 타입을 쓴다. pgvector는 trusted 확장이 아니라 로컬 DB에 슈퍼유저로 한 번 `CREATE EXTENSION vector`를 실행해야 한다 ([Spring README](../backend/spring/hops/README.md)).
-- 아직 적용하지 않은 것: `department.is_routable`·`AGENT_OPS_ADMIN` 제거(로그인·부서 전환 이슈), AI 서버 계정의 `hops_knowledge` 전용 권한, 임베딩 차원 고정과 벡터 검색 인덱스(모델 선정 후), JSONB 내부 구조의 전용 타입.
+- 검색 조각은 pgvector `vector` 타입을 쓴다. V19는 `CREATE EXTENSION IF NOT EXISTS vector`를 실행한다. 제한 권한의 로컬 DB 계정은 슈퍼유저로 확장을 먼저 켜고, 통합 Compose는 pgvector 이미지와 확장 생성 권한이 있는 DB 계정으로 Flyway를 실행한다. 환경별 준비는 [Spring README](../backend/spring/hops/README.md)를 따른다.
+- 아직 적용하지 않은 것: `department.is_routable`·`AGENT_OPS_ADMIN` 제거(서버 권한·DTO 전환), AI 서버 계정의 `hops_knowledge` 전용 권한, 모델 선정 후 임베딩 차원 고정, JSONB 내부 구조의 전용 타입. 초기 검색은 QUESTIONS의 정확 코사인 기준이며 ANN 인덱스는 MVP 필수 미완료 항목이 아니다.
 - JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다.
 - 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다.
 

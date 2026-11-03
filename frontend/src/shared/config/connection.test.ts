@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { connectionMode, liveConnection } from './connection';
 
 describe('F001·F002 서버 연결 설정', () => {
-  it('F001-AC01 명시하지 않으면 기존 Mock 모드를 유지한다', () => {
+  it('F001-AC01 명시하지 않으면 실제 API 모드를 사용하며 Mock은 명시적으로 선택한다', () => {
     vi.stubEnv('VITE_DATA_MODE', '');
+    expect(connectionMode()).toBe('live');
+    vi.stubEnv('VITE_DATA_MODE', 'mock');
     expect(connectionMode()).toBe('mock');
   });
   it('F001-AC01 live와 잘못된 모드를 구분한다', () => {

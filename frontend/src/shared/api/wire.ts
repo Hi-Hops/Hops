@@ -16,11 +16,16 @@ export function isApiError(value: unknown): value is ApiErrorBody {
     isRecord(value) &&
     typeof value.code === 'string' &&
     typeof value.message === 'string' &&
-    typeof value.requestId === 'string' &&
-    typeof value.retryable === 'boolean'
+    isUuid(value.requestId) &&
+    typeof value.retryable === 'boolean' &&
+    Array.isArray(value.fieldErrors) &&
+    value.fieldErrors.every(
+      (entry) =>
+        isRecord(entry) && typeof entry.field === 'string' && typeof entry.code === 'string',
+    )
   );
 }
 
 export function localError(code: string, message: string): ApiErrorBody {
-  return { code, message, requestId: crypto.randomUUID(), retryable: false };
+  return { code, message, requestId: crypto.randomUUID(), retryable: false, fieldErrors: [] };
 }

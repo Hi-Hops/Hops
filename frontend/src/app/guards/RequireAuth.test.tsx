@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { fixture } from '@/shared/api/mockData';
+import { sessionFor } from '@/test/systemFixtures';
 import { useSession } from '@/features/auth';
 import { RequireAuth } from './RequireAuth';
 import { RequireRole } from './RequireRole';
@@ -11,7 +11,7 @@ beforeEach(() => {
 });
 describe('F001 경로 권한', () => {
   it('F001-AC04 일반 문의자에게 관리자 내용을 표시하지 않는다', async () => {
-    useSession.getState().activate(fixture('login-0', 'LoginResponse'));
+    useSession.getState().activate(sessionFor('requester'));
     const router = createMemoryRouter(
       [
         {

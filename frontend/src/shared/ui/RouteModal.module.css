@@ -41,6 +41,12 @@
   overflow-y: auto;
   min-height: 0;
 }
+.padded {
+  padding: var(--space-6);
+}
+.compact {
+  width: min(768px, calc(100vw - 48px));
+}
 .footer {
   padding: var(--space-4) var(--space-6);
   display: flex;

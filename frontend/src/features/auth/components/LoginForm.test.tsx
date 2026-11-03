@@ -3,16 +3,17 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '@/test/renderWithProviders';
-import { mockBackend } from '@/shared/api/mockBackend';
+import { systemMockBackend } from '@/shared/api/systemMockBackend';
 import { ApiError, apiRequest } from '@/shared/api/client';
-import { fixture } from '@/shared/api/mockData';
+import { users } from '@/shared/api/systemMockData';
+import { sessionFor } from '@/test/systemFixtures';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
 import { LoginForm } from './LoginForm';
 import { useSession } from '../model/sessionStore';
 import { login, logout } from '../api/authApi';
 
 beforeEach(() => {
-  mockBackend.reset();
+  systemMockBackend.reset();
   useSession.getState().logout();
   vi.restoreAllMocks();
 });
@@ -30,9 +31,9 @@ describe('F001 로그인', () => {
     renderWithProviders(<LoginForm onSuccess={success} />);
     await fillLogin();
     await waitFor(() => {
-      expect(success).toHaveBeenCalledWith(fixture('user-0', 'CurrentUser'));
+      expect(success).toHaveBeenCalledWith(users[0]);
     });
-    expect(useSession.getState().user?.department.name).toBe('가상 업무부서');
+    expect(useSession.getState().user?.department.name).toBe(users[0].department.name);
   });
   it('F001-AC02 실패하면 아이디는 유지하고 비밀번호는 지운다', async () => {
     renderWithProviders(<LoginForm onSuccess={vi.fn()} />);
@@ -42,16 +43,16 @@ describe('F001 로그인', () => {
     expect(screen.getByLabelText('비밀번호')).toHaveValue('');
   });
   it('F001-AC03 토큰 디코딩 대신 /auth/me를 조회한다', async () => {
-    const spy = vi.spyOn(mockBackend, 'request');
+    const spy = vi.spyOn(systemMockBackend, 'request');
     const current = await login(TEST_LOGINS.network);
     expect(spy).toHaveBeenCalledWith(
-      '/api/auth/me',
+      '/api/v2/auth/me',
       'GET',
       undefined,
       expect.any(String),
       undefined,
     );
-    expect(current.department.code).toBe('NETWORK');
+    expect(current.primarySystemIds).toEqual(users[1].primarySystemIds);
   });
   it('F001-AC05 인증 만료는 재로그인 안내로 표시한다', () => {
     renderWithProviders(<LoginForm expired onSuccess={vi.fn()} />);
@@ -60,18 +61,18 @@ describe('F001 로그인', () => {
   it('F001-AC06 다른 계정 로그인 시 사용자 전용 상태 정리 신호를 보낸다', () => {
     const listener = vi.fn();
     const off = onSessionEvent(listener);
-    useSession.getState().activate(fixture('login-0', 'LoginResponse'));
+    useSession.getState().activate(sessionFor('requester'));
     useSession.getState().expire();
-    useSession.getState().activate(fixture('login-1', 'LoginResponse'));
+    useSession.getState().activate(sessionFor('staff'));
     expect(listener).toHaveBeenCalledWith('switched');
     off();
   });
   it('F001-AC06 같은 계정 재로그인에서는 전환 정리를 하지 않는다', () => {
-    useSession.getState().activate(fixture('login-0', 'LoginResponse'));
+    useSession.getState().activate(sessionFor('requester'));
     useSession.getState().expire();
     const listener = vi.fn();
     const off = onSessionEvent(listener);
-    useSession.getState().activate(fixture('login-0', 'LoginResponse'));
+    useSession.getState().activate(sessionFor('requester'));
     expect(listener).not.toHaveBeenCalledWith('switched');
     off();
   });
@@ -79,15 +80,15 @@ describe('F001 로그인', () => {
     await login(TEST_LOGINS.requester);
     const token = useSession.getState().token;
     if (!token) throw new Error('테스트 로그인 실패');
-    mockBackend.expire(token);
-    mockBackend.expireRefresh();
-    await expect(apiRequest('/api/auth/me')).rejects.toBeInstanceOf(ApiError);
+    systemMockBackend.expire(token);
+    systemMockBackend.expireRefresh();
+    await expect(apiRequest('/api/v2/auth/me')).rejects.toBeInstanceOf(ApiError);
     expect(useSession.getState().user).toBeNull();
-    expect(useSession.getState().previousUserId).toBe(fixture('user-0', 'CurrentUser').id);
+    expect(useSession.getState().previousUserId).toBe(users[0].id);
   });
   it('F001-AC08 로그아웃 요청 실패 시에도 인증 정보를 정리한다', async () => {
     await login(TEST_LOGINS.requester);
-    mockBackend.failNext();
+    systemMockBackend.failNext();
     await expect(logout()).rejects.toBeInstanceOf(ApiError);
     expect(useSession.getState().token).toBeNull();
     expect(useSession.getState().previousUserId).toBeNull();
@@ -104,7 +105,7 @@ describe('F001 로그인', () => {
   });
   it('F001-AC02 일시 서버 오류를 로그인 정보 오류와 구분한다', async () => {
     renderWithProviders(<LoginForm onSuccess={vi.fn()} />);
-    mockBackend.failNext();
+    systemMockBackend.failNext();
     await fillLogin();
     expect(await screen.findByRole('alert')).toHaveTextContent('서버에 연결하지 못했어요');
   });

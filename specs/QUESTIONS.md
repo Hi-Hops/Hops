@@ -15,14 +15,14 @@
 
 | ID | 공통 계약 기준 | 정본 |
 |---|---|---|
-| C01 | contractVersion=hops-system-1, React↔Spring=/api/v2, 서비스 전용=/internal/v2. 기존 프로필 유지·자동 혼용 없음 | [WIRE 12절](contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
+| C01 | contractVersion=hops-system-1, React↔Spring=/api/v2, 서비스 전용=/internal/v2. 전환 전 계약 기록 보존·자동 혼용 없음 | [WIRE 12절](contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1) |
 | C02 | 문의 소유자·현재 PRIMARY·BIZ_ADMIN을 서버에서 검사. 관리자 상세는 제한 DTO, 보호 구독은 현재 권한 세대로 차단 | [TARGET](contracts/TARGET_CONTRACT.md) |
 | C03 | UUID·UTC Z·필수 키/null 규칙, 문의 입력 버전과 메시지/업무/확인/사례 버전 분리. 원문 1~4,000 코드 포인트 | [DATA_TYPES](contracts/DATA_TYPES.md#신규-계약-hops-system-1) |
 | C04 | 생성 결과 PENDING/STORED/NOT_CREATED/UNKNOWN. 결과 확인 뒤 확정 미생성만 같은 논리 작업 재시도 | [F005](F005-result-cards/spec.md)·[F010](F010-creation-failures/spec.md) |
 | C05 | 검증 완료 WorkRecord별 PENDING 확인 요청 하나. 해결·미해결은 문제별 한 번, 무응답 대기·미해결 같은 티켓 계속 | [F006](F006-my-inquiries/spec.md)·[F009](F009-department-tickets/spec.md) |
 | C06 | 현재 초안 편집·승인 후 읽기 전용. 승인과 함께 기존 문서 버전의 indexRequests를 보존하고 미전달은 같은 키로 수동 재접수. FAILED에서만 새 attempt, 현재 승인 버전의 양쪽 성공 전 비공개 | [F011](F011-case-lifecycle/spec.md)·[수동 복구](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구) |
 | C07 | AiRunRequest/Result/Event + IndexApplyRequest/Snapshot + KnowledgeAuthorizationRequest/Response, 서비스 Bearer 인증 | [에이전트 계약](../contracts/agents/README.md#hops-system-1-실행-계약안) |
-| C08 | 현재 frontend UI를 구현 기준으로 채택. 독립 티켓 상세와 사례 최소 목록·채팅 안 해결 확인을 기존 구성/토큰으로 확장하고 기능 책임·상태 소유를 고정 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[목표 구조](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
+| C08 | 기존 frontend 구성·공통 토큰을 확장하고 기능 책임·상태 소유를 고정. 현재 구현은 티켓 상세 모달·독립 처리 입력·사례 최소 목록·채팅 안 해결 확인이며 배치는 ROUTES 참조 | [UI 기준](../docs/frontend/README.md#ui-기준과-이번-작업-범위)·[구조 결정](../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조)·[ROUTES](../docs/frontend/ROUTES.md) |
 | C09 | workItemId=problemId, 생성 상태는 inquiry_problem, 티켓은 ticket.inquiry_problem_id UNIQUE. 현재 PRIMARY는 it_system의 FK, 당시 배정은 ticket_assignment 이력 | [DATA](../docs/DATA.md#9-hops-system-1-저장-제약안) |
 | C10 | AI input 읽기 전용·State 단일 작성자·검증된 patch 병합, 종료 결과 불변. 외부 DTO의 필드·타입·조건을 Markdown 계약으로 정의 | [State 계약](../contracts/agents/README.md#내부-state와-wire-검증-계약) |
 | C11 | 상담 run당 최종 AI 메시지 하나. Spring 발급 answerMessageId를 입력·delta·최종 저장에 사용. answer가 채팅 본문 정본, questions/guide는 본문에 포함된 내용의 메타데이터. 답변·질문/가이드 상태 저장 뒤 공개 Run 성공·REST 본문으로 임시 답변 교체 | [채팅 송수신](contracts/WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)·[AI 답변 연결](../contracts/agents/README.md#상담-답변과-저장-메시지-연결) |
@@ -83,16 +83,16 @@ Spring은 서버에서 준비한 expiresAt·limits를 AI 실행 입력에 넣고
 
 현재 PRIMARY DTO, 실패 처리 기록과 원인/적용 버전, CASE 문제 설명/종류, 공통 POLICY의 null systemId, ticketRevision=DB version+1을 채택한다. 프론트는 wire 상태를 사용하고 기존 디자인·경로/메뉴를 재사용한다. FK를 유지하기 위해 지식 검색은 같은 PostgreSQL DB의 hops_knowledge schema에 두며 AI 계정의 업무 원본 쓰기는 금지한다.
 
-남은 절차는 실제 코드/DB/검색/E2E 구현 검증이다. ERD 대조를 다시 기다리는 상태로 두지 않는다. 구현 경계는 DATA11.4절, 실제 구현 우선순위는 프론트 README를 따른다.
+ERD 대조와 #23의 Flyway/Entity 구현은 진행됐으며 현재 프론트의 신규 DTO·화면·Mock도 구현됐다. 남은 절차는 서버 업무·권한·AI/검색 연결과 실제 저장·경합·E2E 검증이다. 구현 경계는 DATA11.4절, 서비스별 현재 상태는 WIRE11절을 따른다.
 
 ## 6. 이번 단계에서 고정한 적용 기준
 
 | 범위 | 작업 결정값 | 구현·승인과의 구분 |
 |---|---|---|
 | Contract | 외부 DTO·권한·HTTP/SSE·AI wire 형식 유지. 저장은 기존22개 테이블, 사례는 현재 초안 편집·승인 후 읽기 전용 | 서비스 구현과 DB 적용 완료를 뜻하지 않음 |
-| Spec | F001~F011의 MVP 정상 흐름과 기본 상태 검증 우선. 복수 승인 버전·반영 전체 이력·영속 전달 복구는 후순위 | 현재 코드의 이전 AC 검사로 신규 기능 완료를 대신하지 않음 |
-| UI | develop d896fae의 실제 프론트 UI와 공통 컴포넌트를 기준으로 기능 확장. 새 Figma를 구현 기준에서 제외 | 화면 세부 구현/접근성/브라우저 검증은 실제 작업에서 수행 |
-| Frontend 구조 | app→pages→features→shared, auth/realtime/chat/inquiry/ticket/case의 책임·데이터 소유·프로필 경계 | 목표 파일/폴더는 구현 때 생성하고 현재 frontend 소스/Mock을 유지 |
+| Spec | F001~F011의 MVP 정상 흐름과 기본 상태 검증 우선. 복수 승인 버전·반영 전체 이력·영속 전달 복구는 후순위 | 현재 신규 프론트 검사는 Mock·대역 범위이며 실제 서버 통합과 구분 |
+| UI | 기존 프론트 UI·공통 컴포넌트를 확장. 현재 화면에는 개선안의 여백·티켓 상세 모달을 반영 | 구현 배치와 브라우저 확인 범위는 frontend 안내·ROUTES 참조. 서버 정책의 추가 승인을 뜻하지 않음 |
+| Frontend 구조 | app→pages→features→shared, auth/realtime/chat/inquiry/ticket/case의 책임·데이터 소유 | 신규 화면·DTO·Mock 구현. 현재 프론트는 hops-system-1 하나만 사용하며 실제 서버 연결은 별도 |
 | 물리 저장 | 원본22개 테이블과 ERD6절의 기존 컬럼·DTO 대응 사용. 새 테이블 없음 | 기존 컬럼 보완도 실제 DB 적용·코드 구현과 구분하며 예외 복구·이력 확장은 후순위 |
 
-이 결정은 공통 계약의 기준이다. 이번 단계에서는 신규 필드·엔드포인트·물리 테이블·모델 기본값을 추가 선택하지 않고, 현재 계약과 구현 범위를 기준으로 다음 프론트 작업을 진행한다.
+이 결정은 공통 계약의 기준이다. 프론트 구현 상태는 코드·실행 안내를 기준으로 갱신하며, 남은 서비스 연결은 현재 계약을 적용·검증한다. 모델·비용·평가의 별도 선정 항목을 계약 채택 완료와 혼동하지 않는다.
