@@ -16,6 +16,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hihops.hops.agent.service.RunSummaryReader;
 import com.hihops.hops.global.dto.PageResponse;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
@@ -53,6 +54,7 @@ public class InquiryQueryService {
     private final InquiryProblemRepository inquiryProblemRepository;
     private final MessageRepository messageRepository;
     private final MessageRevisionRepository messageRevisionRepository;
+    private final RunSummaryReader runSummaryReader;
     private final JsonMapper jsonMapper;
 
     /** 내 문의 목록 한 페이지. page·size 범위는 컨트롤러에서 검사한다. */
@@ -70,16 +72,17 @@ public class InquiryQueryService {
     /**
      * 내 문의 상세.
      *
-     * @throws IllegalStateException 문제나 실행이 있는 문의. 그 형식(Problem·RunSummary)은 아직 만들지 않아, 빈 값으로 숨기지 않고 실패시킨다(#26)
+     * @throws IllegalStateException 문제가 있는 문의. 그 형식(Problem)은 아직 만들지 않아, 빈 목록으로 숨기지 않고 실패시킨다(#26)
      */
     @Transactional(readOnly = true)
     public InquiryResultResponse findMyInquiry(UUID requesterId, UUID inquiryId) {
         Inquiry inquiry = myInquiry(requesterId, inquiryId);
-        // 지연 로딩 참조라 null 확인만으로는 agent_run을 읽지 않는다
-        if (inquiry.getCurrentRun() != null || inquiryProblemRepository.existsByInquiry_IdAndDeletedAtIsNull(inquiryId)) {
-            throw new IllegalStateException("문제·실행이 있는 문의의 상세 조회는 아직 만들지 않았다: " + inquiryId);
+        if (inquiryProblemRepository.existsByInquiry_IdAndDeletedAtIsNull(inquiryId)) {
+            throw new IllegalStateException("문제가 있는 문의의 상세 조회는 아직 만들지 않았다: " + inquiryId);
         }
-        return InquiryResultResponse.withoutProblems(inquiry, messageRepository.findPendingTargetIds(inquiryId));
+        return InquiryResultResponse.withoutProblems(inquiry,
+                inquiry.getCurrentRun() == null ? null : runSummaryReader.read(inquiry.getCurrentRun()),
+                messageRepository.findPendingTargetIds(inquiryId));
     }
 
     /**

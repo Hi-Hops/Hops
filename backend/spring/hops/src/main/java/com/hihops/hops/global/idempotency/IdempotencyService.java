@@ -134,6 +134,16 @@ public class IdempotencyService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
+    /**
+     * 이 업무 대상을 만든 변경 요청의 requestId. 예: 재시도로 만든 실행의 실패 오류에 그 재시도 요청 ID를 넣는다 (WIRE_CONTRACT 12.8 끝).
+     * 보존 기간이 지나도 resource 표식은 남으므로 찾을 수 있다. 멱등 처리 없이 만든 대상이면 비어 있다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<UUID> findRequestIdOf(ResourceRef resource) {
+        return idempotencyRecordRepository.findFirstByResourceTypeAndResourceId(resource.type().name(), resource.id())
+                .map(record -> UUID.fromString(record.getIdempotencyKey()));
+    }
+
     private Optional<CommandResult> findPrevious(IdempotentRequest request, String requestHash) {
         return idempotencyRecordRepository
                 .findByActor_IdAndContractVersionAndIdempotencyKey(request.actorId(), CONTRACT_VERSION,

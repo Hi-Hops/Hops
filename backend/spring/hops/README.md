@@ -278,20 +278,29 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 `SYSTEM_TICKETS`·`TICKET` SSE는 연결·권한 재검사·heartbeat와 재연결 시 REST 재동기화를 지원합니다. 업무 변경 이벤트 생산자는 후속 연동 범위입니다. `TicketControllerTest`는 실제 PostgreSQL/MockMvc로 조회·권한·공개 범위와 저장된 상태를 검사하며 실제 AI나 브라우저 E2E 검증을 대신하지 않습니다.
 
-## 조회 API
+## 문의 생성·조회 API
 
 모두 로그인이 필요합니다(없으면 401 `UNAUTHENTICATED`). 형식은 [전송 계약 12.2](../../../specs/contracts/WIRE_CONTRACT.md#122-rest-연결표)와 [데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)을 따릅니다. null 값도 키를 생략하지 않고, 빈 목록은 `[]`입니다.
 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
+| `POST /api/v2/inquiries` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, content, reportedSystemId}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(헤더·본문 키 불일치, `content` 규칙 위반은 `fieldErrors[{field: content, code: UserContent}]`, 없는 시스템), 409 `IDEMPOTENCY_KEY_REUSED` |
 | `GET /api/v2/systems` | 없음 | 200 `SupportedSystem[]` (코드 순, 기능 포함. 주담당자는 넣지 않음) | |
 | `GET /api/v2/inquiries` | `page`(기본 0), `size`(기본 20, 1~100) | 200 `{items: InquirySummary[], page, size, totalElements}` (본인 문의, 최근 수정 순) | 400 `INVALID_INPUT`(범위 밖 값은 고치지 않음) |
 | `GET /api/v2/inquiries/{inquiryId}` | 없음 | 200 `InquiryResult` | 404 `NOT_FOUND`(남의 문의·삭제·없음을 구분하지 않음) |
 | `GET /api/v2/inquiries/{inquiryId}/messages` | `size`(기본 30, 1~100), `beforeSequenceNo`(선택, 1 이상) | 200 `{items: ChatMessage[], nextBeforeSequenceNo}` (저장이 끝난 메시지만, 오래된 순) | 400 `INVALID_INPUT`, 404 `NOT_FOUND` |
+| `GET /api/v2/runs/{runId}` | 없음 | 200 `RunSummary` (실패한 실행도 200, 실패면 `error` 포함) | 404 `NOT_FOUND`(남의 실행·Curator 실행·없음) |
+| `POST /api/v2/runs/{runId}/retries` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: RUN, id: 새 실행}`) | 404 `NOT_FOUND`, 409 `INQUIRY_VERSION_CONFLICT`(문의 버전 다름), 409 `RUN_NOT_RETRYABLE`(현재 실행이 아님·재분석 불가 실패·끝난 문의) |
 | `GET /api/v2/operations/{operationId}`<br>`GET /api/v2/operations/by-request/{requestId}` | 없음 | 200 `CommandReceipt` (본인이 보낸 변경 요청의 결과) | 404 `NOT_FOUND`, 410 `OPERATION_RESULT_EXPIRED`(보존 24시간 경과) |
 
 - **대화 페이지:** 처음에는 `beforeSequenceNo` 없이 최신 페이지를 받고, 응답의 `nextBeforeSequenceNo`를 다음 요청의 `beforeSequenceNo`로 보내 이전 페이지를 받습니다. `null`이면 더 없습니다.
-- **아직 남은 것:** 문의 상세의 `problems`(Problem)와 `currentRun`(RunSummary) 형식은 문제·실행을 저장하는 기능과 함께 만듭니다. 지금은 문제·실행이 없는 문의만 조회되고, 있으면 빈 값으로 숨기지 않고 500입니다.
+- **문의 생성:** 문의(버전 1)·첫 USER 메시지·상담 실행(QUEUED)과 AI 입력(`agent_run.input_snapshot`, AiRunRequest)·`currentRun`을 한 거래로 저장합니다. 응답은 입력과 실행 접수의 저장이며 AI 답변 완료가 아닙니다. 같은 키로 다시 보내면 처음 영수증을 돌려주고 새 실행을 만들지 않습니다. `content`는 1~4,000 코드 포인트이며 trim하지 않고 저장합니다. 제목은 첫 입력의 공백을 한 칸으로 줄여 200자까지 씁니다.
+- **AI 전달:** 이 API는 AI 서버를 부르지 않습니다. commit 뒤 `AgentRunQueued` 이벤트를 받는 전달 기능(#111)이 붙어야 실행이 시작됩니다. 그 전에는 실행이 QUEUED로 남습니다.
+- **실행 한도·버전:** `hops.agent.run.*`(전체 60초, 호출 8회, 재시도 2회, 출력 1,500토큰). `model-version`·`prompt-version`은 AI 서버와 정하기 전까지 `pending`입니다.
+- **보고 시스템:** `reportedSystemId`는 첫 메시지 payload에만 저장하고 AI 입력에는 넣지 않습니다. AiRunRequest에 받을 필드가 없어 전달 방식을 정해야 합니다.
+- **실행 상태:** DB `CANCELLED`는 `SUPERSEDED`로 보냅니다. 실패 오류는 공개 코드(`AI_INVALID_OUTPUT`·`MODEL_UNAVAILABLE`·`SEARCH_UNAVAILABLE`·`SERVICE_UNAVAILABLE`·`AUTH_CONTEXT_CHANGED`·`AI_RUN_STATE_UNKNOWN`, 시간 초과는 `DEADLINE_EXCEEDED`)로 바꾸고 `requestId`에 실행을 접수한 명령 ID를 넣습니다.
+- **재분석:** 문의의 현재 실행이 `retryable=true`인 FAILED/TIMED_OUT일 때만 같은 문의 버전으로 새 runId·새 `answerMessageId`의 QUEUED 실행을 접수합니다. 실패한 실행은 그대로 두고 대화 입력은 재사용하며, 권한 문맥·시스템 목록·기한은 새로 만듭니다. 재분석 실행의 실패 오류 `requestId`는 그 재분석 요청 ID입니다.
+- **아직 남은 것:** 문의 상세의 `problems`(Problem) 형식은 AI 결과로 문제를 저장하는 기능과 함께 만듭니다. 지금은 문제가 있는 문의를 빈 목록으로 숨기지 않고 500으로 응답합니다.
 
 ## Spring SSE 공통 기반
 
