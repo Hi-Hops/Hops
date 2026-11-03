@@ -1,0 +1,42 @@
+schemaVersion: '2.2'
+description: Deploy a verified Hops commit and immutable ECR images.
+parameters:
+  Commit:
+    type: String
+    allowedPattern: '^[0-9a-f]{40}$'
+  SpringTree:
+    type: String
+    allowedPattern: '^[0-9a-f]{40}$'
+  AiTree:
+    type: String
+    allowedPattern: '^[0-9a-f]{40}$'
+  SpringImage:
+    type: String
+    allowedPattern: '^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/hops-spring@sha256:[0-9a-f]{64}$'
+  AiImage:
+    type: String
+    allowedPattern: '^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/hops-ai@sha256:[0-9a-f]{64}$'
+  WebImage:
+    type: String
+    allowedPattern: '^[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/hops-frontend@sha256:[0-9a-f]{64}$'
+  PublicHost:
+    type: String
+    allowedPattern: '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
+  DeploymentId:
+    type: String
+    allowedPattern: '^[0-9]+-[0-9]+$'
+  ScriptSha256:
+    type: String
+    allowedPattern: '^[0-9a-f]{64}$'
+mainSteps:
+  - action: aws:runShellScript
+    name: deploy
+    inputs:
+      timeoutSeconds: '1200'
+      runCommand:
+        - set -eu
+        - deployment_script=$(mktemp)
+        - trap 'rm -f "$deployment_script"' EXIT
+        - curl -fsSL --proto '=https' --tlsv1.2 'https://raw.githubusercontent.com/Hi-Hops/Hops/{{ Commit }}/deploy/ec2/deploy.sh' -o "$deployment_script"
+        - printf '%s  %s\n' '{{ ScriptSha256 }}' "$deployment_script" | sha256sum -c -
+        - bash "$deployment_script" '{{ Commit }}' '{{ SpringTree }}' '{{ AiTree }}' '{{ SpringImage }}' '{{ AiImage }}' '{{ WebImage }}' '{{ PublicHost }}' '{{ DeploymentId }}'

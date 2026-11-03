@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+FROM node:24.22.0-bookworm-slim AS build
+
+WORKDIR /workspace/frontend
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . ./
+
+# Vite embeds this public origin in the browser bundle at build time.
+ARG VITE_API_BASE_URL
+ENV VITE_DATA_MODE=live \
+    VITE_API_BASE_URL=${VITE_API_BASE_URL}
+RUN test -n "$VITE_API_BASE_URL" && npm run build
+
+FROM nginx:stable-alpine
+COPY --from=build /workspace/frontend/dist/ /srv/
