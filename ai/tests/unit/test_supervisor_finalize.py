@@ -131,6 +131,58 @@ def test_identical_questions_share_one_body_but_keep_problem_metadata() -> None:
     assert state == before
 
 
+@pytest.mark.parametrize(
+    "bodies",
+    [
+        ("오류가 났나요?", "화면에서 오류가 났나요?"),
+        ("화면에서 오류가 났나요?", "오류가 났나요?"),
+        ("오류가 났나요?", "화면을 확인해 주세요.\n오류가 났나요?"),
+    ],
+)
+def test_overlapping_question_texts_keep_each_problem_section(bodies) -> None:
+    """문구가 포함 관계여도 두 질문을 각각 조립하고 메타데이터를 보존한다."""
+    state, first = with_question()
+    first = first.model_copy(update={"text": bodies[0]})
+    second = first.model_copy(
+        update={"problemRef": "new:second", "bundleRef": "q2", "text": bodies[1]}
+    )
+    state["questions"][(PROBLEM, "q1")] = first
+    state = merge_inquiry_result(
+        reserve(state, AgentRole.INQUIRY, "i2"),
+        InquiryResult(invocationId="i2", problems=[make_problem("new:second")], questions=[second]),
+    )
+    before = deepcopy(state)
+
+    result = finalize_result(state)["finalResult"]
+
+    assert result.status == "SUCCEEDED"
+    assert result.answer == f"문제 1\n{bodies[0]}\n\n문제 2\n{bodies[1]}"
+    assert result.questions == [first, second]
+    assert AiResult.model_validate(result.model_dump(mode="json")) == result
+    assert state["input"].problems[0].questionCount == 4
+    assert state == before
+
+
+def test_question_inside_another_problems_guide_does_not_count_as_a_duplicate() -> None:
+    """가이드 안의 같은 문구가 있어도 질문과 가이드 항목을 따로 보존한다."""
+    state, question = with_question()
+    state["problems"]["new:second"] = make_problem("new:second")
+    state["evidence"][EVIDENCE] = make_evidence()
+    guide = GuideProposal(
+        problemRef="new:second",
+        messageText=f"두 번째 문제의 확인 안내입니다.\n{question.text}",
+        evidenceIds=[EVIDENCE],
+    )
+    state["guide"] = guide
+
+    result = finalize_result(state)["finalResult"]
+
+    assert result.status == "SUCCEEDED"
+    assert result.answer == f"문제 1\n{question.text}\n\n문제 2\n{guide.messageText}"
+    assert result.questions == [question]
+    assert result.guide == guide
+
+
 @pytest.mark.parametrize("other_outcome", ["question", "guide", "ticket"])
 def test_shared_question_keeps_other_problem_numbers_and_bodies(other_outcome) -> None:
     """공유 질문과 다른 문제의 질문·가이드·티켓이 섞여도 번호와 본문을 보존한다."""

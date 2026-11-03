@@ -220,6 +220,54 @@ def inquiry_result() -> dict:
     }
 
 
+@pytest.mark.parametrize(
+    "bodies",
+    [
+        ("오류가 났나요?", "화면에서 오류가 났나요?"),
+        ("화면에서 오류가 났나요?", "오류가 났나요?"),
+        ("오류가 났나요?", "화면을 확인해 주세요.\n오류가 났나요?"),
+    ],
+)
+def test_result_allows_questions_with_overlapping_text(bodies) -> None:
+    """본문 빈도를 질문 횟수로 해석하지 않고 문제별 메타데이터를 검사한다."""
+    payload = inquiry_result()
+    first = payload["questions"][0] | {"text": bodies[0]}
+    second = first | {"problemRef": "new:two", "bundleRef": "bundle-2", "text": bodies[1]}
+    result = AiResult.model_validate(
+        payload
+        | {
+            "questions": [first, second],
+            "answer": f"문제 1\n{bodies[0]}\n\n문제 2\n{bodies[1]}",
+        }
+    )
+    assert [question.text for question in result.questions] == list(bodies)
+
+
+@pytest.mark.parametrize("missing", ["question", "guide"])
+def test_result_still_rejects_missing_required_body(missing) -> None:
+    """본문 검사를 단순화해도 질문·가이드 누락은 허용하지 않는다."""
+    payload = inquiry_result()
+    if missing == "question":
+        payload["answer"] = "문의 내용을 확인했습니다."
+    else:
+        payload["guide"] = {
+            "problemRef": "new:two",
+            "messageText": "가이드를 확인하세요.",
+            "evidenceIds": [RUN_ID],
+        }
+        payload["evidence"] = [knowledge_evidence()]
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(payload)
+
+
+def test_result_still_rejects_multiple_question_bundles_for_one_problem() -> None:
+    """문구 포함과 별개로 문제당 질문 묶음 하나라는 제한을 유지한다."""
+    payload = inquiry_result()
+    payload["questions"].append(payload["questions"][0] | {"bundleRef": "another-bundle"})
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(payload)
+
+
 def test_inquiry_request_and_required_nullable_fields() -> None:
     payload = inquiry_request()
     assert AiRunRequest.model_validate(payload).workRecord is None

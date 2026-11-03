@@ -33,7 +33,7 @@ def compose_public_answer(state: SupervisorState) -> str:
 
     Raises:
         OutputRejected: 상담 이외의 실행이거나 처리 결과 없는 문제가 남은 경우,
-            질문·가이드 본문을 정확히 한 번 포함할 수 없는 경우.
+            필수 본문이 누락됐거나 질문과 가이드가 같은 본문으로 충돌하는 경우.
 
     본문을 자동 절단하지 않는다. 전체 길이와 문자열 형식은 최종 AiResult에서
     다시 검사하므로 4,000자를 넘으면 안전한 실패가 된다.
@@ -48,6 +48,8 @@ def compose_public_answer(state: SupervisorState) -> str:
         if item["outcome"] == "ASK_USER":
             body = questions[item["problemRef"]].text
             question_numbers.setdefault(body, []).append(index)
+    if state["guide"] is not None and state["guide"].messageText in question_numbers:
+        raise OutputRejected("질문과 가이드에 같은 본문을 함께 사용할 수 없다")
 
     # 표시만 공유한다. 같은 문구라도 problemRef와 bundleRef는 각 문제의 질문으로
     # 남아 있어야 Spring이 답변 연결과 질문 횟수를 문제별로 저장할 수 있다.
@@ -97,8 +99,11 @@ def compose_public_answer(state: SupervisorState) -> str:
     required = [question.text for question in state["questions"].values()]
     if state["guide"] is not None:
         required.append(state["guide"].messageText)
-    if any(text.count(body) != 1 for body in required):
-        raise OutputRejected("최종 답변에 질문·가이드 본문이 정확히 한 번 포함돼야 한다")
+    # 항목 중복은 위 조립 루프에서 막고 여기서는 필수 본문 누락만 확인한다.
+    # 짧은 질문이 다른 질문·가이드에 포함됐다는 이유로 실패시키지 않는다.
+    # 사용자 답변의 적절성·질문 횟수·실행 예산은 각각 별도 경계에서 검사한다.
+    if any(body not in text for body in required):
+        raise OutputRejected("최종 답변에 필요한 질문·가이드 본문이 없다")
     return text
 
 
