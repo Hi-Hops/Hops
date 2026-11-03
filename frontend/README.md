@@ -4,7 +4,7 @@
 
 ## 시스템 기반 화면 실행
 
-기본 모드는 `live`다. 이 폴더의 [.env.example](.env.example)을 `frontend/.env`로 복사해 Vite 직접 실행과 Docker의 프론트 설정을 관리한다. 기존 파일은 덮어쓰지 않는다. 공개 포트도 서비스별 파일에서 관리하며 Docker 명령에 세 파일을 `--env-file`로 지정한다.
+기본 모드는 `live`다. 이 폴더의 [.env.example](.env.example)을 `frontend/.env`로 복사해 Vite 직접 실행과 Docker의 프론트 설정을 관리한다. 기존 파일은 덮어쓰지 않는다. 공개 포트도 서비스별 파일에서 관리하며 루트 Compose가 세 파일을 자동으로 읽는다.
 
 다음 두 값은 `frontend/.env`에서 설정한다. Vite 직접 실행 시 `VITE_API_BASE_URL`에 실제 Spring origin을 입력한다. Vite는 이 파일을 자동으로 읽으며 프로세스 환경변수와 모드별 `.env.development`·개인 `.env.local` 등의 우선순위도 적용한다. 저장소 루트 `.env`는 앱 설정으로 읽지 않는다.
 
@@ -70,10 +70,10 @@ npm run dev:demo
 Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 [루트 Docker Compose 안내](../README.md#docker-compose로-실행)를 따른다. 프론트 단독 실행도 아래 루트 Compose의 서비스 선택 명령을 사용할 수 있다. Docker Engine·Compose 2.20 이상과 첫 빌드의 의존성 다운로드가 필요하다. 먼저 루트 안내대로 서비스별 `.env` 세 개를 준비하고 다음 명령을 저장소 루트에서 실행한다.
 
 ```sh
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up --build --no-deps -d frontend
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env ps frontend
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env logs -f frontend
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env stop frontend
+docker compose up --build --no-deps -d frontend
+docker compose ps frontend
+docker compose logs -f frontend
+docker compose stop frontend
 ```
 
 프론트 단독 Compose는 Spring·DB·AI를 실행하지 않는다. 통합 Compose로 기동해도 각 서버의 신규 `/api/v2` 구현과 실제 연동 검증은 별도다. 포트는 loopback에만 바인딩하고 `FRONTEND_PORT`로 변경한다. `.env` 변경은 컨테이너 재생성, 소스 변경은 재빌드 후 반영된다. 기존 `.env`가 있으면 덮어쓰지 않는다.
