@@ -49,12 +49,13 @@ public class AuthController {
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request,
             @CookieValue(name = RefreshCookies.NAME, required = false) String previousRefresh) {
         Member member = authService.login(request.loginId(), request.password()); // 틀리면 여기서 401
+        CurrentUserResponse user = authService.currentUser(member); // DB 조회를 세션 생성보다 먼저 끝낸다
         // 같은 브라우저의 재로그인·계정 전환: 쿠키만 덮어쓰면 예전 세션이 7일 동안 남는다. 성공한 뒤에만 정리한다.
         // 정리는 덤이라 실패해도 로그인은 진행한다(손상된 예전 쿠키 때문에 로그인이 막히면 프론트는 그 쿠키를 지울 수 없다).
         if (hasValue(previousRefresh)) {
             tryRevoke(previousRefresh, "재로그인 중 예전 세션 정리 실패");
         }
-        return withTokens(member, refreshTokenService.issue(member));
+        return withTokens(member, user, refreshTokenService.issue(member));
     }
 
     /**
@@ -69,8 +70,10 @@ public class AuthController {
         }
         // 회원 확인(DB)을 먼저 하고 회전은 마지막에 한다. DB가 일시 실패하면 Refresh를 소비하지 않아 같은 쿠키로 다시 시도할 수 있다.
         // 토큰이 아니라 DB를 다시 읽으므로, 그 사이 바뀐 부서·역할로 새 Access를 만든다.
+        // 응답에 담을 사용자 정보(담당 시스템 포함)까지 모두 읽은 뒤 회전한다. 회전 뒤에 DB가 실패하면 쿠키가 이미 쓰인 값이 된다.
         Member member = currentMemberOrEndSession(refreshTokenService.ownerOf(refreshToken), refreshToken);
-        return withTokens(member, refreshTokenService.rotate(refreshToken));
+        CurrentUserResponse user = authService.currentUser(member);
+        return withTokens(member, user, refreshTokenService.rotate(refreshToken));
     }
 
     /**
@@ -119,17 +122,19 @@ public class AuthController {
     }
 
     // Access는 본문(JSON)으로, Refresh는 Set-Cookie 헤더로 따로 내려준다. Refresh 원문은 JSON에 넣지 않는다.
-    private ResponseEntity<LoginResponse> withTokens(Member member, IssuedRefreshToken refreshToken) {
+    // Access 서명은 메모리 계산이라 실패할 DB 조회가 없다. DB를 읽는 일은 호출하는 쪽에서 세션 변경 전에 끝낸다.
+    private ResponseEntity<LoginResponse> withTokens(Member member, CurrentUserResponse user,
+            IssuedRefreshToken refreshToken) {
         ResponseCookie refreshCookie = RefreshCookies.issue(refreshToken, cookieProperties.secure());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-                .body(LoginResponse.of(accessTokenIssuer.issue(member), member));
+                .body(LoginResponse.of(accessTokenIssuer.issue(member), user));
     }
 
     /** 토큰 주인의 현재 사용자 정보. 토큰이 없거나 틀리면 이 메서드까지 오지 않고 401이 된다(SecurityConfig). */
     @GetMapping("/me")
     public CurrentUserResponse me(@AuthenticationPrincipal Jwt jwt) {
         UUID memberId = UUID.fromString(jwt.getSubject()); // sub = 회원 UUID (AccessTokenIssuer)
-        return CurrentUserResponse.from(authService.currentMember(memberId));
+        return authService.currentUser(authService.currentMember(memberId));
     }
 }

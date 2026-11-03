@@ -28,8 +28,12 @@ public class RealtimeAuthorization {
 
     @Transactional(readOnly = true)
     public void check(Jwt jwt, RealtimeTarget target) {
-        if (jwt.getExpiresAt() == null || !Instant.now().isBefore(jwt.getExpiresAt())) {
+        if (jwt.getExpiresAt() == null) {
             throw new BusinessException(ErrorCode.UNAUTHENTICATED);
+        }
+        // 디코더는 시계 오차(30초) 안의 만료 토큰도 통과시킨다. 만료는 만료로 알려야 프론트가 refresh 후 다시 연결한다.
+        if (!Instant.now().isBefore(jwt.getExpiresAt())) {
+            throw new BusinessException(ErrorCode.ACCESS_TOKEN_EXPIRED);
         }
         UUID memberId;
         try {
@@ -45,7 +49,8 @@ public class RealtimeAuthorization {
         // 유효한 JWT라도 발급 이후 소속·역할이 바뀌면 갱신 반복 대신 재로그인이 필요하다.
         if (member.getDepartment().isDeleted()
                 || !member.getDepartment().getId().toString().equals(jwt.getClaimAsString("departmentId"))
-                || !new HashSet<>(member.getRoles().stream().map(Role::name).toList())
+                // 토큰 발급과 같은 기준(계약 역할)으로 비교한다 (Role.contractRoles)
+                || !new HashSet<>(Role.contractRoles(member.getRoles()).stream().map(Role::name).toList())
                         .equals(new HashSet<>(jwt.getClaimAsStringList("roles")))) {
             throw new BusinessException(ErrorCode.AUTH_CONTEXT_CHANGED);
         }

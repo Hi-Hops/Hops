@@ -56,7 +56,7 @@ public class AccessTokenIssuer {
                 .claim("departmentId", department.getId().toString())
                 .claim("departmentCode", department.getCode())
                 .claim("departmentName", department.getName())
-                .claim(JwtConfig.ROLES_CLAIM, member.getRoles().stream().map(Role::name).toList())
+                .claim(JwtConfig.ROLES_CLAIM, member.getContractRoles().stream().map(Role::name).toList()) // 응답 roles와 같은 기준
                 .issuer(jwtProperties.issuer())
                 .audience(List.of(jwtProperties.audience()))
                 .issuedAt(issuedAt)

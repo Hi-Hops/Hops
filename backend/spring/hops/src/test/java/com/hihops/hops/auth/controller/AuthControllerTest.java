@@ -1,6 +1,7 @@
 package com.hihops.hops.auth.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
@@ -355,7 +356,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.user.department.id").value(DEPARTMENT_ID.toString()))
                 .andExpect(jsonPath("$.user.department.code").value("TEST_SALES"))
                 .andExpect(jsonPath("$.user.department.name").value("테스트 영업팀"))
-                .andExpect(jsonPath("$.user.department.isRoutable").value(false))
+                // DATA_TYPES 신규 절 Department: id·code·name. isRoutable은 신규 응답에서 제외한다.
+                .andExpect(jsonPath("$.user.department.isRoutable").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
         Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
@@ -363,6 +365,97 @@ class AuthControllerTest {
         assertThat(token.getClaimAsString("departmentId")).isEqualTo(DEPARTMENT_ID.toString());
         assertThat(token.getClaimAsString("departmentCode")).isEqualTo("TEST_SALES");
         assertThat(token.getClaimAsString("departmentName")).isEqualTo("테스트 영업팀");
+    }
+
+    @Test
+    void 주담당자인_시스템_ID를_primarySystemIds에_담고_삭제된_시스템은_뺀다() throws Exception {
+        // DATA_TYPES 신규 절 CurrentUser.primarySystemIds: 담당 메뉴용 스냅샷. 프론트는 이 키가 없으면 로그인을 멈춘다.
+        UUID approval = UUID.fromString("c0000000-0000-7000-8000-000000000091");
+        UUID fileSharing = UUID.fromString("c0000000-0000-7000-8000-000000000092");
+        jdbcTemplate.update("INSERT INTO it_system (id, code, name, primary_owner_member_id) VALUES (?, 'ELECTRONIC_APPROVAL', '전자결재', ?)",
+                approval, MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO it_system (id, code, name, primary_owner_member_id, deleted_at) "
+                + "VALUES (?, 'FILE_SHARING', '파일 공유', ?, now())", fileSharing, MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.primarySystemIds.length()").value(1))
+                .andExpect(jsonPath("$.user.primarySystemIds[0]").value(approval.toString()))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(jsonPath("$.primarySystemIds.length()").value(1))
+                .andExpect(jsonPath("$.primarySystemIds[0]").value(approval.toString()));
+    }
+
+    @Test
+    void 갱신_중_담당_시스템_조회가_일시_실패해도_같은_Refresh로_다시_갱신할_수_있다() throws Exception {
+        // 응답에 담을 사용자 정보(담당 시스템 포함)를 모두 DB에서 읽은 뒤에 회전한다. 회전이 먼저면 쿠키가 이미 쓰인 값이 된다.
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+        doThrow(new CannotCreateTransactionException("DB 일시 장애")).when(authService).currentUser(any());
+
+        mockMvc.perform(refresh(refresh)).andExpect(status().is5xxServerError());
+
+        reset(authService);
+        mockMvc.perform(refresh(refresh)).andExpect(status().isOk());
+    }
+
+    @Test
+    void 갱신_응답도_로그인과_같은_사용자_모양이다() throws Exception {
+        // 프론트는 refresh 응답의 roles·primarySystemIds를 이전 값과 비교해 달라지면 세션을 끝낸다.
+        UUID approval = UUID.fromString("c0000000-0000-7000-8000-000000000093");
+        jdbcTemplate.update("INSERT INTO it_system (id, code, name, primary_owner_member_id) VALUES (?, 'ELECTRONIC_APPROVAL', '전자결재', ?)",
+                approval, MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'AGENT_OPS_ADMIN')", MEMBER_ID);
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        mockMvc.perform(refresh(refresh))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.roles.length()").value(1))
+                .andExpect(jsonPath("$.user.roles[0]").value("BIZ_ADMIN"))
+                .andExpect(jsonPath("$.user.primarySystemIds[0]").value(approval.toString()))
+                .andExpect(jsonPath("$.user.department.isRoutable").doesNotExist());
+    }
+
+    @Test
+    void 로그아웃은_Authorization_헤더가_만료되거나_깨져도_쿠키로_처리한다() throws Exception {
+        // 프론트는 logout에도 Bearer를 붙인다. 그 토큰이 만료·손상됐다고 컨트롤러 전에 401로 막으면 쿠키·세션이 남는다.
+        String refresh = refreshValue(mockMvc.perform(login("requester", "hops1234!")).andReturn().getResponse());
+
+        MockHttpServletResponse response = mockMvc.perform(logout(refresh).header(HttpHeaders.AUTHORIZATION, "Bearer not-a-jwt"))
+                .andExpect(status().isNoContent())
+                .andReturn().getResponse();
+
+        assertThat(refreshCookie(response)).contains("Max-Age=0");
+        mockMvc.perform(refresh(refresh)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 응답_roles에는_계약에_있는_역할만_담는다() throws Exception {
+        // DATA_TYPES 신규 절 Role은 BIZ_ADMIN뿐이다. DB에 남은 AGENT_OPS_ADMIN을 내보내면 프론트가 로그인을 멈춘다.
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'AGENT_OPS_ADMIN')", MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(jsonPath("$.user.roles.length()").value(1))
+                .andExpect(jsonPath("$.user.roles[0]").value("BIZ_ADMIN"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+        // 토큰의 roles(서버 권한의 근거)도 같은 기준이다. 화면에 안 보이는 역할로 권한이 남으면 안 된다.
+        assertThat(jwtDecoder.decode(accessToken).getClaimAsStringList("roles")).containsExactly("BIZ_ADMIN");
+
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(jsonPath("$.roles.length()").value(1));
+    }
+
+    @Test
+    void 담당_시스템이_없어도_primarySystemIds는_빈_배열로_보낸다() throws Exception {
+        // 키를 생략하지 않는다. 일반 임직원은 roles=[]·primarySystemIds=[]다 (DATA_TYPES Role).
+        mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(jsonPath("$.user.primarySystemIds").isArray())
+                .andExpect(jsonPath("$.user.primarySystemIds").isEmpty());
     }
 
     @Test
