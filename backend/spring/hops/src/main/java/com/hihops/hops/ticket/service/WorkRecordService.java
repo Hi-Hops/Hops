@@ -56,7 +56,7 @@ public class WorkRecordService {
         if (command.verified() && (ticket.getWorkType() == TicketWorkType.CHANGE_REQUEST
                 ? command.kind() != WorkRecordCommand.Kind.IMPLEMENTED_VERIFIED
                 : command.kind() != WorkRecordCommand.Kind.VERIFIED_RESOLUTION)) throw new BusinessException(ErrorCode.INVALID_INPUT);
-        if (command.verified() && ticket.getTicketStatus() == TicketStatus.WAITING_CONFIRM) throw new BusinessException(ErrorCode.INVALID_STATE);
+        if (ticket.getTicketStatus() == TicketStatus.WAITING_CONFIRM) throw new BusinessException(ErrorCode.INVALID_STATE);
         WorkLogType kind = switch (command.kind()) {
             case PROGRESS -> WorkLogType.PROGRESS;
             case FAILED_ATTEMPT -> WorkLogType.FAILED_ATTEMPT;

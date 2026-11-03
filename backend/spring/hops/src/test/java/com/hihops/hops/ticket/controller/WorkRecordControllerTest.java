@@ -11,6 +11,33 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class WorkRecordControllerTest extends TicketCommandFixture {
+    @Test void 확인대기_중에는_진행과_실패기록을_거절하고_미해결_응답후_허용한다() throws Exception {
+        var path = "/tickets/" + ticket + "/work-records";
+        result(command(staff, path, work("VERIFIED_RESOLUTION")));
+        var waiting = detail();
+        for (var kind : List.of("PROGRESS", "FAILED_ATTEMPT")) {
+            var body = (tools.jackson.databind.node.ObjectNode) work(kind);
+            body.put("expectedTicketRevision", waiting.path("ticketRevision").asInt());
+            mvc.perform(command(staff, path, body)).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+        }
+        var unchanged = detail();
+        assertThat(unchanged.path("state")).isEqualTo(waiting.path("state"));
+        assertThat(unchanged.path("ticketRevision")).isEqualTo(waiting.path("ticketRevision"));
+        assertThat(unchanged.path("workRecords")).isEqualTo(waiting.path("workRecords"));
+        assertThat(unchanged.path("activeResolutionRequest")).isEqualTo(waiting.path("activeResolutionRequest"));
+        var response = mapper.createObjectNode().put("requestId", java.util.UUID.randomUUID().toString())
+                .put("expectedRequestRevision", 1).put("decision", "UNRESOLVED");
+        result(command(requester, "/resolution-requests/" + waiting.path("activeResolutionRequest").path("id").asString() + "/responses", response));
+        for (var kind : List.of("PROGRESS", "FAILED_ATTEMPT")) {
+            var body = (tools.jackson.databind.node.ObjectNode) work(kind);
+            body.put("expectedTicketRevision", detail().path("ticketRevision").asInt());
+            result(command(staff, path, body));
+        }
+        assertThat(detail().path("state").asString()).isEqualTo("IN_PROGRESS");
+        assertThat(detail().path("workRecords").size()).isEqualTo(3);
+    }
+
     @Test void 진행_기록은_한번만_저장하고_같은_키는_버전_비교_전에_재확인한다() throws Exception {
         var body = work("PROGRESS");
         var first = result(command(staff, "/tickets/" + ticket + "/work-records", body));
