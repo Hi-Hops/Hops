@@ -1,4 +1,4 @@
-"""상세 입출력 합의 전 역할 인터페이스와 명시적인 미구현 기본 동작."""
+"""Supervisor가 호출하는 전문 역할의 입력·반환 타입과 미구현 기본 동작."""
 
 from typing import TYPE_CHECKING, Protocol
 
@@ -6,17 +6,27 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.harness.errors import ComponentNotReady
 
 if TYPE_CHECKING:
+    from hops_ai.contracts.roles import RoleResult
     from hops_ai.services.shared import SharedServices
+    from hops_ai.supervisor.execution import RoleRequest, RoleResponse
 
 
 class Agent(Protocol):
+    """호출 ID를 유지한 역할 결과와 필요한 신뢰된 어댑터 자료를 반환한다."""
+
     role: AgentRole
 
-    async def run(self, request: object, services: "SharedServices") -> object: ...
+    async def run(
+        self, request: "RoleRequest", services: "SharedServices"
+    ) -> "RoleResult | RoleResponse": ...
 
 
 class PendingAgent:
+    """아직 연결하지 않은 역할을 명시적으로 거부한다. 성공 결과를 자동 생성하지 않는다."""
+
     role: AgentRole
 
-    async def run(self, request: object, services: "SharedServices") -> object:
+    async def run(
+        self, request: "RoleRequest", services: "SharedServices"
+    ) -> "RoleResult | RoleResponse":
         raise ComponentNotReady(self.role.value)

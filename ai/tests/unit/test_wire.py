@@ -326,25 +326,60 @@ def test_message_content_and_time_validation() -> None:
             InputMessage.model_validate(payload | {"content": content})
 
 
-def test_case_proposal_reusability() -> None:
-    payload = {
-        "reusable": False,
-        "title": None,
-        "action": None,
-        "verification": None,
-        "applicability": None,
+def case_proposal(*, reusable: bool = False) -> dict:
+    """공통 DTO 검사용 사례 본문을 만든다. 실제 사례나 승인 결과가 아니다."""
+    return {
+        "reusable": reusable,
+        "title": "해결 사례" if reusable else None,
+        "action": "설정 변경" if reusable else None,
+        "verification": "동작 확인" if reusable else None,
+        "applicability": "전자결재" if reusable else None,
         "limitations": [],
         "appliesToSystemVersion": None,
-        "accessScope": None,
-        "sourceMessageIds": [],
+        "accessScope": "SYSTEM_STAFF" if reusable else None,
+        "sourceMessageIds": [RUN_ID] if reusable else [],
         "entityLinks": [],
-        "problemStatement": None,
+        "problemStatement": "문서 조회 실패" if reusable else None,
     }
+
+
+def test_case_proposal_reusability() -> None:
+    payload = case_proposal()
     assert not CaseProposal.model_validate(payload).reusable
     with pytest.raises(ValidationError):
         CaseProposal.model_validate(payload | {"reusable": True})
     with pytest.raises(ValidationError):
         CaseProposal.model_validate(payload | {"title": "임의 제목"})
+
+
+@pytest.mark.parametrize(
+    "mutation", ["body_present", "links_present", "missing_body", "extra_field"]
+)
+def test_case_proposal_enforces_reusable_fields(mutation) -> None:
+    """재사용 여부별 본문·출처 조합과 승인 필드의 임의 추가를 거부한다."""
+    data = case_proposal(reusable=mutation == "missing_body")
+    if mutation == "body_present":
+        data["title"] = "재사용하지 않는 사례의 제목"
+    elif mutation == "links_present":
+        data["sourceMessageIds"] = [RUN_ID]
+    elif mutation == "missing_body":
+        data["action"] = None
+    else:
+        data["approved"] = True
+    with pytest.raises(ValidationError):
+        CaseProposal.model_validate(data)
+
+
+def test_failed_result_cannot_carry_new_answer() -> None:
+    """실패한 실행은 성공 문구나 새 답변을 반환할 수 없다."""
+    payload = inquiry_result() | {
+        "status": "FAILED",
+        "answer": "성공했습니다",
+        "questions": [],
+        "error": {"code": "INVALID_OUTPUT", "message": "잘못된 출력", "retryable": False},
+    }
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(payload)
 
 
 def test_accepted_rejects_external_events_path() -> None:
@@ -482,19 +517,7 @@ def test_confirmed_facts_need_sources_but_assumptions_do_not() -> None:
 
 
 def test_case_draft_result_validates_content_and_kind() -> None:
-    proposal = {
-        "reusable": True,
-        "title": "해결 사례",
-        "action": "설정 변경",
-        "verification": "동작 확인",
-        "applicability": "전자결재",
-        "limitations": [],
-        "appliesToSystemVersion": None,
-        "accessScope": "SYSTEM_STAFF",
-        "sourceMessageIds": [RUN_ID],
-        "entityLinks": [],
-        "problemStatement": "문서 조회 실패",
-    }
+    proposal = case_proposal(reusable=True)
     payload = inquiry_result() | {
         "kind": "CASE_DRAFT",
         "answer": None,

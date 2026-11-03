@@ -2,7 +2,7 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
 
-[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증과 저장된 실행 상태 조회를 제공한다. 실제 상담 분석·모델·검색·티켓 제안·사례 생성은 구현 전이다.
+[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증과 저장된 실행 상태 조회를 제공한다. Supervisor의 판단 검증·역할 호출·최종화 그래프는 구현했으며 실제 OpenAI·전문 역할·검색·서비스 접수 연결은 구현 전이다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
@@ -13,9 +13,9 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 항목 | 상태 |
 |---|---|
 | FastAPI | `GET /healthz`는 200, `GET /readyz`는 미구현 상태를 나타내는 503 |
-| 역할·Supervisor | 역할 골격만 존재. 호출하면 `ComponentNotReady` 발생 |
+| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. 기본 전문 역할은 `ComponentNotReady`이며 실제 모델 연결 전 |
 | OpenAI·pgvector·Neo4j | 내부 인터페이스와 연결 자리만 존재. 호출하면 미구현 오류 |
-| 실행 하네스 | 마감·모델 호출 상한·LLM 일시 오류 재시도·사용량·취소 확인·도구 허용 검사 |
+| 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 조회 연결, Supervisor 미연결 |
 | 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·저장된 실행 snapshot 조회. 실행 접수·취소·SSE는 503 |
 | 업무 실행·SSE | 실제 실행 관리와 어댑터 연결 전 |
@@ -30,19 +30,19 @@ src/hops_ai/
 ├── api/routes/health.py       생존·준비 상태
 ├── api/routes/runs.py         서비스 인증된 내부 snapshot 조회; 실행기 미준비
 ├── contracts/                내부 자료형과 Spring↔AI 실행 wire DTO
-├── supervisor/graph.py       모델 기반 조율 자리; 상담과 사후 실행 분리 예정
+├── supervisor/               역할 정책·State·판단 검증·역할 실행·병합·실행 제한·LangGraph 최종화
 ├── persistence/run_ledger.py AI 실행 ID·입력 digest·상태·결과 보존
 ├── agents/
 │   ├── inquiry/              대화·질문·독립 문제·표준 요청
 │   ├── knowledge/            Vector·관계 검색과 조건부 분석
 │   ├── ticket/               책임 시스템 후보·근거·티켓 내용 제안
 │   └── curator/              처리 기록 기반 사례 초안·기존 관계 연결 후보
-├── harness/                  공통 예산·재시도·취소·도구 정책; guardrails는 구현 자리
+├── harness/                  누적 예산·유일한 재시도 루프·실행 대기/취소·도구 정책
 ├── services/
-│   ├── llm/                  LLM 인터페이스·예산 래퍼·OpenAI 연결 자리
+│   ├── llm/                  LLM 인터페이스·공통 예산 wrapper·OpenAI 연결 자리
 │   ├── runs/                 기한·한도 확인과 RunLedger 접수; 실행기 미연결
 │   ├── retrieval/            검색 인터페이스·pgvector·Neo4j 연결 자리
-│   ├── tools/                읽기 전용 도구 인터페이스·등록·호출 전 검사
+│   ├── tools/                읽기 도구 인터페이스·등록/인자 검사·공통 예산 wrapper
 │   └── indexing/             청크·임베딩·관계 반영 구현 자리
 └── evaluation/               검색·표준화·응답 평가 구현 자리
 tests/
@@ -52,6 +52,55 @@ tests/
 ```
 
 `contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 내부 실행 API는 이 요청 형식과 저장된 snapshot을 검증하지만 새 업무 실행을 접수하지 않는다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
+
+Supervisor는 공통 `contracts/wire.py`의 요청·제안·결과 타입을 재사용한다. `contracts/roles.py`는 역할별 내부 결과와 검색 권한 확인 참조를 정의한다. 기본 함수는 `policy.py` → `state.py` → `merge.py` → `finalize.py` 순서로 읽는다. 예약된 역할 호출의 결과를 검증한 뒤 새 State로 반환하며 동일 호출 재전달·질문 한도·근거 충돌·기존 작업·종료 후 변경을 검사한다.
+
+실행 흐름은 `decision.py` → `execution.py` → `runtime.py` → `graph.py` 순서로 확인한다.
+
+- `SupervisorDecision`은 다음 행동·전문 역할·공개 요약을 담는다. `decide_next_action`은 최소 실행 문맥으로 LLM을 호출하고 `validate_supervisor_decision`이 실행 종류별 역할과 준비된 제안을 검사한다. `problemProgress`에는 대상별 결과 준비 여부·남은 질문 횟수·미확인 개수·값이 있는 상세 필드명만 투영하며 담당자 지식과 상세 분석 원문은 넣지 않는다. 모델의 `publicSummary`는 최종 답변 본문으로 사용하지 않는다.
+- `execute_role`은 호출 ID를 발급하고 독립적인 `RoleRequest` 스냅샷을 전달한다. 역할은 그 ID를 결과에 유지하며 모델이 호출 ID를 생성하지 않는다. 반환 결과의 종류·ID를 검사한 뒤 기존 역할별 merge 함수로 병합한다. `RoleResponse`의 검색 권한 참조와 기존 엔티티 목록은 신뢰된 어댑터가 제공하는 Python 메타데이터이며 모델 JSON에서 받지 않는다. 검색 본문은 모델 전달 전에 현재 Spring 권한과 digest를 확인해야 한다.
+- `SupervisorRuntime`은 요청의 ID·누적 한도를 공통 실행기에 연결하고 사용량을 State에 복사하는 어댑터다. `RunBudget`이 호출·보고 토큰·도구·전체 재시도 사용량을 소유하고, `call_with_retry`만 모델 재시도 루프를 구현한다. `RunExecution`은 전체 그래프 대기·취소·종료 정리를 관리하며 `BudgetedLLMClient`와 `BudgetedToolGateway`가 실제 호출에 제한을 적용한다. 이미 감싼 LLM이나 재사용한 `RunContext`는 거부한다. 도구는 기본 거부 정책과 `GuardedToolGateway`의 등록·인자 검사를 통과해야 한다. 정확한 입력 토큰 사전 계산과 실패한 원격 호출의 미보고 과금 확인은 공급자 어댑터의 후속 작업이며 이 수치는 금액 예산 보장이 아니다.
+- `Supervisor.analyze`는 판단 → 필요한 역할 호출·병합 → 재판단 → 최종화의 LangGraph를 실행한다. 역할을 고정 순서로 모두 호출하지 않는다. `ASK_USER`는 현재 run을 끝내며 사용자 답변은 Spring이 새 run으로 전달한다. 실패 결과는 새 제안을 비우고 안전한 오류만 반환한다.
+- `get_problem_progress`는 별도 State 필드를 저장하지 않고 준비 상태를 계산한다. `validate_completion`은 모든 대상과 신규 문제에 질문·가이드·티켓 제안 또는 안내할 기존 결과·범위 안내·시스템 선택 대기가 있는지 검사한다. `allowedActions`, 종료 행동 검증, 최종화가 이 조건을 함께 사용한다. 검색 0건이나 자유 문구만으로 종료할 수 없고, 원인 미확인 항목이 남았다는 이유만으로 조사 티켓을 차단하지 않는다.
+- `compose_public_answer`는 검증된 질문·가이드 본문을 한 번씩 포함하고, 티켓 제안 준비와 서버가 제공한 기존 저장 결과를 구분해 답변을 만든다. 새 티켓 저장·담당자 배정·해결을 추정하지 않는다. 질문 5회 소진 후 시스템이 미확인이면 추가 질문 대신 시스템 선택 안내를 구성한다. 최종 본문의 길이·참조 검증이 실패하면 자동 절단하지 않고 실패 처리한다. 질문·가이드 자체의 의미 정확성은 역할별 평가가 필요하다.
+
+이 내부 흐름은 명시적인 테스트 대역으로 검증한다. 실제 OpenAI·전문 역할·검색·Spring 권한·RunLedger 실행·HTTP 접수·취소·SSE는 아직 연결하지 않았으며 서버 준비 상태는 계속 503이다. 메모리 문맥의 중복 실행 차단은 영속 RunLedger 접수를 대신하지 않는다.
+
+## Supervisor 단독 실행과 의존성 주입
+
+이 작업의 확인 대상은 주입받은 모델·역할 인터페이스를 사용해 한 run을 판단 → 역할 호출 → 병합 → 최종 결과까지 조율하는 것이다. 실제 OpenAI·전문 역할·검색 구현과 Spring 서비스 통합은 각 담당 작업에서 제공할 수 있다. 아래 조립 함수는 클라이언트 생성이나 외부 접속을 수행하지 않는다.
+
+```python
+from hops_ai.supervisor import Supervisor, create_run_services
+
+services = create_run_services(
+    request,
+    settings=settings,
+    access_scope_ref=server_scope_ref,
+    llm=llm_client,
+    vector=vector_retriever,
+    graph=graph_retriever,
+    tools=guarded_tools,
+    tool_policy=tool_policy,
+)
+result = await Supervisor(agents=agents).analyze(request, services)
+```
+
+위 변수는 호출 측이 준비한다. `create_run_services`는 요청을 재검증하고 ID·버전·요청 기한을 반영한 새 `RunContext`를 만든다. `access_scope_ref`는 서버가 정한 접근 문맥 참조이며 권한 증명이나 사용자 JWT가 아니다. 지식 본문을 모델에 전달하기 전 현재 Spring 권한 확인과 digest 검증은 검색 어댑터가 수행해야 한다.
+
+LLM은 `LLMClient.generate(LLMRequest)`에 맞는 원시 구현체를 주입한다. 반환값은 요청한 모델로 파싱한 `LLMResponse`와 사용량이어야 한다. SDK 자체 재시도는 끄며 `SupervisorRuntime`이 공통 예산 wrapper를 연결한다. 전문 역할은 `role: AgentRole`과 `async run(RoleRequest, SharedServices)`를 제공하고, 전달받은 호출 ID를 유지한 역할별 Result 또는 `RoleResponse`를 반환한다. 검색 권한·기존 엔티티 메타데이터는 신뢰된 어댑터가 채운다. 클라이언트 생성과 종료는 호출 측이 관리한다.
+
+`RunContext`는 한 실행에만 사용한다. 같은 runId로 새 문맥을 만드는 것까지 이 함수가 영속 차단하지는 않으므로 실제 서비스 접수에서는 별도로 RunLedger를 연결한다. HTTP 실행 접수·취소·SSE와 `real` 모드는 이 단독 실행 경로에 연결하지 않는다.
+
+명시적인 테스트 대역으로 주입·그래프 실행 흐름을 확인하려면 `ai/`에서 다음 검사를 실행한다. 모델·역할 대역과 합성 입력은 회귀 테스트에서만 사용하며 실제 서버에 자동 연결되지 않는다. 실제 모델 품질이나 Spring·외부 DB를 포함한 서비스 E2E 검사가 아니다.
+
+```bash
+uv run pytest tests/integration/test_supervisor_standalone.py tests/integration/test_supervisor_routing.py tests/unit/test_supervisor_graph.py
+```
+
+검사는 질문·티켓·가이드·사례 제안, 잘못된 역할 선택의 안전한 실패, 예산·취소, 역할 구현 교체와 동시 요청의 입력·결과 분리를 확인한다. 형식은 contracts, 공통 실행 제한은 harness·서비스 wrapper, 업무 참조·질문 한도·기존 작업·병합·최종 응답은 Supervisor가 검증한다. 역할 호출 전후와 최종화 시점의 활성 검사는 늦은 응답 차단을 위해 유지한다.
+
+`test_supervisor_routing.py`의 합성 회귀 시나리오 v1은 미처리 문제의 조기 종료, 복합 문의 누락, 정상 역할 실행 후 허위 완료 요약의 본문 유입, 조사 티켓의 미확인 항목 보존, 검색 권한 범위 확대 거부를 검사한다. 정해진 결정을 반환하는 대역 검사이므로 실제 모델의 역할 선택 정확도를 측정하지 않는다. 실제 모델 평가는 별도로 고정한 시나리오에서 역할 선택·종료 시점·반복 호출 수·답변 근거를 확인하고 모델·프롬프트·데이터 버전과 실행 제한을 함께 기록한다. 개인 실험 원문과 로그는 공유 코드에 포함하지 않는다.
 
 ## 실행과 검사
 
@@ -110,7 +159,7 @@ RunLedger는 Spring 업무 DB가 아닌 별도 `hops_ai_runtime` DB를 사용한
 
 `RunLedger.open()`은 인스턴스별 PostgreSQL 세션 잠금을 확보하고, 소유 세션이 사라진 미완료 run을 `UNKNOWN`으로 복구한다. 살아 있는 다른 인스턴스의 잠금은 건드리지 않는다. 접수·실행 변경은 잠금을 보유한 같은 DB 세션을 사용하므로 직접 연결 또는 세션 수명이 유지되는 연결 구성이 필요하다. 트랜잭션 단위 연결 풀은 사용할 수 없다. 네트워크 단절 시 PostgreSQL이 기존 세션 종료를 확인하기 전까지 복구가 지연될 수 있다. 스캔 중 종료된 다른 인스턴스는 다음 `recover_abandoned()` 호출에서 확인할 수 있으며 주기 실행은 아직 연결하지 않았다.
 
-테스트처럼 `create_app(..., ledger=ledger)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 종료 시 세션을 닫는다. 기본 골격 실행은 DB에 연결하지 않고, 실제 실행 모드·인증·업무 API·Supervisor는 여전히 미구현이다.
+테스트처럼 `create_app(..., ledger=ledger)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 종료 시 세션을 닫는다. 기본 골격 실행은 DB에 연결하지 않는다. 실제 실행 모드·업무 API·Supervisor 실행 접수는 미연결이며 서비스 인증은 내부 API 활성화 시에만 적용한다.
 
 PostgreSQL 통합 검사는 별도 테스트 전용 DB `hops_ai_runtime_test`가 준비된 경우에만 실행한다. 해당 DB에 위 SQL을 적용하며 테스트용 실행 기록을 추가한다. 기본 테스트에서는 접속 설정이 없으면 이 검사들을 건너뛴다.
 
