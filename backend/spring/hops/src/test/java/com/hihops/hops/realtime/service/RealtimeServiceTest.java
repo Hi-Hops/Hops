@@ -1,12 +1,12 @@
 package com.hihops.hops.realtime.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,6 +43,20 @@ import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
 
 class RealtimeServiceTest {
+    @Test void 시스템_업무_변경은_신규_계약의_단조_증가_무효화_신호를_보낸다() throws Exception {
+        var result = mvc.perform(get("/realtime/events").param("targetType", "SYSTEM_TICKETS")
+                .param("targetId", departmentId.toString())).andExpect(request().asyncStarted()).andReturn();
+        var ticketId = UUID.randomUUID();
+        service.ticketChanged(new com.hihops.hops.realtime.dto.TicketChangedEvent(ticketId, java.util.List.of(departmentId)));
+        service.ticketChanged(new com.hihops.hops.realtime.dto.TicketChangedEvent(ticketId, java.util.List.of(departmentId)));
+        var events = result.getResponse().getContentAsString().lines().filter(line -> line.startsWith("data:"))
+                .map(line -> new tools.jackson.databind.ObjectMapper().readTree(line.substring(5))).toList();
+        assertThat(events).hasSize(2);
+        assertThat(events.getFirst().path("targetType").asString()).isEqualTo("SYSTEM_TICKETS");
+        assertThat(events.getFirst().path("resourceId").asString()).isEqualTo(ticketId.toString());
+        assertThat(events.getLast().path("revision").asLong()).isGreaterThan(events.getFirst().path("revision").asLong());
+        service.shutdown();
+    }
     private final RealtimeAuthorization authorization = mock(RealtimeAuthorization.class);
     private final TaskScheduler scheduler = mock(TaskScheduler.class);
     private final UUID departmentId = UUID.randomUUID();

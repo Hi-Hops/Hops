@@ -1,20 +1,23 @@
 package com.hihops.hops.realtime.service;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.TaskScheduler;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessException;
-import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -24,6 +27,7 @@ import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.realtime.dto.ResyncRequiredEvent;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
+import com.hihops.hops.realtime.dto.TicketChangedEvent;
 
 import jakarta.annotation.PreDestroy;
 
@@ -31,6 +35,7 @@ import jakarta.annotation.PreDestroy;
 public class RealtimeService {
     private static final Logger log = LoggerFactory.getLogger(RealtimeService.class);
     private final Map<UUID, Connection> connections = new ConcurrentHashMap<>();
+    private final AtomicLong notificationSequence = new AtomicLong();
     private final RealtimeAuthorization authorization;
     private final RealtimeProperties properties;
     private final TaskScheduler scheduler;
@@ -68,7 +73,7 @@ public class RealtimeService {
         try {
             connection.heartbeat = scheduler.scheduleWithFixedDelay(connection::heartbeat, properties.heartbeat());
             connection.expiration = scheduler.schedule(connection::close, jwt.getExpiresAt());
-        } catch (org.springframework.core.task.TaskRejectedException exception) {
+        } catch (TaskRejectedException exception) {
             connection.close();
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
@@ -90,6 +95,22 @@ public class RealtimeService {
                                 .name("state.changed").data(event));
                     }
                 });
+    }
+
+    private record TicketStateChanged(UUID eventId, RealtimeTarget.Type targetType, UUID targetId,
+            String resourceType, UUID resourceId, long revision) { }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void ticketChanged(TicketChangedEvent event) {
+        var targets = new ArrayList<RealtimeTarget>();
+        targets.add(new RealtimeTarget(RealtimeTarget.Type.TICKET, event.ticketId()));
+        event.systemIds().stream().distinct().forEach(id -> targets.add(new RealtimeTarget(RealtimeTarget.Type.SYSTEM_TICKETS, id)));
+        for (var target : targets) {
+            var signal = new TicketStateChanged(UUID.randomUUID(), target.type(), target.id(), "TICKET", event.ticketId(), notificationSequence.incrementAndGet());
+            connections.values().stream().filter(connection -> connection.target.equals(target)).forEach(connection -> {
+                if (connection.authorized()) connection.send(SseEmitter.event().id(signal.eventId().toString()).name("state.changed").data(signal));
+            });
+        }
     }
 
     /** 로그아웃한 회원의 열린 연결을 모두 닫는다 (WIRE_CONTRACT 10절). 연결의 JWT sub가 회원 ID다. */
