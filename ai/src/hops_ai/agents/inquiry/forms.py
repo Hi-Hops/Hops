@@ -52,6 +52,19 @@ FIELD_PROMPTS: Mapping[str, str] = {
     "desiredChange": "어떻게 바뀌기를 바라시나요?",
 }
 
+# 담당자에게 보여 줄 미확인 항목 이름.
+FIELD_LABELS: Mapping[str, str] = {
+    SYSTEM: "보고 시스템",
+    "taskOrScreen": "하려던 업무·화면",
+    "currentWorkflow": "현재 진행 방식",
+    "expectedBehavior": "기대한 동작",
+    "actualBehavior": "실제 동작",
+    "occurredAt": "발생 시점",
+    "requestedAccess": "필요한 기능·권한",
+    "businessPurpose": "업무 목적",
+    "desiredChange": "바라는 변경",
+}
+
 type Action = Literal["ASK", "COMPLETE", "HANDOFF", "OUT_OF_SCOPE"]
 
 

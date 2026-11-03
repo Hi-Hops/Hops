@@ -9,6 +9,7 @@ import json
 import pytest
 
 from hops_ai.agents.base import PendingAgent
+from hops_ai.agents.registry import build_registry, build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import ComponentNotReady
@@ -90,7 +91,7 @@ async def test_default_registry_without_implemented_roles_ends_safely_without_su
     request = make_request()
     llm = RecordingLLM()
 
-    result = await SupervisorPipeline(llm).run(request, run_context(request))
+    result = await SupervisorPipeline(llm, build_registry()).run(request, run_context(request))
 
     assert llm.allowed_roles and all(roles == [] for roles in llm.allowed_roles)
     assert result.status == "FAILED"
@@ -138,3 +139,7 @@ def test_real_mode_builds_the_app_when_every_requirement_is_set() -> None:
     app = create_app(settings)
 
     assert app.title == "Hops AI"
+
+
+def test_default_pipeline_registry_is_the_runtime_registry() -> None:
+    assert implemented_roles(build_runtime_registry()) == {AgentRole.INQUIRY}

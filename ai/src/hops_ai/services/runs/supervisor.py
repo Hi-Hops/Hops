@@ -9,7 +9,7 @@ Supervisor가 고르지 못하게 제한한다. 구현된 역할이 하나도 �
 from collections.abc import Mapping
 
 from hops_ai.agents.base import Agent, PendingAgent
-from hops_ai.agents.registry import build_registry
+from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
@@ -42,7 +42,7 @@ class SupervisorPipeline:
 
         검색·도구를 주지 않으면 연결 전 자리(ComponentNotReady)와 거부 게이트웨이를 쓴다.
         """
-        registry = dict(build_registry() if agents is None else agents)
+        registry = dict(build_runtime_registry() if agents is None else agents)
         self._llm = llm
         self._vector = vector or PgVectorRetriever()
         self._graph = graph or Neo4jRetriever()
