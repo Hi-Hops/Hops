@@ -232,6 +232,7 @@ async def test_authorized_guide_is_merged_and_included_once_in_answer() -> None:
                     ),
                 ),
                 authorized_refs=(authorize(evidence),),
+                verified_evidence=(evidence,),
             )
 
     request = make_request()

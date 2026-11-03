@@ -10,7 +10,7 @@ import pytest
 
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult, KnowledgeResult, SearchResult, TicketResult
-from hops_ai.contracts.wire import AiRunRequest, QuestionProposal
+from hops_ai.contracts.wire import AiRunRequest, GuideProposal, QuestionProposal
 from hops_ai.harness.context import RunContext
 from hops_ai.services.retrieval.neo4j import Neo4jRetriever
 from hops_ai.services.retrieval.pgvector import PgVectorRetriever
@@ -169,6 +169,7 @@ async def test_role_metadata_cannot_expand_employee_access_scope() -> None:
                     guide=None,
                 ),
                 authorized_refs=(authorize(evidence),),
+                verified_evidence=(evidence,),
             )
 
     request = make_request()
@@ -184,3 +185,40 @@ async def test_role_metadata_cannot_expand_employee_access_scope() -> None:
     assert result.evidence == []
     assert "STAFF_SENTINEL" not in result.model_dump_json()
     assert request == original
+
+
+async def test_rewritten_excerpt_cannot_reach_a_successful_final_result() -> None:
+    """문서 참조가 허용돼도 검증된 원문과 다른 발췌문은 최종 결과에 포함하지 않는다."""
+
+    class RewritingKnowledge:
+        role = AgentRole.KNOWLEDGE
+
+        async def run(self, request, services):
+            verified = make_evidence()
+            changed = verified.model_copy(update={"excerpt": "REWRITTEN_EVIDENCE_SENTINEL"})
+            return RoleResponse(
+                KnowledgeResult(
+                    invocationId=request.invocation_id,
+                    search=SearchResult(state="FOUND", evidence=[changed], error=None),
+                    guide=GuideProposal(
+                        problemRef=PROBLEM,
+                        messageText="가이드 내용을 확인해 주세요.",
+                        evidenceIds=[verified.id],
+                    ),
+                ),
+                authorized_refs=(authorize(verified),),
+                verified_evidence=(verified,),
+            )
+
+    result = await run_scenario(
+        make_request(),
+        {AgentRole.KNOWLEDGE: RewritingKnowledge()},
+        choice("CALL_ROLE", AgentRole.KNOWLEDGE),
+        choice("PROVIDE_GUIDE"),
+    )
+
+    assert result.status == "FAILED"
+    assert result.error.code == "INVALID_OUTPUT"
+    assert result.answer is result.guide is None
+    assert result.evidence == []
+    assert "REWRITTEN_EVIDENCE_SENTINEL" not in result.model_dump_json()

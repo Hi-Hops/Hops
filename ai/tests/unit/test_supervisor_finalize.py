@@ -14,7 +14,7 @@ from hops_ai.contracts.roles import (
     SearchResult,
     TicketResult,
 )
-from hops_ai.contracts.wire import GuideProposal, QuestionProposal
+from hops_ai.contracts.wire import AiResult, GuideProposal, QuestionProposal
 from hops_ai.harness.errors import OutputRejected
 from hops_ai.supervisor.finalize import compose_public_answer, finalize_result
 from hops_ai.supervisor.merge import (
@@ -68,6 +68,7 @@ def with_guide():
             guide=guide,
         ),
         authorized_refs=[authorize(evidence)],
+        verified_evidence=[evidence],
     )
     return state, guide
 
@@ -103,16 +104,83 @@ def test_guide_body_is_included_once_and_does_not_confirm_resolution() -> None:
     assert state["input"].problems[0].resolutionContext is None
 
 
-@pytest.mark.parametrize("reason", ["duplicate", "too_long", "blank", "surrogate"])
-def test_invalid_required_body_is_rejected_without_changing_state(reason) -> None:
-    """필수 본문의 중복·길이·문자열 오류는 자동 보정하지 않고 거부한다."""
-    state, question = with_question()
-    if reason == "duplicate":
-        state["problems"]["new:second"] = make_problem("new:second")
-        state["questions"][("new:second", "q2")] = question.model_copy(
-            update={"problemRef": "new:second", "bundleRef": "q2"}
+def test_identical_questions_share_one_body_but_keep_problem_metadata() -> None:
+    """같은 질문을 두 문제에 표시할 때 본문만 공유하고 문제별 질문은 보존한다."""
+    state, first = with_question()
+    second = first.model_copy(
+        update={
+            "problemRef": "new:second",
+            "bundleRef": "q2",
+            "requestedFields": ["actualBehavior", "occurredAt"],
+        }
+    )
+    state = merge_inquiry_result(
+        reserve(state, AgentRole.INQUIRY, "i2"),
+        InquiryResult(invocationId="i2", problems=[make_problem("new:second")], questions=[second]),
+    )
+    before = deepcopy(state)
+
+    result = finalize_result(state)["finalResult"]
+
+    assert result.status == "SUCCEEDED"
+    assert result.answer == f"문제 1 · 문제 2에 각각 답해 주세요.\n{first.text}"
+    assert result.answer.count(first.text) == 1
+    assert result.questions == [first, second]
+    assert AiResult.model_validate(result.model_dump(mode="json")) == result
+    assert state["input"].problems[0].questionCount == 4
+    assert state == before
+
+
+@pytest.mark.parametrize("other_outcome", ["question", "guide", "ticket"])
+def test_shared_question_keeps_other_problem_numbers_and_bodies(other_outcome) -> None:
+    """공유 질문과 다른 문제의 질문·가이드·티켓이 섞여도 번호와 본문을 보존한다."""
+    state, first = with_question()
+    state["problems"]["new:second"] = make_problem("new:second")
+    state["questions"][("new:second", "q2")] = first.model_copy(
+        update={"problemRef": "new:second", "bundleRef": "q2"}
+    )
+    state["problems"]["new:third"] = make_problem("new:third")
+    if other_outcome == "question":
+        body = "세 번째 문제의 발생 시점을 알려 주세요."
+        state["questions"][("new:third", "q3")] = QuestionProposal(
+            problemRef="new:third", bundleRef="q3", text=body, requestedFields=["occurredAt"]
         )
-    elif reason == "too_long":
+    elif other_outcome == "guide":
+        body = "세 번째 문제의 파일 열람 권한을 확인해 주세요."
+        state["evidence"][EVIDENCE] = make_evidence()
+        state["guide"] = GuideProposal(
+            problemRef="new:third", messageText=body, evidenceIds=[EVIDENCE]
+        )
+    else:
+        body = "담당자에게 전달할 티켓 제안을 준비했습니다."
+        state["ticketProposals"]["new:third"] = make_ticket("new:third")
+
+    result = finalize_result(state)["finalResult"]
+
+    assert result.status == "SUCCEEDED"
+    assert result.answer.startswith(f"문제 1 · 문제 2에 각각 답해 주세요.\n{first.text}")
+    assert result.answer.count(first.text) == 1
+    assert f"문제 3\n{body}" in result.answer
+    assert len(result.questions) == (3 if other_outcome == "question" else 2)
+
+
+def test_question_and_guide_with_identical_body_are_not_silently_combined() -> None:
+    """질문과 가이드는 의미가 다르므로 문구가 같다는 이유로 하나로 합치지 않는다."""
+    state, question = with_question()
+    state["problems"]["new:second"] = make_problem("new:second")
+    state["evidence"][EVIDENCE] = make_evidence()
+    state["guide"] = GuideProposal(
+        problemRef="new:second", messageText=question.text, evidenceIds=[EVIDENCE]
+    )
+    with pytest.raises(OutputRejected):
+        finalize_result(state)
+
+
+@pytest.mark.parametrize("reason", ["too_long", "blank", "surrogate"])
+def test_invalid_required_body_is_rejected_without_changing_state(reason) -> None:
+    """필수 본문의 길이·문자열 오류는 자동 보정하지 않고 거부한다."""
+    state, question = with_question()
+    if reason == "too_long":
         state["questions"][(PROBLEM, "q1")] = question.model_copy(update={"text": "가" * 4001})
     elif reason == "blank":
         state["questions"][(PROBLEM, "q1")] = question.model_copy(update={"text": " \ufeff"})

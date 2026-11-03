@@ -20,8 +20,10 @@ from hops_ai.contracts.wire import (
     GuideProposal,
     ProblemProposal,
     QuestionProposal,
+    RequestDetails,
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.supervisor.finalize import finalize_result
 from hops_ai.supervisor.merge import (
     merge_curator_result,
     merge_inquiry_result,
@@ -31,6 +33,7 @@ from hops_ai.supervisor.merge import (
 from hops_ai.supervisor.state import transition_phase
 from tests.supervisor_fixtures import (
     EVIDENCE,
+    MESSAGE,
     OTHER_SYSTEM,
     PROBLEM,
     SYSTEM,
@@ -116,6 +119,132 @@ def test_new_problem_uses_temporary_ref() -> None:
     assert "new:download" in merge_inquiry_result(state, result)["problems"]
 
 
+def test_inquiry_preserves_server_facts_details_and_confirmed_criteria_on_omission() -> None:
+    """모델의 빈 목록·null이 기존 확인 정보를 최종 결과에서 삭제하지 못한다."""
+    request = make_request()
+    confirmed = AcceptanceCriterion(
+        text="첨부파일을 열 수 있어야 함", confirmation="CONFIRMED", confirmedBy=uid(200)
+    )
+    snapshot = make_ticket().standardRequestSnapshot
+    snapshot = snapshot.model_copy(
+        update={"details": snapshot.details.model_copy(update={"acceptanceCriteria": [confirmed]})}
+    )
+    request = request.model_copy(
+        update={"problems": [request.problems[0].model_copy(update={"standardRequest": snapshot})]}
+    )
+    state = running_state(request)
+    before = deepcopy(state)
+    empty_details = RequestDetails(
+        **{
+            name: [] if name == "acceptanceCriteria" else None
+            for name in RequestDetails.model_fields
+        }
+    )
+    proposal = make_problem().model_copy(update={"facts": [], "details": empty_details})
+    merged = merge_inquiry_result(
+        reserve(state, AgentRole.INQUIRY, "i1"),
+        InquiryResult(invocationId="i1", problems=[proposal], questions=[question()]),
+    )
+    result = finalize_result(merged)["finalResult"]
+    assert result.problemProposals[0].facts == snapshot.confirmedFacts
+    assert result.problemProposals[0].details == snapshot.details
+    assert merged["input"].problems[0].standardRequest == snapshot
+    assert state == before
+
+
+def test_later_inquiry_keeps_earlier_information_but_updates_explicit_details() -> None:
+    """동일 run의 다음 분석도 누락을 보존하며 명시된 새 상세 값은 갱신한다."""
+    previous = make_problem()
+    state = merge_inquiry_result(
+        reserve(running_state(), AgentRole.INQUIRY, "i1"),
+        InquiryResult(invocationId="i1", problems=[previous], questions=[]),
+    )
+    details = previous.details.model_copy(
+        update={"taskOrScreen": None, "actualBehavior": "403 오류가 표시됨"}
+    )
+    proposal = previous.model_copy(update={"facts": [], "details": details, "unknowns": []})
+    before = deepcopy(state)
+    merged = merge_inquiry_result(
+        reserve(state, AgentRole.INQUIRY, "i2"),
+        InquiryResult(invocationId="i2", problems=[proposal], questions=[]),
+    )
+    current = merged["problems"][PROBLEM]
+    assert current.facts == previous.facts
+    assert current.details.taskOrScreen == previous.details.taskOrScreen
+    assert current.details.actualBehavior == "403 오류가 표시됨"
+    assert current.unknowns == []
+    assert state == before
+    # 보존한 사실의 중첩 목록도 앞선 State와 공유하지 않는다.
+    current.facts[0].sourceMessageIds.clear()
+    assert state["problems"][PROBLEM].facts[0].sourceMessageIds == [MESSAGE]
+
+
+def test_inquiry_preserves_partially_omitted_facts_without_replacing_them() -> None:
+    """기존 사실 중 일부만 반복한 결과는 나머지 사실도 유지한다."""
+    previous = make_problem()
+    second = EvidenceStatement(
+        text="오류 문구가 표시됨", sourceMessageIds=[MESSAGE], knowledgeEvidenceIds=[]
+    )
+    previous = previous.model_copy(update={"facts": [*previous.facts, second]})
+    state = running_state()
+    state["problems"][PROBLEM] = previous
+    merged = merge_inquiry_result(
+        reserve(state, AgentRole.INQUIRY, "i1"),
+        InquiryResult(
+            invocationId="i1",
+            problems=[previous.model_copy(update={"facts": [second]})],
+            questions=[],
+        ),
+    )
+    assert merged["problems"][PROBLEM].facts == previous.facts
+
+
+@pytest.mark.parametrize("omit_previous", [False, True])
+def test_inquiry_fact_addition_requires_preserving_previous_facts(omit_previous) -> None:
+    """새 사실 추가와 기존 사실의 모호한 삭제·교체를 구분한다."""
+    previous = make_problem()
+    new_fact = EvidenceStatement(
+        text="403 오류라고 답변함", sourceMessageIds=[MESSAGE], knowledgeEvidenceIds=[]
+    )
+    state = running_state()
+    state["problems"][PROBLEM] = previous
+    state = reserve(state, AgentRole.INQUIRY, "i1")
+    before = deepcopy(state)
+    facts = [new_fact] if omit_previous else [*previous.facts, new_fact]
+    result = InquiryResult(
+        invocationId="i1", problems=[previous.model_copy(update={"facts": facts})], questions=[]
+    )
+    if omit_previous:
+        with pytest.raises(OutputRejected, match="확인 사실"):
+            merge_inquiry_result(state, result)
+        assert state == before
+    else:
+        merged = merge_inquiry_result(state, result)
+        assert merged["problems"][PROBLEM].facts == facts
+
+
+def test_inquiry_cannot_downgrade_a_server_confirmed_criterion() -> None:
+    """확인된 수용 조건을 같은 문구의 미확인 제안으로 바꿀 수 없다."""
+    confirmed = AcceptanceCriterion(
+        text="파일 열람 가능", confirmation="CONFIRMED", confirmedBy=uid(200)
+    )
+    previous = make_problem()
+    previous = previous.model_copy(
+        update={"details": previous.details.model_copy(update={"acceptanceCriteria": [confirmed]})}
+    )
+    state = running_state()
+    state["problems"][PROBLEM] = previous
+    downgraded = confirmed.model_copy(update={"confirmation": "PROPOSED", "confirmedBy": None})
+    proposal = previous.model_copy(
+        update={"details": previous.details.model_copy(update={"acceptanceCriteria": [downgraded]})}
+    )
+    with pytest.raises(OutputRejected, match="수용 조건"):
+        merge_inquiry_result(
+            reserve(state, AgentRole.INQUIRY, "i1"),
+            InquiryResult(invocationId="i1", problems=[proposal], questions=[]),
+        )
+
+
 @pytest.mark.parametrize("reason", ["unknown_source", "incident", "confirmed_criterion"])
 def test_inquiry_rejects_unsupported_facts_and_confirmations(reason) -> None:
     """없는 출처·근거 없는 사실·모델의 장애 확정과 사람 확인 승격을 거부한다."""
@@ -162,7 +291,9 @@ def test_knowledge_merges_only_authorized_version_and_public_guide() -> None:
         guide=guide,
     )
     state = reserve(running_state(), AgentRole.KNOWLEDGE, "k1")
-    merged = merge_knowledge_result(state, result, authorized_refs=[authorize(item)])
+    merged = merge_knowledge_result(
+        state, result, authorized_refs=[authorize(item)], verified_evidence=[item]
+    )
     assert merged["guide"] == guide and merged["evidence"][EVIDENCE] == item
     assert state["evidence"] == {}
 
@@ -194,6 +325,7 @@ def test_knowledge_rejects_invalid_authorization(reason) -> None:
                 guide=None,
             ),
             authorized_refs=refs,
+            verified_evidence=[item],
         )
     assert state["evidence"] == {}
 
@@ -210,6 +342,7 @@ def test_conflicting_evidence_does_not_replace_previous_evidence() -> None:
         reserve(running_state(), AgentRole.KNOWLEDGE, "k1"),
         result,
         authorized_refs=[authorize(item)],
+        verified_evidence=[item],
     )
     changed = make_evidence(excerpt="변경된 내용")
     with pytest.raises(OutputRejected):
@@ -221,6 +354,7 @@ def test_conflicting_evidence_does_not_replace_previous_evidence() -> None:
                 guide=None,
             ),
             authorized_refs=[authorize(changed)],
+            verified_evidence=[changed],
         )
     assert state["evidence"][EVIDENCE].excerpt == item.excerpt
 
@@ -286,6 +420,20 @@ def test_invalid_ticket_references_are_rejected(reason) -> None:
             reserve(running_state(), AgentRole.TICKET, "t1"),
             TicketResult(invocationId="t1", proposals=[ticket]),
         )
+
+
+@pytest.mark.parametrize("processing_type", ["OUT_OF_SCOPE", "SERVICE_REQUEST"])
+def test_ticket_type_mismatch_is_rejected_before_state_merge(processing_type) -> None:
+    """최종 DTO 검사까지 기다리지 않고 문제와 다른 유형의 티켓을 원자적으로 거부한다."""
+    state = running_state()
+    state["problems"][PROBLEM] = make_problem().model_copy(
+        update={"processingType": processing_type}
+    )
+    state = reserve(state, AgentRole.TICKET, "t1")
+    before = deepcopy(state)
+    with pytest.raises(OutputRejected, match="처리 유형"):
+        merge_ticket_result(state, TicketResult(invocationId="t1", proposals=[make_ticket()]))
+    assert state == before
 
 
 def test_question_and_ticket_for_same_problem_conflict_in_both_orders() -> None:
@@ -404,6 +552,7 @@ def test_case_draft_knowledge_cannot_create_chat_guide() -> None:
                 guide=guide,
             ),
             authorized_refs=[authorize(item)],
+            verified_evidence=[item],
         )
 
 

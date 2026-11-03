@@ -28,6 +28,8 @@ def compose_public_answer(state: SupervisorState) -> str:
         질문·가이드 원문을 한 번씩 포함하는 공개 본문. 티켓 제안은 준비 사실만
         안내하고 저장·배정 성공을 추정하지 않는다. 기존 업무 결과는 Spring이
         전달한 STORED/PENDING/UNKNOWN을 구분하며 새 업무 상태를 만들지 않는다.
+        여러 문제의 질문 본문이 완전히 같으면 문제 번호를 함께 표시하고 본문은
+        한 번만 넣는다. 문제별 질문 메타데이터와 질문 횟수는 합치거나 변경하지 않는다.
 
     Raises:
         OutputRejected: 상담 이외의 실행이거나 처리 결과 없는 문제가 남은 경우,
@@ -41,11 +43,28 @@ def compose_public_answer(state: SupervisorState) -> str:
     validate_completion(state)
     progress = get_problem_progress(state)
     questions = {question.problemRef: question for question in state["questions"].values()}
+    question_numbers: dict[str, list[int]] = {}
+    for index, item in enumerate(progress, start=1):
+        if item["outcome"] == "ASK_USER":
+            body = questions[item["problemRef"]].text
+            question_numbers.setdefault(body, []).append(index)
+
+    # 표시만 공유한다. 같은 문구라도 problemRef와 bundleRef는 각 문제의 질문으로
+    # 남아 있어야 Spring이 답변 연결과 질문 횟수를 문제별로 저장할 수 있다.
+    emitted_questions: set[str] = set()
     parts: list[str] = []
     for index, item in enumerate(progress, start=1):
         outcome = item["outcome"]
         if outcome == "ASK_USER":
             body = questions[item["problemRef"]].text
+            if body in emitted_questions:
+                continue
+            emitted_questions.add(body)
+            numbers = question_numbers[body]
+            if len(numbers) > 1:
+                label = " · ".join(f"문제 {number}" for number in numbers)
+                parts.append(f"{label}에 각각 답해 주세요.\n{body}")
+                continue
         elif outcome == "PROVIDE_GUIDE":
             body = state["guide"].messageText
         elif outcome == "PROPOSE_TICKET":

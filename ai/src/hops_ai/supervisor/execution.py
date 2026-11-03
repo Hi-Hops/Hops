@@ -16,6 +16,7 @@ from hops_ai.contracts.roles import (
     RoleResult,
     TicketResult,
 )
+from hops_ai.contracts.wire import KnowledgeEvidence
 from hops_ai.harness.errors import ComponentNotReady, OutputRejected
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.merge import (
@@ -46,15 +47,20 @@ class RoleRequest:
 class RoleResponse:
     """신뢰된 역할 어댑터가 결과와 함께 제공하는 검증 자료.
 
-    result만 모델의 구조화 출력에서 구성한다. authorized_refs는 Knowledge 어댑터가
-    현재 Spring 권한과 본문 digest를 확인한 뒤 채우며, allowed_entity_ids는 Curator
-    어댑터가 검증한 기존 관계 대상이다. 모델 JSON에서 이 자료를 받아 채우면 안 된다.
+    result만 모델의 구조화 출력에서 구성한다. Knowledge 어댑터는 현재 Spring
+    권한과 원문·청크 digest를 확인한 뒤 authorized_refs와 verified_evidence를
+    채운다. 후자는 모델이 다시 작성한 발췌문이 아니라 검증을 마친 원본 근거다.
+    병합 검사는 모델이 반환한 근거가 이 객체와 전체 필드에서 일치하는지 대조한다.
+    문서 전체 digest를 짧은 발췌문의 해시와 직접 비교하지 않는다.
+    allowed_entity_ids는 Curator 어댑터가 검증한 기존 관계 대상이다.
+    모델 JSON에서 이러한 검증 자료를 받아 채우면 안 된다.
     단순한 Inquiry·Ticket 결과에는 이 봉투 없이 해당 Result를 바로 반환해도 된다.
     """
 
     result: RoleResult
     authorized_refs: tuple[AuthorizedKnowledgeRef, ...] = ()
     allowed_entity_ids: Mapping[str, set[str]] | None = None
+    verified_evidence: tuple[KnowledgeEvidence, ...] = ()
 
 
 async def execute_role(
@@ -114,10 +120,12 @@ async def execute_role(
         result = response.result
         authorized_refs = response.authorized_refs
         allowed_entity_ids = response.allowed_entity_ids
+        verified_evidence = response.verified_evidence
     else:
         result = response
         authorized_refs = ()
         allowed_entity_ids = None
+        verified_evidence = ()
 
     expected_type = {
         AgentRole.INQUIRY: InquiryResult,
@@ -131,6 +139,12 @@ async def execute_role(
         raise OutputRejected("역할 결과의 호출 ID가 실행기 예약과 다르다")
     if authorized_refs and role != AgentRole.KNOWLEDGE:
         raise OutputRejected("검색 권한 확인 자료는 Knowledge 결과에만 전달할 수 있다")
+    if not isinstance(verified_evidence, tuple) or any(
+        not isinstance(item, KnowledgeEvidence) for item in verified_evidence
+    ):
+        raise OutputRejected("검증된 검색 근거 자료의 형식이 잘못됐다")
+    if verified_evidence and role != AgentRole.KNOWLEDGE:
+        raise OutputRejected("검증된 검색 근거는 Knowledge 결과에만 전달할 수 있다")
     if allowed_entity_ids is not None and role != AgentRole.CURATOR:
         raise OutputRejected("기존 관계 대상은 Curator 결과에만 전달할 수 있다")
 
@@ -141,7 +155,12 @@ async def execute_role(
             not isinstance(item, AuthorizedKnowledgeRef) for item in authorized_refs
         ):
             raise OutputRejected("검색 권한 확인 자료의 형식이 잘못됐다")
-        return merge_knowledge_result(reserved, result, authorized_refs=list(authorized_refs))
+        return merge_knowledge_result(
+            reserved,
+            result,
+            authorized_refs=list(authorized_refs),
+            verified_evidence=verified_evidence,
+        )
     if isinstance(result, TicketResult):
         return merge_ticket_result(reserved, result)
 

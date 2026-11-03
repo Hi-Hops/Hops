@@ -175,8 +175,11 @@ async def test_late_result_after_runtime_deadline_is_rejected(services, clock) -
         await execute_role(running_state(), agent.role, services, {agent.role: agent})
 
 
-@pytest.mark.parametrize("authorized", [False, True])
-async def test_knowledge_found_requires_trusted_authorization_refs(services, authorized) -> None:
+@pytest.mark.parametrize("metadata", ["raw", "authorization_only", "evidence_only", "verified"])
+async def test_knowledge_found_requires_authorization_and_verified_evidence(
+    services, metadata
+) -> None:
+    """허용 문서 참조만으로는 부족하며 어댑터가 검증한 정확한 근거도 필요하다."""
     evidence = make_evidence()
 
     def respond(request):
@@ -185,19 +188,83 @@ async def test_knowledge_found_requires_trusted_authorization_refs(services, aut
             search={"state": "FOUND", "evidence": [evidence], "error": None},
             guide=None,
         )
-        return (
-            RoleResponse(result, authorized_refs=(authorize(evidence),)) if authorized else result
+        if metadata == "raw":
+            return result
+        return RoleResponse(
+            result,
+            authorized_refs=() if metadata == "evidence_only" else (authorize(evidence),),
+            verified_evidence=() if metadata == "authorization_only" else (evidence,),
         )
 
     agent = StubAgent(AgentRole.KNOWLEDGE, respond)
     state = running_state()
-    if authorized:
+    if metadata == "verified":
         result = await execute_role(state, agent.role, services, {agent.role: agent})
         assert result["evidence"][EVIDENCE] == evidence
     else:
         with pytest.raises(OutputRejected):
             await execute_role(state, agent.role, services, {agent.role: agent})
     assert not state["evidence"]
+
+
+@pytest.mark.parametrize("field", ["excerpt", "title", "id"])
+async def test_model_cannot_replace_verified_knowledge_fields(services, field) -> None:
+    """허용된 문서 버전이 같아도 모델이 근거의 본문·메타데이터를 바꾸면 거부한다."""
+    evidence = make_evidence()
+    changed = evidence.model_copy(
+        update={field: uid(999) if field == "id" else "모델이 새로 작성한 합성 문구"}
+    )
+    agent = StubAgent(
+        AgentRole.KNOWLEDGE,
+        lambda request: RoleResponse(
+            KnowledgeResult(
+                invocationId=request.invocation_id,
+                search={"state": "FOUND", "evidence": [changed], "error": None},
+                guide=None,
+            ),
+            authorized_refs=(authorize(evidence),),
+            verified_evidence=(evidence,),
+        ),
+    )
+    state = running_state()
+    before = deepcopy(state)
+    with pytest.raises(OutputRejected):
+        await execute_role(state, agent.role, services, {agent.role: agent})
+    assert state == before
+
+
+@pytest.mark.parametrize("shape", ["list", "model_json"])
+async def test_verified_evidence_requires_python_model_tuple(services, shape) -> None:
+    """검증된 근거를 닮은 모델 JSON이나 임의 컨테이너를 신뢰 자료로 받지 않는다."""
+    evidence = make_evidence()
+    metadata = [evidence] if shape == "list" else (evidence.model_dump(mode="json"),)
+    agent = StubAgent(
+        AgentRole.KNOWLEDGE,
+        lambda request: RoleResponse(
+            KnowledgeResult(
+                invocationId=request.invocation_id,
+                search={"state": "FOUND", "evidence": [evidence], "error": None},
+                guide=None,
+            ),
+            authorized_refs=(authorize(evidence),),
+            verified_evidence=metadata,
+        ),
+    )
+    with pytest.raises(OutputRejected):
+        await execute_role(running_state(), agent.role, services, {agent.role: agent})
+
+
+async def test_non_knowledge_role_cannot_supply_verified_evidence(services) -> None:
+    """Inquiry가 검증 자료 봉투를 사용해 Knowledge의 근거 작성 권한을 얻지 못한다."""
+    agent = StubAgent(
+        AgentRole.INQUIRY,
+        lambda request: RoleResponse(
+            InquiryResult(invocationId=request.invocation_id, problems=[], questions=[]),
+            verified_evidence=(make_evidence(),),
+        ),
+    )
+    with pytest.raises(OutputRejected):
+        await execute_role(running_state(), agent.role, services, {agent.role: agent})
 
 
 @pytest.mark.parametrize("status", ["EMPTY", "ERROR"])

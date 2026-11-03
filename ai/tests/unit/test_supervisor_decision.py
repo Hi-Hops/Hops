@@ -100,6 +100,7 @@ def test_guide_action_checks_employee_evidence():
             ),
         ),
         authorized_refs=[authorize(evidence)],
+        verified_evidence=[evidence],
     )
     validate_supervisor_decision(state, decision("PROVIDE_GUIDE"))
     state["evidence"] = {}
