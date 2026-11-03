@@ -273,6 +273,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 | `GET /api/v2/inquiries/{inquiryId}` | 없음 | 200 `InquiryResult` | 404 `NOT_FOUND`(남의 문의·삭제·없음을 구분하지 않음) |
 | `GET /api/v2/inquiries/{inquiryId}/messages` | `size`(기본 30, 1~100), `beforeSequenceNo`(선택, 1 이상) | 200 `{items: ChatMessage[], nextBeforeSequenceNo}` (저장이 끝난 메시지만, 오래된 순) | 400 `INVALID_INPUT`, 404 `NOT_FOUND` |
 | `GET /api/v2/runs/{runId}` | 없음 | 200 `RunSummary` (실패한 실행도 200, 실패면 `error` 포함) | 404 `NOT_FOUND`(남의 실행·Curator 실행·없음) |
+| `POST /api/v2/runs/{runId}/retries` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: RUN, id: 새 실행}`) | 404 `NOT_FOUND`, 409 `INQUIRY_VERSION_CONFLICT`(문의 버전 다름), 409 `RUN_NOT_RETRYABLE`(현재 실행이 아님·재분석 불가 실패·끝난 문의) |
 | `GET /api/v2/operations/{operationId}`<br>`GET /api/v2/operations/by-request/{requestId}` | 없음 | 200 `CommandReceipt` (본인이 보낸 변경 요청의 결과) | 404 `NOT_FOUND`, 410 `OPERATION_RESULT_EXPIRED`(보존 24시간 경과) |
 
 - **대화 페이지:** 처음에는 `beforeSequenceNo` 없이 최신 페이지를 받고, 응답의 `nextBeforeSequenceNo`를 다음 요청의 `beforeSequenceNo`로 보내 이전 페이지를 받습니다. `null`이면 더 없습니다.
@@ -281,6 +282,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 - **실행 한도·버전:** `hops.agent.run.*`(전체 60초, 호출 8회, 재시도 2회, 출력 1,500토큰). `model-version`·`prompt-version`은 AI 서버와 정하기 전까지 `pending`입니다.
 - **보고 시스템:** `reportedSystemId`는 첫 메시지 payload에만 저장하고 AI 입력에는 넣지 않습니다. AiRunRequest에 받을 필드가 없어 전달 방식을 정해야 합니다.
 - **실행 상태:** DB `CANCELLED`는 `SUPERSEDED`로 보냅니다. 실패 오류는 공개 코드(`AI_INVALID_OUTPUT`·`MODEL_UNAVAILABLE`·`SEARCH_UNAVAILABLE`·`SERVICE_UNAVAILABLE`·`AUTH_CONTEXT_CHANGED`·`AI_RUN_STATE_UNKNOWN`, 시간 초과는 `DEADLINE_EXCEEDED`)로 바꾸고 `requestId`에 실행을 접수한 명령 ID를 넣습니다.
+- **재분석:** 문의의 현재 실행이 `retryable=true`인 FAILED/TIMED_OUT일 때만 같은 문의 버전으로 새 runId·새 `answerMessageId`의 QUEUED 실행을 접수합니다. 실패한 실행은 그대로 두고 대화 입력은 재사용하며, 권한 문맥·시스템 목록·기한은 새로 만듭니다. 재분석 실행의 실패 오류 `requestId`는 그 재분석 요청 ID입니다.
 - **아직 남은 것:** 문의 상세의 `problems`(Problem) 형식은 AI 결과로 문제를 저장하는 기능과 함께 만듭니다. 지금은 문제가 있는 문의를 빈 목록으로 숨기지 않고 500으로 응답합니다.
 
 ## Spring SSE 공통 기반
