@@ -109,6 +109,29 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 
 문의 목록·상세·대화 조회를 위한 수동 시연 데이터는 [시연 seed 안내](src/main/resources/db/demo/README.md)를 참고합니다. 기본 개발용 회원·시스템을 먼저 준비해야 하며 Flyway가 자동으로 실행하지 않습니다.
 
+### 관리자 회원 등록 API
+
+`POST /api/v2/auth/register`는 현재 DB에서 `BIZ_ADMIN` 권한이 있는 사용자가 일반 직원을 등록하는 API다.
+먼저 `POST /api/v2/auth/login`으로 로그인하고 Swagger의 **Authorize**에 응답의 `accessToken`을 넣는다.
+최초 관리자 계정과 부서는 사전에 별도 절차로 준비해야 하며 이 API는 관리자 권한을 부여하지 않는다.
+요청의 `departmentId`는 DB에 존재하고 삭제되지 않은 부서 UUID여야 한다. 부서 조회 API는 아직 없다.
+
+```json
+{
+  "loginId": "employee.test",
+  "employeeNo": "TEST-001",
+  "password": "example-only-password",
+  "name": "테스트 직원",
+  "departmentId": "00000000-0000-0000-0000-000000000001"
+}
+```
+
+위 값은 형식 예시이며 실제 사용 시 준비된 부서 ID를 입력한다. 성공 시 `201`과 `memberId`를 반환한다.
+빈 필드·없는 부서·UTF-8 기준 72바이트를 초과하는 비밀번호는 `400`, 중복 ID·사번은 `409`,
+미인증은 `401`, 현재 관리자 권한이 없거나 토큰 발급 후 소속·권한이 변경되면 `403`이다. 비밀번호는 BCrypt로 저장한다.
+직원에게 계정을 안전하게 전달하는 방법과 초기 비밀번호 변경 기능은 별도 준비가 필요하다.
+
+
 `src/main/resources/db/seed/`의 `R__seed_dev_department_member.sql`(부서·회원·역할)과 `R__seed_dev_it_system.sql`(시스템·기능)에 있습니다. 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
 
 - 부서 11개: IT 처리 부서 8개(`is_routable=true`) + 요청자 소속 부서 3개(영업팀·인사팀·경영지원팀)
