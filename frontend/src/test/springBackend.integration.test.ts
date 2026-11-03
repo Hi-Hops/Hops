@@ -2,19 +2,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { login, logout, useSession } from '@/features/auth';
 import { getSystemTickets } from '@/features/ticket/api/systemTicketApi';
-import { getInquirySystems } from '@/features/inquiry/api/systemInquiryApi';
+import { getInquirySystems, getSystemInquiries } from '@/features/inquiry/api/systemInquiryApi';
 import { SseTransport } from '@/shared/realtime/sseTransport';
 
 // 신규 /api/v2를 구현한 개발 서버와 현재 PRIMARY 계정을 명시한 경우에만 실행한다.
 const baseUrl = process.env.HOPS_TEST_SPRING_URL;
 const loginId = process.env.HOPS_TEST_LOGIN_ID;
 const password = process.env.HOPS_TEST_PASSWORD;
+const frontendOrigin = process.env.HOPS_TEST_FRONTEND_ORIGIN ?? 'http://localhost:5173';
 let transport: SseTransport | undefined;
 describe.skipIf(!baseUrl || !loginId || !password)('hops-system-1 실제 Spring 읽기 통합', () => {
   beforeEach(() => {
     useSession.getState().logout();
     vi.stubEnv('VITE_DATA_MODE', 'live');
     vi.stubEnv('VITE_API_BASE_URL', baseUrl);
+    // Node fetch는 브라우저와 달리 Origin을 자동으로 보내지 않는다.
+    const fetchWithoutOrigin = globalThis.fetch;
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      headers.set('Origin', frontendOrigin);
+      return fetchWithoutOrigin(input, { ...init, headers });
+    });
   });
   afterEach(async () => {
     transport?.disconnect();
@@ -22,6 +30,7 @@ describe.skipIf(!baseUrl || !loginId || !password)('hops-system-1 실제 Spring 
     if (useSession.getState().token) await logout();
     useSession.getState().logout();
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
   async function signIn() {
     if (!loginId || !password) throw new Error('개발용 계정 설정 필요');
@@ -40,6 +49,15 @@ describe.skipIf(!baseUrl || !loginId || !password)('hops-system-1 실제 Spring 
     ).rejects.toMatchObject({ status: 401 });
     expect(useSession.getState().token).toBeNull();
   });
+  it('실제 Spring에서 시스템과 본인 문의 목록을 계약 DTO로 읽는다', async () => {
+    await signIn();
+    const systems = await getInquirySystems();
+    const inquiries = await getSystemInquiries(0);
+    expect(systems.length).toBeGreaterThan(0);
+    expect(inquiries.page).toBe(0);
+    expect(inquiries.size).toBe(20);
+    expect(inquiries.totalElements).toBeGreaterThanOrEqual(inquiries.items.length);
+  }, 20000);
   it('F009-CONTRACT-01 시스템 카탈로그와 담당 범위 티켓 DTO를 읽는다', async () => {
     const user = await signIn();
     const systems = await getInquirySystems();

@@ -96,8 +96,8 @@ npm run build
 
 타입·린트·서식·컴포넌트·Mock·실제 loopback HTTP/SSE 대역을 검사한다. UI 검사는 저장/권한 계약, 초안/원 요청 보존, 목록/상세 모달·처리 입력·해결 응답·사례 승인/부분 실패 복구와 메시지 정정·재접속을 구분한다. 대역 통과는 실제 Spring·DB·AI·브라우저 쿠키/CORS·E2E 통과가 아니다.
 
-`springBackend.integration.test.ts`는 신규 `/api/v2` 개발 서버의 읽기 통합 검사다. `HOPS_TEST_SPRING_URL`, `HOPS_TEST_LOGIN_ID`, `HOPS_TEST_PASSWORD`를 명시했을 때만 실행하며 현재 PRIMARY 개발 계정을 사용한다. 이 값에는 `VITE_` 접두사를 사용하지 않는다. 문의 생성·모델 호출을 수행하지 않는다. 실제 AI·검색·업무 저장 통합은 별도 검증한다.
+`springBackend.integration.test.ts`는 신규 `/api/v2` 개발 서버의 읽기 통합 검사다. `HOPS_TEST_SPRING_URL`, `HOPS_TEST_LOGIN_ID`, `HOPS_TEST_PASSWORD`를 명시했을 때만 실행하며 현재 PRIMARY 개발 계정을 사용한다. Node 테스트에서 보낼 Origin은 기본 `http://localhost:5173`이며, 다른 환경에서는 Spring이 허용한 프론트 주소를 `HOPS_TEST_FRONTEND_ORIGIN`으로 지정한다. 이 값에는 `VITE_` 접두사를 사용하지 않는다. 문의 생성·모델 호출을 수행하지 않는다. 실제 AI·검색·업무 저장 통합은 별도 검증한다.
 
-실제 서버 연동에는 Spring의 `CurrentUser.primarySystemIds`, 시스템 기반 업무 API와 `SYSTEM_TICKETS`·`CASE` 등의 SSE 구현·검증이 남아 있다. 서버 실행·Refresh 쿠키/Redis 설정은 [Spring 실행 안내](../backend/spring/hops/README.md)를 따른다.
+Spring은 `CurrentUser.primarySystemIds`와 시스템·본인 문의 목록을 제공한다. 실제 서버 연동에는 시스템 기반 업무 API와 `SYSTEM_TICKETS`·`CASE` 등의 SSE 구현·검증이 남아 있다. 서버 실행·Refresh 쿠키/Redis 설정은 [Spring 실행 안내](../backend/spring/hops/README.md)를 따른다.
 
 정본은 [PRD](../docs/PRD.md), [DATA_TYPES](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1), [WIRE_CONTRACT 12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 개발 구조·경로·규칙은 [프론트 개발 기준](../docs/frontend/README.md)이다.
