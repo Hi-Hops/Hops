@@ -10,10 +10,14 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.hihops.hops.agent.client.AgentRunClient;
+import com.hihops.hops.knowledge.repository.ResolvedCaseRepository;
 
 import tools.jackson.databind.JsonNode;
 
@@ -21,27 +25,52 @@ import tools.jackson.databind.JsonNode;
 class TicketAgentDispatchTest extends TicketCommandFixture {
     @MockitoBean
     private AgentRunClient client;
+    @Autowired
+    private ResolvedCaseRepository cases;
 
-    @Test void 사례초안의_조치와_검증과_원인은_모델문구가_아닌_원기록에_고정한다() throws Exception {
-        var submitted = new AtomicReference<JsonNode>();
-        doAnswer(invocation -> { submitted.set(invocation.getArgument(0)); return null; }).when(client).submit(any());
-        when(client.snapshot(any())).thenAnswer(invocation -> {
-            var input = submitted.get();
-            var result = mapper.createObjectNode().put("contractVersion", "hops-system-1")
-                    .put("runId", invocation.getArgument(0, String.class)).put("kind", "CASE_DRAFT")
-                    .put("inquiryId", inquiry.toString()).put("inquiryVersion", 1).put("status", "SUCCEEDED");
-            var proposal = result.putObject("caseProposal");
-            proposal.put("reusable", true).put("title", "가상 사례").put("action", "모델 제안 조치")
-                    .put("verification", "모델 제안 검증").put("problemStatement", "가상 문제")
-                    .put("applicability", "가상 환경 전용").put("accessScope", "SYSTEM_STAFF");
-            proposal.putArray("sourceMessageIds"); proposal.putArray("entityLinks"); proposal.putArray("limitations");
-            var snapshot = mapper.createObjectNode().put("status", "SUCCEEDED"); snapshot.set("result", result); return snapshot;
-        });
+    private JsonNode reusableSnapshot(String runId, JsonNode limitations) {
+        var result = mapper.createObjectNode().put("contractVersion", "hops-system-1")
+                .put("runId", runId).put("kind", "CASE_DRAFT")
+                .put("inquiryId", inquiry.toString()).put("inquiryVersion", 1).put("status", "SUCCEEDED");
+        var proposal = result.putObject("caseProposal");
+        proposal.put("reusable", true).put("title", "가상 사례").put("action", "모델 제안 조치")
+                .put("verification", "모델 제안 검증").put("problemStatement", "가상 문제")
+                .put("applicability", "가상 환경 전용").put("accessScope", "SYSTEM_STAFF");
+        proposal.putArray("sourceMessageIds"); proposal.putArray("entityLinks");
+        if (limitations != null) proposal.set("limitations", limitations);
+        var snapshot = mapper.createObjectNode().put("status", "SUCCEEDED");
+        snapshot.set("result", result);
+        return snapshot;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "null", "\"제한\"", "[1]", "[null]"})
+    void 제한조건_목록이_잘못되면_사례생성만_실패하고_처리기록은_보존한다(String value) throws Exception {
+        when(client.snapshot(any())).thenAnswer(invocation -> reusableSnapshot(
+                invocation.getArgument(0, String.class), "missing".equals(value) ? null : json(value)));
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(detail().path("caseGeneration").path("state").asString()).isIn("SUCCEEDED", "FAILED"));
+        assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo("FAILED");
+        assertThat(detail().path("workRecords").size()).isEqualTo(1);
+        assertThat(detail().path("activeResolutionRequest").path("state").asString()).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", Integer.class, ticket)).isZero();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"[]", "[\"관리자 권한 필요\",\"구버전에는 적용 불가\"]"})
+    void 사례초안은_원기록과_모델의_제한조건을_누락없이_보존한다(String limitations) throws Exception {
+        when(client.snapshot(any())).thenAnswer(invocation -> reusableSnapshot(invocation.getArgument(0, String.class), json(limitations)));
         result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
         org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
                 assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo("SUCCEEDED"));
         assertThat(jdbc.queryForObject("SELECT action_detail FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket)).isEqualTo("실제 조치");
         assertThat(jdbc.queryForObject("SELECT confirmed_cause FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket)).isNull();
+        var metadata = json(jdbc.queryForObject("SELECT confirmed_facts::text FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket));
+        assertThat(metadata.path("limitations")).isEqualTo(json(limitations));
+        var caseId = jdbc.queryForObject("SELECT id FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", java.util.UUID.class, ticket);
+        var loaded = cases.findById(caseId).orElseThrow();
+        assertThat(json(loaded.getConfirmedFacts()).path("limitations")).isEqualTo(json(limitations));
     }
 
     @Test void commit_뒤에만_AI를_전달하고_재사용할_사례_없음을_별도로_저장한다() throws Exception {

@@ -118,13 +118,23 @@ public class AgentRunDispatcher {
                 String title = proposal.path("title").asString();
                 if (title.codePointCount(0, title.length()) > 200 || !List.of("EMPLOYEE", "SYSTEM_STAFF").contains(proposal.path("accessScope").asString())
                         || !proposal.path("sourceMessageIds").isArray() || !proposal.path("sourceMessageIds").isEmpty()) throw new IllegalStateException();
+                var limitations = proposal.path("limitations");
+                if (!limitations.isArray()) throw new IllegalStateException();
+                for (var limitation : limitations) {
+                    if (!limitation.isString()) throw new IllegalStateException();
+                }
+                // DATA 11.3절: 사례의 적용 조건은 기존 JSONB 메타데이터에 보존한다.
+                // 관계 후보와 구분하여 제한 조건을 저장하고, 승인·조회 시 같은 목록을 사용한다.
+                var metadata = mapper.createObjectNode();
+                metadata.putArray("facts");
+                metadata.set("limitations", limitations);
                 var record = run.getTriggerWorkLog();
                 var draft = new ResolvedCase("C-" + run.getId().toString().replace("-", "").substring(16), record,
                         record.getTicket().getResponsibleSystem(), null,
                         record.getLogType() == WorkLogType.IMPLEMENTED ? CaseType.IMPLEMENTATION : CaseType.RESOLUTION,
                         title, proposal.path("problemStatement").asString(), record.getActionDetail(), record.getVerificationResult(),
                         "EMPLOYEE".equals(proposal.path("accessScope").asString()) ? AccessLevel.EMPLOYEE : AccessLevel.STAFF, CaseOrigin.SYNTHETIC, run);
-                draft.recordDraftMetadata(proposal.path("applicability").asString(), record.getConfirmedCause(), record.getAppliedVersion(), "[]");
+                draft.recordDraftMetadata(proposal.path("applicability").asString(), record.getConfirmedCause(), record.getAppliedVersion(), metadata.toString(), "[]");
                 cases.save(draft);
             }
         }

@@ -156,10 +156,11 @@ public class ResolvedCase extends BaseEntity {
         return caseNumber;
     }
 
-    public void recordDraftMetadata(String applicability, String cause, String appliedVersion, String relations) {
+    public void recordDraftMetadata(String applicability, String cause, String appliedVersion, String facts, String relations) {
         this.applicability = applicability;
         this.confirmedCause = cause;
         this.appliedVersion = appliedVersion;
+        this.confirmedFacts = facts;
         this.relationCandidates = relations;
     }
 
