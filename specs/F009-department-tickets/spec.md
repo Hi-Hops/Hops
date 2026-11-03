@@ -21,7 +21,7 @@
 
 ### 화면
 
-- `/tickets`는 담당 시스템 업무 보드/목록, `/tickets/:ticketId`는 목록 위 상세 모달이다. 관련 대화·사례 탭을 제공하고 `tab=work`는 독립 처리·검증 페이지로 연다.
+- `/tickets`는 담당 시스템 업무 보드/목록, `/tickets/:ticketId`는 목록 위 상세 모달이다. 요청·관련 대화, 처리·검증(`tab=work`), 사례 탭을 같은 상세 모달에서 제공한다.
 - 상세는 표준 요청, 보고/책임 시스템, 사실·추정·미확인, 허용 근거, 처리 이력, 해결 사례 적용 조건을 제공한다.
 
 ### 흐름
@@ -42,6 +42,8 @@
 - **F009-DETAIL-08 동시 변경:** 티켓 상태나 소유권이 다른 요청으로 바뀌었을 때 이전 화면의 변경을 무조건 덮어쓰지 않는다. ticketRevision 충돌은 409 후 최신 조회·초안 보존으로 처리한다.
 - **F009-DETAIL-09 접근 회수:** 담당 관계가 사라진 뒤 재조회·재접속에서 서버가 현재 권한을 검사하고 내용을 노출하지 않는다.
 
+- **F009-DETAIL-10 상세 모달 탐색:** 처리·검증 탭은 선택·직접 URL 진입 모두 업무 목록 위 상세 모달에 표시한다. 탭 전환은 현재 이력을 교체하고 미전송 처리 입력을 유지한다. 목록/사례에서 진입했으면 뒤로 가기·닫기·Escape는 진입 전 화면으로 복귀하며 앞으로 가기는 마지막 탭을 다시 연다. 사례 복귀 시 원 사례의 조회 조건을 유지한다. 모달 안에서 처리 기록을 저장하고 이력을 확인하며, 목록에서 연 모달 또는 직접 URL 진입의 닫기·Escape는 `tab`을 제외한 목록 조건과 티켓 포커스를 복원한다. 관리자 상세는 제한된 메타데이터만 표시한다.
+
 ## 계약·화면 상태
 
 신규 `hops-system-1`의 계약이다. 필드·enum은 [DATA_TYPES](../contracts/DATA_TYPES.md#신규-계약-hops-system-1), REST·오류·SSE·멱등성은 [WIRE_CONTRACT 12절](../contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1), 업무 전이는 [TARGET_CONTRACT](../contracts/TARGET_CONTRACT.md)가 정본이다. 아래 내용은 구현·통합 완료 표시가 아니다.
@@ -49,7 +51,7 @@
 | 조작 | 계약·검증 |
 |---|---|
 | 목록·보드 | GET tickets?scope=ASSIGNED_SYSTEMS&systemId&state&page&size. 보드/목록은 같은 조회·URL 조건 유지 |
-| 상세 경로 | /tickets/:ticketId 상세 모달. tab=request/case는 모달 탭, tab=work는 독립 처리 페이지. 목록 쿼리를 보존해 복귀 |
+| 상세 경로 | /tickets/:ticketId 상세 모달. tab=request/work/case는 같은 모달의 탭이며 직접 진입도 모달로 표시. 목록 쿼리를 보존해 복귀 |
 | 관련 대화·근거 | TicketDetail과 RelatedMessagePage. 관계없는 독립 문제·전체 원문·내부 로그를 포함하지 않음 |
 | 처리·검증 | WorkRecordCommand PROGRESS/FAILED_ATTEMPT/VERIFIED_RESOLUTION/IMPLEMENTED_VERIFIED. 검증 완료 두 종류만 확인 요청·Curator 작업과 연결 |
 | 정정 | AssignmentCorrectionCommand와 ticketRevision. 새 시스템 PRIMARY는 서버 조회 |
@@ -77,7 +79,7 @@
 
 ## 현재 구현과 남은 작업
 
-현재 프론트는 PRIMARY 기준 시스템 업무 보드/목록·상세 모달, 표준 요청·허용 관련 대화, 독립 처리 기록 페이지와 책임 시스템/조사·장애 정정을 구현했다. Spring의 목록·상세·관련 대화·저장된 처리/확인/사례 생성 상태 조회와 현재 PRIMARY 검사는 구현했으며 PostgreSQL/MockMvc로 권한·원문 구간·참조를 검사한다. 처리 기록·해결 확인·정정 저장과 commit 뒤 Curator/재분석 전달도 구현했다. 외부 AI는 HTTP 대역으로 검증했으며 실제 모델·상담 결과 적용·전체 서비스 및 브라우저 통합 검증은 남아 있다.
+현재 프론트는 PRIMARY 기준 시스템 업무 보드/목록·상세 모달, 표준 요청·허용 관련 대화, 모달 안의 처리·검증 탭과 책임 시스템/조사·장애 정정을 구현했다. PROGRESS·FAILED_ATTEMPT·VERIFIED_RESOLUTION·IMPLEMENTED_VERIFIED를 구분하고 입력 보존·버전 충돌을 Mock·UI로 검사한다. Spring의 목록·상세·관련 대화·처리/확인/사례 생성 상태 조회, 현재 PRIMARY 검사, 처리 기록·해결 확인·정정 저장과 commit 뒤 Curator/재분석 전달도 구현했다. PostgreSQL/MockMvc로 권한·원문 구간·참조·상태·동시 버전을 검사하며 외부 AI는 HTTP 대역으로 검증했다. 실제 모델·상담 결과 적용·전체 서비스 및 브라우저 통합 검증은 남아 있다.
 
 실행법과 현재 화면·호출 범위는 [프론트 안내](../../frontend/README.md), 서비스별 실제 구현은 [공통 계약 11절](../contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)을 따른다. 신규 계약의 프론트 검사를 실제 Spring 저장·권한, AI·검색 및 전체 E2E 검증으로 대신하지 않는다.
 

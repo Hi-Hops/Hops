@@ -48,8 +48,10 @@ export function CaseDetailView({ id }: CaseDetailViewProps) {
           </Link>
           {query.data && !query.isError && visible && (
             <Link
+              id={'case-ticket-' + query.data.version.ticketId}
               className={styles.linkButton}
               to={paths.ticket(query.data.version.ticketId) + '?tab=work'}
+              state={{ ticketModalOrigin: 'case' }}
             >
               원 티켓 보기
             </Link>

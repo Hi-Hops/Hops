@@ -17,7 +17,7 @@ UI 기준은 Figma의 `Hops · 구현 UI와 후속 설계 (개선안)`이다. �
 - 담당 업무 보드·목록·상세: [SystemTicketBoard](../../frontend/src/features/ticket/components/SystemTicketBoard.tsx)·[SystemTicketDetail](../../frontend/src/features/ticket/components/SystemTicketDetail.tsx).
 - 버튼·입력·상태·모달·색/간격: [공통 UI](../../frontend/src/shared/ui)·[디자인 토큰](../../frontend/src/shared/styles/tokens.css).
 
-기존 말풍선·결과 카드·상세/모달의 표현을 재사용하고, 시스템 선택·해결 확인·처리 기록·CASE 검토에 필요한 영역과 입력을 추가한다. 상세 모달은 목록 조건과 포커스를 복원하고 처리 입력은 별도 페이지로 연다. 경로는 ROUTES, 기능 책임과 데이터 소유는 STRUCTURE를 정본으로 삼는다.
+기존 말풍선·결과 카드·상세/모달의 표현을 재사용하고, 시스템 선택·해결 확인·처리 기록·CASE 검토에 필요한 영역과 입력을 추가한다. 상세 모달은 요청·관련 대화, 처리·검증, 사례 탭을 제공하고 닫을 때 목록 조건과 포커스를 복원한다. 경로는 ROUTES, 기능 책임과 데이터 소유는 STRUCTURE를 정본으로 삼는다.
 
 계약용 어댑터·Mock·router는 로그인·문의·업무 조회/처리·해결 응답·사례 검토에 적용하며 실제 서버 준비 후 저장·권한·AI·검색 연결을 검증한다.
 
