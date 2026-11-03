@@ -8,7 +8,12 @@ import pytest
 
 from hops_ai.agents.base import PendingAgent
 from hops_ai.agents.inquiry import ExtractionInquiryAgent
-from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
+from hops_ai.agents.inquiry.extraction import (
+    ExtractedProblem,
+    InquiryExtraction,
+    QuotedValue,
+    UnknownClaim,
+)
 from hops_ai.agents.registry import build_registry, build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult
@@ -176,7 +181,9 @@ async def test_fields_the_user_said_they_do_not_know_are_kept_as_unknown_and_not
         taskOrScreen=QuotedValue(messageId=MESSAGE, quote="결재 문서"),
         expectedBehavior=QuotedValue(messageId=MESSAGE, quote="결재 문서"),
         actualBehavior=QuotedValue(messageId=MESSAGE, quote="결재 문서가 안 보여요"),
-        unknownFields=["occurredAt"],
+        unknownFields=[
+            UnknownClaim(field="occurredAt", messageId=MESSAGE, quote="언제부터인지는 모르겠어요")
+        ],
     )
 
     result = await run_agent(request, problem)
@@ -184,6 +191,88 @@ async def test_fields_the_user_said_they_do_not_know_are_kept_as_unknown_and_not
     assert result.questions == []
     assert result.problems[0].unknowns == ["발생 시점"]
     assert result.problems[0].details.occurredAt is None
+
+
+# 필수 항목 하나(발생 시점)만 빼고 모두 말한 입력. 사용자는 발생 시점에 대해 아무 말도 하지 않았다.
+WITHOUT_TIME = "전자결재 문서 조회에서 문서가 안 보여요. 목록이 보여야 하는데 0건이에요"
+
+
+def without_time_problem(**changes) -> ExtractedProblem:
+    def quote(text: str) -> QuotedValue:
+        return QuotedValue(messageId=MESSAGE, quote=text)
+
+    return extracted(
+        taskOrScreen=quote("전자결재 문서 조회"),
+        expectedBehavior=quote("목록이 보여야 하는데"),
+        actualBehavior=quote("0건이에요"),
+        **changes,
+    )
+
+
+@pytest.mark.parametrize(
+    "claim",
+    [
+        # 사용자가 말하지 않은 것을 모델이 지어낸 인용
+        UnknownClaim(field="occurredAt", messageId=MESSAGE, quote="언제부터인지 모르겠어요"),
+        # 원문에는 있지만 모른다는 뜻이 아닌 구절
+        UnknownClaim(field="occurredAt", messageId=MESSAGE, quote="0건이에요"),
+        # 없는 메시지를 가리킴
+        UnknownClaim(
+            field="occurredAt",
+            messageId="00000000-0000-0000-0000-0000000000ff",
+            quote="모르겠어요",
+        ),
+        # 빈 인용
+        UnknownClaim(field="occurredAt", messageId=MESSAGE, quote="  "),
+    ],
+)
+async def test_unknown_claim_without_evidence_in_the_message_keeps_the_required_question(
+    claim,
+) -> None:
+    request = first_message_request(WITHOUT_TIME)
+
+    result = await run_agent(request, without_time_problem(unknownFields=[claim]))
+
+    [question] = result.questions
+    assert question.requestedFields == ["occurredAt"]
+    assert result.problems[0].unknowns == []
+
+
+async def test_unknown_claim_quoting_an_ai_message_is_not_accepted() -> None:
+    request = first_message_request(WITHOUT_TIME, extra_ai_message=True)
+    claim = UnknownClaim(
+        field="occurredAt",
+        messageId="00000000-0000-0000-0000-000000000099",
+        quote="어떤 문서인가요?",
+    )
+
+    result = await run_agent(request, without_time_problem(unknownFields=[claim]))
+
+    assert result.questions[0].requestedFields == ["occurredAt"]
+
+
+async def test_unsupported_unknown_claim_does_not_end_in_a_ticket_proposal() -> None:
+    request = first_message_request(WITHOUT_TIME)
+    claim = UnknownClaim(field="occurredAt", messageId=MESSAGE, quote="언제인지 모르겠어요")
+    services, llm = services_for(
+        request,
+        SupervisorDecision(
+            nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="문의를 확인합니다."
+        ),
+        InquiryExtraction(problems=[without_time_problem(unknownFields=[claim])]),
+        SupervisorDecision(
+            nextAction="ASK_USER", role=None, publicSummary="추가 정보를 요청합니다."
+        ),
+    )
+
+    result = await Supervisor({AgentRole.INQUIRY: ExtractionInquiryAgent()}).analyze(
+        request, services
+    )
+
+    assert result.status == "SUCCEEDED"
+    assert result.ticketProposals == []
+    assert result.questions[0].requestedFields == ["occurredAt"]
+    assert "언제부터, 또는 언제 그런 일이 있었나요?" in result.answer
 
 
 async def test_complete_information_produces_no_question() -> None:
@@ -302,7 +391,7 @@ async def test_model_receives_messages_systems_and_the_injection_rule() -> None:
     await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
 
     [request] = llm.requests
-    assert request.prompt_version == "inquiry-extraction-v2"
+    assert request.prompt_version == "inquiry-extraction-v3"
     assert request.response_model is InquiryExtraction
     assert "따르지 않는다" in request.messages[0].content
     assert "전자결재" in request.messages[1].content

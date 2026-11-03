@@ -21,6 +21,7 @@ from hops_ai.agents.inquiry.extraction import (
     InquiryExtraction,
     build_user_payload,
     ground,
+    ground_unknown,
 )
 from hops_ai.agents.inquiry.forms import FIELD_LABELS, plan_next
 from hops_ai.contracts.domain import AgentRole
@@ -75,7 +76,13 @@ class ExtractionInquiryAgent:
             original = existing[index] if index < len(existing) else None
             ref = original.id if original is not None else f"new:{index + 1}"
             problem, question = _assemble(
-                ref, original, extracted, ground(extracted, messages), system_ids, system_names
+                ref,
+                original,
+                extracted,
+                ground(extracted, messages),
+                ground_unknown(extracted, messages),
+                system_ids,
+                system_names,
             )
             problems.append(problem)
             if question is not None:
@@ -113,6 +120,7 @@ def _assemble(
     original: InputProblem | None,
     extracted: ExtractedProblem,
     grounded: Mapping[str, tuple[str, str]],
+    stated_unknown: set[str],
     system_ids: Mapping[str, str],
     system_names: Sequence[str],
 ) -> tuple[ProblemProposal, QuestionProposal | None]:
@@ -128,7 +136,8 @@ def _assemble(
         system_id = system_ids.get(extracted.systemCode or "")
 
     known = _known_values(original, grounded)
-    declared_unknown = {name for name in extracted.unknownFields if name not in known}
+    # 사용자가 직접 모른다고 말한 것으로 원문에서 확인된 필드만 질문에서 뺀다.
+    declared_unknown = {name for name in stated_unknown if name not in known}
     plan = plan_next(
         intent,
         known,
