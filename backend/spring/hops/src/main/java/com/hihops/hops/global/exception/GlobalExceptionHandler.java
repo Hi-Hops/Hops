@@ -1,6 +1,8 @@
 package com.hihops.hops.global.exception;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -12,12 +14,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.hihops.hops.global.exception.ErrorResponse.FieldErrorResponse;
 import com.hihops.hops.global.filter.RequestIdFilter;
 
 /**
@@ -71,10 +79,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleExceptionInternal(Exception exception, @Nullable Object body,
             HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         ErrorCode errorCode = ErrorCode.fromStatus(statusCode);
-        if (exception instanceof MethodArgumentNotValidException invalid) {
+        List<FieldErrorResponse> fieldErrors = fieldErrors(exception);
+        if (!fieldErrors.isEmpty()) {
             // 입력한 값은 비밀번호일 수도 있으므로, 어떤 항목이 틀렸는지(이름)만 남긴다.
-            List<String> fields = invalid.getBindingResult().getFieldErrors().stream()
-                    .map(FieldError::getField).distinct().sorted().toList();
+            List<String> fields = fieldErrors.stream().map(FieldErrorResponse::field).distinct().toList();
             log.info("입력 오류 {} {} fields={}", statusCode.value(), errorCode.name(), fields);
         } else {
             // Spring 예외 메시지에는 요청 본문 일부가 섞일 수 있어 예외 종류 이름만 남긴다.
@@ -83,7 +91,57 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(statusCode)
                 .headers(headers)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(errorBody(errorCode));
+                .body(ErrorResponse.withFieldErrors(errorCode, RequestIdFilter.currentRequestId(), fieldErrors));
+    }
+
+    /**
+     * 입력 오류 400을 칸별 fieldErrors로 바꾼다 (WIRE_CONTRACT 12.3 "fieldErrors 표시·입력 보존"). 입력 오류가 아니면 빈 목록.
+     * 칸 이름과 어긋난 규칙 이름만 담고 입력한 값은 담지 않는다. 같은 칸·규칙은 한 번만, 칸 이름 순으로 보낸다.
+     */
+    private static List<FieldErrorResponse> fieldErrors(Exception exception) {
+        Stream<FieldErrorResponse> errors = switch (exception) {
+            // @Valid @RequestBody 검증 실패
+            case MethodArgumentNotValidException invalid -> fromBinding(invalid.getBindingResult().getFieldErrors());
+            // 컨트롤러 파라미터에 직접 붙인 규칙(@Min 등) 위반
+            case HandlerMethodValidationException invalid -> invalid.getParameterValidationResults().stream()
+                    .flatMap(GlobalExceptionHandler::fromParameter);
+            // ?count=many 처럼 형식이 틀린 값
+            case MethodArgumentTypeMismatchException mismatch -> Stream.of(fieldError(mismatch.getName(), "TypeMismatch"));
+            // 필수 쿼리 값이 없음
+            case MissingServletRequestParameterException missing ->
+                    Stream.of(fieldError(missing.getParameterName(), "Required"));
+            default -> Stream.empty();
+        };
+        return errors.distinct()
+                .sorted(Comparator.comparing(FieldErrorResponse::field).thenComparing(FieldErrorResponse::code))
+                .toList();
+    }
+
+    private static Stream<FieldErrorResponse> fromBinding(List<FieldError> errors) {
+        return errors.stream().map(error -> fieldError(error.getField(), error.getCode()));
+    }
+
+    private static Stream<FieldErrorResponse> fromParameter(ParameterValidationResult result) {
+        if (result instanceof ParameterErrors bean) {
+            return fromBinding(bean.getFieldErrors()); // 객체 파라미터는 그 안의 칸별로
+        }
+        String name = result.getMethodParameter().getParameterName();
+        return result.getResolvableErrors().stream()
+                .map(error -> fieldError(name, simpleCode(error.getCodes())));
+    }
+
+    // 검증 오류의 규칙 이름 목록은 "Min.count", "Min.int", "Min"처럼 자세한 것부터 온다. 마지막(규칙 이름만)을 쓴다.
+    private static @Nullable String simpleCode(String @Nullable [] codes) {
+        return codes == null || codes.length == 0 ? null : codes[codes.length - 1];
+    }
+
+    /** 칸 이름이나 규칙 이름이 비면 프론트가 응답 형식 오류로 보므로 기본값으로 채운다. */
+    static FieldErrorResponse fieldError(@Nullable String field, @Nullable String code) {
+        return new FieldErrorResponse(hasText(field) ? field : "request", hasText(code) ? code : "Invalid");
+    }
+
+    private static boolean hasText(@Nullable String value) {
+        return value != null && !value.isBlank();
     }
 
     private static ResponseEntity<ErrorResponse> toResponse(ErrorCode errorCode) {

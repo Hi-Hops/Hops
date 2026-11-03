@@ -95,4 +95,12 @@ public class Member extends BaseEntity {
                 .sorted()
                 .toList();
     }
+
+    /**
+     * 신규 계약(DATA_TYPES Role)에 있는 역할만. 응답의 roles·JWT roles 클레임·SSE 문맥 비교가 모두 이 기준을 쓴다.
+     * 한 곳이라도 다른 기준을 쓰면 화면에 안 보이는 역할로 권한이 남거나, 비교가 어긋나 매번 재로그인된다.
+     */
+    public List<Role> getContractRoles() {
+        return Role.contractRoles(getRoles());
+    }
 }

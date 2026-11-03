@@ -15,6 +15,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import com.hihops.hops.auth.service.RefreshCookieProperties;
 import com.hihops.hops.global.config.ApiPathConfig;
@@ -66,6 +71,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 // Bearer 토큰 검증. 토큰이 틀리거나 만료되면 errorResponder가 401 공통 오류로 응답한다.
                 .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(ignoringAuthPaths())
                         .jwt(Customizer.withDefaults())
                         .authenticationEntryPoint(errorResponder))
                 // 401·403도 공통 오류 형식으로 응답
@@ -73,6 +79,20 @@ public class SecurityConfig {
                         .authenticationEntryPoint(errorResponder)
                         .accessDeniedHandler(errorResponder));
         return http.build();
+    }
+
+    /**
+     * login·refresh·logout에서는 Authorization 헤더를 읽지 않는다. 이 셋은 Bearer가 아니라 비밀번호·Refresh 쿠키로 확인한다.
+     * 프론트는 logout에도 Bearer를 붙이는데, 그 토큰이 만료·손상됐다고 컨트롤러 전에 401로 막으면 쿠키·세션이 남는다.
+     */
+    private static BearerTokenResolver ignoringAuthPaths() {
+        PathPatternRequestMatcher.Builder paths = PathPatternRequestMatcher.withDefaults();
+        RequestMatcher authPaths = new OrRequestMatcher(
+                paths.matcher(HttpMethod.POST, LOGIN_PATH),
+                paths.matcher(HttpMethod.POST, REFRESH_PATH),
+                paths.matcher(HttpMethod.POST, LOGOUT_PATH));
+        DefaultBearerTokenResolver bearer = new DefaultBearerTokenResolver();
+        return request -> authPaths.matches(request) ? null : bearer.resolve(request);
     }
 
     /**

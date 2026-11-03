@@ -9,7 +9,9 @@ import org.springframework.stereotype.Service;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.itsystem.repository.ItSystemRepository;
 import com.hihops.hops.user.domain.Member;
+import com.hihops.hops.user.dto.CurrentUserResponse;
 import com.hihops.hops.user.repository.MemberRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class AuthService {
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ItSystemRepository itSystemRepository;
 
     /**
      * 로그인 ID·비밀번호를 확인한다. 응답은 실패 이유와 상관없이 같은 401이지만, 로그에는 이유를 남긴다.
@@ -54,5 +57,13 @@ public class AuthService {
                     log.warn("내 정보 조회 실패: 토큰은 유효하지만 회원이 없거나 차단됨 memberId={}", memberId);
                     return new BusinessException(ErrorCode.UNAUTHENTICATED);
                 });
+    }
+
+    /**
+     * 로그인·갱신·내 정보 응답에 담을 현재 사용자 (DATA_TYPES 신규 절 CurrentUser).
+     * 담당 시스템(primarySystemIds)도 토큰이 아니라 DB에서 읽는다. 담당자가 바뀌었을 수 있기 때문이다.
+     */
+    public CurrentUserResponse currentUser(Member member) {
+        return CurrentUserResponse.of(member, itSystemRepository.findActiveIdsByPrimaryOwnerId(member.getId()));
     }
 }

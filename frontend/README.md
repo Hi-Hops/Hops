@@ -4,9 +4,9 @@
 
 ## 시스템 기반 화면 실행
 
-기본 모드는 `live`다. Docker 설정은 [루트 실행 안내](../README.md#docker-compose로-실행)에 따라 저장소 루트의 [.env.example](../.env.example)을 같은 위치의 `.env`로 한 번만 복사해 관리한다. 기존 `.env`의 다른 설정과 비밀값을 덮어쓰지 않는다.
+기본 모드는 `live`다. 이 폴더의 [.env.example](.env.example)을 `frontend/.env`로 복사해 Vite 직접 실행과 Docker의 프론트 설정을 관리한다. 기존 파일은 덮어쓰지 않는다. 공개 포트도 서비스별 파일에서 관리하며 Docker 명령에 세 파일을 `--env-file`로 지정한다.
 
-Node로 직접 실행할 때는 다음 두 값을 프로세스 환경변수로 설정한다. 저장소 루트 `.env`는 Vite가 자동으로 읽지 않는다. 기존 `frontend/.env`가 있으면 Vite가 해당 파일을 읽으므로 필요한 항목만 조정한다.
+다음 두 값은 `frontend/.env`에서 설정한다. Vite 직접 실행 시 `VITE_API_BASE_URL`에 실제 Spring origin을 입력한다. Vite는 이 파일을 자동으로 읽으며 프로세스 환경변수와 모드별 `.env.development`·개인 `.env.local` 등의 우선순위도 적용한다. 저장소 루트 `.env`는 앱 설정으로 읽지 않는다.
 
 ```dotenv
 VITE_DATA_MODE=live
@@ -67,18 +67,18 @@ npm run dev:demo
 
 ## 실행·종료
 
-Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 [루트 Docker Compose 안내](../README.md#docker-compose로-실행)를 따른다. 아래는 프론트 단독 실행이며 Docker Engine·Compose 2.20 이상과 첫 빌드의 의존성 다운로드가 필요하다. Docker 명령은 저장소 루트에서 실행한다.
+Frontend·Spring·AI·PostgreSQL을 함께 실행하려면 [루트 Docker Compose 안내](../README.md#docker-compose로-실행)를 따른다. 프론트 단독 실행도 아래 루트 Compose의 서비스 선택 명령을 사용할 수 있다. Docker Engine·Compose 2.20 이상과 첫 빌드의 의존성 다운로드가 필요하다. 먼저 루트 안내대로 서비스별 `.env` 세 개를 준비하고 다음 명령을 저장소 루트에서 실행한다.
 
 ```sh
-docker compose --env-file .env -f frontend/compose.yaml up --build -d
-docker compose --env-file .env -f frontend/compose.yaml ps
-docker compose --env-file .env -f frontend/compose.yaml logs -f frontend
-docker compose --env-file .env -f frontend/compose.yaml down
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up --build --no-deps -d frontend
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env ps frontend
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env logs -f frontend
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env stop frontend
 ```
 
 프론트 단독 Compose는 Spring·DB·AI를 실행하지 않는다. 통합 Compose로 기동해도 각 서버의 신규 `/api/v2` 구현과 실제 연동 검증은 별도다. 포트는 loopback에만 바인딩하고 `FRONTEND_PORT`로 변경한다. `.env` 변경은 컨테이너 재생성, 소스 변경은 재빌드 후 반영된다. 기존 `.env`가 있으면 덮어쓰지 않는다.
 
-Node.js 24.22.0을 사용해 `frontend/`에서 직접 실행할 수도 있다. 필요한 `VITE_*` 프로세스 환경변수를 먼저 설정한다.
+Node.js 24.22.0을 사용해 `frontend/`에서 직접 실행할 수도 있다. 이 경우 `frontend/.env`만 준비하면 된다.
 
 ```sh
 npm ci

@@ -25,6 +25,7 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <ul>
  *   <li>401 {@code UNAUTHENTICATED}: 로그인(유효한 토큰) 없이 보호된 API를 호출함</li>
+ *   <li>401 {@code ACCESS_TOKEN_EXPIRED}: 서명은 맞지만 만료된 토큰. 프론트는 refresh 1회 후 다시 보낸다 (WIRE_CONTRACT 12.3)</li>
  *   <li>403 {@code ACCESS_DENIED}: 로그인은 했지만 그 API를 쓸 권한이 없음</li>
  *   <li>403 {@code ORIGIN_DENIED}: 허용하지 않은 주소에서 Refresh 쿠키 요청을 보냄 ({@link CookieOriginFilter})</li>
  * </ul>
@@ -42,7 +43,7 @@ public class SecurityErrorResponder implements AuthenticationEntryPoint, AccessD
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException exception) throws IOException {
-        write(response, ErrorCode.UNAUTHENTICATED);
+        write(response, JwtConfig.isOnlyExpired(exception) ? ErrorCode.ACCESS_TOKEN_EXPIRED : ErrorCode.UNAUTHENTICATED);
     }
 
     // 403: 인증은 됐지만 권한이 없는 경우

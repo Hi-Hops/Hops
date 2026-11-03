@@ -26,9 +26,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -55,7 +57,10 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.requestId").value(matchesPattern(UUID_PATTERN)))
-                .andExpect(jsonPath("$.retryable").value(false));
+                .andExpect(jsonPath("$.retryable").value(false))
+                // DATA_TYPES 신규 절 ApiError.fieldErrors: 필수 배열. 입력 항목 오류가 아니면 빈 배열이다.
+                .andExpect(jsonPath("$.fieldErrors").isArray())
+                .andExpect(jsonPath("$.fieldErrors").isEmpty());
     }
 
     @Test
@@ -74,7 +79,44 @@ class GlobalExceptionHandlerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \" \"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                // 어떤 항목이 왜 틀렸는지 알려 프론트가 그 입력 칸에 표시한다. 입력한 값은 담지 않는다.
+                .andExpect(jsonPath("$.fieldErrors.length()").value(1))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("name"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("NotBlank"));
+    }
+
+    @Test
+    void 쿼리_값의_형식이_틀리면_그_항목을_fieldErrors에_담는다() throws Exception {
+        mockMvc.perform(get("/api/v2/test/errors/count").param("count", "many"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("count"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("TypeMismatch"));
+    }
+
+    @Test
+    void 필수_쿼리_값이_없으면_그_항목을_fieldErrors에_담는다() throws Exception {
+        mockMvc.perform(get("/api/v2/test/errors/count"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("count"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("Required"));
+    }
+
+    @Test
+    void 쿼리_값이_검증_규칙에_어긋나면_그_항목을_fieldErrors에_담는다() throws Exception {
+        // 컨트롤러 파라미터에 직접 붙인 규칙(@Min 등)은 Spring이 다른 예외(HandlerMethodValidationException)로 알린다.
+        mockMvc.perform(get("/api/v2/test/errors/count").param("count", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("count"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("Min"));
+    }
+
+    @Test
+    void 규칙_이름이_없는_입력_오류도_빈_code로_보내지_않는다() {
+        // 프론트는 code가 비어 있으면 응답 형식 오류로 본다. 직접 만든 검증 오류는 규칙 이름이 null일 수 있다.
+        assertThat(GlobalExceptionHandler.fieldError("name", null))
+                .isEqualTo(new ErrorResponse.FieldErrorResponse("name", "Invalid"));
     }
 
     @Test
@@ -150,6 +192,10 @@ class GlobalExceptionHandlerTest {
 
         @PostMapping("/test/errors/validation")
         void validation(@Valid @RequestBody NameRequest request) {
+        }
+
+        @GetMapping("/test/errors/count")
+        void count(@RequestParam @Min(1) int count) {
         }
     }
 }
