@@ -535,9 +535,7 @@ export class SystemMockWorkflow {
         } else {
           if (!['PENDING', 'RUNNING', 'UNKNOWN'].includes(index.state))
             mockError(409, 'INVALID_STATE', '현재 반영은 확인 대상이 아니에요.');
-          index.state = 'SUCCEEDED';
-          index.updatedAt = now();
-          index.error = null;
+          // 확인 조작만으로 성공을 만들지 않는다. 비동기 Mock 작업이 확정한 상태만 사용한다.
         }
         this.refreshPublication(detail);
       } else return null;
