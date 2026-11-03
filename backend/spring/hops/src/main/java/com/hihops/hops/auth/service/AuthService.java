@@ -1,10 +1,13 @@
 package com.hihops.hops.auth.service;
 
+import java.time.Instant;
+import java.util.HashSet;
 import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 import com.hihops.hops.global.exception.BusinessException;
@@ -57,6 +60,36 @@ public class AuthService {
                     log.warn("내 정보 조회 실패: 토큰은 유효하지만 회원이 없거나 차단됨 memberId={}", memberId);
                     return new BusinessException(ErrorCode.UNAUTHENTICATED);
                 });
+    }
+
+    /** 업무 조회 시 현재 회원·역할·소속을 확인한다. JWT의 역할 스냅샷으로 업무 권한을 부여하지 않는다. */
+    public Member currentMember(Jwt jwt) {
+        if (jwt == null || jwt.getExpiresAt() == null) throw new BusinessException(ErrorCode.UNAUTHENTICATED);
+        if (!Instant.now().isBefore(jwt.getExpiresAt())) throw new BusinessException(ErrorCode.ACCESS_TOKEN_EXPIRED);
+        UUID memberId;
+        try {
+            memberId = UUID.fromString(jwt.getSubject());
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
+        }
+        Member member = currentMember(memberId);
+        Object policy = jwt.getClaim("policyRevision");
+        var ownership = jwt.getClaimAsStringList("primarySystemIds");
+        if (!(policy instanceof Number revision) || revision.longValue() != member.getPolicyRevision()
+                || ownership == null || !new HashSet<>(ownership).equals(new HashSet<>(
+                        itSystemRepository.findActiveIdsByPrimaryOwnerId(memberId).stream().map(Object::toString).toList()))) {
+            throw new BusinessException(ErrorCode.AUTH_CONTEXT_CHANGED);
+        }
+        if (jwt.getClaimAsString("departmentId") == null || jwt.getClaimAsStringList("roles") == null) {
+            throw new BusinessException(ErrorCode.UNAUTHENTICATED);
+        }
+        if (member.getDepartment().isDeleted()
+                || !member.getDepartment().getId().toString().equals(jwt.getClaimAsString("departmentId"))
+                || !new HashSet<>(member.getContractRoles().stream().map(Enum::name).toList())
+                        .equals(new HashSet<>(jwt.getClaimAsStringList("roles")))) {
+            throw new BusinessException(ErrorCode.AUTH_CONTEXT_CHANGED);
+        }
+        return member;
     }
 
     /**

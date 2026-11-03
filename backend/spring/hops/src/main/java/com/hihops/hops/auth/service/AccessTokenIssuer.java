@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import com.hihops.hops.department.domain.Department;
 import com.hihops.hops.global.security.JwtConfig;
 import com.hihops.hops.global.security.JwtProperties;
+import com.hihops.hops.itsystem.repository.ItSystemRepository;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.domain.Role;
 
@@ -43,6 +44,7 @@ public class AccessTokenIssuer {
 
     private final JwtEncoder jwtEncoder;
     private final JwtProperties jwtProperties;
+    private final ItSystemRepository systems;
 
     public IssuedToken issue(Member member) {
         // JWT 시각은 초 단위로 저장되므로, 응답의 expiresAt과 토큰의 exp가 똑같도록 미리 초 단위로 자른다.
@@ -57,6 +59,8 @@ public class AccessTokenIssuer {
                 .claim("departmentCode", department.getCode())
                 .claim("departmentName", department.getName())
                 .claim(JwtConfig.ROLES_CLAIM, member.getContractRoles().stream().map(Role::name).toList()) // 응답 roles와 같은 기준
+                .claim("policyRevision", member.getPolicyRevision())
+                .claim("primarySystemIds", systems.findActiveIdsByPrimaryOwnerId(member.getId()).stream().map(Object::toString).toList())
                 .issuer(jwtProperties.issuer())
                 .audience(List.of(jwtProperties.audience()))
                 .issuedAt(issuedAt)
