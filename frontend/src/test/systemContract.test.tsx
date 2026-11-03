@@ -198,7 +198,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     vi.spyOn(systemMockBackend, 'request').mockImplementation((path, method, body, token, key) =>
       path === `/api/v2/management/tickets/${id}` ? full : original(path, method, body, token, key),
     );
-    renderWithProviders(<SystemTicketDetail id={id} />, `/admin/tickets/${id}`);
+    renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
     expect(await screen.findByRole('heading', { name: new RegExp(full.title, 'u') })).toBeVisible();
     expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
     expect(
@@ -302,13 +302,11 @@ describe('hops-system-1 시스템 단위 전환', () => {
     const page = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
     const id = page.items[0]?.id ?? '';
     renderWithProviders(
-      <SystemTicketDetail id={id} />,
+      <SystemTicketDetail id={id} onClose={vi.fn()} />,
       `/tickets/${id}?view=list&systemId=${systems[0].id}`,
     );
     expect(await screen.findByRole('heading', { name: '확인된 사실' })).toBeVisible();
-    expect(screen.getByRole('link', { name: '목록으로' }).getAttribute('href')).toContain(
-      'view=list',
-    );
+    expect(screen.getByRole('button', { name: '상세 닫기' })).toBeVisible();
     act(() => {
       systemMockBackend.revokeSystem(users[1].id, systems[0].id);
     });
