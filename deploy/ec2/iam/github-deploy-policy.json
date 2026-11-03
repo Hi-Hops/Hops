@@ -1,0 +1,44 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RegistryLogin",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "PublishDeploymentImages",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:DescribeImages"
+      ],
+      "Resource": [
+        "arn:aws:ecr:<AWS_REGION>:<AWS_ACCOUNT_ID>:repository/hops-spring",
+        "arn:aws:ecr:<AWS_REGION>:<AWS_ACCOUNT_ID>:repository/hops-ai",
+        "arn:aws:ecr:<AWS_REGION>:<AWS_ACCOUNT_ID>:repository/hops-frontend"
+      ]
+    },
+    {
+      "Sid": "RunOnlyHopsDeployOnTargetInstance",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:<AWS_REGION>:<AWS_ACCOUNT_ID>:document/HopsDeploy",
+        "arn:aws:ec2:<AWS_REGION>:<AWS_ACCOUNT_ID>:instance/<EC2_INSTANCE_ID>"
+      ]
+    },
+    {
+      "Sid": "ReadDeploymentResult",
+      "Effect": "Allow",
+      "Action": "ssm:GetCommandInvocation",
+      "Resource": "*"
+    }
+  ]
+}
