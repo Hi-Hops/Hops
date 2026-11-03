@@ -40,6 +40,8 @@ AWS 계정에 장기 액세스 키를 만들거나 저장소에 비밀값을 넣
 
 IAM 정책의 출발점은 [iam 디렉터리](iam/)에 있다. `github-trust.json`은 GitHub 역할의 신뢰 정책이고, `github-deploy-policy.json`은 해당 역할의 권한 정책이며, `ec2-ecr-pull-policy.json`은 EC2 역할의 ECR 읽기 권한 정책이다. AWS 콘솔에 입력할 때 각 `<...>` 자리에 실제 계정 ID, 리전과 인스턴스 ID를 넣고 범위를 확인한다. 이 템플릿을 저장소에 추가해도 AWS 권한은 생성되지 않는다.
 
+이 저장소는 GitHub OIDC의 변경 불가능한 subject 형식을 사용하므로 신뢰 정책의 `sub`에는 조직 ID와 저장소 ID가 포함되어야 한다. 이름만 포함한 이전 형식은 일치하지 않는다. 템플릿의 ID와 브랜치가 실제 저장소 설정과 일치하는지 확인한다. [GitHub OIDC subject 형식](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims).
+
 ECR 저장소 생성, IAM 역할·정책, SSM 문서와 GitHub 설정은 이 파일을 추가하는 것만으로 만들어지지 않는다. ECR 요금과 GitHub 저장소 설정 권한은 실제 계정에서 확인한다. 참고: [GitHub AWS OIDC](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-aws), [SSM 관리형 노드](https://docs.aws.amazon.com/systems-manager/latest/userguide/setup-instance-permissions.html), [ECR 요금](https://aws.amazon.com/ecr/pricing/).
 
 ## GitHub Actions 변수
