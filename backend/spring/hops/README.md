@@ -2,7 +2,7 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../../../README.md#docker-compose로-실행)를 따릅니다. 아래 직접 설치 절차는 PC에서 Spring을 실행할 때 사용합니다.
 
-Docker 설정은 이 폴더의 [.env.example](.env.example)을 `.env`로 복사해 관리합니다. PostgreSQL 설정도 같은 파일에 두고 Compose가 `POSTGRES_*`를 DB 컨테이너와 Spring datasource에 각각 매핑합니다. 필수 값은 `POSTGRES_PASSWORD`와 `HOPS_JWT_SECRET`이며 기존 개인 파일·DB 값은 유지합니다. 실행 명령은 루트 안내처럼 서비스별 파일 세 개를 `--env-file`로 지정합니다.
+Docker 설정은 이 폴더의 [.env.example](.env.example)을 `.env`로 복사해 관리합니다. PostgreSQL 설정도 같은 파일에 두고 Compose가 `POSTGRES_*`를 DB 컨테이너와 Spring datasource에 각각 매핑합니다. 필수 값은 `POSTGRES_PASSWORD`와 `HOPS_JWT_SECRET`이며 기존 개인 파일·DB 값은 유지합니다. 루트 Compose가 서비스별 파일 세 개를 자동으로 읽으므로 저장소 루트에서 `docker compose up -d`로 실행합니다.
 
 Gradle·IntelliJ 직접 실행은 `.env`를 자동으로 읽지 않습니다. 아래 기존 `application-db.local.properties`와 프로세스 환경변수 설정 방식을 따릅니다.
 
