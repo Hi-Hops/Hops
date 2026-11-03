@@ -126,7 +126,7 @@ CASE 버전은 원 WorkRecord·확인 요청·원문 출처에 고정한다. 미
 | 업무 관리·정정 | /admin/tickets, /admin/tickets/:ticketId | F007·F009 |
 | 사례 검토 목록·상세 | /cases, /cases/:caseId | F011 |
 
-담당자·관리자 상세는 목록 위 모달로 표시하고 처리·검증 입력은 `tab=work`의 독립 페이지로 연다. 관리자 상세는 관리 권한의 제한 DTO만 사용한다. 정정·접수 안내도 모달이다. 화면 구현은 [현재 frontend UI 기준](../../docs/frontend/README.md#ui-기준과-이번-작업-범위)에 따라 기존 헤더/사이드바·채팅·티켓 UI·공통 컴포넌트를 확장한다. 기능 배치는 [구조 결정](../../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조), 실제 router 등록·접근·복귀는 [ROUTES](../../docs/frontend/ROUTES.md)를 따른다.
+담당자·관리자 상세는 목록 위 모달로 표시하고 담당자의 처리·검증 입력도 `tab=work` 탭으로 같은 모달 안에 표시한다. 관리자 상세는 관리 권한의 제한 DTO만 사용한다. 정정·접수 안내도 모달이다. 화면 구현은 [현재 frontend UI 기준](../../docs/frontend/README.md#ui-기준과-이번-작업-범위)에 따라 기존 헤더/사이드바·채팅·티켓 UI·공통 컴포넌트를 확장한다. 기능 배치는 [구조 결정](../../docs/frontend/STRUCTURE.md#6-hops-system-1-목표-구조), 실제 router 등록·접근·복귀는 [ROUTES](../../docs/frontend/ROUTES.md)를 따른다.
 
 ## 9. 전환·리뷰·완료 조건
 
