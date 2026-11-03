@@ -14,7 +14,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃과 [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃, [조회 API](#조회-api)의 시스템 목록·내 문의·대화·변경 요청 결과 확인, [부서 SSE](#spring-sse-공통-기반)입니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -33,7 +33,7 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리는 구현했습니다. 시스템 담당 관계 DTO·업무 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리, 시스템 목록·내 문의·대화 조회와 변경 요청 결과 확인(`/operations`)은 구현했습니다. 문의·메시지 저장 등 업무 변경 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
@@ -199,7 +199,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 
 ## 인증
 
-로그인하면 Spring이 서명한 액세스 토큰(JWT)을 발급하고, 이후 요청은 `Authorization: Bearer <토큰>`으로 인증합니다. 현재 응답은 아래 표와 코드의 `LoginResponse`·`CurrentUserResponse`를 따릅니다. [데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)의 신규 `CurrentUser`가 요구하는 `primarySystemIds`는 아직 반환하지 않습니다. 현재 프론트는 신규 DTO를 검증하므로 이 필드와 시스템 권한 연결이 필요합니다. 계정은 위 "가상 데이터"의 표를 참고합니다.
+로그인하면 Spring이 서명한 액세스 토큰(JWT)을 발급하고, 이후 요청은 `Authorization: Bearer <토큰>`으로 인증합니다. 현재 응답은 아래 표와 코드의 `LoginResponse`·`CurrentUserResponse`([데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)의 신규 `CurrentUser`)를 따릅니다. 계정은 위 "가상 데이터"의 표를 참고합니다.
 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
@@ -235,6 +235,21 @@ curl -s -w ' [%{http_code}]\n' -H "Authorization: Bearer $TOKEN" http://localhos
 ```
 
 Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 없이 복사해 오른쪽 위 **Authorize**에 넣습니다(`Bearer `는 붙이지 않음).
+
+## 조회 API
+
+모두 로그인이 필요합니다(없으면 401 `UNAUTHENTICATED`). 형식은 [전송 계약 12.2](../../../specs/contracts/WIRE_CONTRACT.md#122-rest-연결표)와 [데이터 타입](../../../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)을 따릅니다. null 값도 키를 생략하지 않고, 빈 목록은 `[]`입니다.
+
+| API | 요청 | 성공 | 실패 |
+|---|---|---|---|
+| `GET /api/v2/systems` | 없음 | 200 `SupportedSystem[]` (코드 순, 기능 포함. 주담당자는 넣지 않음) | |
+| `GET /api/v2/inquiries` | `page`(기본 0), `size`(기본 20, 1~100) | 200 `{items: InquirySummary[], page, size, totalElements}` (본인 문의, 최근 수정 순) | 400 `INVALID_INPUT`(범위 밖 값은 고치지 않음) |
+| `GET /api/v2/inquiries/{inquiryId}` | 없음 | 200 `InquiryResult` | 404 `NOT_FOUND`(남의 문의·삭제·없음을 구분하지 않음) |
+| `GET /api/v2/inquiries/{inquiryId}/messages` | `size`(기본 30, 1~100), `beforeSequenceNo`(선택, 1 이상) | 200 `{items: ChatMessage[], nextBeforeSequenceNo}` (저장이 끝난 메시지만, 오래된 순) | 400 `INVALID_INPUT`, 404 `NOT_FOUND` |
+| `GET /api/v2/operations/{operationId}`<br>`GET /api/v2/operations/by-request/{requestId}` | 없음 | 200 `CommandReceipt` (본인이 보낸 변경 요청의 결과) | 404 `NOT_FOUND`, 410 `OPERATION_RESULT_EXPIRED`(보존 24시간 경과) |
+
+- **대화 페이지:** 처음에는 `beforeSequenceNo` 없이 최신 페이지를 받고, 응답의 `nextBeforeSequenceNo`를 다음 요청의 `beforeSequenceNo`로 보내 이전 페이지를 받습니다. `null`이면 더 없습니다.
+- **아직 남은 것:** 문의 상세의 `problems`(Problem)와 `currentRun`(RunSummary) 형식은 문제·실행을 저장하는 기능과 함께 만듭니다. 지금은 문제·실행이 없는 문의만 조회되고, 있으면 빈 값으로 숨기지 않고 500입니다.
 
 ## Spring SSE 공통 기반
 
