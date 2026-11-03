@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
  * 변경 요청의 결과를 다시 확인하는 API (WIRE_CONTRACT 12.2 operations).
  *
  * <p>응답을 받지 못한 요청은 프론트가 이 API로 결과를 확인한다. 조회만 하며 업무를 다시 실행하지 않는다.
- * 요청자 본인의 기록만 보인다.
+ * 요청자 본인의 기록만 보인다. 권한은 요청자 본인 여부만 확인하고, 대상의 내용은 대상 GET이 현재 권한으로 다시 검사한다.
  */
 @RestController
 @RequestMapping("/operations") // 실제 주소는 /api/v2/operations (ApiPathConfig)

@@ -17,6 +17,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import tools.jackson.databind.json.JsonMapper;
+
 /**
  * 작업 결과 재확인 API(GET /api/v2/operations)가 계약 형식의 CommandReceipt를 본인에게만 돌려주는지 확인한다
  * (WIRE_CONTRACT 12.2). 넣은 행은 테스트가 끝나면 되돌려진다.
@@ -35,13 +37,10 @@ class OperationControllerTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private IdempotencyService idempotencyService;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    record SampleCommand(UUID requestId, String content) {
-    }
+    @Autowired
+    private JsonMapper jsonMapper;
 
     @BeforeEach
     void 테스트용_요청자를_넣는다() {
@@ -56,10 +55,7 @@ class OperationControllerTest {
     void 요청_키와_작업_번호로_같은_영수증을_조회한다() throws Exception {
         UUID requestId = UUID.randomUUID();
         UUID inquiryId = UUID.randomUUID();
-        CommandReceipt receipt = idempotencyService.execute(
-                new IdempotentRequest(MEMBER_ID, requestId, "POST", "/api/v2/inquiries",
-                        new SampleCommand(requestId, "문의")),
-                operationId -> new ResourceRef(ResourceType.INQUIRY, inquiryId)).receipt();
+        CommandReceipt receipt = insertSucceeded(MEMBER_ID, requestId, inquiryId);
 
         for (String path : new String[] {"/api/v2/operations/by-request/" + requestId,
                 "/api/v2/operations/" + receipt.operationId()}) {
@@ -78,11 +74,7 @@ class OperationControllerTest {
 
     @Test
     void 다른_사람의_작업이나_없는_요청은_404로_구분하지_않는다() throws Exception {
-        UUID requestId = UUID.randomUUID();
-        CommandReceipt receipt = idempotencyService.execute(
-                new IdempotentRequest(MEMBER_ID, requestId, "POST", "/api/v2/inquiries",
-                        new SampleCommand(requestId, "문의")),
-                operationId -> new ResourceRef(ResourceType.INQUIRY, UUID.randomUUID())).receipt();
+        CommandReceipt receipt = insertSucceeded(MEMBER_ID, UUID.randomUUID(), UUID.randomUUID());
 
         mockMvc.perform(get("/api/v2/operations/" + receipt.operationId())
                         .with(jwt().jwt(token -> token.subject(OTHER_MEMBER_ID.toString()))))
@@ -99,5 +91,20 @@ class OperationControllerTest {
         mockMvc.perform(get("/api/v2/operations/by-request/" + UUID.randomUUID()))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+    }
+
+    // IdempotencyService.execute는 트랜잭션 밖에서만 부를 수 있어(이 테스트는 클래스 전체가 트랜잭션),
+    // 처리가 끝난 기록을 직접 넣는다. 저장 형식은 execute가 남기는 것과 같다.
+    private CommandReceipt insertSucceeded(UUID actorId, UUID requestId, UUID inquiryId) {
+        CommandReceipt receipt = CommandReceipt.succeeded(requestId, UUID.randomUUID(),
+                new ResourceRef(ResourceType.INQUIRY, inquiryId));
+        jdbcTemplate.update("INSERT INTO idempotency_key (actor_member_id, contract_version, http_method, request_path, "
+                + "idempotency_key, request_hash, operation_id, operation_state, resource_type, resource_id, "
+                + "response_status, response_body, expires_at) "
+                + "VALUES (?, ?, 'POST', '/api/v2/inquiries', ?, ?, ?, 'SUCCEEDED', 'INQUIRY', ?, 200, ?::jsonb, "
+                + "now() + interval '1 day')",
+                actorId, IdempotencyService.CONTRACT_VERSION, requestId.toString(), "a".repeat(64),
+                receipt.operationId(), inquiryId, jsonMapper.writeValueAsString(receipt));
+        return receipt;
     }
 }

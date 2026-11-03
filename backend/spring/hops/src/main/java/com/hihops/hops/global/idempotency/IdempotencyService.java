@@ -17,6 +17,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.hihops.hops.global.exception.BusinessException;
@@ -41,7 +42,8 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>같은 키 요청이 동시에 오면 DB 중복 불가 제약이 뒤의 요청을 막는다. 뒤의 요청은 먼저 저장된 결과를 돌려준다.</li>
  * </ol>
  *
- * <p>사용법: Controller에서 트랜잭션 밖에서 부른다. 업무 코드는 넘기는 함수 안에서 실행되며 같은 트랜잭션에 참여한다.
+ * <p>사용법: Controller에서 트랜잭션 밖에서 부른다(트랜잭션 안에서 부르면 {@link IllegalStateException}).
+ * 업무 코드는 넘기는 함수 안에서 실행되며 같은 트랜잭션에 참여한다.
  * commit 뒤에 할 일(AI 호출·SSE 알림)은 함수 안에서 {@code @TransactionalEventListener(AFTER_COMMIT)}용 이벤트로 발행한다.
  * <pre>
  * CommandResult result = idempotencyService.execute(request, operationId -&gt; {
@@ -54,6 +56,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>권한: 같은 키 재확인도 현재 권한 검사 뒤에 한다(WIRE_CONTRACT 12.1). 대상 권한 검사는 execute를 부르기 전에 끝낸다.
  *
  * <p>거절(4xx)은 아직 REJECTED로 기록하지 않는다. 업무와 함께 롤백되므로 같은 키로 다시 오면 다시 검사해 같은 오류를 돌려준다.
+ * 후속: #26 "거절된 변경 요청을 REJECTED로 기록(REQUIRES_NEW)".
  */
 @Service
 @RequiredArgsConstructor
@@ -81,8 +84,14 @@ public class IdempotencyService {
      * @param request 요청자·키·메서드·경로·본문
      * @param work    처음 온 요청일 때만 실행할 업무. 서버가 정한 operationId를 받아 저장한 업무 대상을 돌려준다
      * @return 처음 결과(200) 또는 접수·미확인 결과(202)
+     * @throws IllegalStateException 이미 트랜잭션 안에서 불렀을 때
      */
     public CommandResult execute(IdempotentRequest request, Function<UUID, ResourceRef> work) {
+        // 바깥 트랜잭션에 합류하면 같은 키 동시 요청의 유일 제약 위반이 그 트랜잭션을 abort시켜,
+        // 아래 catch의 재조회가 "current transaction is aborted"로 실패한다. 실수로 감싸지 않게 바로 막는다.
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("IdempotencyService.execute는 트랜잭션 밖에서 호출해야 한다");
+        }
         String requestHash = hash(request.body());
         Optional<CommandResult> previous = findPrevious(request, requestHash);
         if (previous.isPresent()) {
@@ -100,7 +109,12 @@ public class IdempotencyService {
         }
     }
 
-    /** GET /operations/{operationId}: 요청자 본인의 작업 결과. 남의 작업이면 없는 것과 같이 404다. */
+    /**
+     * GET /operations/{operationId}: 요청자 본인의 작업 결과. 남의 작업이면 없는 것과 같이 404다.
+     *
+     * <p>권한은 요청자 본인 여부만 확인한다. 대상의 현재 권한은 다시 보지 않는데, 영수증에는 대상 종류와 ID만 있고
+     * 내용은 대상 GET이 현재 권한으로 다시 검사하기 때문이다 (WIRE_CONTRACT 12.1 "권한 회수 뒤 비공개 결과 미반환").
+     */
     @Transactional(readOnly = true)
     public CommandReceipt findByOperationId(UUID actorId, UUID operationId) {
         return idempotencyRecordRepository.findByOperationIdAndActor_Id(operationId, actorId)
@@ -166,7 +180,7 @@ public class IdempotencyService {
             // 접수만 됐거나 결과를 확인하지 못함. 업무 대상이 기록돼 있으면 함께 알려준다.
             case PENDING, UNKNOWN -> new CommandReceipt(UUID.fromString(record.getIdempotencyKey()),
                     record.getOperationId(), record.getOperationState(), resourceOf(record), null);
-            // 거절은 업무와 함께 롤백하므로 지금은 기록되지 않는다(클래스 설명). 기록하게 되면 저장한 오류를 담아 돌려준다.
+            // 거절은 업무와 함께 롤백하므로 지금은 기록되지 않는다(클래스 설명). 기록하게 되면 저장한 오류를 담아 돌려준다(후속: #26).
             case REJECTED -> throw new IllegalStateException("REJECTED 기록은 아직 만들지 않는다: " + record.getOperationId());
         };
     }
@@ -178,6 +192,7 @@ public class IdempotencyService {
     }
 
     // 본문을 JSON으로 다시 직렬화해 해시한다. 공백·줄바꿈 차이는 같은 요청으로, 값이 하나라도 다르면 다른 요청으로 본다.
+    // 주의: 요청 DTO의 필드를 바꿔 배포하면, 배포 전 24시간 안의 같은 요청 재전송은 해시가 달라져 409가 된다.
     private String hash(Object body) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(jsonMapper.writeValueAsBytes(body));

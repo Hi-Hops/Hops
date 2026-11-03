@@ -20,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
@@ -43,6 +44,9 @@ class IdempotencyServiceTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     private final UUID departmentId = UUID.randomUUID();
     private final UUID memberId = UUID.randomUUID();
@@ -114,6 +118,35 @@ class IdempotencyServiceTest {
         assertErrorCode(() -> idempotencyService.execute(
                 request(memberId, requestId, PATH + "/" + UUID.randomUUID() + "/messages", "원래 내용"), this::work),
                 ErrorCode.IDEMPOTENCY_KEY_REUSED);
+        assertErrorCode(() -> idempotencyService.execute(request(memberId, requestId, "PUT", PATH, "원래 내용"),
+                this::work), ErrorCode.IDEMPOTENCY_KEY_REUSED);
+        assertThat(businessRows()).isEqualTo(1);
+    }
+
+    @Test
+    void 트랜잭션_안에서_부르면_업무를_실행하지_않고_바로_거절한다() {
+        IdempotentRequest request = request(memberId, UUID.randomUUID(), PATH, "트랜잭션 안의 호출");
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(
+                status -> idempotencyService.execute(request, this::work)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(businessRows()).isZero();
+        assertThat(recordCount(memberId)).isZero();
+    }
+
+    @Test
+    void 접수만_된_요청을_다시_보내면_202와_PENDING_영수증을_돌려준다() {
+        UUID requestId = UUID.randomUUID();
+        CommandResult first = idempotencyService.execute(request(memberId, requestId, PATH, "접수 중인 요청"), this::work);
+        // 업무 반영 전에 commit된 접수 기록을 흉내 낸다 (지금 코드는 만들지 않지만 계약상 가능한 상태)
+        jdbc.update("UPDATE idempotency_key SET operation_state = 'PENDING', resource_type = NULL, resource_id = NULL, "
+                + "response_status = NULL, response_body = NULL WHERE operation_id = ?", first.receipt().operationId());
+
+        CommandResult again = idempotencyService.execute(request(memberId, requestId, PATH, "접수 중인 요청"), this::work);
+
+        assertThat(again.status()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(again.receipt()).isEqualTo(new CommandReceipt(requestId, first.receipt().operationId(),
+                OperationState.PENDING, null, null));
         assertThat(businessRows()).isEqualTo(1);
     }
 
@@ -207,7 +240,11 @@ class IdempotencyServiceTest {
     }
 
     private IdempotentRequest request(UUID actorId, UUID requestId, String path, String content) {
-        return new IdempotentRequest(actorId, requestId, "POST", IdempotentRequest.normalizePath(path),
+        return request(actorId, requestId, "POST", path, content);
+    }
+
+    private IdempotentRequest request(UUID actorId, UUID requestId, String method, String path, String content) {
+        return new IdempotentRequest(actorId, requestId, method, IdempotentRequest.normalizePath(path),
                 new SampleCommand(requestId, content));
     }
 
