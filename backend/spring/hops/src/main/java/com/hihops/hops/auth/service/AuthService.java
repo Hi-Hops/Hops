@@ -73,6 +73,13 @@ public class AuthService {
             throw new BusinessException(ErrorCode.UNAUTHENTICATED);
         }
         Member member = currentMember(memberId);
+        Object policy = jwt.getClaim("policyRevision");
+        var ownership = jwt.getClaimAsStringList("primarySystemIds");
+        if (!(policy instanceof Number revision) || revision.longValue() != member.getPolicyRevision()
+                || ownership == null || !new HashSet<>(ownership).equals(new HashSet<>(
+                        itSystemRepository.findActiveIdsByPrimaryOwnerId(memberId).stream().map(Object::toString).toList()))) {
+            throw new BusinessException(ErrorCode.AUTH_CONTEXT_CHANGED);
+        }
         if (jwt.getClaimAsString("departmentId") == null || jwt.getClaimAsStringList("roles") == null) {
             throw new BusinessException(ErrorCode.UNAUTHENTICATED);
         }

@@ -115,6 +115,8 @@ class TicketControllerTest {
     private MockHttpServletRequestBuilder as(UUID user, String path) {
         return get("/api/v2" + path).with(jwt().jwt(token -> token.subject(user.toString())
                 .claim("departmentId", DEPARTMENT.toString())
+                .claim("policyRevision", 1)
+                .claim("primarySystemIds", jdbc.queryForList("SELECT id::text FROM it_system WHERE primary_owner_member_id=? AND deleted_at IS NULL", String.class, user))
                 .claim("roles", user.equals(ADMIN) ? List.of("BIZ_ADMIN") : List.of())
                 .expiresAt(Instant.now().plusSeconds(600))));
     }
@@ -137,6 +139,16 @@ class TicketControllerTest {
         jdbc.update("UPDATE it_system SET code='UNSUPPORTED_DEMO' WHERE id=?", SYSTEM);
         mvc.perform(as(STAFF, "/systems")).andExpect(status().isServiceUnavailable());
         mvc.perform(as(STAFF, "/tickets")).andExpect(status().isServiceUnavailable());
+    }
+
+    @Test void 발급_당시_담당_문맥이_바뀌면_AUTH_CONTEXT_CHANGED를_반환한다() throws Exception {
+        var request = as(STAFF, "/tickets/" + TICKET).with(jwt().jwt(token -> token.subject(STAFF.toString())
+                .claim("departmentId", DEPARTMENT.toString()).claim("roles", List.of())
+                .claim("primarySystemIds", List.of(SYSTEM.toString()))
+                .claim("policyRevision", 1).expiresAt(Instant.now().plusSeconds(600))));
+        jdbc.update("UPDATE it_system SET primary_owner_member_id=? WHERE id=?", OTHER, SYSTEM);
+        mvc.perform(request).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH_CONTEXT_CHANGED"));
     }
 
     @Test void 시스템_목록에는_기능만_있고_담당자_정보는_없다() throws Exception {
