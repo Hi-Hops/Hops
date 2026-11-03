@@ -8,7 +8,9 @@ from hops_ai.harness.errors import (
     CallTimeoutError,
     DeadlineExceeded,
     LlmCallLimitExceeded,
+    OutputRejected,
     PolicyDenied,
+    RunCancelled,
     TransientError,
 )
 from hops_ai.harness.retry import backoff_delay, call_with_retry
@@ -226,3 +228,80 @@ def test_backoff_grows_exponentially_up_to_the_cap() -> None:
 def test_backoff_applies_full_jitter() -> None:
     assert backoff_delay(2, rng=lambda: 0.0) == 0.0
     assert backoff_delay(2, rng=lambda: 0.5) == 1.0
+
+
+async def test_total_retry_limit_is_shared_across_separate_model_calls(
+    clock, make_settings, sleeper
+) -> None:
+    budget = budget_for(clock, make_settings)
+    budget.max_total_retries = 1
+    first = Script(TransientError(), "ok")
+    second = Script(TransientError("마지막 오류"), "호출하면 안 됨")
+    assert await call_with_retry(first, budget, sleep=sleeper) == "ok"
+    with pytest.raises(TransientError, match="마지막 오류"):
+        await call_with_retry(second, budget, sleep=sleeper)
+    assert (first.calls, second.calls) == (2, 1)
+    assert (budget.llm_calls_used, budget.retries_used) == (3, 1)
+
+
+@pytest.mark.parametrize("delay", [True, -1, float("inf"), float("nan"), "1"])
+async def test_invalid_retry_after_never_sleeps_or_starts_another_call(
+    clock, make_settings, sleeper, delay
+) -> None:
+    budget = budget_for(clock, make_settings)
+    operation = Script(TransientError(retry_after=delay), "호출하면 안 됨")
+    with pytest.raises(OutputRejected):
+        await call_with_retry(operation, budget, sleep=sleeper)
+    assert operation.calls == 1
+    assert sleeper.delays == []
+
+
+async def test_active_hook_blocks_initial_call(clock, make_settings, sleeper) -> None:
+    budget = budget_for(clock, make_settings)
+    operation = Script("호출하면 안 됨")
+
+    def cancelled():
+        raise RunCancelled
+
+    with pytest.raises(RunCancelled):
+        await call_with_retry(operation, budget, sleep=sleeper, ensure_active=cancelled)
+    assert operation.calls == budget.llm_calls_used == 0
+
+
+async def test_active_hook_rejects_response_after_cancellation(
+    clock, make_settings, sleeper
+) -> None:
+    budget = budget_for(clock, make_settings)
+    cancelled = False
+
+    def ensure_active():
+        if cancelled:
+            raise RunCancelled
+
+    async def operation():
+        nonlocal cancelled
+        cancelled = True
+        return "늦은 응답"
+
+    with pytest.raises(RunCancelled):
+        await call_with_retry(operation, budget, sleep=sleeper, ensure_active=ensure_active)
+    assert budget.llm_calls_used == 1
+
+
+async def test_cancellation_during_backoff_prevents_retry(clock, make_settings) -> None:
+    budget = budget_for(clock, make_settings)
+    operation = Script(TransientError(retry_after=0), "호출하면 안 됨")
+    cancelled = False
+
+    def ensure_active():
+        if cancelled:
+            raise RunCancelled
+
+    async def sleep(delay):
+        nonlocal cancelled
+        cancelled = True
+
+    with pytest.raises(RunCancelled):
+        await call_with_retry(operation, budget, sleep=sleep, ensure_active=ensure_active)
+    assert operation.calls == 1
+    assert budget.retries_used == 0

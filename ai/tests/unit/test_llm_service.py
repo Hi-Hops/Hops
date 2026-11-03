@@ -1,12 +1,20 @@
+import asyncio
+from datetime import timedelta
 from typing import Any
 
 import pytest
 from pydantic import BaseModel
 
 from hops_ai.harness.budget import RunBudget
-from hops_ai.harness.errors import LlmCallLimitExceeded, OutputRejected, TransientError
+from hops_ai.harness.errors import (
+    BudgetExceeded,
+    LlmCallLimitExceeded,
+    OutputRejected,
+    RunCancelled,
+    TransientError,
+)
 from hops_ai.services.llm.budgeted import BudgetedLLMClient
-from hops_ai.services.llm.client import LLMClient, LLMMessage, LLMRequest, LLMUsage
+from hops_ai.services.llm.client import LLMClient, LLMMessage, LLMRequest, LLMResponse, LLMUsage
 from hops_ai.services.llm.usage import UsageRecorder
 from tests.doubles.llm import FakeLLMClient
 
@@ -171,6 +179,92 @@ def test_budgeted_client_satisfies_the_client_interface(clock, make_settings) ->
     client, _, _ = budgeted(FakeLLMClient(), clock, make_settings)
 
     assert isinstance(client, LLMClient)
+
+
+def constrain_budget(budget, clock, *, output_tokens=10, input_tokens=1000):
+    """공통 wrapper 검사에 사용할 전체 누적 상한을 지정한다."""
+    budget.constrain(
+        max_model_calls=8,
+        max_input_tokens=input_tokens,
+        max_total_output_tokens=output_tokens,
+        max_tool_calls=1,
+        max_total_retries=2,
+        deadline_at=clock.now() + timedelta(seconds=60),
+    )
+
+
+async def test_total_output_is_reserved_sequentially_for_concurrent_calls(clock, make_settings):
+    class YieldingLLM:
+        def __init__(self):
+            self.requests = []
+
+        async def generate(self, request):
+            self.requests.append(request)
+            await asyncio.sleep(0)
+            return LLMResponse(
+                Reply(text="응답"), LLMUsage(1, min(7, request.max_output_tokens)), "test-only"
+            )
+
+    inner = YieldingLLM()
+    client, budget, usage = budgeted(inner, clock, make_settings)
+    constrain_budget(budget, clock)
+    await asyncio.gather(client.generate(make_request(10)), client.generate(make_request(10)))
+    assert [item.max_output_tokens for item in inner.requests] == [10, 3]
+    assert budget.output_tokens_used == usage.summary().output_tokens == 10
+
+
+async def test_input_overflow_is_recorded_before_result_is_rejected(clock, make_settings):
+    fake = FakeLLMClient(Reply(text="응답"), usage=LLMUsage(20, 1))
+    client, budget, _ = budgeted(fake, clock, make_settings)
+    constrain_budget(budget, clock, input_tokens=10)
+    with pytest.raises(BudgetExceeded):
+        await client.generate(make_request())
+    assert budget.input_tokens_used == 20
+
+
+async def test_late_response_keeps_reported_usage_but_cannot_be_consumed(clock, make_settings):
+    cancelled = False
+
+    def ensure_active():
+        if cancelled:
+            raise RunCancelled
+
+    class CancellingLLM:
+        async def generate(self, request):
+            nonlocal cancelled
+            cancelled = True
+            return LLMResponse(Reply(text="늦은 응답"), LLMUsage(10, 3), "test-only")
+
+    budget = RunBudget.start(make_settings(), clock=clock)
+    usage = UsageRecorder()
+    client = BudgetedLLMClient(CancellingLLM(), budget, usage, ensure_active=ensure_active)
+    with pytest.raises(RunCancelled):
+        await client.generate(make_request())
+    assert budget.input_tokens_used == usage.summary().input_tokens == 10
+    assert budget.output_tokens_used == usage.summary().output_tokens == 3
+
+
+async def test_malformed_usage_is_rejected_without_retry(clock, make_settings):
+    class MalformedLLM:
+        async def generate(self, request):
+            return LLMResponse(Reply(text="응답"), None, "test-only")
+
+    client, budget, _ = budgeted(MalformedLLM(), clock, make_settings)
+    with pytest.raises(OutputRejected):
+        await client.generate(make_request())
+    assert budget.llm_calls_used == 1
+
+
+async def test_wrong_structured_model_is_rejected_but_reported_usage_is_kept(clock, make_settings):
+    class WrongModelLLM:
+        async def generate(self, request):
+            return LLMResponse(Other(number=1), LLMUsage(10, 3), "test-only")
+
+    client, budget, _ = budgeted(WrongModelLLM(), clock, make_settings)
+    with pytest.raises(OutputRejected):
+        await client.generate(make_request())
+    assert budget.llm_calls_used == 1
+    assert budget.input_tokens_used == 10
 
 
 # ------------------------------------------------------------------ 사용량 기록

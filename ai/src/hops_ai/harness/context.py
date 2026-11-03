@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from hops_ai.harness.budget import Clock, RunBudget
-from hops_ai.harness.errors import RunCancelled
+from hops_ai.harness.errors import InputRejected, RunCancelled
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.settings import Settings
 
@@ -19,6 +19,7 @@ class RunContext:
     budget: RunBudget
     tool_policy: ToolPolicy
     _cancelled: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
+    _execution_claimed: bool = field(default=False, init=False, repr=False)
 
     @classmethod
     def create(
@@ -48,6 +49,16 @@ class RunContext:
 
     def cancel(self) -> None:
         self._cancelled.set()
+
+    async def wait_cancelled(self) -> None:
+        """취소 신호를 기다린다. 실행기는 모델·역할 응답을 기다리는 중에도 이 신호를 감시한다."""
+        await self._cancelled.wait()
+
+    def claim_execution(self) -> None:
+        """이 문맥을 한 실행에만 연결한다. 영속 runId 중복 검사는 RunLedger가 별도로 맡는다."""
+        if self._execution_claimed:
+            raise InputRejected("이미 실행에 사용한 문맥이다")
+        self._execution_claimed = True
 
     def ensure_active(self) -> None:
         if self.is_cancelled:

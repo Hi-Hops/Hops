@@ -5,11 +5,17 @@
 """
 
 import asyncio
+import math
 import random
 from collections.abc import Awaitable, Callable
 
 from hops_ai.harness.budget import RunBudget
-from hops_ai.harness.errors import CallTimeoutError, TransientError
+from hops_ai.harness.errors import (
+    CallTimeoutError,
+    LlmCallLimitExceeded,
+    OutputRejected,
+    TransientError,
+)
 
 DEFAULT_BASE_DELAY = 0.5
 DEFAULT_MAX_DELAY = 8.0
@@ -34,6 +40,7 @@ async def call_with_retry[T](
     rng: Callable[[], float] = random.random,
     base_delay: float = DEFAULT_BASE_DELAY,
     max_delay: float = DEFAULT_MAX_DELAY,
+    ensure_active: Callable[[], None] | None = None,
 ) -> T:
     """operation을 예산 안에서 실행하고 일시 오류(TransientError)와 시간 초과만 재시도한다.
 
@@ -42,26 +49,48 @@ async def call_with_retry[T](
     - 서버가 알려 준 대기 시간(retry_after)이 있으면 그만큼 기다린다.
     - 남은 시간이 대기 시간보다 짧으면 기다리지 않고 마지막 오류를 낸다.
     - 일시 오류가 아닌 예외와 취소(CancelledError)는 그대로 전달하며 재시도하지 않는다.
+    - ensure_active가 주어지면 각 시도 전후와 대기 전후에 호출하여 취소·종료도 검사한다.
+    - max_auto_retries는 이번 호출의 상한, max_total_retries는 run 전체 재시도 상한이다.
     """
+
+    def check_active() -> None:
+        """호출 측 취소 검사와 하네스 기한·누적 한도를 같은 경계에서 확인한다."""
+        if ensure_active is not None:
+            ensure_active()
+        budget.check_deadline()
+        budget.check_limits()
+
     retries = 0
     while True:
-        timeout = budget.start_llm_call()
+        check_active()
+        timeout = budget.start_llm_call(is_retry=retries > 0)
         try:
             async with asyncio.timeout(timeout):
-                return await operation()
+                result = await operation()
         except TimeoutError:
             failure: TransientError = CallTimeoutError()
         except TransientError as error:
             failure = error
+        else:
+            check_active()
+            return result
 
-        budget.check_deadline()
+        check_active()
         if retries >= budget.max_auto_retries:
             raise failure
+        if budget.max_total_retries is not None and budget.retries_used >= budget.max_total_retries:
+            raise failure
+        if budget.llm_calls_used >= budget.max_llm_calls:
+            raise LlmCallLimitExceeded
         if failure.retry_after is not None:
             delay = failure.retry_after
         else:
             delay = backoff_delay(retries, base=base_delay, cap=max_delay, rng=rng)
+        if type(delay) not in (int, float) or not math.isfinite(delay) or delay < 0:
+            raise OutputRejected("재시도 대기 시간이 올바르지 않다")
         if delay >= budget.remaining_seconds():
             raise failure
+        check_active()
         await sleep(delay)
+        check_active()
         retries += 1
