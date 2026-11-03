@@ -179,10 +179,25 @@ test('새로 알릴 내용이 없으면 리뷰를 만들지 않고 스레드를 
   assert.equal(calls.length, 0);
 });
 
-test('결함이 없으면 리뷰를 만들지 않는다', async () => {
-  const { run, calls } = setup({ review: structured({ findings: [], overall_correctness: 'correct' }) });
+test('결함이 없으면 문제없음과 검토 범위를 리뷰로 남긴다', async () => {
+  const { run, calls, reviewCall } = setup({ review: structured({ findings: [], overall_correctness: 'correct',
+    overall_explanation: '모든 변경 파일에서 결함을 찾지 못했다.' }) });
   await run();
-  assert.equal(calls.length, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(reviewCall().event, 'COMMENT');
+  assert.deepEqual(reviewCall().comments, []);
+  assert.match(reviewCall().body, /^\*\*Codex 리뷰:\*\* 차단할 결함 없음 \(fast 모드\)/);
+  assert.match(reviewCall().body, /모든 변경 파일에서 결함을 찾지 못했다/);
+  assert.match(reviewCall().body, /검토한 파일 2개 · 확인한 동작 1건\n/);
+  assert.doesNotMatch(reviewCall().body, /새 스레드/);
+});
+
+test('확신이 낮은 지적만 있으면 내용 없이 건수만 리뷰 본문에 알린다', async () => {
+  const { run, reviewCall } = setup({ review: structured({ overall_correctness: 'correct',
+    findings: [finding({ title: '불확실한 추정', confidence: 0.3 })] }) });
+  await run();
+  assert.match(reviewCall().body, /신뢰도가 낮아 게시하지 않은 지적 1건\(Actions 실행 요약\)/);
+  assert.doesNotMatch(reviewCall().body, /불확실한 추정/);
 });
 
 test('일부 파일을 읽지 못하면 지적이 없어도 미완료를 알린다', async () => {
@@ -197,7 +212,7 @@ test('CI 실패 appendix가 있으면 지적이 없어도 리뷰 본문에 붙�
   const { run, reviewCall } = setup({ appendix: '\n\n## CI 실행 검증\n- 실패',
     review: structured({ findings: [], overall_correctness: 'correct' }) });
   await run();
-  assert.match(reviewCall().body, /새 스레드 0개[\s\S]*## CI 실행 검증/);
+  assert.match(reviewCall().body, /검토한 파일 2개[\s\S]*## CI 실행 검증/);
 });
 
 test('줄 단위 스레드 게시가 실패하면 경고하고 리뷰 본문에 지적을 남긴다', async () => {
