@@ -1,23 +1,23 @@
 @font-face {
-  font-family: 'IBM Plex Sans KR';
+  font-family: 'Pretendard';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/assets/IBMPlexSansKR-Regular.ttf') format('truetype');
+  src: url('/assets/Pretendard-Regular.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'IBM Plex Sans KR';
+  font-family: 'Pretendard';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('/assets/IBMPlexSansKR-SemiBold.ttf') format('truetype');
+  src: url('/assets/Pretendard-SemiBold.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'IBM Plex Sans KR';
+  font-family: 'Pretendard';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/assets/IBMPlexSansKR-Bold.ttf') format('truetype');
+  src: url('/assets/Pretendard-Bold.woff2') format('woff2');
 }
 :root {
   --color-bg: #f6f7f9;
@@ -64,7 +64,7 @@
   --radius-xl: 16px;
   --radius-pill: 999px;
   --shadow-raised: 0 2px 4px -2px #1118270f, 0 6px 16px -4px #1118271a;
-  --font-sans: 'IBM Plex Sans KR', sans-serif;
+  --font-sans: 'Pretendard', sans-serif;
   --font-size-sm: 12px;
   --font-size-label: 13px;
   --font-size-md: 14px;
