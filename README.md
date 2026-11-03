@@ -20,6 +20,8 @@ Claude Code의 진입점은 [CLAUDE.md](CLAUDE.md)이며 AGENTS.md를 먼저 읽
 
 Docker Desktop의 Linux 컨테이너 또는 Docker Engine·Compose 2.20 이상을 준비합니다. 다음 명령은 **저장소 루트**에서 실행합니다.
 
+#### 1. 서비스별 환경변수 파일 준비
+
 Frontend·Backend·AI의 `.env.example`을 같은 폴더의 `.env`로 복사합니다. Backend 파일에 PostgreSQL 설정도 함께 둡니다. 기존 개인 파일은 덮어쓰지 않습니다.
 
 ```powershell
@@ -39,13 +41,20 @@ for example in frontend/.env.example backend/spring/hops/.env.example ai/.env.ex
 done
 ```
 
+#### 2. 필수 설정 입력
+
 - [Frontend 예시](frontend/.env.example): 공개 포트·`VITE_*` 설정과 가상 Mock 값.
 - [Backend 예시](backend/spring/hops/.env.example): PostgreSQL·Spring·JWT·CORS·쿠키 설정. `POSTGRES_PASSWORD`와 ASCII 32자 이상의 `HOPS_JWT_SECRET`을 입력합니다. Compose가 같은 DB 값을 PostgreSQL과 Spring datasource에 각각 매핑합니다.
 - [AI 예시](ai/.env.example): `HOPS_AI_*`와 기존 선택적인 OpenAI·Langfuse 설정. 주석 처리된 선택 항목은 필요한 경우에만 입력합니다. 외부 연동 자체는 아직 미구현입니다.
 
+#### 3. 전체 서비스 실행
+
 Compose 파일은 루트에서 통합 관리하고, `--env-file`로 세 파일을 명시해 읽습니다. 기존 `environment` 매핑으로 각 컨테이너에 필요한 변수만 전달하므로 Backend의 JWT 키가 PostgreSQL·Frontend에 전달되지 않습니다. 서비스 파일을 읽기 위해 모든 Compose 명령에 같은 옵션을 사용합니다.
 
+먼저 설정을 확인한 뒤 전체 이미지를 빌드하고 백그라운드로 실행합니다.
+
 ```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env config --quiet
 docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up --build -d
 docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env ps
 ```
@@ -53,6 +62,60 @@ docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --en
 Frontend·Spring·AI·PostgreSQL·Redis 컨테이너 5개가 실행됩니다. PostgreSQL·Redis는 기존처럼 별도 컨테이너이며 DB 데이터 볼륨과 서비스 의존 관계도 유지합니다. 기본 주소는 Frontend `http://localhost:5173`, Spring Swagger `http://localhost:8080/swagger-ui/index.html`, AI 생존 확인 `http://localhost:8000/healthz`, DB `localhost:5432`입니다. Redis는 PC에 포트를 공개하지 않습니다.
 
 DB는 PostgreSQL 18·pgvector 0.8.7을 사용하고 Spring Flyway가 확장·테이블·개발용 가상 데이터를 적용합니다. AI 전용 `hops_ai_runtime` DB·계정은 기존처럼 별도 준비합니다. AI의 `/healthz`는 200, `/readyz`는 현재 골격의 준비되지 않은 상태를 나타내는 503이며 실제 모델·검색·업무 통합 완료를 뜻하지 않습니다.
+
+#### 4. 필요한 서비스만 실행
+
+전체 구성을 읽으므로 서비스 하나만 실행할 때도 위의 `.env` 세 개와 필수 값은 준비합니다.
+
+프론트만 실행하려면 `--no-deps`를 사용합니다. 기본 `live` 모드에서는 Backend가 별도로 실행 중이어야 합니다. 서버 없이 화면을 개발할 때는 [Frontend 안내](frontend/README.md#mock으로-화면-개발)에 따라 Mock 설정을 준비합니다.
+
+```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up --build --no-deps -d frontend
+```
+
+Backend를 지정하면 의존 서비스인 PostgreSQL·Redis도 함께 실행됩니다. AI는 별도로 실행합니다.
+
+```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up --build -d backend
+```
+
+기본 scaffold 모드의 AI만 실행하려면 다음 명령을 사용합니다. 내부 실행 API를 활성화하는 경우에는 [AI 안내](ai/README.md#spring-전용-내부-조회-api)의 DB·인증 설정도 필요합니다.
+
+```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up --build -d ai
+```
+
+#### 5. 상태와 로그 확인
+
+`ps`로 실행 상태를 확인하고 `logs -f`로 Backend·AI 로그를 계속 확인합니다. 로그 보기만 끝낼 때는 `Ctrl+C`를 누릅니다.
+
+```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env ps
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env logs -f backend ai
+```
+
+Redis 응답은 컨테이너 내부에서 확인합니다. 정상 응답은 `PONG`입니다.
+
+```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env exec redis redis-cli ping
+```
+
+#### 6. 설정 변경 반영과 종료
+
+`.env`만 변경했다면 `up -d`로 컨테이너를 재생성해 반영합니다. 소스를 변경했다면 앞의 `up --build -d 서비스명` 명령으로 해당 서비스를 다시 빌드합니다.
+
+```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up -d
+```
+
+프론트만 일시 정지하려면 `stop frontend`, 전체 서비스를 종료하고 컨테이너·네트워크를 정리하려면 `down`을 사용합니다.
+
+```sh
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env stop frontend
+docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env down
+```
+
+일반 종료 후 DB 볼륨은 유지됩니다. `down --volumes`는 DB 데이터를 삭제하므로 일반 종료에 사용하지 않습니다. `config --quiet`는 설정·필수 값 확인이며 실제 앱 기동이나 API 키 유효성·E2E 통과를 뜻하지 않습니다.
 
 #### 기존 루트 설정에서 전환
 
@@ -62,17 +125,6 @@ DB는 PostgreSQL 18·pgvector 0.8.7을 사용하고 Spring Flyway가 확장·테
 - Frontend의 API URL과 Backend의 CORS를 비우면 기존처럼 공개 포트에 맞춰 기본값을 구성합니다. 별도 주소가 필요할 때만 입력합니다. 컨테이너끼리는 `postgres:5432`, `redis:6379`, `ai:8000`을 사용합니다.
 - 셸의 같은 이름 환경변수는 Compose 파일 입력보다 우선합니다. 기존 셸·개인 파일에 폐기된 `HOPS_AI_MODE=fake`가 남아 있지 않은지 확인합니다.
 - npm·Gradle·uv 직접 실행은 각 서비스 README를 따릅니다. Spring의 기존 로컬 properties 방식도 유지합니다.
-
-#### 설정 확인·재빌드·종료
-
-```sh
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env config --quiet
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env up --build -d backend
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env logs -f backend ai
-docker compose --env-file backend/spring/hops/.env --env-file frontend/.env --env-file ai/.env down
-```
-
-`config --quiet`는 설정·필수 값 확인이며 실제 앱 기동이나 API 키 유효성·E2E 통과를 뜻하지 않습니다. `.env`만 변경했다면 `up -d`로 반영하고 소스 변경 시 해당 서비스를 재빌드합니다. 일반 종료 후 DB 볼륨은 유지되며 `down --volumes`는 DB 데이터를 삭제합니다.
 
 ### 구현 준비
 
