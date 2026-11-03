@@ -50,6 +50,7 @@ public class TicketService {
     private final TicketStoredData data;
     private final TicketStandardRequestReader standardRequests;
     private final TicketProgressReader progress;
+    private final TicketEvidence evidencePolicy;
 
     @Transactional(readOnly = true)
     public CaseGenerationResponse caseGeneration(Jwt jwt, UUID generationId) {
@@ -79,7 +80,7 @@ public class TicketService {
         Ticket ticket = findTicket(ticketId);
         authorization.requireCurrentPrimary(member, ticket);
         var records = workLogs.findByTicketIdOrderByCreatedAtAscIdAsc(ticketId);
-        return TicketDetailResponse.of(summary(ticket), primary(ticket), assignmentHistory(ticket),
+        return TicketDetailResponse.of(summary(ticket), primary(ticket), assignmentHistory(ticket, member),
                 standardRequests.read(ticket.getStandardRequest(), member),
                 records.stream().map(WorkRecordResponse::from).toList(), progress.resolution(ticket, records),
                 progress.generation(ticket));
@@ -90,7 +91,7 @@ public class TicketService {
         Member member = authService.currentMember(jwt);
         authorization.requireAdministrator(member);
         Ticket ticket = findTicket(ticketId);
-        return TicketManagementDetailResponse.of(summary(ticket), primary(ticket), assignmentHistory(ticket));
+        return TicketManagementDetailResponse.of(summary(ticket), primary(ticket), assignmentHistory(ticket, member));
     }
 
     private Ticket findTicket(UUID ticketId) {
@@ -111,13 +112,14 @@ public class TicketService {
         return UserSummaryResponse.from(authService.currentMember(authorization.currentPrimaryId(ticket)));
     }
 
-    private List<AssignmentHistoryResponse> assignmentHistory(Ticket ticket) {
+    private List<AssignmentHistoryResponse> assignmentHistory(Ticket ticket, Member member) {
         var history = assignments.findByTicketIdAndDeletedAtIsNullOrderByAssignedAtAscIdAsc(ticket.getId());
         List<AssignmentHistoryResponse> result = new ArrayList<>();
         TicketAssignment previous = null;
         for (TicketAssignment value : history) {
             var evidence = data.parse(value.getEvidence());
-            result.add(AssignmentHistoryResponse.of(value, previous, data.list(evidence.path("messageIds"), UUID.class),
+            result.add(AssignmentHistoryResponse.of(value, previous,
+                    evidencePolicy.visible(ticket, member, data.list(evidence.path("messageIds"), UUID.class)),
                     evidence.path("note").asString(null)));
             previous = value;
         }

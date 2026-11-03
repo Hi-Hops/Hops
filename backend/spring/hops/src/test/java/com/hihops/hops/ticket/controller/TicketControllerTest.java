@@ -119,6 +119,20 @@ class TicketControllerTest {
                 .expiresAt(Instant.now().plusSeconds(600))));
     }
 
+    @Test void 배정_근거는_현재_문제와_조회자의_공개_범위로_제한한다() throws Exception {
+        jdbc.update("""
+                INSERT INTO message(id,inquiry_id,sequence_no,sender_type,content,message_status,payload)
+                VALUES (?,?,1,'USER','허용','COMPLETED',?::jsonb)
+                """, MESSAGE, INQUIRY, "{\"problemLinks\":[{\"problemId\":\"" + PROBLEM
+                + "\",\"revision\":1,\"spans\":[{\"start\":0,\"end\":2}]}]}");
+        jdbc.update("UPDATE ticket_assignment SET evidence=?::jsonb WHERE ticket_id=?",
+                "{\"messageIds\":[\"" + MESSAGE + "\",\"" + UUID.randomUUID() + "\"],\"note\":null}", TICKET);
+        mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignmentHistory[0].evidenceMessageIds.length()").value(1));
+        mvc.perform(as(ADMIN, "/management/tickets/" + TICKET)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignmentHistory[0].evidenceMessageIds").isEmpty());
+    }
+
     @Test void 시스템_목록에는_기능만_있고_담당자_정보는_없다() throws Exception {
         mvc.perform(as(REQUESTER, "/systems")).andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].code").value("ELECTRONIC_APPROVAL"))
