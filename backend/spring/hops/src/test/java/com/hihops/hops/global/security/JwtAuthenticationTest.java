@@ -62,8 +62,20 @@ class JwtAuthenticationTest {
     }
 
     @Test
-    void 만료된_토큰은_401() throws Exception {
-        expectUnauthorized(token(SECRET, "hops", "hops-api", -120)); // 2분 전에 만료 (여유 30초 초과)
+    void 만료된_토큰은_401_ACCESS_TOKEN_EXPIRED() throws Exception {
+        // WIRE_CONTRACT 12.3: 프론트는 이 코드를 받았을 때만 refresh 1회 후 같은 요청을 다시 보낸다.
+        expectUnauthorized(token(SECRET, "hops", "hops-api", -120), "ACCESS_TOKEN_EXPIRED"); // 2분 전 만료 (여유 30초 초과)
+    }
+
+    @Test
+    void 만료됐어도_다른_키로_서명한_토큰은_만료가_아니라_UNAUTHENTICATED() throws Exception {
+        // 서명이 맞는 토큰만 만료를 따진다. 위조 토큰에 "만료"라고 답하면 refresh를 부추기게 된다.
+        expectUnauthorized(token("someone-else-secret-key-at-least-32-bytes!", "hops", "hops-api", -120));
+    }
+
+    @Test
+    void 만료됐어도_발급자가_다르면_UNAUTHENTICATED() throws Exception {
+        expectUnauthorized(token(SECRET, "other", "hops-api", -120));
     }
 
     @Test
@@ -92,9 +104,13 @@ class JwtAuthenticationTest {
     }
 
     private void expectUnauthorized(String token) throws Exception {
+        expectUnauthorized(token, "UNAUTHENTICATED");
+    }
+
+    private void expectUnauthorized(String token, String code) throws Exception {
         mockMvc.perform(get("/api/v2/test/jwt/me").header(HttpHeaders.AUTHORIZATION, bearer(token)))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+                .andExpect(jsonPath("$.code").value(code));
     }
 
     private static String bearer(String token) {

@@ -56,6 +56,7 @@ class SecurityConfigTest {
         mockMvc.perform(get("/api/v2/tickets"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"))
+                .andExpect(jsonPath("$.fieldErrors").isArray()) // Security 단계 오류도 같은 ApiError 형식이다
                 .andExpect(jsonPath("$.requestId").value(matchesPattern(UUID_PATTERN)));
     }
 

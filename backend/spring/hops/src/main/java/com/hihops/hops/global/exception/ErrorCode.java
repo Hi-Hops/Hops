@@ -17,6 +17,8 @@ import org.springframework.http.HttpStatusCode;
 public enum ErrorCode {
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.", false),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.", false),
+    // 서명은 맞지만 만료된 Access. 프론트는 refresh 1회 후 같은 요청을 다시 보낸다 (WIRE_CONTRACT 12.3)
+    ACCESS_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "로그인 시간이 만료되었습니다.", false),
     // Refresh 쿠키가 없거나, 이미 쓰였거나, 로그아웃으로 폐기됨 → 프론트는 재로그인 (WIRE_CONTRACT 10절)
     REFRESH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "로그인이 만료되었습니다. 다시 로그인해 주세요.", false),
     AUTH_CONTEXT_CHANGED(HttpStatus.UNAUTHORIZED, "소속 또는 권한이 변경되었습니다. 다시 로그인해 주세요.", false),

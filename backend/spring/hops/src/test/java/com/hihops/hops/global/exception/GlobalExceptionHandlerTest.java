@@ -55,7 +55,10 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.code").value("CONFLICT"))
                 .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.requestId").value(matchesPattern(UUID_PATTERN)))
-                .andExpect(jsonPath("$.retryable").value(false));
+                .andExpect(jsonPath("$.retryable").value(false))
+                // DATA_TYPES 신규 절 ApiError.fieldErrors: 필수 배열. 입력 항목 오류가 아니면 빈 배열이다.
+                .andExpect(jsonPath("$.fieldErrors").isArray())
+                .andExpect(jsonPath("$.fieldErrors").isEmpty());
     }
 
     @Test
@@ -74,7 +77,11 @@ class GlobalExceptionHandlerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\": \" \"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                // 어떤 항목이 왜 틀렸는지 알려 프론트가 그 입력 칸에 표시한다. 입력한 값은 담지 않는다.
+                .andExpect(jsonPath("$.fieldErrors.length()").value(1))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("name"))
+                .andExpect(jsonPath("$.fieldErrors[0].code").value("NotBlank"));
     }
 
     @Test

@@ -1,6 +1,8 @@
 package com.hihops.hops.global.security;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 import javax.crypto.SecretKey;
@@ -10,7 +12,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimNames;
@@ -19,6 +23,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
+import org.springframework.security.oauth2.jwt.JwtValidationException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
@@ -47,6 +52,9 @@ public class JwtConfig {
     /** 역할 목록을 담는 클레임 이름. 발급(AccessTokenIssuer)과 권한 변환(아래 converter)이 같은 이름을 써야 권한 검사가 동작한다. */
     public static final String ROLES_CLAIM = "roles";
 
+    // 만료 검사 실패에 붙이는 표식. 401 응답을 만들 때 이 표식만 있으면 ACCESS_TOKEN_EXPIRED로 알린다 (SecurityErrorResponder).
+    private static final String EXPIRED_ERROR_CODE = "hops_access_token_expired";
+
     /** 로그인 성공 시 액세스 토큰을 서명한다. 실제 클레임 구성은 auth/service/AccessTokenIssuer가 한다. */
     @Bean
     JwtEncoder jwtEncoder(JwtProperties properties) {
@@ -60,7 +68,7 @@ public class JwtConfig {
                 .build();
 
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
-                new JwtTimestampValidator(properties.clockSkew()),
+                expiryMarked(new JwtTimestampValidator(properties.clockSkew())),
                 new JwtIssuerValidator(properties.issuer()),
                 new JwtClaimValidator<List<String>>(JwtClaimNames.AUD,
                         aud -> aud != null && aud.contains(properties.audience())));
@@ -81,6 +89,34 @@ public class JwtConfig {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(authorities);
         return converter;
+    }
+
+    /**
+     * 실패 원인이 "만료" 하나뿐인지 (WIRE_CONTRACT 12.3 ACCESS_TOKEN_EXPIRED).
+     * 검증기는 서명이 맞는 토큰에만 돌기 때문에, 위조 토큰은 여기까지 오지 않고 UNAUTHENTICATED가 된다.
+     * 발급자·대상도 틀리면 만료로 보지 않는다(갱신해도 소용없는 토큰이다).
+     */
+    public static boolean isOnlyExpired(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof JwtValidationException invalid) {
+                Collection<OAuth2Error> errors = invalid.getErrors();
+                return !errors.isEmpty()
+                        && errors.stream().allMatch(error -> EXPIRED_ERROR_CODE.equals(error.getErrorCode()));
+            }
+        }
+        return false;
+    }
+
+    // 시각 검사가 실패했고 exp가 지났으면 만료 표식을 붙인다. 아직 유효 전(nbf)인 토큰 같은 다른 시각 오류는 그대로 둔다.
+    private static OAuth2TokenValidator<Jwt> expiryMarked(JwtTimestampValidator timestamps) {
+        return jwt -> {
+            OAuth2TokenValidatorResult result = timestamps.validate(jwt);
+            Instant expiresAt = jwt.getExpiresAt();
+            if (result.hasErrors() && expiresAt != null && Instant.now().isAfter(expiresAt)) {
+                return OAuth2TokenValidatorResult.failure(new OAuth2Error(EXPIRED_ERROR_CODE, "Access Token 만료", null));
+            }
+            return result;
+        };
     }
 
     // 발급·검증이 같은 키를 쓰도록 한 곳에서 만든다.

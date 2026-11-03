@@ -1,5 +1,6 @@
 package com.hihops.hops.global.exception;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.jspecify.annotations.Nullable;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.hihops.hops.global.exception.ErrorResponse.FieldErrorResponse;
 import com.hihops.hops.global.filter.RequestIdFilter;
 
 /**
@@ -76,6 +78,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             List<String> fields = invalid.getBindingResult().getFieldErrors().stream()
                     .map(FieldError::getField).distinct().sorted().toList();
             log.info("입력 오류 {} {} fields={}", statusCode.value(), errorCode.name(), fields);
+            return ResponseEntity.status(statusCode)
+                    .headers(headers)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(ErrorResponse.withFieldErrors(errorCode, RequestIdFilter.currentRequestId(),
+                            fieldErrors(invalid)));
         } else {
             // Spring 예외 메시지에는 요청 본문 일부가 섞일 수 있어 예외 종류 이름만 남긴다.
             log.info("요청 오류 {} {}: {}", statusCode.value(), errorCode.name(), exception.getClass().getSimpleName());
@@ -84,6 +91,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .headers(headers)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(errorBody(errorCode));
+    }
+
+    // 칸 이름과 어긋난 규칙 이름만 담는다. 같은 칸·규칙은 한 번만, 칸 이름 순으로 보낸다.
+    private static List<FieldErrorResponse> fieldErrors(MethodArgumentNotValidException invalid) {
+        return invalid.getBindingResult().getFieldErrors().stream()
+                .map(error -> new FieldErrorResponse(error.getField(), error.getCode()))
+                .distinct()
+                .sorted(Comparator.comparing(FieldErrorResponse::field).thenComparing(FieldErrorResponse::code))
+                .toList();
     }
 
     private static ResponseEntity<ErrorResponse> toResponse(ErrorCode errorCode) {

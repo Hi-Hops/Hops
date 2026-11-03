@@ -355,7 +355,8 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.user.department.id").value(DEPARTMENT_ID.toString()))
                 .andExpect(jsonPath("$.user.department.code").value("TEST_SALES"))
                 .andExpect(jsonPath("$.user.department.name").value("테스트 영업팀"))
-                .andExpect(jsonPath("$.user.department.isRoutable").value(false))
+                // DATA_TYPES 신규 절 Department: id·code·name. isRoutable은 신규 응답에서 제외한다.
+                .andExpect(jsonPath("$.user.department.isRoutable").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
 
         Jwt token = jwtDecoder.decode(objectMapper.readTree(body).get("accessToken").asString());
@@ -363,6 +364,52 @@ class AuthControllerTest {
         assertThat(token.getClaimAsString("departmentId")).isEqualTo(DEPARTMENT_ID.toString());
         assertThat(token.getClaimAsString("departmentCode")).isEqualTo("TEST_SALES");
         assertThat(token.getClaimAsString("departmentName")).isEqualTo("테스트 영업팀");
+    }
+
+    @Test
+    void 주담당자인_시스템_ID를_primarySystemIds에_담고_삭제된_시스템은_뺀다() throws Exception {
+        // DATA_TYPES 신규 절 CurrentUser.primarySystemIds: 담당 메뉴용 스냅샷. 프론트는 이 키가 없으면 로그인을 멈춘다.
+        UUID approval = UUID.fromString("c0000000-0000-7000-8000-000000000091");
+        UUID fileSharing = UUID.fromString("c0000000-0000-7000-8000-000000000092");
+        jdbcTemplate.update("INSERT INTO it_system (id, code, name, primary_owner_member_id) VALUES (?, 'ELECTRONIC_APPROVAL', '전자결재', ?)",
+                approval, MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO it_system (id, code, name, primary_owner_member_id, deleted_at) "
+                + "VALUES (?, 'FILE_SHARING', '파일 공유', ?, now())", fileSharing, MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.primarySystemIds.length()").value(1))
+                .andExpect(jsonPath("$.user.primarySystemIds[0]").value(approval.toString()))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(jsonPath("$.primarySystemIds.length()").value(1))
+                .andExpect(jsonPath("$.primarySystemIds[0]").value(approval.toString()));
+    }
+
+    @Test
+    void 응답_roles에는_계약에_있는_역할만_담는다() throws Exception {
+        // DATA_TYPES 신규 절 Role은 BIZ_ADMIN뿐이다. DB에 남은 AGENT_OPS_ADMIN을 내보내면 프론트가 로그인을 멈춘다.
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", MEMBER_ID);
+        jdbcTemplate.update("INSERT INTO member_role (member_id, role) VALUES (?, 'AGENT_OPS_ADMIN')", MEMBER_ID);
+
+        String body = mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(jsonPath("$.user.roles.length()").value(1))
+                .andExpect(jsonPath("$.user.roles[0]").value("BIZ_ADMIN"))
+                .andReturn().getResponse().getContentAsString();
+        String accessToken = objectMapper.readTree(body).get("accessToken").asString();
+
+        mockMvc.perform(get("/api/v2/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(jsonPath("$.roles.length()").value(1));
+    }
+
+    @Test
+    void 담당_시스템이_없어도_primarySystemIds는_빈_배열로_보낸다() throws Exception {
+        // 키를 생략하지 않는다. 일반 임직원은 roles=[]·primarySystemIds=[]다 (DATA_TYPES Role).
+        mockMvc.perform(login("requester", "hops1234!"))
+                .andExpect(jsonPath("$.user.primarySystemIds").isArray())
+                .andExpect(jsonPath("$.user.primarySystemIds").isEmpty());
     }
 
     @Test

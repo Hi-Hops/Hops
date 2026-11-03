@@ -123,13 +123,13 @@ public class AuthController {
         ResponseCookie refreshCookie = RefreshCookies.issue(refreshToken, cookieProperties.secure());
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
-                .body(LoginResponse.of(accessTokenIssuer.issue(member), member));
+                .body(LoginResponse.of(accessTokenIssuer.issue(member), authService.currentUser(member)));
     }
 
     /** 토큰 주인의 현재 사용자 정보. 토큰이 없거나 틀리면 이 메서드까지 오지 않고 401이 된다(SecurityConfig). */
     @GetMapping("/me")
     public CurrentUserResponse me(@AuthenticationPrincipal Jwt jwt) {
         UUID memberId = UUID.fromString(jwt.getSubject()); // sub = 회원 UUID (AccessTokenIssuer)
-        return CurrentUserResponse.from(authService.currentMember(memberId));
+        return authService.currentUser(authService.currentMember(memberId));
     }
 }

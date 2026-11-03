@@ -3,7 +3,6 @@ package com.hihops.hops.auth.dto;
 import java.time.Instant;
 
 import com.hihops.hops.auth.service.AccessTokenIssuer.IssuedToken;
-import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.dto.CurrentUserResponse;
 
 /**
@@ -17,8 +16,8 @@ import com.hihops.hops.user.dto.CurrentUserResponse;
  */
 public record LoginResponse(String accessToken, Instant expiresAt, CurrentUserResponse user) {
 
-    public static LoginResponse of(IssuedToken token, Member member) {
-        return new LoginResponse(token.value(), token.expiresAt(), CurrentUserResponse.from(member));
+    public static LoginResponse of(IssuedToken token, CurrentUserResponse user) {
+        return new LoginResponse(token.value(), token.expiresAt(), user);
     }
 
     // 토큰 원문이 로그에 남지 않도록 사용자 정보만 보여준다.

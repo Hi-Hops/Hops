@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.hihops.hops.department.domain.Department;
 import com.hihops.hops.user.domain.Member;
+import com.hihops.hops.itsystem.repository.ItSystemRepository;
 import com.hihops.hops.user.repository.MemberRepository;
 
 /**
@@ -27,7 +28,7 @@ class AuthServiceTest {
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final MemberRepository memberRepository = mock(MemberRepository.class);
-    private final AuthService authService = new AuthService(memberRepository, passwordEncoder);
+    private final AuthService authService = new AuthService(memberRepository, passwordEncoder, mock(ItSystemRepository.class));
 
     private final Member requester = new Member("requester", "20260001",
             passwordEncoder.encode("hops1234!"), "테스트 요청자", new Department("SALES", "영업팀", false));

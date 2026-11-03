@@ -159,7 +159,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 | 기능 | 위치 | 쓰는 방법 |
 |---|---|---|
 | API 주소 접두사 | `global/config/ApiPathConfig` | 우리 `@RestController`의 주소 앞에 `/api/v2`가 자동으로 붙습니다. 컨트롤러에는 `@RequestMapping("/tickets")`처럼 접두사 뒤 주소만 적습니다. Swagger·`/error`에는 붙지 않습니다. `SecurityConfig`처럼 전체 주소가 필요하면 `ApiPathConfig.PREFIX + "/auth/login"`으로 씁니다. |
-| 공통 오류 응답 | `global/exception` | Controller·Service에서 `throw new BusinessException(ErrorCode.NOT_FOUND)`처럼 던지면 `{code, message, requestId, retryable}` 형식으로 응답합니다 ([API 설계](../../../docs/API.md) §1). try-catch는 쓰지 않습니다. |
+| 공통 오류 응답 | `global/exception` | Controller·Service에서 `throw new BusinessException(ErrorCode.NOT_FOUND)`처럼 던지면 `{code, message, requestId, retryable, fieldErrors}` 형식(DATA_TYPES 신규 절 ApiError)으로 응답합니다. `fieldErrors`는 입력 검증 실패(400)에만 `[{field, code}]`로 채우고 그 밖에는 빈 배열입니다. try-catch는 쓰지 않습니다. |
 | 요청 추적 번호 | `global/filter/RequestIdFilter` | 모든 응답 헤더와 로그 줄에 `X-Request-Id`(requestId)가 붙습니다. 오류 문의 시 이 값으로 로그를 찾습니다. |
 | API 호출 로그 | `global/filter/RequestLoggingFilter` | 요청 전 `→ GET /path`, 요청 후 `← GET /path 200 (12ms)`를 남깁니다. 본문·헤더·쿼리는 기록하지 않습니다. |
 | 시각 | `application.properties` | API 응답과 DB 모두 UTC입니다. 한국 시간 표시는 화면에서 합니다. |
@@ -189,13 +189,14 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
-| `POST /api/v2/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` + `Set-Cookie: hops_refresh` | 400 `INVALID_INPUT`(빈 값·형식 오류), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
+| `POST /api/v2/auth/login` | `{loginId, password}` | 200 `{accessToken, expiresAt, user}` + `Set-Cookie: hops_refresh` | 400 `INVALID_INPUT`(빈 값·형식 오류, `fieldErrors`에 칸 이름), 401 `UNAUTHENTICATED`(아이디·비밀번호 불일치, 차단 계정) |
 | `POST /api/v2/auth/refresh` | 본문 없음, `hops_refresh` 쿠키 | 200 `{accessToken, expiresAt, user}` + 새 `Set-Cookie: hops_refresh` | 401 `REFRESH_TOKEN_REVOKED`(쿠키 없음·이미 쓰인 값·만료), 403 `ORIGIN_DENIED` |
 | `POST /api/v2/auth/logout` | 본문 없음, `hops_refresh` 쿠키 | 204 + 쿠키 삭제(`Max-Age=0`). 쿠키가 없거나 이미 끝난 세션이어도 같음 | 403 `ORIGIN_DENIED`, 503 `SERVICE_UNAVAILABLE`(세션 저장소 장애. 쿠키 삭제는 그대로 보냄) |
-| `GET /api/v2/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles}` | 401 `UNAUTHENTICATED`(토큰 없음·위조·만료, 회원 없음·차단) |
+| `GET /api/v2/auth/me` | `Authorization: Bearer <토큰>` | 200 `{id, employeeNo, name, department, roles, primarySystemIds}` | 401 `ACCESS_TOKEN_EXPIRED`(서명은 맞고 만료됨 → 프론트가 refresh), 401 `UNAUTHENTICATED`(토큰 없음·위조, 회원 없음·차단) |
 
 - **동작 순서:** 로그인 ID로 회원·부서·역할을 DB에서 찾고(삭제된 회원 제외) → BCrypt로 비밀번호 해시 비교 → `AccessTokenIssuer`가 토큰 발급 (`auth/service`).
 - **토큰 클레임:** `sub`(회원 UUID), `employeeNo`, `departmentId`·`departmentCode`·`departmentName`, `roles`, `iss`·`aud`·`iat`·`exp`(발급 후 15분). 토큰 내용은 누구나 읽을 수 있으므로 비밀번호 등은 넣지 않습니다.
+- **`user` 모양 (DATA_TYPES 신규 절 CurrentUser):** `department`는 `{id, code, name}`, `roles`는 계약에 있는 `BIZ_ADMIN`만(DB의 `AGENT_OPS_ADMIN`은 응답에서 뺌), `primarySystemIds`는 이 회원이 주담당자인 시스템 ID(삭제된 시스템 제외, 없으면 `[]`)입니다. 로그인·refresh·`/me`가 같은 모양입니다.
 - **`/me`는 토큰이 아니라 DB를 다시 읽습니다.** 토큰 발급 뒤 역할 회수·부서 변경·계정 차단이 있었을 수 있기 때문입니다.
 - 로그인 ID(`loginId`)와 사번(`employeeNo`)은 [ERD](../../../docs/ERD.md)의 `member.login_id`, `member.employee_no`처럼 별도 값입니다. 아이디·비밀번호 중 무엇이 틀렸는지는 응답에서 구분하지 않습니다.
 - **로그:** 로그인 성공·실패 이유와 회원 ID를 남기고(`requestId`로 찾기), 비밀번호·찾지 못한 로그인 ID 원문·토큰은 남기지 않습니다.
