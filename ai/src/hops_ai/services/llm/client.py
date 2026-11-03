@@ -24,6 +24,7 @@ class LLMRequest[T: BaseModel]:
     response_model: type[T]
     max_output_tokens: int
     prompt_version: str  # 결과 meta.promptVersion에 기록한다
+    max_input_tokens: int | None = None
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 """모델 판단 → 역할 실행·병합 → 재판단 → 최종화를 연결하는 실행 그래프."""
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -33,9 +33,15 @@ class Supervisor:
     실제 서비스 접수·중복 방지·결과 저장은 호출 측 RunLedger 연결이 담당한다.
     """
 
-    def __init__(self, agents: Mapping[AgentRole, Agent] | None = None) -> None:
+    def __init__(
+        self,
+        agents: Mapping[AgentRole, Agent] | None = None,
+        *,
+        available_roles: Callable[[SupervisorState], set[AgentRole]] | None = None,
+    ) -> None:
         """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다."""
         self._agents = dict(build_registry() if agents is None else agents)
+        self._available_roles = available_roles
 
     async def analyze(self, request: AiRunRequest, services: SharedServices) -> AiResult:
         """문의 분석 또는 사례 초안 실행을 최종 AiResult로 반환한다.
@@ -65,7 +71,10 @@ class Supervisor:
             """현재 상태로 다음 행동을 요청하고 검증된 판단만 기록한다."""
             nonlocal current
             current = runtime.sync_state(data["state"])
-            decision = await decide_next_action(current, runtime.services)
+            roles = set(self._agents)
+            if self._available_roles is not None:
+                roles &= self._available_roles(current)
+            decision = await decide_next_action(current, runtime.services, roles)
             current = runtime.sync_state(current)
             current = {**current, "nextAction": decision.nextAction}
             # 모델의 공개 요약도 검증되지 않은 문구다. 최종 답변은 최종화 단계에서

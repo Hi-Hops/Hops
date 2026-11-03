@@ -31,8 +31,11 @@ class Settings(BaseSettings):
     internal_api_enabled: bool = False
     runtime_dsn: SecretStr | None = None
     ai_service_token: SecretStr | None = Field(default=None, validation_alias="AI_SERVICE_TOKEN")
-    # 루트에서 AI .env로 옮긴 기존 설정 키를 읽는다. 외부 클라이언트 연결은 별도 구현이다.
+    # 모델과 관측 설정은 AI 서비스에서만 읽는다.
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
+    # real 모드에서 Supervisor와 역할이 쓰는 OpenAI 모델.
+    # 비용 최소화를 기준으로 정하고 실측 후 검토한다.
+    supervisor_model: str = "gpt-6-luna"
     langfuse_public_key: SecretStr | None = Field(
         default=None, validation_alias="LANGFUSE_PUBLIC_KEY"
     )

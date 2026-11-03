@@ -127,7 +127,9 @@ def _allowed_actions(state: SupervisorState) -> list[str]:
     return actions
 
 
-def _decision_context(state: SupervisorState) -> dict:
+def _decision_context(
+    state: SupervisorState, available_roles: set[AgentRole] | None = None
+) -> dict:
     """판단에 필요한 문제별 준비 상태와 안전한 문맥을 새 객체로 투영한다.
 
     problemProgress는 수정 대상과 신규 문제의 종료 결과·질문 여유·미확인 개수·
@@ -155,10 +157,15 @@ def _decision_context(state: SupervisorState) -> dict:
             item.update(role=AgentRole.CURATOR.value, reusable=result.proposal.reusable)
         completed.append(item)
 
+    roles = get_allowed_roles(RunKind(request.kind))
+    if available_roles is not None:
+        roles &= available_roles
     return {
         "kind": request.kind,
-        "allowedActions": _allowed_actions(state),
-        "allowedRoles": sorted(role.value for role in get_allowed_roles(RunKind(request.kind))),
+        "allowedActions": [
+            action for action in _allowed_actions(state) if roles or action != "CALL_ROLE"
+        ],
+        "allowedRoles": sorted(role.value for role in roles),
         "messages": [message.model_dump(mode="json") for message in request.messages],
         "systems": [system.model_dump(mode="json") for system in request.systems],
         "problems": [
@@ -183,7 +190,7 @@ def _decision_context(state: SupervisorState) -> dict:
 
 
 async def decide_next_action(
-    state: SupervisorState, services: SharedServices
+    state: SupervisorState, services: SharedServices, available_roles: set[AgentRole] | None = None
 ) -> SupervisorDecision:
     """현재 실행 정보를 LLM에 전달하여 다음 행동 하나를 얻고 검증한다.
 
@@ -207,7 +214,7 @@ async def decide_next_action(
     if remaining_output <= 0:
         raise BudgetExceeded("Supervisor 판단에 사용할 출력 토큰이 없다")
 
-    context = _decision_context(state)
+    context = _decision_context(state, available_roles)
     request = LLMRequest(
         messages=[
             LLMMessage(
@@ -249,4 +256,6 @@ async def decide_next_action(
     except ValidationError as error:
         raise OutputRejected("Supervisor 응답 형식이 올바르지 않다") from error
     validate_supervisor_decision(state, decision)
+    if decision.role is not None and decision.role.value not in context["allowedRoles"]:
+        raise OutputRejected("등록되지 않은 역할을 호출할 수 없다")
     return decision
