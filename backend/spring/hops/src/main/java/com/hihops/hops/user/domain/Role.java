@@ -1,5 +1,8 @@
 package com.hihops.hops.user.domain;
 
+import java.util.Collection;
+import java.util.List;
+
 /**
  * 부서와 별개로 부여하는 역할 (specs/contracts/DATA_TYPES.md Role, docs/PRD.md 2).
  *
@@ -24,5 +27,10 @@ public enum Role {
     /** 신규 계약(DATA_TYPES 신규 절 Role)에 있는 역할인지. 응답의 roles에는 이 역할만 담는다. */
     public boolean inContract() {
         return inContract;
+    }
+
+    /** 계약에 있는 역할만 남긴다. 응답 roles·JWT roles 클레임·SSE 문맥 비교가 모두 이 기준을 쓴다. */
+    public static List<Role> contractRoles(Collection<Role> roles) {
+        return roles.stream().filter(Role::inContract).toList();
     }
 }

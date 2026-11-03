@@ -21,6 +21,6 @@ public record CurrentUserResponse(UUID id, String employeeNo, String name, Depar
     public static CurrentUserResponse of(Member member, List<UUID> primarySystemIds) {
         return new CurrentUserResponse(member.getId(), member.getEmployeeNo(), member.getName(),
                 DepartmentResponse.from(member.getDepartment()),
-                member.getRoles().stream().filter(Role::inContract).toList(), List.copyOf(primarySystemIds));
+                member.getContractRoles(), List.copyOf(primarySystemIds));
     }
 }

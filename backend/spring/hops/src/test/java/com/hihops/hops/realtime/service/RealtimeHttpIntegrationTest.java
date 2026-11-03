@@ -133,14 +133,14 @@ class RealtimeHttpIntegrationTest {
     }
 
     @Test
-    void 부서가_바뀐_토큰의_연결은_401_문맥_변경으로_거부한다() throws Exception {
+    void 부서가_바뀐_토큰의_연결은_403_문맥_변경으로_거부한다() throws Exception {
         String token = token(30);
         jdbc.update("UPDATE member SET department_id = ? WHERE id = ?", otherDepartmentId, memberId);
         assertContextChanged(token);
     }
 
     @Test
-    void 역할이_바뀐_토큰의_연결은_401_문맥_변경으로_거부한다() throws Exception {
+    void 역할이_바뀐_토큰의_연결은_403_문맥_변경으로_거부한다() throws Exception {
         String token = token(30);
         jdbc.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", memberId);
         assertContextChanged(token);
@@ -149,7 +149,7 @@ class RealtimeHttpIntegrationTest {
     private void assertContextChanged(String token) throws Exception {
         HttpResponse<String> response = client.send(request(departmentId, token, null),
                 HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.statusCode()).isEqualTo(403); // WIRE_CONTRACT 12.3: AUTH_CONTEXT_CHANGED는 403
         assertThat(response.headers().firstValue("Content-Type").orElse("")).startsWith("application/json");
         assertThat(response.body()).contains("AUTH_CONTEXT_CHANGED");
     }

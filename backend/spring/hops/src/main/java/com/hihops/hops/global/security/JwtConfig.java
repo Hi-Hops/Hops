@@ -1,6 +1,7 @@
 package com.hihops.hops.global.security;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -62,13 +63,13 @@ public class JwtConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(JwtProperties properties) {
+    JwtDecoder jwtDecoder(JwtProperties properties, Clock clock) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secretKey(properties))
                 .macAlgorithm(ALGORITHM) // 다른 알고리즘(none 등)으로 서명된 토큰은 받지 않는다
                 .build();
 
         OAuth2TokenValidator<Jwt> validator = new DelegatingOAuth2TokenValidator<>(
-                expiryMarked(new JwtTimestampValidator(properties.clockSkew())),
+                expiryMarked(timestampValidator(properties, clock), clock),
                 new JwtIssuerValidator(properties.issuer()),
                 new JwtClaimValidator<List<String>>(JwtClaimNames.AUD,
                         aud -> aud != null && aud.contains(properties.audience())));
@@ -108,15 +109,22 @@ public class JwtConfig {
     }
 
     // 시각 검사가 실패했고 exp가 지났으면 만료 표식을 붙인다. 아직 유효 전(nbf)인 토큰 같은 다른 시각 오류는 그대로 둔다.
-    private static OAuth2TokenValidator<Jwt> expiryMarked(JwtTimestampValidator timestamps) {
+    // 시각 검사와 만료 표식이 같은 시계(ClockConfig)를 본다. 시계가 다르면 검사는 실패했는데 표식이 안 붙을 수 있다.
+    private static OAuth2TokenValidator<Jwt> expiryMarked(JwtTimestampValidator timestamps, Clock clock) {
         return jwt -> {
             OAuth2TokenValidatorResult result = timestamps.validate(jwt);
             Instant expiresAt = jwt.getExpiresAt();
-            if (result.hasErrors() && expiresAt != null && Instant.now().isAfter(expiresAt)) {
+            if (result.hasErrors() && expiresAt != null && clock.instant().isAfter(expiresAt)) {
                 return OAuth2TokenValidatorResult.failure(new OAuth2Error(EXPIRED_ERROR_CODE, "Access Token 만료", null));
             }
             return result;
         };
+    }
+
+    private static JwtTimestampValidator timestampValidator(JwtProperties properties, Clock clock) {
+        JwtTimestampValidator validator = new JwtTimestampValidator(properties.clockSkew());
+        validator.setClock(clock);
+        return validator;
     }
 
     // 발급·검증이 같은 키를 쓰도록 한 곳에서 만든다.

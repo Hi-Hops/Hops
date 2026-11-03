@@ -73,6 +73,22 @@ class RealtimeAuthorizationTest {
     }
 
     @Test
+    void 만료된_토큰이면_ACCESS_TOKEN_EXPIRED로_거부한다() {
+        // 디코더는 시계 오차(30초) 안의 만료 토큰을 통과시킨다. 여기서 UNAUTHENTICATED를 주면 프론트가 refresh 없이 로그아웃한다.
+        Jwt expired = Jwt.withTokenValue("test-token").header("alg", "HS256").subject(userId.toString())
+                .claim("departmentId", departmentId.toString()).claim("roles", List.of())
+                .expiresAt(Instant.now().minusSeconds(5)).build();
+        denied(expired, target(departmentId), ErrorCode.ACCESS_TOKEN_EXPIRED);
+    }
+
+    @Test
+    void 계약에_없는_역할은_비교에서_빼서_문맥_변경으로_보지_않는다() {
+        // 토큰에는 계약 역할(BIZ_ADMIN)만 담긴다. DB에 남은 AGENT_OPS_ADMIN 때문에 매번 재로그인시키면 안 된다.
+        when(member.getRoles()).thenReturn(List.of(Role.BIZ_ADMIN, Role.AGENT_OPS_ADMIN));
+        authorization.check(token(List.of("BIZ_ADMIN")), target(departmentId));
+    }
+
+    @Test
     void 차단된_회원은_거부한다() {
         when(members.findWithDepartmentAndRolesByIdAndDeletedAtIsNull(userId)).thenReturn(Optional.empty());
         denied(token(List.of()), target(departmentId), ErrorCode.UNAUTHENTICATED);

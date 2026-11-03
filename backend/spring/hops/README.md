@@ -203,7 +203,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 - **Refresh 쿠키:** `HttpOnly`, `SameSite=Lax`, `Path=/api/v2/auth`. `Secure`는 요청이 아니라 설정 `hops.auth.refresh-cookie.secure`로 정합니다(로컬 `false`, 설정이 없으면 `true`). 설정 파일 기본값에는 넣지 않으므로 공용·운영(HTTPS) 서버는 따로 설정하지 않으면 `Secure`입니다. 로컬은 `application-db.local.properties`(아래 "pull 받은 뒤 할 일"), Docker는 루트 `.env`의 `HOPS_AUTH_REFRESHCOOKIE_SECURE=false`로 끕니다. 원문은 JSON에 넣지 않고 Redis에는 SHA-256 해시만 키로 둡니다. 갱신할 때마다 새 값으로 바꾸고(이전 값은 즉시 폐기), 만료는 최초 로그인부터 7일로 늘어나지 않습니다.
 - **재사용 검출:** 회전으로 이미 쓴 Refresh가 10초 안에 다시 오면 탭 두 개의 동시 갱신 경합으로 보고 그 요청만 401입니다. 10초가 지나서 오면 탈취로 보고 그 로그인 세션 전체를 폐기합니다(정상 사용자도 재로그인).
 - **갱신 순서:** 회원을 DB에서 먼저 확인하고 Refresh 회전은 마지막에 합니다. DB가 일시 실패해도 같은 쿠키로 다시 갱신할 수 있습니다. 삭제·차단된 회원은 그 세션을 끝내고 401 `REFRESH_TOKEN_REVOKED`입니다.
-- **로그아웃:** 그 쿠키의 로그인 세션만 끝냅니다(다른 기기 로그인은 유지). 세션 저장소 장애 중에도 쿠키 삭제는 내려보냅니다. 이미 발급한 Access는 최대 15분 남지만 프론트가 메모리에서 버립니다.
+- **로그아웃:** 그 쿠키의 로그인 세션만 끝냅니다(다른 기기 로그인은 유지). login·refresh·logout은 `Authorization` 헤더를 읽지 않아서, 만료·손상된 Bearer가 붙어 와도 쿠키로 처리합니다. 세션 저장소 장애 중에도 쿠키 삭제는 내려보냅니다. 이미 발급한 Access는 최대 15분 남지만 프론트가 메모리에서 버립니다.
 - **재로그인:** 같은 브라우저에서 다시 로그인하면 예전 쿠키의 세션을 끝냅니다.
 - **세션이 끝나면** (로그아웃·재로그인·재사용 감지·차단 회원) `LoginSessionRevokedEvent`를 받은 `RealtimeSessionListener`가 그 회원의 열린 SSE를 닫습니다. Access에 세션 ID가 없어 기기 구분 없이 회원 단위로 닫습니다.
 - **브라우저 주소:** `SameSite=Lax` 쿠키라 프론트 화면과 API 주소의 호스트가 같아야 합니다. `localhost`와 `127.0.0.1`은 다른 사이트로 취급되어, `http://127.0.0.1:5173` 화면에서 `http://localhost:8080` API를 부르면 Refresh 쿠키가 저장·전송되지 않습니다(15분 뒤 재로그인). live 모드는 둘 다 `localhost`로 맞춥니다.
@@ -295,7 +295,7 @@ comment는 heartbeat 용도이며 복구 판단에 사용하지 않습니다.
 
 - 부서 `state.changed`의 `target`은 `{type: "DEPARTMENT_TICKETS", id: 부서 UUID}`입니다.
   공통 계약에 따라 필드명은 `id`이고 값은 부서 ID이며, `inquiryVersion`은 반드시 `null`입니다.
-- 유효한 JWT의 소속 부서·역할이 현재 DB와 다르면 401 `AUTH_CONTEXT_CHANGED`로 응답합니다.
+- 유효한 JWT의 소속 부서·역할이 현재 DB와 다르면 403 `AUTH_CONTEXT_CHANGED`로 응답합니다(WIRE_CONTRACT 12.3). 역할은 계약에 있는 것(`BIZ_ADMIN`)끼리만 비교합니다. Access가 만료됐으면 401 `ACCESS_TOKEN_EXPIRED`라 프론트가 refresh 후 다시 연결합니다.
   프론트는 일반 인증 갱신과 구분해 재로그인을 안내합니다. 누락된 필수 인증 문맥은 기존 401입니다.
 - 연결 전 DB 연결 실패·일시적 조회 장애·트랜잭션 시작 실패는 503 `SERVICE_UNAVAILABLE`입니다.
   다른 종류의 예상하지 못한 DB 오류를 일괄 503으로 바꾸지는 않습니다.

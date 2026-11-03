@@ -20,13 +20,14 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.global.config.ClockConfig;
 import com.hihops.hops.global.security.JwtConfig;
 import com.hihops.hops.global.security.SecurityConfig;
 import com.hihops.hops.global.security.SecurityErrorResponder;
 import com.hihops.hops.realtime.controller.RealtimeController;
 
 @WebMvcTest(RealtimeController.class)
-@Import({SecurityConfig.class, SecurityErrorResponder.class, JwtConfig.class})
+@Import({SecurityConfig.class, SecurityErrorResponder.class, JwtConfig.class, ClockConfig.class})
 class RealtimeSecurityTest {
     @Autowired
     private MockMvc mvc;

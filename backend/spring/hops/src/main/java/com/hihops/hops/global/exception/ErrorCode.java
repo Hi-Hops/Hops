@@ -21,7 +21,8 @@ public enum ErrorCode {
     ACCESS_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "로그인 시간이 만료되었습니다.", false),
     // Refresh 쿠키가 없거나, 이미 쓰였거나, 로그아웃으로 폐기됨 → 프론트는 재로그인 (WIRE_CONTRACT 10절)
     REFRESH_TOKEN_REVOKED(HttpStatus.UNAUTHORIZED, "로그인이 만료되었습니다. 다시 로그인해 주세요.", false),
-    AUTH_CONTEXT_CHANGED(HttpStatus.UNAUTHORIZED, "소속 또는 권한이 변경되었습니다. 다시 로그인해 주세요.", false),
+    // 소속·역할이 바뀌어 기존 권한이 회수됨 → 재로그인 (WIRE_CONTRACT 12.3: 403)
+    AUTH_CONTEXT_CHANGED(HttpStatus.FORBIDDEN, "소속 또는 권한이 변경되었습니다. 다시 로그인해 주세요.", false),
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다.", false),
     // 허용하지 않은 주소(Origin)에서 refresh·logout을 보냄. 다른 사이트의 몰래 요청을 막는다 (WIRE_CONTRACT 12.1)
     ORIGIN_DENIED(HttpStatus.FORBIDDEN, "허용되지 않은 주소에서 보낸 요청입니다.", false),

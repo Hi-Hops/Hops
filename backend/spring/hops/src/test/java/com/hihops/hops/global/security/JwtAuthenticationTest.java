@@ -79,6 +79,11 @@ class JwtAuthenticationTest {
     }
 
     @Test
+    void 만료됐어도_대상이_다르면_UNAUTHENTICATED() throws Exception {
+        expectUnauthorized(token(SECRET, "hops", "other-api", -120));
+    }
+
+    @Test
     void 발급자가_다르면_401() throws Exception {
         expectUnauthorized(token(SECRET, "other", "hops-api", 60));
     }
