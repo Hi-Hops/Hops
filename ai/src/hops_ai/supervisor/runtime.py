@@ -1,5 +1,6 @@
 """공통 실행 제한을 Supervisor 요청·State·wire 오류에 연결하는 어댑터."""
 
+import traceback
 from collections.abc import Awaitable
 from dataclasses import replace
 from datetime import datetime
@@ -11,6 +12,7 @@ from hops_ai.harness.errors import (
     BudgetExceeded,
     ComponentNotReady,
     DeadlineExceeded,
+    HarnessError,
     InputRejected,
     OutputRejected,
     PolicyDenied,
@@ -170,3 +172,15 @@ def describe_run_failure(error: Exception) -> tuple[RunPhase, AiError]:
     else:
         code, message, retryable = "SERVICE_UNAVAILABLE", "실행을 완료할 수 없다", False
     return phase, AiError(code=code, message=message, retryable=retryable)
+
+
+def describe_failure_for_log(error: Exception) -> str:
+    """서버 로그에 남길 실패 요약. 오류 종류와 발생 위치, 하네스가 정한 고정 설명만 쓴다.
+
+    wire로 나가는 오류와 달리 운영자가 원인을 찾아야 하므로 종류·위치를 남긴다.
+    사용자 원문이나 모델 출력이 들어갈 수 있는 pydantic 검증 메시지와 일반 예외 문구는 싣지 않는다.
+    """
+    frames = traceback.extract_tb(error.__traceback__)
+    where = f"{frames[-1].filename.rsplit('/', 1)[-1]}:{frames[-1].lineno}" if frames else "?"
+    detail = error.detail[:200] if isinstance(error, HarnessError) else ""
+    return f"{type(error).__name__} at {where} {detail}".strip()

@@ -13,12 +13,12 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 항목 | 상태 |
 |---|---|
 | FastAPI | `GET /healthz`는 200, `GET /readyz`는 미구현 상태를 나타내는 503 |
-| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. 기본 전문 역할은 `ComponentNotReady`이며 실제 모델 연결 전 |
-| OpenAI·pgvector·Neo4j | 내부 인터페이스와 연결 자리만 존재. 호출하면 미구현 오류 |
+| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_runtime_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문)와 Ticket(규칙 기반 제안)을 실행하고 Knowledge·Curator는 연결 전 자리. 기본 `build_registry()`는 연결 전 자리 그대로 |
+| OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j는 내부 인터페이스와 연결 자리만 존재하며 호출하면 미구현 오류 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결, Supervisor 미연결 |
 | 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot 조회. 실행 접수는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 취소·SSE는 503 |
-| 업무 실행·SSE | 백그라운드 실행기(접수·상태 전이·안전한 실패 저장) 구현. 실제 Supervisor 파이프라인·SSE·취소 전파는 연결 전 |
+| 업무 실행·SSE | 백그라운드 실행기(접수·상태 전이·안전한 실패 저장)와 `real` 모드의 Supervisor 파이프라인 연결. SSE·취소 전파는 연결 전 |
 | Fake·Mock | 테스트 전용 LLM·도구 대역. 서버에 자동 연결하지 않음 |
 
 단일 baseline, 독립 Diagnosis, Intake 명칭, 규칙 기반 Supervisor, 부서/CS 배정과 옛 `agent-1` 실행 모델은 활성 코드에서 분리했다. 기존 `/internal/mock/v1/runs` 접수·이벤트 경로는 제공하지 않는다. 예전 Fake 모드의 실행 명령이나 프론트 공용 `hops-mock-1` fixture로 이 서버를 호출하지 않는다.
@@ -124,11 +124,31 @@ curl http://127.0.0.1:8000/healthz
 curl -i http://127.0.0.1:8000/readyz
 ```
 
-`healthz` 성공은 프로세스 생존만 의미한다. `readyz`는 현재 항상 503이며 분석 요청을 받을 준비가 됐다고 표시하지 않는다. `real` 모드는 시작을 거부한다.
+`healthz` 성공은 프로세스 생존만 의미한다. `readyz`는 현재 항상 503이며 분석 요청을 받을 준비가 됐다고 표시하지 않는다. `real` 모드는 내부 API 활성화, `OPENAI_API_KEY`, `HOPS_AI_SUPERVISOR_MODEL`이 모두 있을 때만 시작하고 하나라도 없으면 거부한다. Fake로 대체하지 않는다.
 
 이 폴더의 [.env.example](.env.example)을 `ai/.env`로 복사해 `HOPS_AI_*`와 선택적인 OpenAI·Langfuse 설정을 관리합니다. 기존 개인 파일은 덮어쓰지 않습니다. 루트 Compose는 서비스별 파일 세 개를 자동으로 읽고 AI에 필요한 변수만 컨테이너에 전달합니다. uv 직접 실행은 `ai/`를 작업 디렉터리로 할 때 `.env`를 읽으며 프로세스 환경변수가 우선합니다. 실제 모델 호출·추적 연동은 구현 전입니다. 폐기된 `HOPS_AI_MODE=fake`, `HOPS_AI_AGENT_MODE`, `HOPS_AI_API_PREFIX`는 제거합니다. 비밀값은 Git에 올리지 않습니다.
 
 실행 예산의 초기 기술 기본값은 전체 60초, 모델 호출당 30초, 최대 8시도, LLM 일시 오류 재시도 2회, 호출당 출력 1,500토큰이다. Spring이 보낸 `limits`는 서버 상한(모델 호출 8회, 입력 60,000토큰, 출력 8×1,500토큰, 도구 호출 10회, 재시도 7회)을 넘으면 접수하지 않고, 실행 중에는 서버 설정과 요청 중 작은 값을 쓴다. 토큰·도구 호출 누적 한도의 실제 적용은 모델·도구 연결 시 추가한다. 한 인스턴스의 동시 실행 수 기본값은 4이며, 기한 뒤 취소에 응답하지 않아 분리한 작업도 끝날 때까지 이 수에 포함한다. AI 서버는 한 인스턴스로 운영하는 것을 전제로 하므로 이 값이 서비스 전체 상한이다. 여러 인스턴스로 늘리면 인스턴스마다 상한이 따로 적용되므로 공유 저장소 기반의 서비스 전체 상한을 먼저 구현해야 한다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
+
+### 상담 실행(`real` 모드) 로컬 실행
+
+`ai/.env`에 `HOPS_AI_MODE=real`, `HOPS_AI_INTERNAL_API_ENABLED=true`, `HOPS_AI_RUNTIME_DSN`, `AI_SERVICE_TOKEN`, `OPENAI_API_KEY`를 설정하면 Spring이 접수한 상담 실행(`POST /internal/v2/runs`)을 공통 Supervisor가 실제 모델로 처리한다. 모델은 `HOPS_AI_SUPERVISOR_MODEL`(기본 `gpt-6-luna`)이다. 같은 `AI_SERVICE_TOKEN` 값을 Spring 쪽에서도 읽으므로 `ai/.env` 한 곳에만 둔다(Compose가 Backend 컨테이너에도 전달한다).
+
+처리 흐름은 Supervisor 판단 → Inquiry(원문에서 사실 추출, 부족한 정보는 양식 규칙으로 질문) → 필요 시 Ticket(티켓 제안) → 최종 답변 조립이다. 정보가 부족하면 질문으로, 충분하면 티켓 제안으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge가 연결되기 전까지 안전한 실패로 끝난다. 티켓 제안은 제안일 뿐이며 저장·배정은 Spring이 하고, 현재 Spring은 AI 티켓 제안으로 티켓을 만들지 않는다.
+
+AI 런타임 DB는 Compose가 만들어 주지 않는다. Compose의 PostgreSQL이 이미 만들어진 볼륨에는 초기화 스크립트가 다시 실행되지 않으므로 아래처럼 직접 만든다(계정은 Backend와 같은 `POSTGRES_USER`를 쓰는 로컬 개발용 예시이며, 운영·공용 환경은 최소 권한 계정을 별도로 준비한다).
+
+```bash
+docker compose exec postgres psql -U hops -d hops -c "CREATE DATABASE hops_ai_runtime OWNER hops;"
+docker compose exec -T postgres psql -U hops -d hops_ai_runtime < ai/migrations/001_run_ledger.sql
+docker compose exec -T postgres psql -U hops -d hops_ai_runtime < ai/migrations/002_run_owner.sql
+```
+
+`HOPS_AI_RUNTIME_DSN`은 Compose 안에서 `postgresql://hops:<POSTGRES_PASSWORD>@postgres:5432/hops_ai_runtime` 형식이다. 토큰은 32바이트 난수를 base64url로 만든다.
+
+```bash
+python3 -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b'=').decode())"
+```
 
 ### Spring 전용 내부 조회 API
 

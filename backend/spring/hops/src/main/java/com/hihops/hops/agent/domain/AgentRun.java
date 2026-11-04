@@ -202,6 +202,22 @@ public class AgentRun {
         this.completedAt = completedAt;
     }
 
+    /**
+     * 실행의 결과(AI 제안)·Spring 검증 내용·실패 코드를 남긴다. {@link #finish}보다 먼저, 끝나지 않은 실행에만 부른다.
+     *
+     * @param result AI가 제안한 결과 JSON. 성공이 아니면 null
+     * @param validationResult Spring이 검증한 내용 JSON. 없으면 null
+     * @param errorCode AI 쪽 오류 코드(error_code). 성공이면 null
+     */
+    public void storeOutcome(String result, String validationResult, String errorCode) {
+        if (runStatus != RunStatus.QUEUED && runStatus != RunStatus.RUNNING) {
+            throw new IllegalStateException("이미 끝난 실행의 결과는 바꿀 수 없다: " + runStatus);
+        }
+        this.result = result;
+        this.validationResult = validationResult;
+        this.errorCode = errorCode;
+    }
+
     /** commit 전에 서버가 검증한 요청을 고정한다. 실행 후에는 입력을 교체하지 않는다. */
     public void prepareInput(String snapshot) {
         if (runStatus != RunStatus.QUEUED) throw new IllegalStateException("대기 실행의 입력만 고정할 수 있다");

@@ -1,6 +1,7 @@
 """모델 판단 → 역할 실행·병합 → 재판단 → 최종화를 연결하는 실행 그래프."""
 
-from collections.abc import Mapping
+import logging
+from collections.abc import Callable, Mapping
 from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -14,8 +15,14 @@ from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.decision import SupervisorDecision, decide_next_action
 from hops_ai.supervisor.execution import execute_role
 from hops_ai.supervisor.finalize import finalize_result
-from hops_ai.supervisor.runtime import SupervisorRuntime, describe_run_failure
+from hops_ai.supervisor.runtime import (
+    SupervisorRuntime,
+    describe_failure_for_log,
+    describe_run_failure,
+)
 from hops_ai.supervisor.state import SupervisorState, create_initial_state, transition_phase
+
+logger = logging.getLogger(__name__)
 
 
 class _GraphState(TypedDict):
@@ -33,9 +40,15 @@ class Supervisor:
     실제 서비스 접수·중복 방지·결과 저장은 호출 측 RunLedger 연결이 담당한다.
     """
 
-    def __init__(self, agents: Mapping[AgentRole, Agent] | None = None) -> None:
+    def __init__(
+        self,
+        agents: Mapping[AgentRole, Agent] | None = None,
+        *,
+        available_roles: Callable[[SupervisorState], set[AgentRole]] | None = None,
+    ) -> None:
         """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다."""
         self._agents = dict(build_registry() if agents is None else agents)
+        self._available_roles = available_roles
 
     async def analyze(self, request: AiRunRequest, services: SharedServices) -> AiResult:
         """문의 분석 또는 사례 초안 실행을 최종 AiResult로 반환한다.
@@ -65,7 +78,10 @@ class Supervisor:
             """현재 상태로 다음 행동을 요청하고 검증된 판단만 기록한다."""
             nonlocal current
             current = runtime.sync_state(data["state"])
-            decision = await decide_next_action(current, runtime.services)
+            roles = set(self._agents)
+            if self._available_roles is not None:
+                roles &= self._available_roles(current)
+            decision = await decide_next_action(current, runtime.services, roles)
             current = runtime.sync_state(current)
             current = {**current, "nextAction": decision.nextAction}
             # 모델의 공개 요약도 검증되지 않은 문구다. 최종 답변은 최종화 단계에서
@@ -124,6 +140,11 @@ class Supervisor:
             services.runtime.ensure_active()
             current = candidate
         except Exception as error:
+            # 외부에는 고정된 안전한 오류만 나가므로
+            # 운영자가 원인을 찾을 수 있게 서버 로그에 남긴다.
+            logger.warning(
+                "상담 실행 실패: runId=%s %s", request.runId, describe_failure_for_log(error)
+            )
             phase, failure = describe_run_failure(error)
             current = transition_phase(runtime.sync_state(current), phase, error=failure)
             current = finalize_result(current)

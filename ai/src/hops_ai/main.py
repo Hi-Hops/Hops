@@ -11,8 +11,10 @@ from hops_ai.api.routes import health, runs
 from hops_ai.harness.budget import Clock
 from hops_ai.harness.errors import ComponentNotReady
 from hops_ai.persistence.run_ledger import RunLedger
+from hops_ai.services.llm.openai import OpenAIClient
 from hops_ai.services.runs.admission import RunAdmissionService
 from hops_ai.services.runs.executor import RunExecutor, RunPipeline, server_ceilings
+from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.settings import RunMode, Settings
 
 
@@ -24,8 +26,17 @@ def create_app(
     clock: Clock | None = None,
 ) -> FastAPI:
     resolved = settings or Settings()
-    if resolved.mode is RunMode.REAL:
-        raise ComponentNotReady("real runtime")
+    if resolved.mode is RunMode.REAL and pipeline is None:
+        # 실제 모델 실행은 내부 API·OpenAI 키·모델이 모두 있을 때만 연다.
+        # 하나라도 없으면 Fake로 대체하지 않고 거부한다.
+        key = resolved.openai_api_key.get_secret_value() if resolved.openai_api_key else ""
+        if (
+            not resolved.internal_api_enabled
+            or not key.strip()
+            or not resolved.supervisor_model.strip()
+        ):
+            raise ComponentNotReady("real runtime")
+        pipeline = SupervisorPipeline(OpenAIClient(key, resolved.supervisor_model))
     resolved_ledger = ledger
     if resolved.internal_api_enabled and resolved_ledger is None:
         # 활성 프로필의 DSN과 서비스 토큰은 Settings에서 먼저 검증한다.

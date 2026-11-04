@@ -288,3 +288,38 @@ def test_meta_lists_every_distinct_model_and_prompt_version() -> None:
     assert meta.modelId == "m-a+m-b"
     assert meta.promptVersion == "test.prompt.v1+test.prompt.v2"
     assert (summary.model_calls, summary.input_tokens, summary.output_tokens) == (3, 31, 14)
+
+
+# ------------------------------------------------------------------ 입력 토큰 한도
+
+
+async def test_remaining_input_token_budget_is_passed_to_the_provider(clock, make_settings) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    fake = FakeLLMClient(
+        Reply(text="답"), Reply(text="답"), usage=LLMUsage(input_tokens=400, output_tokens=5)
+    )
+    client, budget, _ = budgeted(fake, clock, make_settings)
+    budget.constrain(
+        max_model_calls=8,
+        max_input_tokens=1000,
+        max_total_output_tokens=12000,
+        max_tool_calls=10,
+        max_run_retries=2,
+        deadline_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+
+    await client.generate(make_request())
+    await client.generate(make_request())
+
+    # 첫 호출은 전체 한도, 두 번째 호출은 첫 호출이 쓴 400토큰을 뺀 나머지가 상한이다
+    assert [request.max_input_tokens for request in fake.requests] == [1000, 600]
+
+
+async def test_input_token_limit_is_absent_when_the_run_has_none(clock, make_settings) -> None:
+    fake = FakeLLMClient(Reply(text="답"))
+    client, _, _ = budgeted(fake, clock, make_settings)
+
+    await client.generate(make_request())
+
+    assert fake.requests[0].max_input_tokens is None

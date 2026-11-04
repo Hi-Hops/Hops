@@ -31,6 +31,7 @@ services:
       context: ./ai
     environment:
       HOPS_AI_MODE: '${HOPS_AI_MODE:-scaffold}'
+      HOPS_AI_SUPERVISOR_MODEL: '${HOPS_AI_SUPERVISOR_MODEL:-gpt-6-luna}'
       HOPS_AI_RUN_DEADLINE_SECONDS: '${HOPS_AI_RUN_DEADLINE_SECONDS:-60}'
       HOPS_AI_LLM_CALL_TIMEOUT_SECONDS: '${HOPS_AI_LLM_CALL_TIMEOUT_SECONDS:-30}'
       HOPS_AI_MAX_LLM_CALLS: '${HOPS_AI_MAX_LLM_CALLS:-8}'
@@ -59,6 +60,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: '${POSTGRES_PASSWORD:?backend/spring/hops/.env에 POSTGRES_PASSWORD를 설정하세요}'
       HOPS_JWT_SECRET: '${HOPS_JWT_SECRET:?backend/spring/hops/.env에 32바이트 이상의 HOPS_JWT_SECRET을 설정하세요}'
       HOPS_AGENT_BASEURL: '${HOPS_AGENT_BASEURL:-http://ai:8000}'
+      # Spring→AI 서비스 토큰. ai/.env의 같은 값을 쓰며 비어 있으면 AI 호출을 보내지 않고 실행을 실패로 끝낸다.
+      AI_SERVICE_TOKEN: '${AI_SERVICE_TOKEN:-}'
       HOPS_CORS_ALLOWEDORIGINS: '${HOPS_CORS_ALLOWEDORIGINS:-http://localhost:${FRONTEND_PORT:-5173},http://127.0.0.1:${FRONTEND_PORT:-5173}}'
       SPRING_DATA_REDIS_HOST: redis
       # 로컬 Docker는 http라 Refresh 쿠키 Secure를 끈다. HTTPS로 공개하는 환경은 .env에서 true로 바꾼다.
