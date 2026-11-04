@@ -38,17 +38,13 @@ import tools.jackson.databind.ObjectMapper;
 @ActiveProfiles({"db", "test"})
 @Transactional
 class TicketControllerTest {
-    @Test void 조회_PR은_티켓_처리와_정정과_해결응답_명령을_제공하지_않는다() throws Exception {
-        for (var path : List.of("/tickets/" + TICKET + "/work-records",
-                "/tickets/" + TICKET + "/processing-type-corrections",
-                "/tickets/" + TICKET + "/assignment-corrections",
-                "/resolution-requests/" + UUID.randomUUID() + "/responses")) {
-            mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v2" + path)
-                    .with(jwt().jwt(value -> value.subject(STAFF.toString())
-                            .claim("policyRevision", 1).claim("primarySystemIds", List.of(SYSTEM.toString()))))
-                    .contentType("application/json").content("{}"))
-                    .andExpect(status().isNotFound());
-        }
+    @Test void 조회는_처리기록이나_AI실행을_생성하지_않는다() throws Exception {
+        var records = jdbc.queryForObject("SELECT count(*) FROM ticket_work_log WHERE ticket_id=?", Integer.class, TICKET);
+        var runs = jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=?", Integer.class, INQUIRY);
+        mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk());
+        mvc.perform(as(STAFF, "/tickets")).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket_work_log WHERE ticket_id=?", Integer.class, TICKET)).isEqualTo(records);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=?", Integer.class, INQUIRY)).isEqualTo(runs);
     }
 
     @Test void 다른_사례_저장흐름의_재사용없음_결과도_저장된_사실로_조회한다() throws Exception {
