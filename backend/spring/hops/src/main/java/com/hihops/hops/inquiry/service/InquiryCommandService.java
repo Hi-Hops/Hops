@@ -1,12 +1,9 @@
 package com.hihops.hops.inquiry.service;
 
 import java.time.Clock;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -91,29 +88,16 @@ public class InquiryCommandService {
                 titleOf(command.content()), InquiryStatus.IN_PROGRESS));
         // 입력 snapshot에 저장 시각(createdAt)을 넣으려고 바로 flush한다
         Message first = messageRepository.saveAndFlush(new Message(inquiry, 1, SenderType.USER, command.content(),
-                payloadOf(command.requestId(), reportedSystemId), MessageStatus.COMPLETED));
+                UserMessagePayload.json(jsonMapper, command.requestId(), reportedSystemId, List.of(), command.content()),
+                MessageStatus.COMPLETED));
         // runId는 저장할 때 정해지므로 빈 입력으로 먼저 저장하고, 같은 거래 안에서 입력을 고정한다
         AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, first, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
-        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, List.of(first),
+        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, List.of(first), List.of(), List.of(),
                 systemQueryService.findSupportedSystems(), clock.instant()));
         inquiry.resumeAnalysis(run);
         eventPublisher.publishEvent(new AgentRunQueued(run.getId()));
         return inquiry.getId();
-    }
-
-    // USER 메시지 payload (docs/DATA.md 11.3). 모든 키를 두고, 해당 없는 값은 null·빈 목록이다.
-    private String payloadOf(UUID requestId, @Nullable UUID reportedSystemId) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("contractVersion", IdempotencyService.CONTRACT_VERSION);
-        payload.put("requestId", requestId);
-        payload.put("answerRunId", null);
-        payload.put("problemLinks", List.of());
-        payload.put("questionBundles", List.of());
-        payload.put("guide", null);
-        payload.put("pendingTarget", false);
-        payload.put("reportedSystemId", reportedSystemId);
-        return jsonMapper.writeValueAsString(payload);
     }
 
     /**
