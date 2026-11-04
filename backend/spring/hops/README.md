@@ -188,6 +188,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 | `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 |
 
 - 테이블 생성·변경은 **Flyway**로 관리합니다. `src/main/resources/db/migration`에 `V1__설명.sql`처럼 버전 붙은 SQL을 추가하면 서버 시작 시 아직 적용하지 않은 것만 실행합니다. 이미 적용된 파일은 고치지 않고 새 버전 파일을 추가합니다.
+- EC2 개발 서버는 Flyway를 실행하지 않습니다(`SPRING_FLYWAY_ENABLED=false`). 새 `V*.sql`은 배포 담당자가 따로 적용해야 배포가 진행되므로 PR 본문에 알리고, 절차는 [EC2 배포 문서의 마이그레이션 경계](../../../deploy/ec2/README.md#마이그레이션-경계)를 따릅니다.
 - 로컬 개발용 가상 데이터는 `db/seed`에 둡니다. `db` 프로필은 `db/migration`과 `db/seed`를 함께 실행하고, 테스트는 `db/migration`만 사용합니다. Flyway와 함께 쓰지 않도록 `data.sql`은 사용하지 않습니다.
 - `ddl-auto=validate`로 Entity와 DB 구조가 맞는지만 검사하고 자동 DDL 변경은 하지 않습니다. SQL 초기화도 비활성화합니다.
 - `open-in-view=false`로 요청 렌더링 단계의 지연 로딩을 사용하지 않습니다.

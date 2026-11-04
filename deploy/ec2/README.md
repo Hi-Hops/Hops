@@ -40,6 +40,17 @@ git -C ~/Hops rev-parse "$VERIFIED_COMMIT:ai/migrations" | sudo tee /var/lib/hop
 
 기준 파일 갱신은 배포를 허용하는 보안상 중요한 작업이다. 실패한 마이그레이션을 성공한 것으로 기록하거나 임의의 최신 tree로 덮어쓰지 않는다. 동시 수동 변경은 배포 잠금 정책을 우회할 수 있으므로 팀이 운영 절차를 합의한다.
 
+### 새 Spring 마이그레이션 적용
+
+EC2의 Spring 컨테이너는 Flyway를 실행하지 않는다(`SPRING_FLYWAY_ENABLED=false`). 새 `V*.sql`이 develop에 병합되면 배포는 tree 불일치로 멈추고, 배포 담당자가 아래 순서로 적용한 뒤에만 다시 진행된다.
+
+1. DB를 백업하고, 새 마이그레이션이 현재 실행 중인 이미지와 함께 동작하는지(컬럼 삭제·이름 변경 여부) 확인한다.
+2. Flyway CLI는 앱과 같은 버전을 쓴다. 앱 버전은 `backend/spring/hops`에서 `./gradlew dependencyInsight --dependency org.flywaydb:flyway-core --configuration runtimeClasspath`로 확인한다(현재 12.4.0).
+3. 대상 위치는 `db/migration`만 지정한다. `db/seed`는 로컬 가상 데이터라 개발 서버 DB에 넣지 않는다.
+4. 앱이 쓰는 DB 계정으로 적용한다. 다른 계정으로 적용했다면 새 테이블·시퀀스의 소유자와 앱 계정 권한을 확인하고 필요한 권한을 부여한다.
+5. `flyway_schema_history`에서 새 버전이 `success`인지 확인한 뒤, 적용한 커밋으로 위 명령을 실행해 `spring-migrations.tree`를 갱신한다.
+6. 실패했던 이전 배포 run이 아니라 **기준을 갱신한 커밋의 배포 run(보통 최신 develop)** 을 다시 실행한다. 다른 커밋의 run은 tree가 달라 다시 실패한다.
+
 ## AWS 일회성 준비
 
 AWS 계정에 장기 액세스 키를 만들거나 저장소에 비밀값을 넣지 않는다. 실제 생성 전 대상 계정·리전·비용과 기존 리소스를 확인한다.
