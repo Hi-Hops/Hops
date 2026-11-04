@@ -70,14 +70,21 @@ class ExtractionInquiryAgent:
     def available_for(self, state: "SupervisorState") -> bool:
         """지금 호출해도 할 일이 있는지.
 
-        Knowledge가 근거를 찾지 못했고 남은 사용법 문제가 모두 담당자 전달 정보를 갖췄다면,
-        다시 호출해도 같은 원문에서 같은 사실을 다시 뽑을 뿐 새 질문을 만들 수 없다.
+        - Knowledge가 근거를 찾지 못했고 남은 사용법 문제가 모두 담당자 전달 정보를 갖췄다면,
+          다시 호출해도 같은 원문에서 같은 사실을 다시 뽑을 뿐 새 질문을 만들 수 없다.
+        - Inquiry가 이미 돌았고 모든 문제에 결과가 준비됐다면, 질문을 만들 문제가 없고 이미 만든
+          질문과 충돌할 위험만 있다.
         사용자가 새 메시지로 답한 다음 실행은 새 State라서 다시 호출할 수 있다.
         """
-        from hops_ai.supervisor.validation import all_unfinished_ready_for_handoff
+        from hops_ai.supervisor.validation import (
+            all_unfinished_ready_for_handoff,
+            inquiry_has_nothing_left_to_do,
+        )
 
-        return state["input"].kind != "INQUIRY_ANALYSIS" or not all_unfinished_ready_for_handoff(
-            state
+        if state["input"].kind != "INQUIRY_ANALYSIS":
+            return True
+        return not (
+            all_unfinished_ready_for_handoff(state) or inquiry_has_nothing_left_to_do(state)
         )
 
     async def run(self, call: "RoleRequest", services: SharedServices) -> InquiryResult:

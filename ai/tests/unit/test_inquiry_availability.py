@@ -18,8 +18,16 @@ from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.policy import get_allowed_roles
+from hops_ai.supervisor.validation import get_problem_progress
 from tests.doubles.llm import FakeLLMClient
-from tests.supervisor_fixtures import MESSAGE, make_details, make_problem
+from tests.supervisor_fixtures import (
+    MESSAGE,
+    make_details,
+    make_evidence,
+    make_problem,
+    make_request,
+    running_state,
+)
 from tests.unit.test_handoff_readiness import how_to
 from tests.unit.test_knowledge_empty_handoff import (
     empty_search,
@@ -124,3 +132,98 @@ async def test_supervisor_after_an_empty_search_no_longer_offers_inquiry_when_re
     # 검색 전과 첫 분석 전에는 Inquiry가 선택지에 있다.
     assert "INQUIRY" in json.loads(llm.requests[2].messages[-1].content)["allowedRoles"]
     assert "INQUIRY" in json.loads(llm.requests[0].messages[-1].content)["allowedRoles"]
+
+
+# --- Inquiry가 이미 돌았고 모든 문제에 결과가 있으면 다시 부르지 않는다 ---
+
+
+def with_inquiry_run(state, *, questions=(), guide=None):
+    """Inquiry가 이미 한 번 돌았고 질문이나 안내가 State에 쌓인 모습."""
+    from hops_ai.contracts.roles import InquiryResult
+    from hops_ai.contracts.wire import QuestionProposal
+
+    result = InquiryResult(
+        invocationId="inv-i", problems=list(state["problems"].values()), questions=[]
+    )
+    asked = {
+        (ref, f"inquiry-{ref.replace(':', '-')}-1"): QuestionProposal(
+            problemRef=ref,
+            bundleRef=f"inquiry-{ref.replace(':', '-')}-1",
+            text="질문",
+            requestedFields=["expectedBehavior"],
+        )
+        for ref in questions
+    }
+    return {
+        **state,
+        "roleResults": {**state["roleResults"], "inv-i": result},
+        "questions": asked,
+        "guide": guide,
+    }
+
+
+def test_inquiry_is_hidden_when_every_problem_already_has_an_outcome() -> None:
+    from hops_ai.contracts.wire import GuideProposal
+
+    base = state_after(
+        None,
+        how_to(taskOrScreen="문서 조회"),
+        how_to(taskOrScreen="로그인").model_copy(
+            update={"problemRef": "new:2", "processingType": "INVESTIGATION"}
+        ),
+    )
+    guide = GuideProposal(messageText="안내", evidenceIds=[make_evidence().id], problemRef="new:1")
+    state = with_inquiry_run(base, questions=["new:2"], guide=guide)
+
+    assert AgentRole.INQUIRY not in roles_for(state)
+
+
+def test_inquiry_stays_while_a_problem_still_has_no_outcome() -> None:
+    base = state_after(
+        None,
+        how_to(taskOrScreen="문서 조회"),
+        how_to(taskOrScreen="로그인").model_copy(
+            update={"problemRef": "new:2", "processingType": "INVESTIGATION"}
+        ),
+    )
+    state = with_inquiry_run(base, questions=["new:2"])
+
+    assert AgentRole.INQUIRY in roles_for(state)
+
+
+def test_inquiry_is_not_hidden_in_a_run_where_it_has_not_run_yet() -> None:
+    # 기존 결과(저장된 티켓)만 있는 후속 실행의 첫 판단에서는 새 메시지를 분석해야 한다.
+    state = running_state(make_request(outcome="STORED"))
+
+    assert [item["outcome"] for item in get_problem_progress(state)] == ["EXISTING_WORK"]
+    assert AgentRole.INQUIRY in roles_for(state)
+
+
+async def test_supervisor_after_a_guide_and_a_question_offers_no_inquiry() -> None:
+    from tests.unit.test_composite_inquiry import _extracted, analyze
+
+    result, llm = await analyze(
+        "전자결재 문서 조회 방법을 알려주세요. 그리고 첨부파일이 열리지 않아요",
+        [
+            _extracted(
+                "문서 조회 방법 문의", "HOW_TO", "ELECTRONIC_APPROVAL", task="문서 조회 방법"
+            ),
+            _extracted(
+                "첨부파일 열람 실패",
+                "OBSERVED_SYMPTOM",
+                "ELECTRONIC_APPROVAL",
+                task="첨부파일",
+                actual="첨부파일이 열리지 않아요",
+            ),
+        ],
+        decision("CALL_ROLE", AgentRole.KNOWLEDGE),
+        decision("ASK_USER"),
+    )
+
+    assert result.status == "SUCCEEDED", result.error
+    assert result.guide is not None and [q.problemRef for q in result.questions] == ["new:2"]
+    after_search = json.loads(llm.requests[3].messages[-1].content)
+    # 안내와 질문으로 모든 문제가 처리됐으므로 Inquiry(와 이미 검색한 Knowledge)는 선택지에 없다.
+    assert after_search["allowedRoles"] == ["TICKET"]
+    first = json.loads(llm.requests[0].messages[-1].content)
+    assert "INQUIRY" in first["allowedRoles"]

@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, TypedDict
 
-from hops_ai.contracts.roles import KnowledgeResult
+from hops_ai.contracts.roles import InquiryResult, KnowledgeResult
 from hops_ai.contracts.wire import (
     AiRunRequest,
     EvidenceStatement,
@@ -118,6 +118,20 @@ def all_unfinished_ready_for_handoff(state: "SupervisorState") -> bool:
         item["problemRef"]: not item["missingForHandoff"] for item in get_handoff_readiness(state)
     }
     return bool(unfinished) and all(ready.get(ref, False) for ref in unfinished)
+
+
+def inquiry_has_nothing_left_to_do(state: "SupervisorState") -> bool:
+    """Inquiry가 이미 한 번 돌았고, 모든 대상 문제에 결과(안내·질문·티켓 등)가 준비됐는지.
+
+    이 상태에서 Inquiry를 다시 부르면 질문을 만들 문제가 없고, 이미 만든 질문과 다른 내용의 질문을
+    같은 묶음에 다시 만들어 병합이 거부될 위험만 있다. 이 실행에서 Inquiry가 아직 돌지 않았다면
+    (이전 실행의 기존 결과만 있는 후속 실행의 첫 판단 등) 새 메시지를 분석해야 하므로
+    해당하지 않는다.
+    """
+    if not any(isinstance(result, InquiryResult) for result in state["roleResults"].values()):
+        return False
+    progress = get_problem_progress(state)
+    return bool(progress) and all(item["outcome"] is not None for item in progress)
 
 
 class ProblemProgress(TypedDict):
