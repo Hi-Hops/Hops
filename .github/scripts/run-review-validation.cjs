@@ -1,6 +1,70 @@
 const { spawnSync } = require('node:child_process');
-const { mkdirSync, readdirSync, writeFileSync } = require('node:fs');
+const { mkdirSync, readdirSync, readFileSync, writeFileSync } = require('node:fs');
 const path = require('node:path');
+
+const SPRING_RESULTS_DIR = 'backend/spring/hops/build/test-results/test';
+const FAILED_TEST_LIMIT = 20;
+const FAILED_MESSAGE_LIMIT = 300;
+
+function decodeXml(text) {
+  return text.replace(/&(lt|gt|quot|apos|amp|#\d+|#x[0-9a-f]+);/gi, (_, entity) => {
+    const named = { lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' }[entity.toLowerCase()];
+    if (named) return named;
+    const code = entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+    return Number.isFinite(code) && code <= 0x10ffff ? String.fromCodePoint(code) : '';
+  });
+}
+
+function attribute(tag, name) {
+  const match = tag.match(new RegExp(`\\s${name}="([^"]*)"`));
+  return match ? decodeXml(match[1]) : '';
+}
+
+// 실패 원인을 남기되 로그 원문·비밀값이 길게 노출되지 않도록 메시지 첫 줄만 짧게 자른다.
+function shortMessage(text) {
+  const line = text.split(/\r?\n/).find(part => part.trim()) || '';
+  const clean = line.replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+  return clean.length > FAILED_MESSAGE_LIMIT ? `${clean.slice(0, FAILED_MESSAGE_LIMIT)}…` : clean;
+}
+
+// Gradle JUnit XML에서 failure·error가 있는 테스트만 뽑는다.
+function collectFailedTests(directory) {
+  let files;
+  try {
+    files = readdirSync(directory).filter(file => /^TEST-.*\.xml$/.test(file)).sort();
+  } catch {
+    return { total: 0, tests: [], error: '테스트 결과 XML 없음' };
+  }
+  const tests = [];
+  let total = 0;
+  for (const file of files) {
+    let xml;
+    try { xml = readFileSync(path.join(directory, file), 'utf8'); } catch { continue; }
+    for (const [, open, body = ''] of xml.matchAll(/(<testcase\b(?:"[^"]*"|[^>"\/])*)(?:\/>|>([\s\S]*?)<\/testcase>)/g)) {
+      const problem = body.match(/<(failure|error)\b((?:"[^"]*"|[^>"\/])*)(?:\/>|>([\s\S]*?)<\/\1>)/);
+      if (!problem) continue;
+      total += 1;
+      if (tests.length >= FAILED_TEST_LIMIT) continue;
+      const message = attribute(problem[2], 'message') || decodeXml(problem[3] || '');
+      tests.push({
+        className: attribute(open, 'classname').slice(0, 200),
+        name: attribute(open, 'name').slice(0, 200),
+        kind: problem[1],
+        type: attribute(problem[2], 'type').slice(0, 200),
+        message: shortMessage(message),
+      });
+    }
+  }
+  return { total, tests };
+}
+
+function formatFailedTests({ total, tests, error }) {
+  if (error) return `[실패 테스트] ${error}`;
+  if (!total) return '[실패 테스트] XML에서 failure·error 테스트를 찾지 못함';
+  const lines = tests.map(test => `- ${test.className} > ${test.name} (${test.kind}: ${test.type}) ${test.message}`);
+  if (total > tests.length) lines.push(`- 외 ${total - tests.length}개`);
+  return `[실패 테스트 ${total}개]\n${lines.join('\n')}`;
+}
 
 function selectAreas(files) {
   const contracts = files.some(file => /^(contracts|specs\/contracts)\//.test(file));
@@ -70,7 +134,16 @@ function validate({ root, files, baseSha, headSha, output, run = execute }) {
       'if docker exec hops-review-db pg_isready -h 127.0.0.1 -U hops -d hops_test; then ' +
       'docker exec hops-review-db psql -U hops -d hops_test -c "CREATE EXTENSION IF NOT EXISTS vector"; exit $?; fi; ' +
       'sleep 2; done; exit 1']);
-    check('Spring 컴파일·테스트', 'bash', ['gradlew', '--no-daemon', 'test'], 'backend/spring/hops', database);
+    const springPassed = check('Spring 컴파일·테스트', 'bash', ['gradlew', '--no-daemon', 'test'],
+      'backend/spring/hops', database);
+    const spring = checks[checks.length - 1];
+    if (!springPassed && spring.status === 'failed') {
+      // 출력 끝부분만으로는 어떤 테스트가 실패했는지 알 수 없어 결과 XML을 요약해 앞에 둔다.
+      const failed = collectFailedTests(path.join(root, SPRING_RESULTS_DIR));
+      spring.failedTests = failed.tests;
+      spring.failedTestCount = failed.total;
+      spring.details = `${formatFailedTests(failed)}\n\n[출력 마지막 부분]\n${spring.details}`;
+    }
   }
   const report = { schemaVersion: 1, baseSha, headSha, areas, checks,
     limitations: [
@@ -83,7 +156,7 @@ function validate({ root, files, baseSha, headSha, output, run = execute }) {
   return report;
 }
 
-module.exports = { selectAreas, validate };
+module.exports = { selectAreas, validate, collectFailedTests };
 if (require.main === module) {
   const baseSha = process.env.BASE_SHA;
   const headSha = process.env.HEAD_SHA;
@@ -96,6 +169,9 @@ if (require.main === module) {
   if (diff.exitCode !== 0) throw new Error('변경 파일 조회 실패');
   const report = validate({ root: process.cwd(), files: diff.details.split('\0').filter(Boolean),
     baseSha, headSha, output: process.env.REVIEW_EVIDENCE_DIR });
-  for (const item of report.checks) console.log(`${item.status}: ${item.name} (${item.command})`);
+  for (const item of report.checks) {
+    console.log(`${item.status}: ${item.name} (${item.command})`);
+    for (const test of item.failedTests || []) console.log(`  - ${test.className} > ${test.name}: ${test.message}`);
+  }
   if (report.checks.some(item => item.status === 'failed')) process.exitCode = 1;
 }
