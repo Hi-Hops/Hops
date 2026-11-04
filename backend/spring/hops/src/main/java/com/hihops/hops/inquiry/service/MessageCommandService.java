@@ -28,19 +28,28 @@ import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.InquiryProblem;
 import com.hihops.hops.inquiry.domain.InquiryStatus;
 import com.hihops.hops.inquiry.domain.Message;
+import com.hihops.hops.inquiry.domain.MessagePayload;
+import com.hihops.hops.inquiry.domain.MessageRevision;
 import com.hihops.hops.inquiry.domain.MessageStatus;
 import com.hihops.hops.inquiry.domain.SenderType;
+import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
+import com.hihops.hops.inquiry.repository.MessageRevisionRepository;
 import com.hihops.hops.itsystem.service.SystemQueryService;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 메시지 전송 (WIRE_CONTRACT 12.2 POST /inquiries/{inquiryId}/messages, 12.8 1~2번).
+ * 메시지 전송·정정 (WIRE_CONTRACT 12.2 POST /inquiries/{inquiryId}/messages, .../messages/{messageId}/revisions, 12.8 1~2번).
+ *
+ * <p>정정({@link #revise})은 같은 메시지의 원문을 바꾸고 차수를 1 올린다. 바꾸기 전 원문은 message_revision에 보존하고,
+ * ID·순번·처음 requestId는 그대로다. 그 뒤는 전송과 같이 입력 버전을 올리고 이전 실행을 대체해 새 실행을 접수하며,
+ * 대상 문제는 그 메시지에 연결된 문제다. 메시지 차수가 다르면 409 MESSAGE_REVISION_CONFLICT,
+ * 이 문의의 USER 메시지가 아니면 404다.
  *
  * <p>문의 행을 잠그고 expectedInquiryVersion을 확인한 뒤 입력 버전을 1 올려 USER 메시지를 저장한다.
  * 진행 중인 문의면 같은 거래에서 이전 활성 실행(QUEUED·RUNNING)을 대체(CANCELLED, 외부 SUPERSEDED)하고,
@@ -64,6 +73,7 @@ public class MessageCommandService {
     private final InquiryRepository inquiryRepository;
     private final InquiryProblemRepository inquiryProblemRepository;
     private final MessageRepository messageRepository;
+    private final MessageRevisionRepository messageRevisionRepository;
     private final AgentRunRepository agentRunRepository;
     private final SystemQueryService systemQueryService;
     private final InputProblemReader inputProblemReader;
@@ -82,20 +92,18 @@ public class MessageCommandService {
                 operationId -> new ResourceRef(ResourceType.INQUIRY, sendMessage(request.actorId(), inquiryId, command)));
     }
 
-    private UUID sendMessage(UUID requesterId, UUID inquiryId, MessageSendCommand command) {
-        Inquiry inquiry = inquiryRepository.findByIdAndDeletedAtIsNull(inquiryId)
-                .filter(found -> found.getRequester().getId().equals(requesterId))
+    /** 트랜잭션 밖(Controller)에서 부른다. */
+    public CommandResult revise(IdempotentRequest request, UUID inquiryId, UUID messageId, MessageReviseCommand command) {
+        inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
-        if (inquiry.getVersion() != command.expectedInquiryVersion()) {
-            throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
-        }
-        if (isClosed(inquiry)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "종료된 문의입니다. 같은 현상은 새 문의로 접수해 주세요.");
-        }
+        return idempotencyService.execute(request, operationId -> new ResourceRef(ResourceType.INQUIRY,
+                reviseMessage(request.actorId(), inquiryId, messageId, command)));
+    }
+
+    private UUID sendMessage(UUID requesterId, UUID inquiryId, MessageSendCommand command) {
+        Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
         List<UUID> problemIds = command.problemIds().stream().distinct().toList();
-        Set<UUID> known = inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiryId).stream()
-                .map(InquiryProblem::getId).collect(Collectors.toSet());
-        if (!known.containsAll(problemIds)) {
+        if (!activeProblemIds(inquiryId).containsAll(problemIds)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "선택한 문제를 찾을 수 없습니다.");
         }
 
@@ -104,20 +112,67 @@ public class MessageCommandService {
         Message message = messageRepository.saveAndFlush(new Message(inquiry, sequenceNo, SenderType.USER,
                 command.content(), UserMessagePayload.json(jsonMapper, command.requestId(), null, problemIds, command.content()),
                 MessageStatus.COMPLETED));
+        startAnalysis(inquiry, message, problemIds);
+        return inquiry.getId();
+    }
 
+    private UUID reviseMessage(UUID requesterId, UUID inquiryId, UUID messageId, MessageReviseCommand command) {
+        Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
+        Message message = messageRepository.findById(messageId)
+                .filter(found -> found.getInquiry().getId().equals(inquiryId) && !found.isDeleted()
+                        && found.getSenderType() == SenderType.USER && found.getMessageStatus() == MessageStatus.COMPLETED)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        if (message.getRevision() != command.expectedMessageRevision()) {
+            throw new BusinessException(ErrorCode.MESSAGE_REVISION_CONFLICT);
+        }
+
+        int previousRevision = message.getRevision();
+        String previousContent = message.getContent();
+        messageRevisionRepository.save(new MessageRevision(message, previousRevision, previousContent));
+        message.revise(command.content(), UserMessagePayload.revised(jsonMapper, message.getPayload(), previousRevision,
+                previousContent, Math.incrementExact(previousRevision), command.content(), command.requestId()));
+        inquiry.recordInput();
+        // 그 사이 삭제된 문제는 대상에서 뺀다
+        Set<UUID> active = activeProblemIds(inquiryId);
+        List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
+                .problemIds(message.getRevision()).stream().filter(active::contains).toList();
+        startAnalysis(inquiry, message, problemIds);
+        return inquiry.getId();
+    }
+
+    private Set<UUID> activeProblemIds(UUID inquiryId) {
+        return inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiryId).stream()
+                .map(InquiryProblem::getId).collect(Collectors.toSet());
+    }
+
+    // 문의 행을 잠그고, 화면이 본 버전이며 아직 끝나지 않은 문의인지 확인한다
+    private Inquiry lockOpenInquiry(UUID requesterId, UUID inquiryId, int expectedInquiryVersion) {
+        Inquiry inquiry = inquiryRepository.findByIdAndDeletedAtIsNull(inquiryId)
+                .filter(found -> found.getRequester().getId().equals(requesterId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        if (inquiry.getVersion() != expectedInquiryVersion) {
+            throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
+        }
+        if (isClosed(inquiry)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "종료된 문의입니다. 같은 현상은 새 문의로 접수해 주세요.");
+        }
+        return inquiry;
+    }
+
+    // 새 입력 버전의 실행을 접수한다: 이전 활성 실행 대체 → 새 실행·불변 입력 → currentRun 연결 → commit 뒤 전달
+    private void startAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds) {
         Instant now = clock.instant();
         AgentRun previous = inquiry.getCurrentRun();
         if (previous != null
                 && (previous.getRunStatus() == RunStatus.QUEUED || previous.getRunStatus() == RunStatus.RUNNING)) {
             previous.finish(RunStatus.CANCELLED, now);
         }
-        AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, message, inquiry.getVersion(), "{}",
+        AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, trigger, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
-        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messageRepository.findAllCompletedInOrder(inquiryId),
+        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messageRepository.findAllCompletedInOrder(inquiry.getId()),
                 inputProblemReader.read(inquiry, problemIds), problemIds, systemQueryService.findSupportedSystems(), now));
         inquiry.resumeAnalysis(run);
         eventPublisher.publishEvent(new AgentRunQueued(run.getId()));
-        return inquiry.getId();
     }
 
     private static boolean isClosed(Inquiry inquiry) {

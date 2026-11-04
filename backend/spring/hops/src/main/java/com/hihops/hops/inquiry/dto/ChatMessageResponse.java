@@ -23,6 +23,6 @@ public record ChatMessageResponse(UUID id, UUID inquiryId, @Nullable UUID reques
     public static ChatMessageResponse of(Message message, MessagePayload payload, List<MessageRevisionResponse> revisions) {
         return new ChatMessageResponse(message.getId(), message.getInquiry().getId(), payload.requestId(),
                 message.getRevision(), message.getSequenceNo(), message.getSenderType(), message.getContent(),
-                payload.problemIds(), List.copyOf(revisions), message.getCreatedAt());
+                payload.problemIds(message.getRevision()), List.copyOf(revisions), message.getCreatedAt());
     }
 }

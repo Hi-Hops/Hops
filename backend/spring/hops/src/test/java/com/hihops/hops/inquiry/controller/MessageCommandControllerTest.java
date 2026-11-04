@@ -33,7 +33,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * 메시지 전송(POST /api/v2/inquiries/{id}/messages)과 거절 기록(REJECTED)을 실제 테스트 DB로 확인한다 (WIRE_CONTRACT 12.1·12.2·12.8).
+ * 메시지 전송·정정(POST /api/v2/inquiries/{id}/messages, .../messages/{messageId}/revisions)과 거절 기록(REJECTED)을
+ * 실제 테스트 DB로 확인한다 (WIRE_CONTRACT 12.1·12.2·12.8).
  *
  * <p>멱등 처리 때문에 트랜잭션 밖에서 실제로 commit하므로 넣은 행을 {@link #cleanup()}에서 지운다.
  * 시스템 코드는 계약 코드만 응답할 수 있어, 다른 테스트와 겹치지 않는 COMMON_LOGIN을 쓴다.
@@ -42,7 +43,7 @@ import tools.jackson.databind.json.JsonMapper;
 @AutoConfigureMockMvc
 @ActiveProfiles({"db", "test"})
 @RecordApplicationEvents
-class MessageSendControllerTest {
+class MessageCommandControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -96,6 +97,8 @@ class MessageSendControllerTest {
                 + "(SELECT id FROM inquiry_problem WHERE inquiry_id IN (" + mine + "))", memberId, otherMemberId);
         jdbc.update("DELETE FROM inquiry_problem WHERE inquiry_id IN (" + mine + ")", memberId, otherMemberId);
         jdbc.update("DELETE FROM agent_run WHERE inquiry_id IN (" + mine + ")", memberId, otherMemberId);
+        jdbc.update("DELETE FROM message_revision WHERE message_id IN "
+                + "(SELECT id FROM message WHERE inquiry_id IN (" + mine + "))", memberId, otherMemberId);
         jdbc.update("DELETE FROM message WHERE inquiry_id IN (" + mine + ")", memberId, otherMemberId);
         jdbc.update("DELETE FROM inquiry WHERE requester_member_id IN (?, ?)", memberId, otherMemberId);
         jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id IN (?, ?)", memberId, otherMemberId);
@@ -319,6 +322,166 @@ class MessageSendControllerTest {
         // 미생성 확인은 진행 중과 구분하고 티켓 ID가 없다
         assertThat(items.get(1).path("outcome").asString()).isEqualTo("NOT_CREATED");
         assertThat(items.get(1).path("ticketId").isNull()).isTrue();
+    }
+
+    @Test
+    void 정정하면_원문을_이력에_남기고_같은_메시지의_차수를_올려_새_실행을_접수한다() throws Exception {
+        String firstRunId = currentRunId();
+        String messageId = firstMessageId();
+        UUID createRequestId = UUID.fromString(jsonMapper.readTree(jdbc.queryForObject(
+                "SELECT payload FROM message WHERE id = ?::uuid", String.class, messageId)).path("requestId").asString());
+        UUID reviseRequestId = UUID.randomUUID();
+
+        revise(memberId, messageId, reviseRequestId, 1, 1, "  로그인 버튼을 눌러도 반응이 없어요\n")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.resource.type").value("INQUIRY"))
+                .andExpect(jsonPath("$.resource.id").value(inquiryId));
+
+        Map<String, Object> message = jdbc.queryForMap("SELECT * FROM message WHERE id = ?::uuid", messageId);
+        assertThat(message.get("content")).isEqualTo("  로그인 버튼을 눌러도 반응이 없어요\n");
+        assertThat(message.get("revision")).isEqualTo(2);
+        assertThat(message.get("sequence_no")).isEqualTo(1); // 대화의 같은 자리에 남는다
+        JsonNode payload = jsonMapper.readTree(message.get("payload").toString());
+        assertThat(payload.path("requestId").asString()).isEqualTo(createRequestId.toString()); // 처음 명령 ID 유지
+        assertThat(payload.path("revisionRequestIds").path("2").asString()).isEqualTo(reviseRequestId.toString());
+        assertThat(jdbc.queryForList("SELECT revision_no || ':' || content FROM message_revision WHERE message_id = ?::uuid",
+                String.class, messageId)).containsExactly("1:로그인이 안 돼요");
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id = ?::uuid", Integer.class, inquiryId))
+                .isEqualTo(2);
+
+        // 이전 실행은 대체되고, 정정한 메시지로 시작한 새 버전 실행이 현재 실행이다
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, firstRunId))
+                .isEqualTo("CANCELLED");
+        String nextRunId = currentRunId();
+        Map<String, Object> next = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", nextRunId);
+        assertThat(next.get("run_status")).isEqualTo("QUEUED");
+        assertThat(next.get("input_version")).isEqualTo(2);
+        assertThat(next.get("trigger_message_id").toString()).isEqualTo(messageId);
+        JsonNode input = currentInput();
+        assertThat(input.path("messages").size()).isEqualTo(1);
+        assertThat(input.path("messages").get(0).path("revision").asInt()).isEqualTo(2);
+        assertThat(input.path("messages").get(0).path("content").asString()).isEqualTo("  로그인 버튼을 눌러도 반응이 없어요\n");
+        assertThat(events.stream(AgentRunQueued.class)).contains(new AgentRunQueued(UUID.fromString(nextRunId)));
+
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(messageId))
+                .andExpect(jsonPath("$.items[0].revision").value(2))
+                .andExpect(jsonPath("$.items[0].requestId").value(createRequestId.toString()))
+                .andExpect(jsonPath("$.items[0].revisions[0].revisionNo").value(1))
+                .andExpect(jsonPath("$.items[0].revisions[0].content").value("로그인이 안 돼요"));
+
+        // 정정으로 시작한 실행이 실패하면 오류의 requestId는 그 정정 요청이다
+        jdbc.update("UPDATE agent_run SET run_status = 'FAILED', error_code = 'MODEL_UNAVAILABLE', completed_at = now() "
+                + "WHERE id = ?::uuid", nextRunId);
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + nextRunId)))
+                .andExpect(jsonPath("$.error.code").value("MODEL_UNAVAILABLE"))
+                .andExpect(jsonPath("$.error.requestId").value(reviseRequestId.toString()));
+        // 처음 실행의 오류는 그대로 처음 명령 ID다
+        jdbc.update("UPDATE agent_run SET run_status = 'FAILED', error_code = 'MODEL_UNAVAILABLE' WHERE id = ?::uuid",
+                firstRunId);
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + firstRunId)))
+                .andExpect(jsonPath("$.error.requestId").value(createRequestId.toString()));
+
+        // 같은 요청 키는 처음 결과이고 이력·실행을 더 만들지 않는다
+        revise(memberId, messageId, reviseRequestId, 1, 1, "  로그인 버튼을 눌러도 반응이 없어요\n").andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM message_revision r JOIN message m ON m.id = r.message_id "
+                + "WHERE m.inquiry_id = ?::uuid")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(2);
+    }
+
+    @Test
+    void 정정할_수_없으면_거절하고_원문을_바꾸지_않는다() throws Exception {
+        String messageId = firstMessageId();
+        UUID aiMessageId = UUID.randomUUID();
+        jdbc.update("INSERT INTO message (id, inquiry_id, sequence_no, sender_type, content, payload, message_status) "
+                + "VALUES (?, ?::uuid, 2, 'AI', '어떤 화면인가요?', '{}', 'COMPLETED')", aiMessageId, inquiryId);
+
+        revise(memberId, messageId, UUID.randomUUID(), 1, 2, "다른 내용")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("MESSAGE_REVISION_CONFLICT"));
+        revise(memberId, messageId, UUID.randomUUID(), 2, 1, "다른 내용")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INQUIRY_VERSION_CONFLICT"));
+        // AI 메시지·없는 메시지·남의 문의는 존재를 알리지 않는다
+        for (String target : List.of(aiMessageId.toString(), UUID.randomUUID().toString())) {
+            revise(memberId, target, UUID.randomUUID(), 1, 1, "다른 내용")
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        }
+        revise(otherMemberId, messageId, UUID.randomUUID(), 1, 1, "다른 내용").andExpect(status().isNotFound());
+        revise(memberId, messageId, UUID.randomUUID(), 1, 1, "\u3000").andExpect(status().isBadRequest());
+        jdbc.update("UPDATE inquiry SET inquiry_status = 'RESOLVED' WHERE id = ?::uuid", inquiryId);
+        revise(memberId, messageId, UUID.randomUUID(), 1, 1, "다른 내용")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        Map<String, Object> message = jdbc.queryForMap("SELECT * FROM message WHERE id = ?::uuid", messageId);
+        assertThat(message.get("content")).isEqualTo("로그인이 안 돼요");
+        assertThat(message.get("revision")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM message_revision r JOIN message m ON m.id = r.message_id "
+                + "WHERE m.inquiry_id = ?::uuid")).isZero();
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id = ?::uuid", Integer.class, inquiryId))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void 정정한_메시지의_문제_연결을_새_원문으로_잇고_그_문제를_대상으로_분석한다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID linked = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        UUID partial = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertStandardRequest(linked, firstRunId, "로그인 실패 조사", "[]");
+        insertStandardRequest(partial, firstRunId, "비밀번호 문의", "[]");
+        String content = "오류 문구는 '계정 잠김'이에요";
+        send(memberId, UUID.randomUUID(), 1, content, List.of(linked)).andExpect(status().isOk());
+        String messageId = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id = ?::uuid AND sequence_no = 2",
+                UUID.class, inquiryId).toString();
+        // 일부 구간에만 걸린 연결(분석이 만든 것)은 새 원문에 옮길 수 없다
+        jdbc.update("UPDATE message SET payload = jsonb_set(payload, '{problemLinks}', payload -> 'problemLinks' || "
+                + "CAST(? AS jsonb)) WHERE id = ?::uuid",
+                "[{\"problemId\": \"" + partial + "\", \"revision\": 1, \"spans\": [{\"start\": 0, \"end\": 5}]}]",
+                messageId);
+
+        String revised = "오류 문구는 '계정이 잠겼습니다'예요";
+        revise(memberId, messageId, UUID.randomUUID(), 2, 1, revised).andExpect(status().isOk());
+
+        JsonNode links = jsonMapper.readTree(jdbc.queryForObject("SELECT payload FROM message WHERE id = ?::uuid",
+                String.class, messageId)).path("problemLinks");
+        assertThat(links.size()).isEqualTo(3); // 1차 연결 2개는 정정 이력 투영을 위해 남는다
+        JsonNode carried = links.get(2);
+        assertThat(carried.path("problemId").asString()).isEqualTo(linked.toString());
+        assertThat(carried.path("revision").asInt()).isEqualTo(2);
+        assertThat(carried.path("spans").get(0).path("end").asInt()).isEqualTo(revised.codePointCount(0, revised.length()));
+
+        JsonNode input = currentInput();
+        assertThat(input.path("inquiryVersion").asInt()).isEqualTo(3);
+        assertThat(input.path("problemIds").size()).isEqualTo(1);
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(linked.toString());
+        assertThat(input.path("messages").get(1).path("problemIds").size()).isEqualTo(1);
+        assertThat(input.path("problems").get(0).path("state").asString()).isEqualTo("ANALYZING");
+        assertThat(input.path("problems").get(1).path("state").asString()).isEqualTo("WAITING_USER");
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(jsonPath("$.items[1].problemIds.length()").value(1))
+                .andExpect(jsonPath("$.items[1].problemIds[0]").value(linked.toString()));
+    }
+
+    private ResultActions revise(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,
+            int expectedMessageRevision, String content) throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("requestId", requestId);
+        body.put("expectedInquiryVersion", expectedInquiryVersion);
+        body.put("expectedMessageRevision", expectedMessageRevision);
+        body.put("content", content);
+        return mockMvc.perform(as(actorId, post("/api/v2/inquiries/" + inquiryId + "/messages/" + messageId + "/revisions"))
+                .header("Idempotency-Key", requestId.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonMapper.writeValueAsString(body)));
+    }
+
+    private String firstMessageId() {
+        return jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id = ?::uuid AND sequence_no = 1", UUID.class,
+                inquiryId).toString();
     }
 
     private String succeedFirstRun() {
