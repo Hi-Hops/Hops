@@ -1,6 +1,5 @@
 import { useSession } from '@/features/auth';
-import { realtime } from '@/shared/realtime';
-import { useConnection } from '../model/connectionStore';
+import { reconnect, useConnection } from '../model/connectionStore';
 import styles from './ConnectionIndicator.module.css';
 
 const labels = {
@@ -30,11 +29,7 @@ export function ConnectionIndicator() {
       aria-label={labels.disconnected}
       title={labels.disconnected}
       onClick={() => {
-        try {
-          if (token) realtime.connect(token);
-        } catch {
-          useConnection.getState().setState('disconnected');
-        }
+        reconnect(token);
       }}
     />
   );

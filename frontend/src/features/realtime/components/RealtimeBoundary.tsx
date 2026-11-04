@@ -5,6 +5,7 @@ import { useSession } from '@/features/auth';
 import { realtime } from '@/shared/realtime';
 import type { SubscriptionTarget } from '@/shared/api/types';
 import { useConnection } from '../model/connectionStore';
+import { ReconnectNotice } from './ReconnectNotice';
 
 export function RealtimeBoundary({ children }: { children: ReactNode }) {
   const token = useSession((session) => session.token);
@@ -99,6 +100,11 @@ export function RealtimeBoundary({ children }: { children: ReactNode }) {
       window.removeEventListener('online', online);
     };
   }, [token]);
-  // 연결 상태는 헤더의 ConnectionIndicator가 표시한다.
-  return <>{children}</>;
+  // 연결 상태는 채팅의 ConnectionIndicator가, 끊김의 수동 재연결은 떠 있는 ReconnectNotice가 맡는다.
+  return (
+    <>
+      <ReconnectNotice />
+      {children}
+    </>
+  );
 }
