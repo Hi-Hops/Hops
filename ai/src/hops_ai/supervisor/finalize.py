@@ -70,9 +70,20 @@ def compose_public_answer(state: SupervisorState) -> str:
         elif outcome == "PROVIDE_GUIDE":
             body = state["guide"].messageText
         elif outcome == "PROPOSE_TICKET":
+            execution = state["ticketCreationResults"].get(item["problemRef"])
+            actual = execution.result.outcome if execution and execution.result else "UNKNOWN"
             body = (
-                "담당자에게 전달할 티켓 제안을 준비했습니다. "
-                "접수 및 담당자 배정 결과는 별도 확인이 필요합니다."
+                {
+                    "STORED": "티켓 생성과 담당자 배정이 확인되었습니다.",
+                    "NOT_CREATED": "티켓이 생성되지 않았습니다. 담당자 배정 상태를 확인해 주세요.",
+                    "PENDING": "티켓 생성 처리 중입니다. 저장 결과 확인이 필요합니다.",
+                    "UNKNOWN": "티켓 저장 여부를 확인하지 못했습니다. 결과 확인이 필요합니다.",
+                }[actual]
+                if execution
+                else (
+                    "담당자에게 전달할 티켓 제안을 준비했습니다. "
+                    "접수 및 담당자 배정 결과는 별도 확인이 필요합니다."
+                )
             )
         elif outcome == "EXISTING_WORK":
             body = {
@@ -185,6 +196,7 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
             caseProposal=None,
             evidence=[],
             error=state["error"],
+            ticketCreationResults=list(state["ticketCreationResults"].values()),
         )
         return {**state, "finalResult": result}
 
@@ -214,6 +226,7 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
             caseProposal=None,
             evidence=list(candidate["evidence"].values()),
             error=None,
+            ticketCreationResults=list(candidate["ticketCreationResults"].values()),
         )
     else:
         if (

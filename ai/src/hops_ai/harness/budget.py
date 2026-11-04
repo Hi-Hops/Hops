@@ -192,6 +192,14 @@ class RunBudget:
             raise BudgetExceeded
         self.tool_calls_used += 1
 
+    def start_tool_retry(self) -> None:
+        """업무 도구 재시도도 모델과 같은 실행 전체 재시도 예산을 소비한다."""
+        self.check_deadline()
+        self.check_limits()
+        if self.max_run_retries is not None and self.retries_used >= self.max_run_retries:
+            raise BudgetExceeded
+        self.retries_used += 1
+
     def start_llm_call(self, *, is_retry: bool = False) -> float:
         """모델 호출 1회를 예약하고 이번 호출에 쓸 제한 시간(초)을 돌려준다.
 

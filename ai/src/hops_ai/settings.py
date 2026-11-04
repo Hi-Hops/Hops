@@ -3,6 +3,7 @@
 import base64
 import binascii
 from enum import StrEnum
+from urllib.parse import urlsplit
 
 from psycopg import ProgrammingError
 from psycopg.conninfo import conninfo_to_dict
@@ -36,6 +37,15 @@ class Settings(BaseSettings):
     # real 모드에서 Supervisor와 역할이 쓰는 OpenAI 모델.
     # 비용 최소화를 기준으로 정하고 실측 후 검토한다.
     supervisor_model: str = "gpt-6-luna"
+    ticket_tools_enabled: bool = True
+    spring_base_url: str | None = None
+    spring_service_token: SecretStr | None = Field(
+        default=None, validation_alias="SPRING_SERVICE_TOKEN"
+    )
+    ticket_http_timeout_seconds: float = Field(default=5, gt=0, le=30)
+    ticket_max_queries: int = Field(default=4, ge=1, le=5)
+    ticket_max_attempts: int = Field(default=3, ge=1, le=3)
+    ticket_poll_interval_seconds: float = Field(default=0.25, ge=0, le=2)
     langfuse_public_key: SecretStr | None = Field(
         default=None, validation_alias="LANGFUSE_PUBLIC_KEY"
     )
@@ -65,6 +75,41 @@ class Settings(BaseSettings):
     def _call_timeout_fits_in_deadline(self) -> "Settings":
         if self.llm_call_timeout_seconds > self.run_deadline_seconds:
             raise ValueError("llm_call_timeout_seconds는 run_deadline_seconds보다 클 수 없다")
+        return self
+
+    @model_validator(mode="after")
+    def _spring_configuration(self) -> "Settings":
+        if self.spring_base_url is not None:
+            url = urlsplit(self.spring_base_url)
+            _ = url.port  # 숫자가 아닌 port도 시작 시 거부한다.
+            if (
+                url.scheme not in ("http", "https")
+                or not url.hostname
+                or url.username is not None
+                or url.password is not None
+                or url.path not in ("", "/")
+                or url.query
+                or url.fragment
+                or any(char.isspace() for char in self.spring_base_url)
+            ):
+                raise ValueError(
+                    "Spring 주소는 인증값·경로·query 없는 고정 HTTP origin이어야 합니다"
+                )
+        if self.spring_service_token is not None:
+            token = self.spring_service_token.get_secret_value()
+            try:
+                decoded = base64.b64decode(
+                    token + "=" * (-len(token) % 4), altchars=b"-_", validate=True
+                )
+                if (
+                    len(decoded) < 32
+                    or base64.urlsafe_b64encode(decoded).decode().rstrip("=") != token
+                ):
+                    raise ValueError
+            except (ValueError, binascii.Error, UnicodeError):
+                raise ValueError(
+                    "SPRING_SERVICE_TOKEN은 최소 32바이트 난수의 base64url이어야 합니다"
+                ) from None
         return self
 
     @model_validator(mode="after")

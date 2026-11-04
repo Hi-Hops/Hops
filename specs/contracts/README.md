@@ -19,13 +19,15 @@
 
 채팅을 연결할 때는 [WIRE12.8절의 송수신 순서](WIRE_CONTRACT.md#128-채팅-송수신-완료-규칙)와 [AI 답변·저장 메시지 연결](../../contracts/agents/README.md#상담-답변과-저장-메시지-연결)을 함께 따른다. 상담 run당 한 최종 메시지, 서버 발급 ID, 질문/가이드와 본문의 관계는 이 계약의 채택값이다.
 
+Ticket의 내부 생성·조회·제한 재시도 REST, 업무 도구 정책, State 및 AiResult.ticketCreationResults 가산 필드는 [Ticket 도구 계약](../../contracts/agents/TICKET_TOOLS.md)을 따른다. Spring 저장 확정과 AI 실행 성공을 구분한다.
+
 ## 프로필과 실제 구현
 
 | 프로필 | 용도 | 구현 상태 |
 |---|---|---|
 | hops-system-1 | PRD 1.44 전체 MVP의 /api/v2·신규 AI wire 계약 | 프론트 UI·DTO·REST/SSE 어댑터·메모리 Mock 구현. Spring은 v2 인증·부서 SSE를 제공하며 신규 업무·시스템 권한 연결은 미완료 |
 | hops-mock-1 | DATA_TYPES 전환 전 절·WIRE 1~10절·기존 mock-profile.json과 공용 JSON | 전환 전 부서 기반 참고 자료. 현재 프론트/테스트는 읽지 않음 |
-| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 실행 wire 검증·서비스 인증·실행 조회·파이프라인 주입 시 접수·백그라운드 실행 구현. 실제 역할·모델·검색 파이프라인·실행 SSE는 미연결 |
+| Python 골격 | Inquiry/Knowledge/Ticket/Curator와 내부 의미 타입 | 실행 wire 검증·서비스 인증·실행 조회·파이프라인 주입 시 접수·백그라운드 실행 구현. Supervisor·Inquiry·Ticket 및 Spring 티켓 도구 경로 연결. Curator 모델·progress/result SSE 연결. Knowledge 실검색·전체 E2E는 별도 |
 
 새 프로필은 시스템·주담당자, 5회 질문·대기, 무티켓 안내·문제별 해결 확인, 처리 기록, 사례 승인·동일 버전 두 저장소 반영을 모두 포함한다. 선점·수락·자동 재배정·무응답 종료·전용 복구 화면은 신규 필수 기능으로 추가하지 않는다.
 

@@ -18,6 +18,7 @@ from hops_ai.services.runs.events import RunEventHub
 from hops_ai.services.runs.executor import RunExecutor, RunPipeline, server_ceilings
 from hops_ai.services.runs.maintenance import LedgerMaintenance
 from hops_ai.services.runs.supervisor import SupervisorPipeline
+from hops_ai.services.tickets import TicketHTTPClient
 from hops_ai.services.tracing import RunTracing
 from hops_ai.settings import RunMode, Settings
 
@@ -54,7 +55,11 @@ def create_app(
                 ),
                 capture_content=resolved.langfuse_capture_content,
             )
-        pipeline = SupervisorPipeline(OpenAIClient(key, resolved.supervisor_model), tracing=tracing)
+        pipeline = SupervisorPipeline(
+            OpenAIClient(key, resolved.supervisor_model),
+            tracing=tracing,
+            ticket_client=TicketHTTPClient(resolved) if resolved.ticket_tools_enabled else None,
+        )
     resolved_ledger = ledger
     if resolved.internal_api_enabled and resolved_ledger is None:
         # 활성 프로필의 DSN과 서비스 토큰은 Settings에서 먼저 검증한다.

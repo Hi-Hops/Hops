@@ -19,6 +19,7 @@ from hops_ai.contracts.wire import (
     KnowledgeEvidence,
     ProblemProposal,
     RequestDetails,
+    TicketExecution,
     TicketProposal,
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
@@ -341,7 +342,12 @@ def merge_knowledge_result(
     return _complete_merge(candidate, result)
 
 
-def merge_ticket_result(state: SupervisorState, result: TicketResult) -> SupervisorState:
+def merge_ticket_result(
+    state: SupervisorState,
+    result: TicketResult,
+    *,
+    verified_results: tuple[TicketExecution, ...] = (),
+) -> SupervisorState:
     """문제별 티켓 제안을 검증하고 같은 문제의 최종 유효 제안을 보존한다.
 
     실제 저장·배정은 하지 않는다. STORED·PENDING·UNKNOWN 작업에는 새 제안을 금지하고
@@ -365,6 +371,13 @@ def merge_ticket_result(state: SupervisorState, result: TicketResult) -> Supervi
     if not _prepare_merge(state, AgentRole.TICKET, result):
         return state
     proposals = dict(state["ticketProposals"])
+    if (
+        not isinstance(verified_results, tuple)
+        or any(not isinstance(item, TicketExecution) for item in verified_results)
+        or list(verified_results) != result.creationResults
+    ):
+        raise OutputRejected("Spring 도구에서 검증하지 않은 티켓 생성 결과다")
+    creations = dict(state["ticketCreationResults"])
     seen: set[str] = set()
     for proposal in result.proposals:
         if proposal.problemRef in seen:
@@ -372,7 +385,22 @@ def merge_ticket_result(state: SupervisorState, result: TicketResult) -> Supervi
         seen.add(proposal.problemRef)
         validate_ticket(state, proposal)
         proposals[proposal.problemRef] = proposal
-    candidate = {**state, "ticketProposals": proposals}
+    if len({item.problemRef for item in verified_results}) != len(verified_results):
+        raise OutputRejected("티켓 생성 결과의 문제 참조가 중복됐다")
+    for outcome in verified_results:
+        if outcome.problemRef not in seen:
+            raise OutputRejected("제안하지 않은 문제의 티켓 생성 결과다")
+        remote = outcome.result
+        if remote is not None and (
+            remote.runId != state["input"].runId
+            or remote.inquiryVersion != state["input"].inquiryVersion
+            or remote.problemRef != outcome.problemRef
+        ):
+            raise OutputRejected("티켓 생성 결과가 실행과 다르다")
+        if outcome.problemRef in creations and creations[outcome.problemRef] != outcome:
+            raise OutputRejected("이미 확인한 티켓 생성 결과를 바꿀 수 없다")
+        creations[outcome.problemRef] = outcome.model_copy(deep=True)
+    candidate = {**state, "ticketProposals": proposals, "ticketCreationResults": creations}
     validate_questions(candidate)
     return _complete_merge(candidate, result)
 

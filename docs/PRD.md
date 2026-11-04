@@ -227,6 +227,8 @@ React는 웹 화면, Spring은 인증·인가·업무 저장과 REST·SSE, Pytho
 
 Supervisor는 모델 판단으로 다음 처리를 선택한다. 실행 코드는 허용 경로와 시간·호출·토큰·재시도 한도를 강제하며 전문 에이전트의 무제한 상호 호출을 허용하지 않는다. 모든 문의에 모든 역할을 호출하지 않으며 역할 수와 모델 호출 수는 다르다.
 
+Ticket은 HOPS 내부 Spring 생성·조회 API를 Python 도구 어댑터로 호출해 실제 생성·배정 결과까지 확인하는 흐름을 담당한다. 저장 확정은 Spring에 남기며 미생성 확인 후에만 제한된 재시도를 허용한다. 구체 계약과 단계별 구현 상태는 [Ticket 도구 계약](../contracts/agents/TICKET_TOOLS.md)을 따른다. 이 내부 업무 도구는 실제 외부 시스템의 쓰기·자동 복구 도구와 구분한다.
+
 사용법은 Inquiry→Knowledge 후 해결 확인, 신청·변경은 Inquiry→필요 시 Knowledge→Ticket, 현상 확인은 Inquiry와 Knowledge의 필요한 상호작용 후 Ticket 또는 근거 안내로 진행한다. Curator는 문의자 상담과 분리된 사후 실행이며 별도 서버 배포를 필수로 요구하지 않는다. Curator 실패는 저장된 처리 기록이나 업무 완료를 취소하지 않는다.
 
 ### 5.3 검색과 관계 데이터

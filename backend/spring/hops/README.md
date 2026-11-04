@@ -14,6 +14,8 @@ PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/co
 
 ## 패키지 구성
 
+Ticket용 내부 REST 생성·조회·제한 재시도 API는 [Ticket 도구 계약](../../../contracts/agents/TICKET_TOOLS.md)을 따른다. `SPRING_SERVICE_TOKEN` 서비스 인증과 V23 전달 journal을 사용한다. Python 도구 어댑터·생성 확인 루프를 연결했고 실제 HTTP로 검증했다. 문의 상세 Problem 투영도 develop 갱신 후 실제 모델 생성 결과로 조회를 확인했다. 질문 상태 저장·공개 work-item 복구·전체 브라우저 E2E는 별도다. Gradle 직접 실행에는 해당 환경변수를 주입해야 한다. 실제 모델 품질 검증과 API/HTTP 검증을 구분한다.
+
 `com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃, [조회 API](#조회-api)의 시스템 목록·내 문의·대화·변경 요청 결과 확인, [부서 SSE](#spring-sse-공통-기반)입니다.
 
 | 패키지 | 역할 |

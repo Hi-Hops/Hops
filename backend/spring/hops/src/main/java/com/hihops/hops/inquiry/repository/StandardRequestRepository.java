@@ -13,14 +13,16 @@ import com.hihops.hops.inquiry.domain.StandardRequest;
 public interface StandardRequestRepository extends JpaRepository<StandardRequest, UUID> {
 
     /**
-     * 결과가 적용된(SUCCEEDED) 실행이 만든 요청서, 문제별 최신 것이 앞에 오도록 (문의 버전·생성 순 내림차순).
+     * 성공한 분석 또는 Ticket API journal로 업무 적용된 요청서. API 생성 뒤 AI가 실패해도 업무 기록은 보존한다.
      * 요청서는 버전마다 쌓이는 이력이고 현재 값은 최신 적용 실행의 행이다 (docs/ERD.md standard_request).
      */
-    @Query("""
-            SELECT s FROM StandardRequest s
-            WHERE s.inquiryProblem.id IN :problemIds
-              AND s.agentRun.runStatus = com.hihops.hops.agent.domain.RunStatus.SUCCEEDED
-            ORDER BY s.inquiryVersion DESC, s.createdAt DESC, s.id DESC
-            """)
+    @Query(value = """
+            SELECT s.* FROM standard_request s JOIN agent_run r ON r.id=s.agent_run_id
+            WHERE s.inquiry_problem_id IN (:problemIds)
+              AND (r.run_status='SUCCEEDED' OR EXISTS (
+                  SELECT 1 FROM agent_ticket_request a
+                  WHERE a.run_id=s.agent_run_id AND a.problem_id=s.inquiry_problem_id))
+            ORDER BY s.inquiry_version DESC, s.created_at DESC, s.id DESC
+            """, nativeQuery = true)
     List<StandardRequest> findAppliedNewestFirst(Collection<UUID> problemIds);
 }

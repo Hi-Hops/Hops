@@ -15,6 +15,7 @@ from hops_ai.contracts.wire import (
     ProblemProposal,
     QuestionProposal,
     RequestDetails,
+    TicketExecution,
     TicketProposal,
 )
 from hops_ai.harness.errors import InputRejected, OutputRejected
@@ -57,6 +58,7 @@ class SupervisorState(TypedDict):
     guide: GuideProposal | None
     answer: str | None
     ticketProposals: dict[str, TicketProposal]
+    ticketCreationResults: dict[str, TicketExecution]
     caseProposal: CaseProposal | None
     roleResults: dict[str, RoleResult]
     pendingCalls: set[str]
@@ -138,6 +140,7 @@ def create_initial_state(request: AiRunRequest) -> SupervisorState:
         guide=None,
         answer=None,
         ticketProposals={},
+        ticketCreationResults={},
         caseProposal=None,
         roleResults={},
         pendingCalls=set(),

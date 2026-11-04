@@ -466,6 +466,50 @@ class CaseProposal(WireModel):
         return self
 
 
+class SpringTicketResult(WireModel):
+    """서비스 인증된 Spring 응답. 모델 출력 스키마로 사용하지 않는다."""
+
+    contractVersion: Literal["hops-system-1"]
+    runId: WireUuid
+    problemRef: WireText
+    workItemId: WireUuid
+    problemId: WireUuid
+    inquiryVersion: Version
+    outcome: Literal["STORED", "NOT_CREATED", "PENDING", "UNKNOWN"]
+    ticketId: WireUuid | None
+    responsibleSystemId: WireUuid | None
+    assigneeId: WireUuid | None
+    attempt: Annotated[StrictInt, Field(ge=1, le=3)]
+    maxAttempts: Annotated[StrictInt, Field(ge=1, le=3)]
+    retryable: StrictBool
+    errorCode: WireText | None
+    updatedAt: WireTime
+
+    @model_validator(mode="after")
+    def validate_storage(self) -> "SpringTicketResult":
+        if self.workItemId != self.problemId or self.attempt > self.maxAttempts:
+            raise ValueError("작업 식별자 또는 시도 횟수가 다릅니다")
+        ids = (self.ticketId, self.responsibleSystemId, self.assigneeId)
+        if self.outcome == "STORED":
+            if any(value is None for value in ids) or self.errorCode is not None or self.retryable:
+                raise ValueError("저장 성공에는 실제 티켓·배정 참조가 필요합니다")
+        elif any(value is not None for value in ids):
+            raise ValueError("저장 미확정에는 성공 참조를 포함하지 않습니다")
+        if self.retryable and not (
+            self.outcome == "NOT_CREATED"
+            and self.errorCode == "ASSIGNMENT_UNAVAILABLE"
+            and self.attempt < self.maxAttempts
+        ):
+            raise ValueError("미생성 확인과 남은 시도 없이 재시도할 수 없습니다")
+        return self
+
+
+class TicketExecution(WireModel):
+    problemRef: WireText
+    result: SpringTicketResult | None
+    errorCode: WireText | None
+
+
 class AiResult(WireModel):
     contractVersion: Literal["hops-system-1"]
     runId: WireUuid
@@ -481,9 +525,24 @@ class AiResult(WireModel):
     caseProposal: CaseProposal | None
     evidence: list[KnowledgeEvidence]
     error: AiError | None
+    # 이전 생산자의 제안 전용 결과를 읽을 수 있는 가산 필드. 신규 출력에는 항상 포함한다.
+    ticketCreationResults: list[TicketExecution] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_result(self) -> "AiResult":
+        refs = [item.problemRef for item in self.ticketCreationResults]
+        if len(refs) != len(set(refs)) or any(
+            item.result is not None
+            and (
+                item.result.runId != self.runId
+                or item.result.problemRef != item.problemRef
+                or item.result.inquiryVersion != self.inquiryVersion
+            )
+            for item in self.ticketCreationResults
+        ):
+            raise ValueError("티켓 생성 결과의 실행·문제·버전이 다릅니다")
+        if self.kind != "INQUIRY_ANALYSIS" and self.ticketCreationResults:
+            raise ValueError("사례 실행에 티켓 생성 결과를 포함하지 않습니다")
         if self.status != "SUCCEEDED":
             if (
                 self.error is None

@@ -183,6 +183,9 @@ def _decision_context(
         "questions": [question.model_dump(mode="json") for question in state["questions"].values()],
         "guide": state["guide"].model_dump(mode="json") if state["guide"] else None,
         "ticketProblemRefs": list(state["ticketProposals"]),
+        "ticketCreationResults": [
+            item.model_dump(mode="json") for item in state["ticketCreationResults"].values()
+        ],
         "caseReady": state["caseProposal"] is not None,
         "existingWorkItems": [item.model_dump(mode="json") for item in request.existingWorkItems],
         "completedCalls": completed,

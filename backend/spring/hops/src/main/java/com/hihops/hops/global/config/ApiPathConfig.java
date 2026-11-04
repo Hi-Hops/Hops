@@ -24,6 +24,7 @@ public class ApiPathConfig implements WebMvcConfigurer {
     @Override
     public void configurePathMatch(PathMatchConfigurer configurer) {
         configurer.addPathPrefix(PREFIX, HandlerTypePredicate.forBasePackage("com.hihops.hops")
-                .and(HandlerTypePredicate.forAnnotation(RestController.class)));
+                .and(HandlerTypePredicate.forAnnotation(RestController.class))
+                .and(type -> !type.getPackageName().startsWith("com.hihops.hops.agent.internal")));
     }
 }

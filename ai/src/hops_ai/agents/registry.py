@@ -7,7 +7,7 @@ from hops_ai.agents.base import Agent
 from hops_ai.agents.curator import CuratorAgent, ModelCuratorAgent
 from hops_ai.agents.inquiry import ExtractionInquiryAgent, InquiryAgent
 from hops_ai.agents.knowledge import KnowledgeAgent
-from hops_ai.agents.ticket import RuleTicketAgent, TicketAgent
+from hops_ai.agents.ticket import ModelTicketAgent, TicketAgent
 from hops_ai.contracts.domain import AgentRole
 
 
@@ -31,6 +31,6 @@ def build_runtime_registry() -> Mapping[AgentRole, Agent]:
     """
     registry = dict(build_registry())
     registry[AgentRole.INQUIRY] = ExtractionInquiryAgent()
-    registry[AgentRole.TICKET] = RuleTicketAgent()
+    registry[AgentRole.TICKET] = ModelTicketAgent()
     registry[AgentRole.CURATOR] = ModelCuratorAgent()
     return MappingProxyType(registry)

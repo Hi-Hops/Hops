@@ -9,6 +9,7 @@ from hops_ai.agents.inquiry import ExtractionInquiryAgent
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.agents.ticket import RuleTicketAgent
+from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest, ProblemProposal
 from hops_ai.harness.errors import OutputRejected
@@ -184,6 +185,17 @@ async def test_supervisor_ends_a_complete_inquiry_with_a_ticket_proposal() -> No
         SupervisorDecision(
             nextAction="CALL_ROLE", role=AgentRole.TICKET, publicSummary="정리합니다."
         ),
+        TicketDecisions(
+            decisions=[
+                TicketDecision(
+                    problemRef="new:1",
+                    title="문서 조회 결과 0건 조사",
+                    responsibleSystemCandidateId=SYSTEM,
+                    supports=[],
+                    knowledgeEvidenceIds=[],
+                )
+            ]
+        ),
         SupervisorDecision(nextAction="PROPOSE_TICKETS", role=None, publicSummary="제안합니다."),
     )
     registry = build_runtime_registry()
@@ -202,4 +214,4 @@ async def test_supervisor_ends_a_complete_inquiry_with_a_ticket_proposal() -> No
     ] * 4
     # 제안일 뿐이며 저장·배정 성공을 주장하지 않는다
     assert "접수 및 담당자 배정 결과는 별도 확인이 필요합니다" in result.answer
-    assert len(llm.requests) == 4
+    assert len(llm.requests) == 5
