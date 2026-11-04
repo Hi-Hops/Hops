@@ -1,10 +1,12 @@
 package com.hihops.hops.realtime.service;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,11 +26,13 @@ import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.realtime.dto.ResyncRequiredEvent;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
+import com.hihops.hops.realtime.dto.TicketChangedEvent;
 
 import jakarta.annotation.PreDestroy;
 
 @Service
 public class RealtimeService {
+    private final AtomicLong ticketNotificationSequence = new AtomicLong();
     private static final Logger log = LoggerFactory.getLogger(RealtimeService.class);
     private final Map<UUID, Connection> connections = new ConcurrentHashMap<>();
     private final RealtimeAuthorization authorization;
@@ -90,6 +94,25 @@ public class RealtimeService {
                                 .name("state.changed").data(event));
                     }
                 });
+    }
+
+    private record TicketStateChanged(UUID eventId, RealtimeTarget.Type targetType, UUID targetId,
+            String resourceType, UUID resourceId, long revision) {}
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void ticketChanged(TicketChangedEvent event) {
+        var targets = new ArrayList<RealtimeTarget>();
+        targets.add(new RealtimeTarget(RealtimeTarget.Type.TICKET, event.ticketId()));
+        event.systemIds().stream().distinct()
+                .forEach(id -> targets.add(new RealtimeTarget(RealtimeTarget.Type.SYSTEM_TICKETS, id)));
+        for (var target : targets) {
+            var signal = new TicketStateChanged(UUID.randomUUID(), target.type(), target.id(), "TICKET",
+                    event.ticketId(), ticketNotificationSequence.incrementAndGet());
+            connections.values().stream().filter(connection -> connection.target.equals(target)).forEach(connection -> {
+                if (connection.authorized()) connection.send(SseEmitter.event().id(signal.eventId().toString())
+                        .name("state.changed").data(signal));
+            });
+        }
     }
 
     /** 로그아웃한 회원의 열린 연결을 모두 닫는다 (WIRE_CONTRACT 10절). 연결의 JWT sub가 회원 ID다. */

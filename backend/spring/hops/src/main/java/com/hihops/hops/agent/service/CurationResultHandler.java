@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.AgentTask;
@@ -19,6 +20,7 @@ import com.hihops.hops.knowledge.repository.ResolvedCaseRepository;
 import com.hihops.hops.ticket.domain.WorkLogType;
 import com.hihops.hops.ticket.repository.TicketRepository;
 import com.hihops.hops.user.repository.MemberRepository;
+import com.hihops.hops.realtime.dto.TicketChangedEvent;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -37,6 +39,7 @@ public class CurationResultHandler implements AgentRunResultHandler {
     private final ResolvedCaseRepository cases;
     private final EntityManager entities;
     private final JsonMapper mapper;
+    private final ApplicationEventPublisher publisher;
 
     @Override
     public AgentTask task() { return AgentTask.CURATION; }
@@ -88,6 +91,7 @@ public class CurationResultHandler implements AgentRunResultHandler {
                 require(proposal.path(field).isNull());
             }
             requireEmpty(proposal.path("limitations")); requireEmpty(proposal.path("entityLinks"));
+            publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
             return mapper.writeValueAsString(Map.of("applied", true, "resources", List.of(), "caseGenerationState", "NO_REUSABLE_CASE"));
         }
         for (var field : List.of("title", "action", "verification", "applicability", "problemStatement")) {
@@ -110,6 +114,7 @@ public class CurationResultHandler implements AgentRunResultHandler {
         draft.recordDraftMetadata(proposal.path("applicability").asString(), work.getConfirmedCause(), work.getAppliedVersion(),
                 metadata.toString(), proposal.path("entityLinks").toString());
         cases.saveAndFlush(draft);
+        publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
         return mapper.writeValueAsString(Map.of("applied", true,
                 "resources", List.of(Map.of("type", "CASE", "id", draft.getId())), "caseGenerationState", "SUCCEEDED"));
     }
