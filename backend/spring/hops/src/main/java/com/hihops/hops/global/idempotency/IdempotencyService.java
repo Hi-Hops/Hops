@@ -22,6 +22,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.global.exception.ErrorResponse;
+import com.hihops.hops.global.filter.RequestIdFilter;
 import com.hihops.hops.user.repository.MemberRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,8 @@ import tools.jackson.databind.json.JsonMapper;
  *       메서드·경로·본문이 같으면 처음 결과를, 다르면 409 IDEMPOTENCY_KEY_REUSED를, 보존 기간이 지났으면 410을 돌려준다.</li>
  *   <li>처음 온 요청이면 한 트랜잭션 안에서 접수 기록(PENDING) → 업무 반영 → 최종 결과(SUCCEEDED)를 저장한다.
  *       업무가 예외를 던지면 기록도 함께 롤백된다.</li>
+ *   <li>업무가 업무 규칙으로 거절하면({@link BusinessException} 4xx) 롤백 뒤 별도 트랜잭션에서 REJECTED와 오류를 기록한다.
+ *       같은 키로 다시 오면 업무를 다시 검사하지 않고 저장한 오류를 그대로 돌려준다 ({@link #isRecordedRejection}).</li>
  *   <li>같은 키 요청이 동시에 오면 DB 중복 불가 제약이 뒤의 요청을 막는다. 뒤의 요청은 먼저 저장된 결과를 돌려준다.</li>
  * </ol>
  *
@@ -55,8 +59,7 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>권한: 같은 키 재확인도 현재 권한 검사 뒤에 한다(WIRE_CONTRACT 12.1). 대상 권한 검사는 execute를 부르기 전에 끝낸다.
  *
- * <p>거절(4xx)은 아직 REJECTED로 기록하지 않는다. 업무와 함께 롤백되므로 같은 키로 다시 오면 다시 검사해 같은 오류를 돌려준다.
- * 후속: #26 "거절된 변경 요청을 REJECTED로 기록(REQUIRES_NEW)".
+ * <p>기록하지 않는 오류: 입력 형식 400(execute 전에 거절), 401·403(같은 키 재확인도 현재 권한으로 다시 검사), 429·5xx(다시 시도할 수 있는 오류).
  */
 @Service
 @RequiredArgsConstructor
@@ -106,6 +109,12 @@ public class IdempotencyService {
             // 같은 키 요청이 동시에 들어와 다른 쪽이 먼저 저장했다. 그 결과를 돌려준다.
             log.info("같은 요청 키 동시 접수: 먼저 저장된 결과를 반환");
             return findPrevious(request, requestHash).orElseThrow(() -> e);
+        } catch (BusinessException e) {
+            if (!isRecordedRejection(e.errorCode())) {
+                throw e;
+            }
+            // 같은 키의 다른 요청이 먼저 결과를 남겼으면 그 결과가 정본이다(다른 본문이면 409 IDEMPOTENCY_KEY_REUSED)
+            return recordRejection(request, requestHash, e).orElseThrow(() -> e);
         }
     }
 
@@ -144,6 +153,47 @@ public class IdempotencyService {
                 .map(record -> UUID.fromString(record.getIdempotencyKey()));
     }
 
+    /**
+     * 같은 키로 다시 와도 같은 오류여야 하는 업무 거절인지. 예: 409 INQUIRY_VERSION_CONFLICT·RUN_NOT_RETRYABLE, 업무 검사 400.
+     * 401·403은 권한이 바뀌면 결과가 달라야 하고, 429는 잠시 뒤 다시 처리해야 해서 기록하지 않는다.
+     */
+    static boolean isRecordedRejection(ErrorCode errorCode) {
+        HttpStatus status = errorCode.status();
+        return status.is4xxClientError() && status != HttpStatus.UNAUTHORIZED && status != HttpStatus.FORBIDDEN
+                && status != HttpStatus.TOO_MANY_REQUESTS;
+    }
+
+    /**
+     * 업무 트랜잭션은 이미 롤백됐다(접수 기록 포함). 거절 결과만 새 트랜잭션으로 남긴다.
+     *
+     * @return 비어 있으면 이 거절을 기록했다. 같은 키의 다른 요청이 먼저 기록했으면 그 기록의 결과
+     *         (거절·다른 본문이면 이 메서드가 그 오류를 던진다)
+     */
+    private Optional<CommandResult> recordRejection(IdempotentRequest request, String requestHash,
+            BusinessException rejection) {
+        UUID operationId = UUID.randomUUID();
+        ErrorResponse error = ErrorResponse.of(rejection.errorCode(), rejection.getMessage(),
+                RequestIdFilter.currentRequestId());
+        CommandReceipt receipt = new CommandReceipt(request.requestId(), operationId, OperationState.REJECTED, null, error);
+        try {
+            transactionTemplate.executeWithoutResult(status -> {
+                IdempotencyRecord record = new IdempotencyRecord(memberRepository.getReferenceById(request.actorId()),
+                        CONTRACT_VERSION, request.httpMethod(), request.requestPath(), request.requestId().toString(),
+                        requestHash, operationId, OperationState.REJECTED, clock.instant().plus(RESULT_RETENTION));
+                record.reject(rejection.errorCode().status().value(), jsonMapper.writeValueAsString(receipt));
+                idempotencyRecordRepository.saveAndFlush(record);
+            });
+            log.info("변경 요청 거절 기록 operationId={} code={}", operationId, rejection.errorCode().name());
+            return Optional.empty();
+        } catch (DataIntegrityViolationException e) {
+            if (!isDuplicateKey(e)) {
+                throw e;
+            }
+            log.info("같은 요청 키 동시 접수: 거절 대신 먼저 저장된 결과를 반환");
+            return Optional.of(findPrevious(request, requestHash).orElseThrow(() -> e));
+        }
+    }
+
     private Optional<CommandResult> findPrevious(IdempotentRequest request, String requestHash) {
         return idempotencyRecordRepository
                 .findByActor_IdAndContractVersionAndIdempotencyKey(request.actorId(), CONTRACT_VERSION,
@@ -174,6 +224,11 @@ public class IdempotencyService {
             throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_REUSED);
         }
         CommandReceipt receipt = receiptOf(record);
+        if (receipt.state() == OperationState.REJECTED) {
+            // 다시 검사하지 않고 처음 거절과 같은 오류로 응답한다 (상태 코드·문구가 같다)
+            log.info("같은 요청 재확인: 기존 거절 반환 operationId={}", record.getOperationId());
+            throw new BusinessException(ErrorCode.valueOf(receipt.error().code()), receipt.error().message());
+        }
         HttpStatus status = receipt.state() == OperationState.SUCCEEDED
                 ? HttpStatus.valueOf(record.getResponseStatus())
                 : HttpStatus.ACCEPTED;
@@ -186,12 +241,10 @@ public class IdempotencyService {
             throw new BusinessException(ErrorCode.OPERATION_RESULT_EXPIRED);
         }
         return switch (record.getOperationState()) {
-            case SUCCEEDED -> jsonMapper.readValue(record.getResponseBody(), CommandReceipt.class);
+            case SUCCEEDED, REJECTED -> jsonMapper.readValue(record.getResponseBody(), CommandReceipt.class);
             // 접수만 됐거나 결과를 확인하지 못함. 업무 대상이 기록돼 있으면 함께 알려준다.
             case PENDING, UNKNOWN -> new CommandReceipt(UUID.fromString(record.getIdempotencyKey()),
                     record.getOperationId(), record.getOperationState(), resourceOf(record), null);
-            // 거절은 업무와 함께 롤백하므로 지금은 기록되지 않는다(클래스 설명). 기록하게 되면 저장한 오류를 담아 돌려준다(후속: #26).
-            case REJECTED -> throw new IllegalStateException("REJECTED 기록은 아직 만들지 않는다: " + record.getOperationId());
         };
     }
 

@@ -48,6 +48,20 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
             """)
     List<Message> findCompletedBefore(UUID inquiryId, int beforeSequenceNo, Limit limit);
 
+    /** 저장이 끝난 메시지 전체, 순번 순. AI 입력의 messages를 만든다. */
+    @Query("""
+            SELECT m FROM Message m
+            WHERE m.inquiry.id = :inquiryId
+              AND m.messageStatus = com.hihops.hops.inquiry.domain.MessageStatus.COMPLETED
+              AND m.deletedAt IS NULL
+            ORDER BY m.sequenceNo
+            """)
+    List<Message> findAllCompletedInOrder(UUID inquiryId);
+
+    /** 다음 메시지 순번을 정할 마지막 순번. 삭제·미완료 행도 (문의, 순번) 유일 제약에 걸리므로 모두 센다. 메시지가 없으면 0. */
+    @Query("SELECT COALESCE(MAX(m.sequenceNo), 0) FROM Message m WHERE m.inquiry.id = :inquiryId")
+    int findLastSequenceNo(UUID inquiryId);
+
     /**
      * 보완 대상을 아직 정하지 못한 메시지 ID (InquiryResult.pendingTargetMessageIds), 보낸 순서대로.
      * payload.pendingTarget=true로 표시한다 (docs/DATA.md 11.3).

@@ -279,7 +279,7 @@ class InquiryCreateControllerTest {
     }
 
     @Test
-    void 잘못된_입력은_400이고_아무것도_저장하지_않는다() throws Exception {
+    void 잘못된_입력은_400이고_문의를_저장하지_않는다() throws Exception {
         // 공백만(전각 공백·줄바꿈 포함), 4,001자, PostgreSQL TEXT에 저장할 수 없는 NUL
         for (String content : List.of("　 \n\t﻿", "가".repeat(4001), "a\u0000b")) {
             create(memberId, UUID.randomUUID(), content, null)
@@ -288,9 +288,14 @@ class InquiryCreateControllerTest {
                     .andExpect(jsonPath("$.fieldErrors[0].field").value("content"))
                     .andExpect(jsonPath("$.fieldErrors[0].code").value("UserContent"));
         }
-        create(memberId, UUID.randomUUID(), "결재 문서가 안 열려요", UUID.randomUUID())
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        // 없는 시스템은 업무 검사에서 거절하므로 REJECTED로 기록하고, 같은 키는 같은 오류를 돌려준다
+        UUID unknownSystemRequest = UUID.randomUUID();
+        UUID unknownSystem = UUID.randomUUID();
+        for (int attempt = 0; attempt < 2; attempt++) {
+            create(memberId, unknownSystemRequest, "결재 문서가 안 열려요", unknownSystem)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        }
         // 헤더 키와 본문 requestId가 다르다
         mockMvc.perform(as(memberId, post(PATH))
                         .header("Idempotency-Key", UUID.randomUUID().toString())
@@ -299,7 +304,9 @@ class InquiryCreateControllerTest {
                 .andExpect(status().isBadRequest());
 
         assertThat(count("SELECT count(*) FROM inquiry WHERE requester_member_id = ?")).isZero();
-        assertThat(count("SELECT count(*) FROM idempotency_key WHERE actor_member_id = ?")).isZero();
+        // 입력 형식 오류는 업무 전에 거절해 기록하지 않는다. 거절 기록은 없는 시스템 1건뿐이다
+        assertThat(jdbc.queryForList("SELECT operation_state FROM idempotency_key WHERE actor_member_id = ?",
+                String.class, memberId)).containsExactly("REJECTED");
     }
 
     @Test

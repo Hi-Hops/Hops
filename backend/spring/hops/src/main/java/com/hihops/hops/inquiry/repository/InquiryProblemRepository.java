@@ -36,4 +36,7 @@ public interface InquiryProblemRepository extends JpaRepository<InquiryProblem, 
     List<InquiryProblemCounts> countByInquiryIds(Collection<UUID> inquiryIds);
 
     boolean existsByInquiry_IdAndDeletedAtIsNull(UUID inquiryId);
+
+    /** 문의의 삭제되지 않은 문제, 문제 번호 순. AI 입력의 problems를 만든다. */
+    List<InquiryProblem> findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(UUID inquiryId);
 }
