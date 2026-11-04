@@ -46,6 +46,12 @@ class SearchKnowledgeAgent:
     def __init__(self, source: KnowledgeSource) -> None:
         self._source = source
 
+    def available_for(self, state: "SupervisorState") -> bool:
+        """지금 호출해도 성립하는지. 안내할 사용법 문제가 없으면 검색할 대상이 없다."""
+        return (
+            state["input"].kind == RunKind.INQUIRY_ANALYSIS and guidable_problem(state) is not None
+        )
+
     async def run(self, call: "RoleRequest", services: SharedServices) -> "RoleResponse":
         # supervisor 패키지는 이 모듈을 불러오는 registry를 거쳐 초기화되므로 호출 시점에 가져온다.
         from hops_ai.supervisor.execution import RoleResponse
@@ -80,20 +86,34 @@ class SearchKnowledgeAgent:
         )
 
 
-def _guide_target(state: "SupervisorState") -> ProblemProposal:
-    """안내할 문제를 고른다. 상태에는 안내가 하나뿐이므로 이미 있으면 거부한다."""
+def guidable_problem(state: "SupervisorState") -> ProblemProposal | None:
+    """안내를 만들 수 있는 문제 하나를 고른다. 없으면 None이다.
+
+    이미 안내가 있거나, 처리 결과가 준비되지 않은 사용법 문제 중 보고 시스템이 정해진 것이 없으면
+    검색할 대상이 없다. Supervisor가 이 역할을 고를 수 있는지 판단하는 데도 쓴다.
+    """
     from hops_ai.supervisor.validation import get_problem_progress
 
     if state["guide"] is not None:
-        raise OutputRejected("이미 안내가 준비되어 더 만들 수 없다")
+        return None
     for item in get_problem_progress(state):
         if item["outcome"] is not None:
             continue
         problem = state["problems"][item["problemRef"]]
         if problem.processingType == "KNOWLEDGE_QA" and problem.reportedSystemCandidateId:
             return problem
-    # 빈 결과로 성공 처리하면 Supervisor가 같은 호출을 반복한다. 대상이 없다고 알린다.
-    raise OutputRejected("안내할 수 있는 사용법 문제가 없다")
+    return None
+
+
+def _guide_target(state: "SupervisorState") -> ProblemProposal:
+    """안내할 문제를 고른다. 상태에는 안내가 하나뿐이므로 이미 있으면 거부한다."""
+    if state["guide"] is not None:
+        raise OutputRejected("이미 안내가 준비되어 더 만들 수 없다")
+    target = guidable_problem(state)
+    if target is None:
+        # 빈 결과로 성공 처리하면 Supervisor가 같은 호출을 반복한다. 대상이 없다고 알린다.
+        raise OutputRejected("안내할 수 있는 사용법 문제가 없다")
+    return target
 
 
 def _build_query(state: "SupervisorState", target: ProblemProposal) -> KnowledgeQuery:

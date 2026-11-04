@@ -159,7 +159,7 @@ async def test_without_a_knowledge_source_the_existing_form_question_is_kept() -
     assert result.guide is None
 
 
-async def test_pipeline_exposes_knowledge_to_the_supervisor_only_when_connected() -> None:
+async def test_pipeline_offers_knowledge_only_once_a_guidable_problem_exists() -> None:
     request = how_to_first_message()
     seen: list[list[str]] = []
 
@@ -171,16 +171,37 @@ async def test_pipeline_exposes_knowledge_to_the_supervisor_only_when_connected(
                 seen.append(json.loads(req.messages[-1].content)["allowedRoles"])
             return await super().generate(req)
 
-    for source, expected in ((None, False), (FixtureKnowledgeSource(), True)):
+    scripts = (
+        (
+            None,
+            [decision("CALL_ROLE", AgentRole.INQUIRY), how_to_extraction(), decision("ASK_USER")],
+        ),
+        (
+            FixtureKnowledgeSource(),
+            [
+                decision("CALL_ROLE", AgentRole.INQUIRY),
+                how_to_extraction(),
+                decision("CALL_ROLE", AgentRole.KNOWLEDGE),
+                decision("PROVIDE_GUIDE"),
+            ],
+        ),
+    )
+    for source, script in scripts:
         seen.clear()
-        llm = Recorder(decision("FINISH"))
+        llm = Recorder(*script)
         pipeline = SupervisorPipeline(llm, knowledge_source=source)
         runtime = services_for(request, llm).runtime
 
-        await pipeline.run(request, runtime)
+        result = await pipeline.run(request, runtime)
 
-        assert seen, "Supervisor 판단이 호출되어야 한다"
-        assert ("KNOWLEDGE" in seen[0]) is expected
+        assert result.status == "SUCCEEDED"
+        # 문제가 아직 없는 첫 판단에서는 검색할 대상이 없어 Knowledge를 고를 수 없다.
+        assert seen[0] == ["INQUIRY", "TICKET"]
+        if source is None:
+            assert all("KNOWLEDGE" not in roles for roles in seen)
+        else:
+            # Inquiry가 안내할 사용법 문제를 만든 뒤에는 선택지에 나타난다.
+            assert seen[1] == ["INQUIRY", "KNOWLEDGE", "TICKET"]
 
 
 @pytest.mark.parametrize("kind", list(KnowledgeSourceKind))
