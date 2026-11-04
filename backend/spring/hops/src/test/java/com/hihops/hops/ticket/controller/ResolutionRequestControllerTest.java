@@ -12,6 +12,37 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ResolutionRequestControllerTest extends TicketCommandFixture {
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hihops.hops.inquiry.service.InquiryAnswerHandler answers;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.hihops.hops.agent.repository.AgentRunRepository runs;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.transaction.support.TransactionTemplate transaction;
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void 마지막_티켓_확인_뒤_분석이_끝나면_현재_문제와_미적용_새문제를_기준으로_문의_상태를_집계한다(boolean newProblem) throws Exception {
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
+        jdbc.update("UPDATE agent_run SET run_status='RUNNING',completed_at=NULL WHERE id=?", analysis);
+        jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", analysis, inquiry);
+        result(command(requester, "/resolution-requests/" + resolutionId + "/responses",
+                mapper.createObjectNode().put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1).put("decision", "RESOLVED")));
+        assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry)).isEqualTo("IN_PROGRESS");
+        var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
+        var output = mapper.createObjectNode().put("answer", "저장된 처리 결과를 확인했습니다.");
+        output.putArray("problemProposals");
+        if (newProblem) ((tools.jackson.databind.node.ArrayNode) output.path("problemProposals")).addObject().put("problemRef", "new:remaining");
+        transaction.executeWithoutResult(status -> {
+            var run = runs.findById(analysis).orElseThrow();
+            answers.apply(run, input, output);
+            run.finish(com.hihops.hops.agent.domain.RunStatus.SUCCEEDED, Instant.now());
+        });
+        assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry))
+                .isEqualTo(newProblem ? "IN_PROGRESS" : "RESOLVED");
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"RESOLVED", "UNRESOLVED"})
     void 문의자_문제투영은_처리기록의_확인요청과_응답후_티켓상태를_반영한다(String decision) throws Exception {

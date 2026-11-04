@@ -52,7 +52,8 @@ class InquiryAnswerHandlerTest {
         inquiries = mock(InquiryRepository.class);
         messages = mock(MessageRepository.class);
         writer = mock(AiAnswerMessageWriter.class);
-        handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events, mock(GuideResultWriter.class));
+        handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events, mock(GuideResultWriter.class),
+                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class));
 
         member = mock(Member.class);
         when(member.getId()).thenReturn(memberId);

@@ -14,6 +14,7 @@ import com.hihops.hops.agent.service.AgentRunResultHandler;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
+import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.realtime.dto.MessageStoredEvent;
 import com.hihops.hops.user.domain.Member;
 
@@ -45,6 +46,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     private final JsonMapper jsonMapper;
     private final ApplicationEventPublisher eventPublisher;
     private final GuideResultWriter guides;
+    private final InquiryProblemRepository problems;
 
     @Override
     public AgentTask task() {
@@ -99,7 +101,19 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         // 저장한 AI 답변을 문의 구독에 알린다. 결과 반영 거래가 commit된 뒤에만 전달된다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), answerMessageId, null));
         inquiry.recordAnalysisResult();
+        completeResolvedInquiry(inquiry, result);
         return validationOf(result, guide);
+    }
+
+    private void completeResolvedInquiry(Inquiry inquiry, JsonNode result) {
+        var current = problems.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiry.getId());
+        if (current.isEmpty() || problems.countUnresolved(inquiry.getId()) != 0
+                || result.path("questions").size() > 0 || result.path("ticketProposals").size() > 0) return;
+        var known = current.stream().map(problem -> problem.getId().toString()).collect(java.util.stream.Collectors.toSet());
+        for (var proposal : result.path("problemProposals")) {
+            if (!known.contains(proposal.path("problemRef").asString())) return; // 미적용 새 문제를 완료로 숨기지 않는다.
+        }
+        inquiry.resolveAfterAnalysis();
     }
 
     private static String answerOf(JsonNode result) {

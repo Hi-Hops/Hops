@@ -119,6 +119,11 @@ public class Inquiry extends BaseEntity {
         resultRevision++;
     }
 
+    /** 현재 분석 결과를 성공 적용하는 거래에서, 미처리 새 제안 없이 모든 저장 문제가 끝났을 때 호출한다. */
+    public void resolveAfterAnalysis() {
+        inquiryStatus = InquiryStatus.RESOLVED;
+    }
+
     /** 새 메시지·정정을 저장할 때 입력 버전을 1 올린다. 이전 버전으로 만든 늦은 결과는 버전이 달라 적용되지 않는다. */
     public void recordInput() {
         version = Math.incrementExact(version);
