@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -71,21 +71,26 @@ const answer: ChatMessage = {
   revisions: [],
   createdAt: '2026-11-01T00:00:00Z',
 };
-const inquiry = (resultRevision: number): InquiryResult => ({
+const inquiry = (resultRevision: number, problems = [problem]): InquiryResult => ({
   id: inquiryId,
   inquiryNumber: 'INQ-TEST',
   inquiryVersion: 1,
   status: 'IN_PROGRESS',
-  problems: [problem],
+  problems,
   currentRun: null,
   pendingTargetMessageIds: [],
   resultRevision,
   createdAt: '2026-11-01T00:00:00Z',
   updatedAt: '2026-11-01T00:00:00Z',
 });
-function chatState(resultRevision: number, active: boolean) {
+function chatState(resultRevision: number, active: boolean, problems = [problem]) {
   return {
-    inquiry: { data: inquiry(resultRevision), isPending: false, isError: false, error: null },
+    inquiry: {
+      data: inquiry(resultRevision, problems),
+      isPending: false,
+      isError: false,
+      error: null,
+    },
     messages: { error: null, isError: false, hasNextPage: false, isFetching: false },
     runQuery: { error: null, isError: false },
     subscription: { denied: false },
@@ -142,4 +147,22 @@ it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨�
   vi.mocked(useSystemChat).mockReturnValue(chatState(2, false));
   view.rerender(<SystemChatView inquiryId={inquiryId} />);
   expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
+});
+
+it('F005-DETAIL-02 보고 시스템과 책임 시스템이 다른 저장 티켓은 결과 카드에 두 시스템을 모두 표시한다', async () => {
+  const [reported, responsible] = systems;
+  if (!problem.ticket) throw new Error('가상 티켓 없음');
+  const moved: Problem = {
+    ...problem,
+    ticket: { ...problem.ticket, reportedSystem: reported, responsibleSystem: responsible },
+  };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [moved]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  await userEvent.click(await screen.findByRole('button', { name: '닫기' }));
+  const row = within(screen.getByRole('region', { name: '문제별 처리 결과' })).getByRole(
+    'listitem',
+    { name: moved.summary },
+  );
+  expect(within(row).getByText(new RegExp(`보고 시스템 ${reported.name}`, 'u'))).toBeVisible();
+  expect(within(row).getByText(`책임 ${responsible.name}`)).toBeVisible();
 });

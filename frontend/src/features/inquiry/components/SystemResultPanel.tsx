@@ -119,8 +119,16 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
       tone: 'plain',
       lead: problem.ticket.ticketNumber,
       title: problem.ticket.title,
-      aside: <span className={styles.chip}>{problem.ticket.responsibleSystem.name}</span>,
-      note: `담당자 ${problem.ticket.assignee.name} · ${
+      // 문의자가 신고한 보고 시스템과 실제 처리하는 책임 시스템을 함께 보여준다.
+      aside: (
+        <span
+          className={styles.chip}
+          title={`책임 시스템 ${problem.ticket.responsibleSystem.name}`}
+        >
+          책임 {problem.ticket.responsibleSystem.name}
+        </span>
+      ),
+      note: `보고 시스템 ${problem.ticket.reportedSystem.name} · 담당자 ${problem.ticket.assignee.name} · ${
         problem.ticket.state in ticketStates
           ? ticketStates[problem.ticket.state as keyof typeof ticketStates]
           : systemStatus(problem.ticket.state).label
