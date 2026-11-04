@@ -89,6 +89,8 @@ class ExtractionInquiryAgent:
         for index, extracted in enumerate(extraction.problems[:MAX_PROBLEMS]):
             original = existing[index] if index < len(existing) else None
             ref = original.id if original is not None else f"new:{index + 1}"
+            # 같은 실행에서 앞서 만든 같은 문제. 다시 호출돼도 이전 확인 사실을 이어받는다.
+            previous = call.state["problems"].get(ref)
             problem, question = _assemble(
                 ref,
                 original,
@@ -99,6 +101,7 @@ class ExtractionInquiryAgent:
                 system_names,
                 guide_first=self._guide_first,
                 knowledge_empty=knowledge_empty,
+                previous=previous,
             )
             problems.append(problem)
             if question is not None:
@@ -142,8 +145,13 @@ def _assemble(
     *,
     guide_first: bool = False,
     knowledge_empty: bool = False,
+    previous: ProblemProposal | None = None,
 ) -> tuple[ProblemProposal, QuestionProposal | None]:
-    """한 문제의 추출 결과를 제안으로 조립한다. 서버가 확정한 값은 모델이 바꾸지 못한다."""
+    """한 문제의 추출 결과를 제안으로 조립한다. 서버가 확정한 값은 모델이 바꾸지 못한다.
+
+    previous: 같은 실행에서 앞서 병합된 같은 문제. 모델은 이전 추출을 모르고 매번 다시 추출하므로
+        구절이 달라질 수 있다. 이전 확인 사실과 값은 코드가 그대로 이어받고 새로 확인된 것만 더한다.
+    """
     if original is not None:
         # 이미 서버가 분류한 문제의 의도·처리 유형·보고 시스템은 유지하고 새 정보만 보강한다.
         intent: Intent = original.intent
@@ -154,7 +162,9 @@ def _assemble(
         processing_type = PROCESSING_TYPES[intent]
         system_id = system_ids.get(extracted.systemCode or "")
 
-    known = _known_values(original, grounded)
+    if previous is not None and system_id is None:
+        system_id = previous.reportedSystemCandidateId
+    known = _known_values(original, grounded, previous)
     # 사용자가 직접 모른다고 말한 것으로 원문에서 확인된 필드만 질문에서 뺀다.
     declared_unknown = {name for name in stated_unknown if name not in known}
     plan = plan_next(
@@ -168,14 +178,17 @@ def _assemble(
         handoff=knowledge_empty and processing_type == "KNOWLEDGE_QA",
     )
 
-    facts = [
-        EvidenceStatement(
-            text=f"{FIELD_LABELS[name]}: {quote}",
-            sourceMessageIds=[message_id],
-            knowledgeEvidenceIds=[],
-        )
-        for name, (message_id, quote) in grounded.items()
-    ]
+    facts = _carry_facts(
+        previous,
+        [
+            EvidenceStatement(
+                text=f"{FIELD_LABELS[name]}: {quote}",
+                sourceMessageIds=[message_id],
+                knowledgeEvidenceIds=[],
+            )
+            for name, (message_id, quote) in grounded.items()
+        ],
+    )
     unknown_names = [name for name in (*declared_unknown, *plan.unknown) if name in FIELD_LABELS]
     unknowns = list(dict.fromkeys(FIELD_LABELS[name] for name in unknown_names))
     details = RequestDetails(
@@ -205,11 +218,28 @@ def _assemble(
     return problem, question
 
 
+def _carry_facts(
+    previous: ProblemProposal | None, found: list[EvidenceStatement]
+) -> list[EvidenceStatement]:
+    """이전 확인 사실을 먼저 두고, 이번에 새로 확인된 사실만 뒤에 더한다."""
+    if previous is None:
+        return found
+    carried = list(previous.facts)
+    return carried + [fact for fact in found if fact not in carried]
+
+
 def _known_values(
-    original: InputProblem | None, grounded: Mapping[str, tuple[str, str]]
+    original: InputProblem | None,
+    grounded: Mapping[str, tuple[str, str]],
+    previous: ProblemProposal | None = None,
 ) -> dict[str, str | None]:
-    """서버가 보존한 이전 값 위에 이번 원문에서 확인한 값을 덮는다."""
+    """이전에 확보한 값 위에 이번 원문에서 확인한 값을 덮는다.
+
+    이전 값은 같은 실행에서 앞서 병합된 값이다. 이번 추출이 같은 필드를 놓쳐도 확보한 정보로 본다.
+    """
     known: dict[str, str | None] = {}
+    if previous is not None:
+        known.update({name: getattr(previous.details, name) for name in DETAIL_FIELDS})
     if original is not None and original.standardRequest is not None:
         previous = original.standardRequest.details
         known.update({name: getattr(previous, name) for name in DETAIL_FIELDS})

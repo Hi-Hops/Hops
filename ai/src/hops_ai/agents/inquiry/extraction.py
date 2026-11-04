@@ -16,7 +16,7 @@ from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import InputMessage, Intent, SupportedSystem
 
-PROMPT_VERSION = "inquiry-extraction-v3"
+PROMPT_VERSION = "inquiry-extraction-v4"
 # 사용자가 직접 모른다고 말한 구절로 인정하는 표현. 인식하지 못하면 필수 질문이 유지되는
 # 쪽(안전한 쪽)으로 실패하므로 표현을 넓히는 것은 평가 데이터가 생긴 뒤에 한다.
 UNKNOWN_EXPRESSION = re.compile(
@@ -59,6 +59,9 @@ SYSTEM_PROMPT = """\
    - requestedAccess: 필요하다고 한 기능이나 권한
    - businessPurpose: 그것이 필요한 업무 목적
    - desiredChange: 바라는 변경이나 결과
+   사용 방법을 묻는 문의(HOW_TO)에서는 사용자가 이 작업으로 최종적으로 하고 싶은 일이나
+   원하는 결과를 expectedBehavior에, 지금 그 일을 하는 방식을 설명한 구절을
+   currentWorkflow에 넣는다.
 2. 서로 다른 요청이 섞여 있으면 문제를 나눈다(최대 3개).
    한 가지 증상의 여러 원인 후보를 문제로 나누지 않는다.
 3. intent 정의
