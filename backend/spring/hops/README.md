@@ -277,9 +277,21 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 시스템 목록은 기존 `GET /api/v2/systems`를 사용합니다. 현재 DB 권한과 Access 발급 당시의 담당 문맥을 비교하므로 기존 Access는 재로그인이 필요합니다. 원문·배정 근거는 현재 문제와 조회자의 공개 범위로 제한하고, 관리자 역할만으로 담당자 내부 내용을 공개하지 않습니다.
 
-조회 쿼리는 `TicketQueryRepository`, `ItSystemQueryRepository`, `TicketProgressQueryRepository`로 분리하며 agent 실행·결과 저장용 Repository와 도메인은 변경하지 않습니다. 사례 생성 결과는 저장된 초안 또는 재사용 없음 결과를 확인해 반환합니다. 처리·정정·해결 확인 응답, AI 호출과 사례 생성·승인·색인은 이 조회 구현에 포함하지 않습니다.
+조회 쿼리는 `TicketQueryRepository`, `ItSystemQueryRepository`, `TicketProgressQueryRepository`로 분리하며 GET은 업무 상태를 변경하거나 AI를 실행하지 않습니다. 사례 생성 결과는 저장된 초안 또는 재사용 없음 결과를 확인해 반환합니다. 처리·정정·해결 확인 저장은 아래 명령 Service가 담당합니다.
 
-`SYSTEM_TICKETS`·`TICKET` SSE는 연결·권한 재검사·heartbeat와 재연결 시 REST 재동기화를 지원합니다. 업무 변경 이벤트 생산자는 후속 연동 범위입니다. `TicketControllerTest`는 실제 PostgreSQL/MockMvc로 조회·권한·공개 범위와 저장된 상태를 검사하며 실제 AI나 브라우저 E2E 검증을 대신하지 않습니다.
+`SYSTEM_TICKETS`·`TICKET` SSE는 연결·권한 재검사·heartbeat와 재연결 시 REST 재동기화를 지원합니다. 업무 저장·Curator 적용의 commit 뒤 `state.changed`를 보내며, 전송 직전 현재 권한을 재검사합니다. PostgreSQL/MockMvc 검사는 실제 AI나 브라우저 E2E 검증을 대신하지 않습니다.
+
+## 티켓 처리·정정·해결 확인 API
+
+- `POST /api/v2/tickets/{ticketId}/work-records`: 진행·실패·검증 완료 기록을 저장합니다. 검증 완료는 확인 요청과 CASE_DRAFT 접수를 같은 거래로 보존합니다. 확인 대기 중에는 모든 새 기록을 거절하고 문의자의 미해결 응답 후 다시 허용합니다.
+- `POST /api/v2/tickets/{ticketId}/processing-type-corrections`: 현재 PRIMARY가 미완료 조사/장애 유형을 근거와 함께 정정합니다.
+- `POST /api/v2/tickets/{ticketId}/assignment-corrections`: 현재 PRIMARY 또는 관리자가 책임 시스템을 정정합니다. 서버가 새 PRIMARY를 결정하며 배정 이력·진행 중 확인 요청을 보존합니다.
+- `GET /api/v2/resolution-requests/{resolutionRequestId}`: 문의 소유자 또는 원 티켓의 현재 PRIMARY가 저장된 확인 요청을 조회합니다. GUIDE는 문의 소유자만 조회합니다. 조회·응답 모두 권한 밖 ID와 없는 ID에는 동일한 404 NOT_FOUND를 반환합니다.
+- `POST /api/v2/resolution-requests/{resolutionRequestId}/responses`: 문의 소유자가 한 번 응답합니다. GUIDE 미해결은 같은 문제·입력 버전·질문 횟수·확인 문맥과 기존 분류를 유지한 재분석으로 접수합니다.
+
+명령은 본문 requestId와 같은 Idempotency-Key를 보내며 CommandReceipt를 반환합니다. Controller는 입력·응답, Service는 현재 인가·멱등 업무, Repository는 문의→티켓 순서의 잠금을 담당합니다. 확인 요청 조회·원 기록 검증은 `ResolutionRequestReader`, 응답 저장은 `ResolutionRequestService`로 나눴습니다. 문의 입력 버전과 도메인 revision을 구분하고 다른 분석이 진행 중이면 티켓 확인만으로 문의를 완료하지 않습니다. 분석 성공 결과를 적용할 때 현재 문제 상태를 다시 집계하며, 미적용 새 문제·질문·티켓 제안이 있으면 진행 상태를 유지합니다.
+
+AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다. `CurationInputFactory`와 `CurationResultHandler`가 CASE_DRAFT 입력·결과를 담당하며 원 조치·검증·원인·적용 버전과 제한 조건을 보존합니다. 해당 문제의 공개 가능한 USER 원문 구간만 불변 입력에 고정하고, 재사용 초안의 출처·APPLIES_TO 근거를 그 입력과 대조해 보존합니다. AI 메시지·보완 대상 대기·다른 문제의 구간은 원문으로 보내지 않으며 SYSTEM_STAFF 공개 범위를 넓히지 않습니다. 외부 실패는 저장한 업무를 취소하지 않습니다. Curator 결과 적용 전 원 확인 요청을 잠금 안에서 다시 읽고 이미 미해결이면 새 초안을 저장하지 않으며 NO_REUSABLE_CASE로 처리합니다. 이미 저장한 초안은 업무 이력으로 보존하고 승인 시 별도 검증합니다. 문의 Problem/GUIDE 결과 투영과 Python Curator는 develop 구현을 유지합니다. 검증된 GUIDE 결과는 GuideResultWriter가 대상 문제·적용 표준 요청·안내 메시지의 PENDING 해결 확인 요청을 같은 거래로 저장합니다. 일반 문제 분리·질문·티켓 제안 저장과 사례 조회·승인·색인은 남아 있습니다. Spring AI 연동 회귀 테스트는 가상 응답을 사용하며 실제 모델 통합 결과와 구분합니다.
 
 ## 문의 생성·조회 API
 
@@ -324,7 +336,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 | 구현 항목 | 현재 동작 |
 |---|---|
 | 대상 권한 | 현재 DB 회원·부서·역할과 토큰 문맥을 비교합니다. 현재 처리 부서 구성원 또는 BIZ_ADMIN만 허용합니다. 없는 부서는 404입니다. |
-| 문의·시스템·개별 티켓 대상 | `SYSTEM_TICKETS`·`TICKET`은 현재 시스템 담당 관계와 관리자 공개 범위를 검사해 구독합니다. `INQUIRY`는 토큰·소속·역할 검사 뒤 문의자 본인의 삭제되지 않은 문의만 구독합니다(남의 문의·없는 문의는 404). 티켓 업무 변경 이벤트 생산자는 아직 연결하지 않았습니다. |
+| 문의·시스템·개별 티켓 대상 | `SYSTEM_TICKETS`·`TICKET`은 현재 시스템 담당 관계와 관리자 공개 범위를 검사해 구독합니다. `INQUIRY`는 토큰·소속·역할 검사 뒤 문의자 본인의 삭제되지 않은 문의만 구독합니다(남의 문의·없는 문의는 404). 티켓 업무 commit 후 변경 신호를 전송합니다. |
 | 메시지 저장 알림 | 문의 생성·메시지 전송·정정·AI 답변 저장이 commit되면 그 문의 구독에 `message.stored` `{eventId, inquiryId, inquiryVersion, messageId, requestId}`를 보냅니다(AI 답변은 `requestId=null`). 본문은 싣지 않으며 프론트는 문의·메시지를 다시 조회합니다. 보내기 직전에 구독 권한을 다시 확인합니다. |
 | 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
 | 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
@@ -333,7 +345,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 업무 서비스는 `ApplicationEventPublisher.publishEvent(...)`로 `realtime/dto/StateChangedEvent`를
 자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
-메시지 저장은 `realtime/dto/MessageStoredEvent`를 같은 방식으로 발행합니다. 외부 이벤트 발행용 HTTP API는 제공하지 않습니다. AI 접수 뒤 별도 수신 풀에서 내부 progress/result SSE를 구독하며 snapshot 폴링도 즉시 병행합니다. 현재 RUNNING 상담 실행·문의 입력 버전이 맞는 진행만 `agent.progress`로 중계하고 전송 직전 구독 권한을 다시 검사합니다. CURATOR 진행은 문의자에게 보내지 않습니다. 내부 seq를 공개 stepNo로 사용하고 공개 eventId는 새로 발급합니다. SSE 최종 결과와 snapshot은 dispatcher 한 경로에서 한 번만 적용합니다. 스트림 종료·오류·수신 풀 포화 시 snapshot 폴링으로 완료를 확인하며 업무 명령을 다시 만들지 않습니다. INQUIRY의 `state.changed`(실행 종료 등)와 `answer.delta`는 아직 연결하지 않았습니다.
+메시지 저장은 `realtime/dto/MessageStoredEvent`를 같은 방식으로 발행합니다. 티켓 업무 저장과 변경 이벤트는 위 명령 API에 연결했습니다. 외부 이벤트 발행용 HTTP API는 제공하지 않습니다. AI 접수 뒤 별도 수신 풀에서 내부 progress/result SSE를 구독하며 snapshot 폴링도 즉시 병행합니다. 현재 RUNNING 상담 실행·문의 입력 버전이 맞는 진행만 `agent.progress`로 중계하고 전송 직전 구독 권한을 다시 검사합니다. CURATOR 진행은 문의자에게 보내지 않습니다. 내부 seq를 공개 stepNo로 사용하고 공개 eventId는 새로 발급합니다. SSE 최종 결과와 snapshot은 dispatcher 한 경로에서 한 번만 적용합니다. 스트림 종료·오류·수신 풀 포화 시 snapshot 폴링으로 완료를 확인하며 업무 명령을 다시 만들지 않습니다. INQUIRY의 `state.changed`(실행 종료 등)와 `answer.delta`는 아직 연결하지 않았습니다.
 
 현재는 단일 Spring 프로세스의 연결만 관리합니다. 로그인 세션 종료 시 회원 단위 SSE 정리는 연결했습니다.
 부서·역할 변경을 즉시 모든 연결에 통지하는 `auth.invalidated`는 아직 없습니다.

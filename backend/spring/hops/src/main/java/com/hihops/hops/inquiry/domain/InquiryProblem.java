@@ -135,4 +135,18 @@ public class InquiryProblem extends BaseEntity {
     public AgentRun getAgentRun() {
         return agentRun;
     }
+
+    public void respondGuide(boolean resolved, Instant at, AgentRun reanalysis) {
+        problemStatus = resolved ? ProblemStatus.RESOLVED_WITHOUT_TICKET : ProblemStatus.CLARIFYING;
+        resolvedAt = resolved ? at : null;
+        confirmRequestedAt = null;
+        if (reanalysis != null) agentRun = reanalysis;
+    }
+
+    public void requestGuideConfirmation(AgentRun run, Instant at) {
+        problemStatus = ProblemStatus.GUIDED;
+        confirmRequestedAt = at;
+        resolvedAt = null;
+        agentRun = run;
+    }
 }

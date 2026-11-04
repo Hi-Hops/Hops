@@ -150,4 +150,32 @@ public class Ticket extends BaseEntity {
     public int getVersion() {
         return version;
     }
+
+    public void recordWork(boolean verified, Instant at) {
+        if (verified) {
+            ticketStatus = TicketStatus.WAITING_CONFIRM;
+            confirmRequestedAt = at;
+        } else if (ticketStatus == TicketStatus.OPEN) {
+            ticketStatus = TicketStatus.IN_PROGRESS;
+        }
+        markUpdated();
+    }
+
+    public void correctWorkType(TicketWorkType type) {
+        workType = type;
+        markUpdated();
+    }
+
+    public void correctAssignment(ItSystem system, Member primary) {
+        responsibleSystem = system;
+        assignee = primary;
+        markUpdated();
+    }
+
+    public void respondResolution(boolean resolved, Instant at) {
+        ticketStatus = resolved ? TicketStatus.RESOLVED : TicketStatus.IN_PROGRESS;
+        resolvedAt = resolved ? at : null;
+        confirmRequestedAt = null;
+        markUpdated();
+    }
 }

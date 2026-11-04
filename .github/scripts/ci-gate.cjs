@@ -1,5 +1,5 @@
 function evaluate(needs) {
-  if (needs.changes?.result !== 'success') return false;
+  if (needs.changes?.result !== 'success' || needs.whitespace?.result !== 'success') return false;
   const outputs = needs.changes.outputs || {};
   for (const [output, job] of [['spring', 'spring'], ['frontend', 'frontend'], ['ai', 'ai'], ['deployment', 'deployment-checks']]) {
     const selected = outputs[output];
