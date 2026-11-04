@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,68 @@ class TicketAgentDispatchTest extends TicketCommandFixture {
     @Autowired
     private ResolvedCaseRepository cases;
 
+    @org.junit.jupiter.api.BeforeEach
+    void userSource() {
+        var payload = mapper.createObjectNode();
+        payload.putArray("problemLinks").addObject().put("problemId", problem.toString()).put("revision", 1)
+                .putArray("spans").addObject().put("start", 0).put("end", 5);
+        jdbc.update("UPDATE message SET sender_type='USER',content='결재 오류',payload=?::jsonb WHERE id=?", payload.toString(), message);
+    }
+
+    private JsonNode sourcedSnapshot(String runId) {
+        var snapshot = (tools.jackson.databind.node.ObjectNode) reusableSnapshot(runId, json("[]"));
+        var proposal = (tools.jackson.databind.node.ObjectNode) snapshot.path("result").path("caseProposal");
+        proposal.putArray("sourceMessageIds").add(message.toString());
+        proposal.putArray("entityLinks").addObject().put("relation", "APPLIES_TO").put("targetId", system.toString())
+                .putArray("evidenceIds").add(message.toString());
+        return snapshot;
+    }
+
+    @Test void Curator의_USER_출처와_시스템연결을_검증해_초안에_보존한다() throws Exception {
+        userSource();
+        when(client.snapshot(any())).thenAnswer(invocation -> sourcedSnapshot(invocation.getArgument(0, String.class)));
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo("SUCCEEDED"));
+        var metadata = json(jdbc.queryForObject("SELECT confirmed_facts::text FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket));
+        assertThat(metadata.path("sourceMessageIds")).isEqualTo(mapper.valueToTree(java.util.List.of(message)));
+        var links = json(jdbc.queryForObject("SELECT relation_candidates::text FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket));
+        assertThat(links.get(0).path("evidenceIds")).isEqualTo(metadata.path("sourceMessageIds"));
+        assertThat(detail().path("activeResolutionRequest").path("state").asString()).isEqualTo("PENDING");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"unknown", "empty", "duplicate", "not-uuid", "link-unknown", "link-empty", "wrong-system", "broader-scope", "ai-source", "other-problem-source"})
+    void 잘못된_출처나_연결은_초안만_거절하고_원업무를_보존한다(String invalid) throws Exception {
+        if ("ai-source".equals(invalid)) jdbc.update("UPDATE message SET sender_type='AI' WHERE id=?", message);
+        if ("other-problem-source".equals(invalid)) jdbc.update("UPDATE message SET payload='{}'::jsonb WHERE id=?", message);
+        when(client.snapshot(any())).thenAnswer(invocation -> {
+            var snapshot = sourcedSnapshot(invocation.getArgument(0, String.class));
+            var proposal = (tools.jackson.databind.node.ObjectNode) snapshot.path("result").path("caseProposal");
+            var link = (tools.jackson.databind.node.ObjectNode) proposal.path("entityLinks").get(0);
+            switch (invalid) {
+                case "unknown" -> proposal.putArray("sourceMessageIds").add(UUID.randomUUID().toString());
+                case "empty" -> { proposal.putArray("sourceMessageIds"); proposal.putArray("entityLinks"); }
+                case "duplicate" -> proposal.putArray("sourceMessageIds").add(message.toString()).add(message.toString());
+                case "not-uuid" -> proposal.putArray("sourceMessageIds").add("forged-source");
+                case "link-unknown" -> link.putArray("evidenceIds").add(UUID.randomUUID().toString());
+                case "link-empty" -> link.putArray("evidenceIds");
+                case "wrong-system" -> link.put("targetId", otherSystem.toString());
+                case "broader-scope" -> proposal.put("accessScope", "EMPLOYEE");
+                case "ai-source", "other-problem-source" -> { }
+                default -> throw new IllegalArgumentException(invalid);
+            }
+            return snapshot;
+        });
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo("FAILED"));
+        assertThat(jdbc.queryForObject("SELECT error_code FROM agent_run WHERE ticket_id=?", String.class, ticket)).isEqualTo("INVALID_OUTPUT");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", Integer.class, ticket)).isZero();
+        assertThat(detail().path("workRecords").size()).isEqualTo(1);
+        assertThat(detail().path("activeResolutionRequest").path("state").asString()).isEqualTo("PENDING");
+    }
+
     private tools.jackson.databind.node.ObjectNode successfulResult(String runId) {
         var result = mapper.createObjectNode().put("contractVersion", "hops-system-1")
                 .put("runId", runId).put("kind", "CASE_DRAFT")
@@ -44,7 +107,7 @@ class TicketAgentDispatchTest extends TicketCommandFixture {
         proposal.put("reusable", true).put("title", "가상 사례").put("action", "모델 제안 조치")
                 .put("verification", "모델 제안 검증").put("problemStatement", "가상 문제")
                 .put("applicability", "가상 환경 전용").put("accessScope", "SYSTEM_STAFF");
-        proposal.putArray("sourceMessageIds"); proposal.putArray("entityLinks");
+        proposal.putArray("sourceMessageIds").add(message.toString()); proposal.putArray("entityLinks");
         proposal.putNull("appliesToSystemVersion");
         if (limitations != null) proposal.set("limitations", limitations);
         var snapshot = mapper.createObjectNode().put("status", "SUCCEEDED");

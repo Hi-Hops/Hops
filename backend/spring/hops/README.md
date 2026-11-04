@@ -288,7 +288,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 명령은 본문 requestId와 같은 Idempotency-Key를 보내며 CommandReceipt를 반환합니다. Controller는 입력·응답, Service는 현재 인가·멱등 업무, Repository는 문의→티켓 순서의 잠금을 담당합니다. 확인 요청 조회·원 기록 검증은 `ResolutionRequestReader`, 응답 저장은 `ResolutionRequestService`로 나눴습니다. 문의 입력 버전과 도메인 revision을 구분하고 다른 분석이 진행 중이면 티켓 확인만으로 문의를 완료하지 않습니다.
 
-AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다. `CurationInputFactory`와 `CurationResultHandler`가 CASE_DRAFT 입력·결과를 담당하며 원 조치·검증·원인·적용 버전과 제한 조건을 보존합니다. 외부 실패는 저장한 업무를 취소하지 않습니다. 문의 Problem/GUIDE 결과 투영과 Python Curator는 develop 구현을 유지합니다. CASE_DRAFT 원문·출처 계약의 Spring 연결 조정과 실제 Curator 통합 검증, AI 문제·티켓·안내 저장, 사례 조회·승인·색인은 남아 있습니다. AI 연동 테스트는 가상 응답을 사용합니다.
+AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다. `CurationInputFactory`와 `CurationResultHandler`가 CASE_DRAFT 입력·결과를 담당하며 원 조치·검증·원인·적용 버전과 제한 조건을 보존합니다. 해당 문제의 공개 가능한 USER 원문 구간만 불변 입력에 고정하고, 재사용 초안의 출처·APPLIES_TO 근거를 그 입력과 대조해 보존합니다. AI 메시지·보완 대상 대기·다른 문제의 구간은 원문으로 보내지 않으며 SYSTEM_STAFF 공개 범위를 넓히지 않습니다. 외부 실패는 저장한 업무를 취소하지 않습니다. 문의 Problem/GUIDE 결과 투영과 Python Curator는 develop 구현을 유지합니다. AI 문제·티켓·안내 저장과 사례 조회·승인·색인은 남아 있습니다. Spring AI 연동 회귀 테스트는 가상 응답을 사용하며 실제 모델 통합 결과와 구분합니다.
 
 ## 문의 생성·조회 API
 

@@ -3,6 +3,8 @@ package com.hihops.hops.agent.service;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
@@ -77,29 +79,32 @@ public class CurationResultHandler implements AgentRunResultHandler {
         require(result.path("answer").isNull() && result.path("guide").isNull() && result.path("error").isNull());
         var proposal = result.path("caseProposal");
         require(proposal.path("reusable").isBoolean());
-        requireEmpty(proposal.path("sourceMessageIds")); // CASE_DRAFT 입력에는 메시지 원문을 보내지 않는다.
         require(proposal.path("limitations").isArray());
         for (var limitation : proposal.path("limitations")) require(limitation.isString());
         require(proposal.path("entityLinks").isArray());
-        for (var link : proposal.path("entityLinks")) {
-            require(link.isObject() && "APPLIES_TO".equals(link.path("relation").asString())
-                    && ticket.getResponsibleSystem().getId().toString().equals(link.path("targetId").asString()));
-            requireEmpty(link.path("evidenceIds"));
-        }
         if (!proposal.path("reusable").asBoolean()) {
             for (var field : List.of("title", "action", "verification", "applicability", "problemStatement", "accessScope", "appliesToSystemVersion")) {
                 require(proposal.path(field).isNull());
             }
             requireEmpty(proposal.path("limitations")); requireEmpty(proposal.path("entityLinks"));
+            requireEmpty(proposal.path("sourceMessageIds"));
             publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
             return mapper.writeValueAsString(Map.of("applied", true, "resources", List.of(), "caseGenerationState", "NO_REUSABLE_CASE"));
+        }
+        var sources = sourceIds(proposal.path("sourceMessageIds"));
+        require(!sources.isEmpty() && allowedSourceIds(input, ticket.getInquiryProblem().getId()).containsAll(sources));
+        for (var link : proposal.path("entityLinks")) {
+            require(link.isObject() && "APPLIES_TO".equals(link.path("relation").asString())
+                    && ticket.getResponsibleSystem().getId().toString().equals(link.path("targetId").asString()));
+            var evidence = sourceIds(link.path("evidenceIds"));
+            require(!evidence.isEmpty() && sources.containsAll(evidence));
         }
         for (var field : List.of("title", "action", "verification", "applicability", "problemStatement")) {
             require(proposal.path(field).isString() && !proposal.path(field).asString().isBlank());
         }
         var title = proposal.path("title").asString();
         require(title.codePointCount(0, title.length()) <= 200);
-        require(List.of("EMPLOYEE", "SYSTEM_STAFF").contains(proposal.path("accessScope").asString()));
+        require("SYSTEM_STAFF".equals(proposal.path("accessScope").asString()));
         require(proposal.path("appliesToSystemVersion").isNull() || proposal.path("appliesToSystemVersion").isString());
         var work = run.getTriggerWorkLog();
         require((work.getLogType() == WorkLogType.RESOLVED || work.getLogType() == WorkLogType.IMPLEMENTED)
@@ -107,16 +112,47 @@ public class CurationResultHandler implements AgentRunResultHandler {
         var draft = new ResolvedCase("C-" + run.getId().toString().replace("-", "").substring(16), work,
                 ticket.getResponsibleSystem(), null, work.getLogType() == WorkLogType.IMPLEMENTED ? CaseType.IMPLEMENTATION : CaseType.RESOLUTION,
                 title, proposal.path("problemStatement").asString(), work.getActionDetail(), work.getVerificationResult(),
-                "EMPLOYEE".equals(proposal.path("accessScope").asString()) ? AccessLevel.EMPLOYEE : AccessLevel.STAFF,
+                AccessLevel.STAFF,
                 CaseOrigin.SYNTHETIC, run);
         var metadata = mapper.createObjectNode();
         metadata.putArray("facts"); metadata.set("limitations", proposal.path("limitations"));
+        metadata.set("sourceMessageIds", proposal.path("sourceMessageIds"));
         draft.recordDraftMetadata(proposal.path("applicability").asString(), work.getConfirmedCause(), work.getAppliedVersion(),
                 metadata.toString(), proposal.path("entityLinks").toString());
         cases.saveAndFlush(draft);
         publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
         return mapper.writeValueAsString(Map.of("applied", true,
                 "resources", List.of(Map.of("type", "CASE", "id", draft.getId())), "caseGenerationState", "SUCCEEDED"));
+    }
+
+    /** 입력에 실제로 고정한 해당 문제의 USER 원문만 사례 출처로 허용한다. */
+    private static Set<String> allowedSourceIds(JsonNode input, UUID problemId) {
+        Set<String> allowed = new LinkedHashSet<>();
+        for (var message : input.path("messages")) {
+            var problems = message.path("problemIds");
+            if ("USER".equals(message.path("sender").asString()) && problems.isArray() && problems.size() == 1
+                    && problemId.toString().equals(problems.get(0).asString())
+                    && message.path("content").isString() && !message.path("content").asString().isBlank()) {
+                allowed.add(message.path("id").asString());
+            }
+        }
+        return allowed;
+    }
+
+    private static Set<String> sourceIds(JsonNode values) {
+        require(values.isArray());
+        Set<String> ids = new LinkedHashSet<>();
+        for (var value : values) {
+            require(value.isString());
+            String id = value.asString();
+            try {
+                require(UUID.fromString(id).toString().equals(id));
+            } catch (IllegalArgumentException exception) {
+                throw rejected("INVALID_OUTPUT");
+            }
+            require(ids.add(id));
+        }
+        return ids;
     }
 
     private static void requireEmpty(JsonNode value) { require(value.isArray() && value.isEmpty()); }
