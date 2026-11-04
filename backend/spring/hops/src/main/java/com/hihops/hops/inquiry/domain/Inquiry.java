@@ -128,4 +128,11 @@ public class Inquiry extends BaseEntity {
         currentRun = run;
         inquiryStatus = InquiryStatus.IN_PROGRESS;
     }
+
+    public void updateResolution(boolean resolved) {
+        boolean analyzing = currentRun != null && (currentRun.getRunStatus() == com.hihops.hops.agent.domain.RunStatus.QUEUED
+                || currentRun.getRunStatus() == com.hihops.hops.agent.domain.RunStatus.RUNNING);
+        inquiryStatus = resolved && !analyzing ? InquiryStatus.RESOLVED : InquiryStatus.IN_PROGRESS;
+        resultRevision++;
+    }
 }
