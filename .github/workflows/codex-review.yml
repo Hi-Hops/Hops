@@ -134,7 +134,6 @@ jobs:
     needs: review
     if: >-
       !cancelled() &&
-      needs.review.result != 'skipped' &&
       needs.review.outputs.instructions_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5

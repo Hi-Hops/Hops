@@ -191,7 +191,7 @@ async function postReview({ github, context, core, review }) {
     a.priority - b.priority || (b.confidence ?? 0) - (a.confidence ?? 0));
   await writeJobSummary(core, parsed, findings, options);
 
-  // 스레드 조회가 실패해도 지적과 CI 결과는 게시한다. 이 경우 중복 게시를 막지 못할 수 있다.
+  // 스레드 조회가 실패해도 지적은 게시한다. 이 경우 중복 게시를 막지 못할 수 있다.
   let open = new Set();
   try {
     open = await openThreadKeys(github, repo, expected.number);

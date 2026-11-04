@@ -35,6 +35,18 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: node .github/scripts/ci-changes.cjs
+
+  # 공백 오류가 있어도 선택된 테스트는 실행되도록 changes와 분리한다.
+  whitespace:
+    name: Whitespace check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Check whitespace errors in the PR diff
         if: github.event_name == 'pull_request'
         env:
@@ -217,7 +229,7 @@ jobs:
   ci-gate:
     name: CI result
     if: always()
-    needs: [changes, spring, frontend, ai, deployment-checks]
+    needs: [changes, whitespace, spring, frontend, ai, deployment-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
