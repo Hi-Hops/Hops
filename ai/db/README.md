@@ -73,40 +73,70 @@ docker compose exec ai python -m hops_ai.persistence.check_runtime_db --business
 
 ## EC2·RDS
 
-EC2의 AI 컨테이너는 RDS에 TLS로 접속한다. 아래는 적용 절차이며, 실행·결과 확인은 환경 담당자가 직접 한다. 적용 전에 RDS 스냅샷을 만들고, 기존 `hops_ai_runtime`이 있는지 먼저 확인한다.
+EC2의 AI 컨테이너는 RDS에 TLS로 접속한다(`sslmode=verify-full`, `/etc/hops/rds-global-bundle.pem`). 아래는 개발 RDS에 실제로 적용한 순서다. 실행과 결과 확인은 환경 담당자가 직접 한다. EC2에서 `docker`는 `sudo`로 실행한다.
 
-1. EC2에서 임시 psql 컨테이너로 RDS 마스터 계정에 접속한다. 비밀번호는 프롬프트에 입력한다.
+1. **적용할 파일 꺼내기.** `~/Hops` 체크아웃은 바꾸지 않고 필요한 파일만 임시 폴더로 꺼낸다. `<커밋 또는 브랜치>`는 적용할 버전이다.
 
    ```bash
-   docker run --rm -it -v ~/Hops/ai:/ai:ro -v ~/rds-global-bundle.pem:/ca.pem:ro postgres:18 \
-     psql "host=<RDS 엔드포인트> port=5432 dbname=hops user=<마스터 계정> sslmode=verify-full sslrootcert=/ca.pem"
+   git -C ~/Hops fetch origin <커밋 또는 브랜치>
+   mkdir -p ~/hops85 && git -C ~/Hops archive FETCH_HEAD ai/db ai/migrations ai/src/hops_ai/persistence/check_runtime_db.py | tar -x -C ~/hops85
    ```
 
-2. psql 안에서 실행한다.
+2. **현재 상태 확인(읽기 전용).** 앱 계정 점검을 먼저 실행하고, 마스터 계정으로 계정·소유자·권한을 조회한다. 같은 이름의 계정이 이미 있으면 01이 속성과 역할 상속을 검사해 넓은 권한이면 멈춘다.
+
+   ```bash
+   sudo docker exec -i hops-ai python - --business-dbname hops < ~/hops85/ai/src/hops_ai/persistence/check_runtime_db.py
+   ```
+
+   배포된 이미지에 점검 모듈이 들어간 뒤에는 `sudo docker exec hops-ai python -m hops_ai.persistence.check_runtime_db --business-dbname hops`로 실행해도 된다.
+
+3. **RDS 스냅샷**을 만든다. 02의 테이블 소유자 변경은 잠깐 테이블 잠금을 잡으므로 진행 중인 AI 실행이 없을 때 한다.
+
+4. **마스터 계정으로 01·02.** `postgres` DB에 접속해 비밀번호는 프롬프트로 입력한다.
+
+   ```bash
+   sudo docker run --rm -it -v ~/hops85/ai:/ai:ro -v ~/rds-global-bundle.pem:/ca.pem:ro postgres:18 \
+     psql "host=<RDS 엔드포인트> port=5432 dbname=postgres user=<마스터 계정> sslmode=verify-full sslrootcert=/ca.pem"
+   ```
 
    ```
-   SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname = 'hops_ai_runtime';
+   \set ON_ERROR_STOP on
    \i /ai/db/01_roles_and_database.sql
    \password hops_ai_migrator
-   \password hops_ai_app
+   \c hops_ai_runtime
+   \i /ai/db/02_adopt_existing_tables.sql
    ```
 
-3. `hops_ai_runtime`이 이미 있었다면 `\c hops_ai_runtime` 후 `\i /ai/db/02_adopt_existing_tables.sql`을 실행한다.
-4. 같은 방식으로 `user=hops_ai_migrator dbname=hops_ai_runtime`에 접속한다. 테이블이 없으면 `\i /ai/migrations/001_run_ledger.sql`, `\i /ai/migrations/002_run_owner.sql`을 실행한 뒤 `\i /ai/db/03_app_privileges.sql`을 실행한다.
-5. `~/.config/hops/ai.env`의 `HOPS_AI_RUNTIME_DSN`을 앱 계정으로 바꾼다. 비밀번호에 특수문자가 있으면 URL 인코딩한다.
+   앱 계정을 새로 만드는 경우에는 `\password hops_ai_app`도 실행한다. `hops_ai_runtime`이 처음 만들어진 경우에는 02 대신 다음 단계에서 마이그레이션을 적용한다. `hops_ai_migrator` 비밀번호는 비밀번호 관리자에 보관하며 앱 설정에는 넣지 않는다.
+
+5. **마이그레이션 계정으로 03.** 테이블이 없으면 먼저 `\i /ai/migrations/001_run_ledger.sql`, `\i /ai/migrations/002_run_owner.sql`을 실행한다.
+
+   ```bash
+   sudo docker run --rm -it -v ~/hops85/ai:/ai:ro -v ~/rds-global-bundle.pem:/ca.pem:ro postgres:18 \
+     psql "host=<RDS 엔드포인트> port=5432 dbname=hops_ai_runtime user=hops_ai_migrator sslmode=verify-full sslrootcert=/ca.pem"
+   ```
+
+   ```
+   \i /ai/db/03_app_privileges.sql
+   ```
+
+6. **앱 연결 문자열.** `~/.config/hops/ai.env`의 `HOPS_AI_RUNTIME_DSN`이 앱 계정을 쓰는지 확인한다. 바꿨다면 AI 컨테이너를 다시 만든다(배포 또는 `deploy.sh`와 같은 `docker run` 옵션). 비밀번호의 특수문자는 URL 인코딩한다.
 
    ```
    HOPS_AI_RUNTIME_DSN=postgresql://hops_ai_app:<비밀번호>@<RDS 엔드포인트>:5432/hops_ai_runtime?sslmode=verify-full&sslrootcert=/etc/hops/rds-global-bundle.pem
    ```
 
-6. AI 컨테이너를 다시 만든다(배포 또는 `deploy.sh`와 같은 `docker run` 옵션). 그다음 점검하고, 처음 한 번은 쓰기 경로까지 확인한다.
+7. **점검과 재시작 복구.** 처음 한 번은 쓰기 경로까지 확인하고, 재시작 후에도 세션 잠금을 다시 잡아 준비 상태가 되는지 본다.
 
    ```bash
-   docker exec hops-ai python -m hops_ai.persistence.check_runtime_db --business-dbname hops --write-check
-   curl -i http://127.0.0.1:8000/readyz
+   sudo docker exec -i hops-ai python - --business-dbname hops --write-check < ~/hops85/ai/src/hops_ai/persistence/check_runtime_db.py
+   curl -s -o /dev/null -w 'readyz %{http_code}\n' http://127.0.0.1:8000/readyz
+   sudo docker restart hops-ai && sleep 10 && curl -s -o /dev/null -w 'readyz %{http_code}\n' http://127.0.0.1:8000/readyz
    ```
 
-7. 세션 잠금과 재시작 복구는 `docker restart hops-ai` 뒤 `/readyz`가 다시 200이 되는지로 확인한다. RunLedger는 소유자 세션 잠금을 쓰므로 RDS Proxy나 트랜잭션 단위 연결 풀이 아니라 RDS 엔드포인트에 직접 접속한다.
+8. 확인이 끝나면 `~/hops85`를 지운다.
+
+RunLedger는 소유자 세션 잠금을 쓰므로 RDS Proxy나 트랜잭션 단위 연결 풀이 아니라 RDS 엔드포인트에 직접 접속한다.
 
 RDS 마스터 계정은 슈퍼유저가 아니다. PostgreSQL 16부터는 역할을 만든 계정도 그 역할로 전환할 권한을 자동으로 갖지 않으므로, 01·02는 소유자 지정에 필요한 동안만 `hops_ai_migrator` 권한을 실행 계정에 부여하고 끝에서 해제한다. 실행한 관리자에게는 점검을 위해 `hops_ai_runtime` 접속 권한을 남긴다.
 
@@ -145,4 +175,17 @@ RDS 마스터 계정은 슈퍼유저가 아니다. PostgreSQL 16부터는 역할
 | 업무 DB 22개 테이블의 행 지문 | 전후 동일 |
 | 일부러 DELETE 권한을 준 경우 | 점검 명령이 FAIL과 종료 코드 1로 잡아냄 |
 
-확인하지 않은 것: 실제 EC2·RDS의 네트워크·TLS 인증서 검증·자격 증명 관리, RDS에서의 세션 잠금과 재시작 복구, 공용 개발 DB에 대한 적용.
+RDS 현재 상태를 재현한 경우도 로컬에서 확인했다. 슈퍼유저가 아닌 마스터가 DB·테이블을 소유하고, 앱 계정과 실행 기록 6건이 있으며, 업무 DB에는 `PUBLIC` 접속 권한이 없는 상태다. 이 상태에서 적용 전 점검은 16/17(TEMPORARY만 실패)이었고, 01·02·03 적용과 재실행 뒤 18/18 통과, 실행 기록 보존, 마스터의 임시 역할 권한 해제를 확인했다.
+
+### 개발 RDS 적용 (2026-11-04)
+
+| 항목 | 결과 |
+|---|---|
+| 대상 | 개발 RDS PostgreSQL 18.3, EC2의 AI 컨테이너(real 모드), `sslmode=verify-full` TLS 1.3 |
+| 적용 전 | `hops_ai_app`은 이미 최소 권한이었음. DB·`ai_run_ledger` 소유자는 마스터 `postgres`, `PUBLIC`에 런타임 DB TEMPORARY가 남아 점검 16/17. 업무 DB `hops`는 Spring 계정(`hops_spring_migrate`·`hops_spring_app`)만 접속 가능 |
+| 적용 | 위 4–5단계(01 → `\password hops_ai_migrator` → 02 → 03). 오류 없음 |
+| 적용 후 | DB·테이블 소유자 `hops_ai_migrator`, `PUBLIC` 권한 제거, 앱 권한 SELECT·INSERT·UPDATE 그대로. 앱 연결 문자열은 바꾸지 않음 |
+| 점검(`--business-dbname hops --write-check`) | 18/18 통과. 업무 DB는 접속 거부 |
+| 준비 상태 | 적용 직후 `/readyz` 200, `docker restart hops-ai` 10초 뒤 `/readyz` 200(세션 잠금 재확보·재기동 복구) |
+
+확인하지 않은 것: `hops_knowledge` 검색 권한(#142에서 부여·점검), 자격 증명 교체 절차, RDS 장애 조치·네트워크 단절 시 잠금 해제 지연.
