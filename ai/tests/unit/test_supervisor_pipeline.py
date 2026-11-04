@@ -142,4 +142,8 @@ def test_real_mode_builds_the_app_when_every_requirement_is_set() -> None:
 
 
 def test_default_pipeline_registry_is_the_runtime_registry() -> None:
-    assert implemented_roles(build_runtime_registry()) == {AgentRole.INQUIRY, AgentRole.TICKET}
+    assert implemented_roles(build_runtime_registry()) == {
+        AgentRole.INQUIRY,
+        AgentRole.TICKET,
+        AgentRole.CURATOR,
+    }
