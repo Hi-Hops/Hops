@@ -121,6 +121,18 @@ public class IdempotencyRecord extends CreatedOnlyEntity {
         this.responseBody = responseBody;
     }
 
+    /**
+     * 업무 규칙으로 거절한 응답을 기록한다. 업무 트랜잭션은 롤백되므로 별도 트랜잭션에서 새 행으로 저장한다.
+     *
+     * @param responseStatus 거절한 HTTP 상태 (4xx)
+     * @param responseBody   error를 담은 REJECTED 영수증 JSON. 같은 키로 다시 오면 이 오류를 그대로 돌려준다
+     */
+    public void reject(int responseStatus, String responseBody) {
+        this.operationState = OperationState.REJECTED;
+        this.responseStatus = responseStatus;
+        this.responseBody = responseBody;
+    }
+
     /** 상세 결과 보존 기간이 지났거나 응답을 비웠으면 true. 이때는 결과 대신 410을 돌려준다. */
     public boolean isExpired(Instant now) {
         return tombstonedAt != null || !now.isBefore(expiresAt);

@@ -151,20 +151,51 @@ class IdempotencyServiceTest {
     }
 
     @Test
-    void 업무가_거절되면_기록도_롤백되어_같은_키로_다시_처리할_수_있다() {
+    void 업무가_거절되면_업무는_롤백하고_REJECTED를_기록해_같은_키에_같은_오류를_돌려준다() {
         UUID requestId = UUID.randomUUID();
         IdempotentRequest request = request(memberId, requestId, PATH, "버전이 맞지 않는 문의");
 
         assertErrorCode(() -> idempotencyService.execute(request, operationId -> {
             work(operationId);
-            throw new BusinessException(ErrorCode.CONFLICT);
-        }), ErrorCode.CONFLICT);
+            throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
+        }), ErrorCode.INQUIRY_VERSION_CONFLICT);
         assertThat(businessRows()).isZero();
-        assertThat(recordCount(memberId)).isZero();
+        assertThat(recordCount(memberId)).isEqualTo(1);
 
-        CommandResult retried = idempotencyService.execute(request, this::work);
-        assertThat(retried.receipt().state()).isEqualTo(OperationState.SUCCEEDED);
-        assertThat(businessRows()).isEqualTo(1);
+        // 같은 키는 업무를 다시 검사하지 않고 처음 거절을 돌려준다
+        AtomicInteger executions = new AtomicInteger();
+        assertErrorCode(() -> idempotencyService.execute(request, operationId -> {
+            executions.incrementAndGet();
+            return work(operationId);
+        }), ErrorCode.INQUIRY_VERSION_CONFLICT);
+        assertThat(executions).hasValue(0);
+        assertThat(businessRows()).isZero();
+
+        CommandReceipt receipt = idempotencyService.findByRequestId(memberId, requestId);
+        assertThat(receipt.state()).isEqualTo(OperationState.REJECTED);
+        assertThat(receipt.resource()).isNull();
+        assertThat(receipt.error().code()).isEqualTo("INQUIRY_VERSION_CONFLICT");
+        assertThat(receipt.error().retryable()).isFalse();
+        assertThat(idempotencyService.findByOperationId(memberId, receipt.operationId())).isEqualTo(receipt);
+        // 같은 키에 다른 본문은 거절 기록이 있어도 409 IDEMPOTENCY_KEY_REUSED다
+        assertErrorCode(() -> idempotencyService.execute(request(memberId, requestId, PATH, "다른 내용"), this::work),
+                ErrorCode.IDEMPOTENCY_KEY_REUSED);
+    }
+
+    @Test
+    void 권한_제한_일시_오류는_기록하지_않아_같은_키로_다시_처리할_수_있다() {
+        for (ErrorCode transientError : List.of(ErrorCode.ACCESS_DENIED, ErrorCode.TOO_MANY_REQUESTS,
+                ErrorCode.SERVICE_UNAVAILABLE)) {
+            UUID requestId = UUID.randomUUID();
+            IdempotentRequest request = request(memberId, requestId, PATH, "잠시 실패한 문의");
+
+            assertErrorCode(() -> idempotencyService.execute(request, operationId -> {
+                throw new BusinessException(transientError);
+            }), transientError);
+            assertThat(idempotencyService.execute(request, this::work).receipt().state())
+                    .isEqualTo(OperationState.SUCCEEDED);
+        }
+        assertThat(businessRows()).isEqualTo(3);
     }
 
     @Test
