@@ -24,7 +24,7 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>상태: DB CANCELLED는 SUPERSEDED로 보낸다. 오류는 FAILED·TIMED_OUT에만 붙이고, 내부 오류 코드는 공개 코드로 바꾼다.
  * 원래 오류 문구·AI 응답 본문은 내보내지 않는다. 오류의 requestId는 이 실행을 접수한 공개 명령 ID다:
- * 재시도로 만든 실행은 그 재시도 요청, 그 밖에는 시작 메시지를 만든 요청이다.
+ * 재시도로 만든 실행은 그 재시도 요청, 정정으로 시작한 실행은 그 정정 요청, 그 밖에는 시작 메시지를 만든 요청이다.
  *
  * <p>트랜잭션 안에서 부른다(시작 메시지를 지연 로딩한다).
  */
@@ -42,7 +42,8 @@ public class RunSummaryReader {
         if (run.getTriggerMessage() == null) {
             throw new IllegalStateException("상담 실행이 아니다: " + run.getId());
         }
-        JsonNode answerMessageId = jsonMapper.readTree(run.getInputSnapshot()).path("answerMessageId");
+        JsonNode input = jsonMapper.readTree(run.getInputSnapshot());
+        JsonNode answerMessageId = input.path("answerMessageId");
         if (!answerMessageId.isString()) {
             throw new IllegalStateException("실행 입력에 answerMessageId가 없다: " + run.getId());
         }
@@ -53,7 +54,7 @@ public class RunSummaryReader {
         ErrorCode error = errorOf(run);
         return new RunSummaryResponse(run.getId(), run.getInquiry().getId(), run.getInputVersion(),
                 UUID.fromString(answerMessageId.asString()), status,
-                error == null ? null : ErrorResponse.of(error, requestIdOf(run).toString()));
+                error == null ? null : ErrorResponse.of(error, requestIdOf(run, input).toString()));
     }
 
     /** 수동 재분석(RunRetryCommand)을 받을 수 있는 실패인지. 공개 오류의 retryable과 같은 기준이다. */
@@ -83,16 +84,32 @@ public class RunSummaryReader {
         };
     }
 
-    // 시작 메시지는 USER 메시지라 requestId가 항상 있다
-    private UUID requestIdOf(AgentRun run) {
+    // 시작 메시지는 USER 메시지라 requestId가 항상 있다. 정정한 메시지면 실행 입력에 고정된 그 메시지의 차수로 정정 요청을 찾는다
+    // (메시지는 그 뒤에 또 정정됐을 수 있어 현재 차수를 쓰지 않는다).
+    private UUID requestIdOf(AgentRun run, JsonNode input) {
         Optional<UUID> retry = idempotencyService.findRequestIdOf(new ResourceRef(ResourceType.RUN, run.getId()));
         if (retry.isPresent()) {
             return retry.get();
         }
-        UUID requestId = jsonMapper.readValue(run.getTriggerMessage().getPayload(), MessagePayload.class).requestId();
+        MessagePayload payload = jsonMapper.readValue(run.getTriggerMessage().getPayload(), MessagePayload.class);
+        UUID revisionRequestId = payload.revisionRequestId(triggerRevision(run, input));
+        if (revisionRequestId != null) {
+            return revisionRequestId;
+        }
+        UUID requestId = payload.requestId();
         if (requestId == null) {
             throw new IllegalStateException("시작 메시지에 requestId가 없다: " + run.getId());
         }
         return requestId;
+    }
+
+    private static int triggerRevision(AgentRun run, JsonNode input) {
+        String triggerId = run.getTriggerMessage().getId().toString();
+        for (JsonNode message : input.path("messages")) {
+            if (triggerId.equals(message.path("id").asString(""))) {
+                return message.path("revision").asInt(1);
+            }
+        }
+        return 1;
     }
 }

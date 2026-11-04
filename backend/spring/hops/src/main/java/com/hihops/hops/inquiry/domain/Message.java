@@ -68,6 +68,19 @@ public class Message extends BaseEntity {
         this.messageStatus = messageStatus;
     }
 
+    /**
+     * 사용자가 원문을 정정한다. 차수를 1 올리고 본문·payload를 바꾼다. ID·순번은 그대로라 대화의 같은 자리에 남는다.
+     * 바꾸기 전 원문은 호출하는 쪽이 메시지 수정 이력(message_revision)에 먼저 보존한다.
+     */
+    public void revise(String content, String payload) {
+        if (senderType != SenderType.USER) {
+            throw new IllegalStateException("사용자 메시지만 정정할 수 있다");
+        }
+        this.revision = Math.incrementExact(revision);
+        this.content = content;
+        this.payload = payload;
+    }
+
     public Inquiry getInquiry() {
         return inquiry;
     }

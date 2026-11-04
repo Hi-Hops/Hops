@@ -35,6 +35,8 @@ public enum ErrorCode {
     OPERATION_RESULT_EXPIRED(HttpStatus.GONE, "요청 결과의 확인 기간이 지났습니다. 최신 내용을 다시 불러와 주세요.", false),
     // 보낸 expectedInquiryVersion이 현재 문의 버전과 다름. 최신 문의·대화를 다시 읽고 새 requestId로 보낸다 (WIRE_CONTRACT 10절)
     INQUIRY_VERSION_CONFLICT(HttpStatus.CONFLICT, "문의 내용이 바뀌었습니다. 최신 내용을 확인해 주세요.", false),
+    // 보낸 expectedMessageRevision이 메시지의 현재 차수와 다름. 최신 원문과 비교한 뒤 다시 정정한다 (WIRE_CONTRACT 12.3)
+    MESSAGE_REVISION_CONFLICT(HttpStatus.CONFLICT, "메시지가 이미 바뀌었습니다. 최신 원문과 비교해 주세요.", false),
     // 현재 실행이 아니거나 재분석할 수 없는 상태. 최신 실행 상태를 다시 조회한다 (WIRE_CONTRACT 10절)
     RUN_NOT_RETRYABLE(HttpStatus.CONFLICT, "지금은 다시 분석할 수 없습니다. 최신 상태를 확인해 주세요.", false),
     // 대상의 현재 상태에서 허용하지 않는 조작. 최신 상태를 다시 읽고 허용된 조작만 제공한다 (WIRE_CONTRACT 12.3)
