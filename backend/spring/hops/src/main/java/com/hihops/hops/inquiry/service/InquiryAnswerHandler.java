@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import com.hihops.hops.agent.domain.AgentRun;
@@ -13,6 +14,7 @@ import com.hihops.hops.agent.service.AgentRunResultHandler;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 import com.hihops.hops.user.domain.Member;
 
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     private final MessageRepository messageRepository;
     private final AiAnswerMessageWriter answerWriter;
     private final JsonMapper jsonMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public AgentTask task() {
@@ -91,6 +94,8 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         }
 
         answerWriter.insert(inquiry.getId(), answerMessageId, run.getId(), answer);
+        // 저장한 AI 답변을 문의 구독에 알린다. 결과 반영 거래가 commit된 뒤에만 전달된다
+        eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), answerMessageId, null));
         inquiry.recordAnalysisResult();
         return validationOf(result);
     }

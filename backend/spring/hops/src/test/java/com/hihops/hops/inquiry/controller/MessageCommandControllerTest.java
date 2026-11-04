@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.hihops.hops.agent.service.AgentRunQueued;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -145,6 +146,11 @@ class MessageCommandControllerTest {
         assertThat(input.path("problems").isEmpty()).isTrue();
         assertThat(input.path("problemIds").isEmpty()).isTrue();
         assertThat(events.stream(AgentRunQueued.class)).contains(new AgentRunQueued(UUID.fromString(nextRunId)));
+        assertThat(events.stream(MessageStoredEvent.class).filter(stored -> stored.messageId().equals(message.get("id"))))
+                .singleElement().satisfies(stored -> {
+                    assertThat(stored.inquiryVersion()).isEqualTo(2);
+                    assertThat(stored.requestId()).isEqualTo(requestId);
+                });
 
         mockMvc.perform(as(memberId, get("/api/v2/runs/" + firstRunId)))
                 .andExpect(jsonPath("$.status").value("SUPERSEDED"))
@@ -201,6 +207,9 @@ class MessageCommandControllerTest {
         assertThat(count("SELECT count(*) FROM message WHERE inquiry_id = ?::uuid")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id = ?::uuid", Integer.class, inquiryId))
                 .isEqualTo(1);
+        // 거절된 전송은 저장 알림을 만들지 않는다 (문의 생성의 첫 메시지 알림만 있다)
+        assertThat(events.stream(MessageStoredEvent.class)).singleElement()
+                .satisfies(stored -> assertThat(stored.inquiryVersion()).isEqualTo(1));
     }
 
     @Test
@@ -363,6 +372,12 @@ class MessageCommandControllerTest {
         assertThat(input.path("messages").get(0).path("revision").asInt()).isEqualTo(2);
         assertThat(input.path("messages").get(0).path("content").asString()).isEqualTo("  로그인 버튼을 눌러도 반응이 없어요\n");
         assertThat(events.stream(AgentRunQueued.class)).contains(new AgentRunQueued(UUID.fromString(nextRunId)));
+        // 정정도 같은 메시지 ID의 저장 알림이고 requestId는 이 정정 요청이다
+        assertThat(events.stream(MessageStoredEvent.class).filter(stored -> stored.inquiryVersion() == 2))
+                .singleElement().satisfies(stored -> {
+                    assertThat(stored.messageId().toString()).isEqualTo(messageId);
+                    assertThat(stored.requestId()).isEqualTo(reviseRequestId);
+                });
 
         mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId + "/messages")))
                 .andExpect(jsonPath("$.items.length()").value(1))
