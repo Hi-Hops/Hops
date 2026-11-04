@@ -122,7 +122,7 @@ export function SystemMessageComposer({
           value={content}
           disabled={blocked || busy || Boolean(pending)}
           placeholder={
-            !inquiry ? '예: 전자결재에서 문서를 열 수 없어요' : '추가 정보나 보완 내용을 입력하세요'
+            !inquiry ? '예: 전자결재에서 문서를 열 수 없어요' : '추가 정보나 새 질문을 입력하세요'
           }
           onChange={(e) => {
             useSystemDrafts

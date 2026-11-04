@@ -285,6 +285,8 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
 | `POST /api/v2/inquiries` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, content, reportedSystemId}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(헤더·본문 키 불일치, `content` 규칙 위반은 `fieldErrors[{field: content, code: UserContent}]`, 없는 시스템), 409 `IDEMPOTENCY_KEY_REUSED` |
+| `POST /api/v2/inquiries/{inquiryId}/messages` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion, content, problemIds}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(`content` 규칙 위반, 이 문의의 문제가 아닌 `problemIds`), 404 `NOT_FOUND`, 409 `INQUIRY_VERSION_CONFLICT`, 409 `INVALID_STATE`(끝난 문의) |
+| `POST /api/v2/inquiries/{inquiryId}/messages/{messageId}/revisions` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion, expectedMessageRevision, content}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`, 404 `NOT_FOUND`(남의 문의·이 문의의 USER 메시지가 아님), 409 `INQUIRY_VERSION_CONFLICT`·`MESSAGE_REVISION_CONFLICT`·`INVALID_STATE`(끝난 문의) |
 | `GET /api/v2/systems` | 없음 | 200 `SupportedSystem[]` (코드 순, 기능 포함. 주담당자는 넣지 않음) | |
 | `GET /api/v2/inquiries` | `page`(기본 0), `size`(기본 20, 1~100) | 200 `{items: InquirySummary[], page, size, totalElements}` (본인 문의, 최근 수정 순) | 400 `INVALID_INPUT`(범위 밖 값은 고치지 않음) |
 | `GET /api/v2/inquiries/{inquiryId}` | 없음 | 200 `InquiryResult` | 404 `NOT_FOUND`(남의 문의·삭제·없음을 구분하지 않음) |
@@ -300,6 +302,9 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 - **실행 한도·버전:** `hops.agent.run.*`(전체 60초, 호출 8회, 재시도 2회, 출력 토큰은 실행 합계 12,000 = 호출 8회 × 호출당 1,500). `model-version`·`prompt-version`은 AI 서버와 정하기 전까지 `pending`입니다.
 - **보고 시스템:** `reportedSystemId`는 첫 메시지 payload에만 저장하고 AI 입력에는 넣지 않습니다. AiRunRequest에 받을 필드가 없어 전달 방식을 정해야 합니다.
 - **실행 상태:** DB `CANCELLED`는 `SUPERSEDED`로 보냅니다. 실패 오류는 공개 코드(`AI_INVALID_OUTPUT`·`MODEL_UNAVAILABLE`·`SEARCH_UNAVAILABLE`·`SERVICE_UNAVAILABLE`·`AUTH_CONTEXT_CHANGED`·`AI_RUN_STATE_UNKNOWN`, 시간 초과는 `DEADLINE_EXCEEDED`)로 바꾸고 `requestId`에 실행을 접수한 명령 ID를 넣습니다.
+- **메시지 전송:** 문의 행을 잠그고 `expectedInquiryVersion`을 확인한 뒤 버전을 1 올려 USER 메시지를 저장합니다. 진행 중인 문의면 이전 활성 실행(QUEUED·RUNNING)을 대체(`SUPERSEDED`)하고 새 버전의 실행을 접수합니다. AI 입력에는 저장된 대화 전체, 기존 문제(`inquiry_problem` 상태·질문 수 + 문제별 최신 적용 실행의 `standard_request`), 티켓 생성 작업 결과(`existingWorkItems`)를 넣습니다. 질문 중(CLARIFYING)인 문제는 이번 메시지가 고른 문제만 `ANALYZING`, 나머지는 `WAITING_USER`입니다. 고른 `problemIds`는 메시지 전체 구간으로 연결합니다. 끝난 문의(RESOLVED·CLOSED)는 재오픈하지 않고 409 `INVALID_STATE`로 새 문의를 안내합니다. 이전 실행의 AI 서버 취소 전파는 아직 없습니다.
+- **정정:** 바꾸기 전 원문을 `message_revision`에 보존하고 같은 메시지의 `content`를 바꿔 `revision`을 1 올립니다. ID·순번·처음 `requestId`는 그대로입니다. 그 뒤는 전송과 같이 문의 버전을 올리고 이전 실행을 대체해 새 실행을 접수하며, 대상 문제는 그 메시지에 연결된 문제입니다. 원문 전체에 걸린 문제 연결은 새 원문 전체로 잇고(일부 구간 연결은 잇지 않음), payload `revisionRequestIds`에 차수별 정정 요청 ID를 남겨 정정으로 시작한 실행의 오류 `requestId`로 씁니다.
+- **거절 기록:** 업무 규칙으로 거절한 변경 요청(409 버전 충돌·재분석 불가, 업무 검사 400)은 `REJECTED`로 기록합니다. 같은 키로 다시 보내면 다시 검사하지 않고 같은 오류를 돌려주고, `GET /operations/...`는 `state=REJECTED`와 `error`를 반환합니다. 입력 형식 400·401·403·429·5xx는 기록하지 않습니다.
 - **재분석:** 문의의 현재 실행이 `retryable=true`인 FAILED/TIMED_OUT일 때만 같은 문의 버전으로 새 runId·새 `answerMessageId`의 QUEUED 실행을 접수합니다. 실패한 실행은 그대로 두고 대화 입력은 재사용하며, 권한 문맥·시스템 목록·기한은 새로 만듭니다. 재분석 실행의 실패 오류 `requestId`는 그 재분석 요청 ID입니다.
 - **아직 남은 것:** 문의 상세의 `problems`(Problem) 형식은 AI 결과로 문제를 저장하는 기능과 함께 만듭니다. 지금은 문제가 있는 문의를 빈 목록으로 숨기지 않고 500으로 응답합니다.
 
@@ -313,7 +318,8 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 | 구현 항목 | 현재 동작 |
 |---|---|
 | 대상 권한 | 현재 DB 회원·부서·역할과 토큰 문맥을 비교합니다. 현재 처리 부서 구성원 또는 BIZ_ADMIN만 허용합니다. 없는 부서는 404입니다. |
-| 문의·시스템·개별 티켓 대상 | `SYSTEM_TICKETS`·`TICKET`은 현재 시스템 담당 관계와 관리자 공개 범위를 검사해 구독합니다. `INQUIRY`는 후속 범위이며 503입니다. 업무 변경 이벤트 생산자는 아직 연결하지 않았습니다. |
+| 문의·시스템·개별 티켓 대상 | `SYSTEM_TICKETS`·`TICKET`은 현재 시스템 담당 관계와 관리자 공개 범위를 검사해 구독합니다. `INQUIRY`는 토큰·소속·역할 검사 뒤 문의자 본인의 삭제되지 않은 문의만 구독합니다(남의 문의·없는 문의는 404). 티켓 업무 변경 이벤트 생산자는 아직 연결하지 않았습니다. |
+| 메시지 저장 알림 | 문의 생성·메시지 전송·정정·AI 답변 저장이 commit되면 그 문의 구독에 `message.stored` `{eventId, inquiryId, inquiryVersion, messageId, requestId}`를 보냅니다(AI 답변은 `requestId=null`). 본문은 싣지 않으며 프론트는 문의·메시지를 다시 조회합니다. 보내기 직전에 구독 권한을 다시 확인합니다. |
 | 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
 | 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
 | 확정 이벤트 | 트랜잭션 안에서 `StateChangedEvent`를 발행하면 커밋 후 해당 부서 연결에 `state.changed`를 전달합니다. 롤백·트랜잭션 없는 발행은 전달하지 않습니다. |
@@ -321,7 +327,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 업무 서비스는 `ApplicationEventPublisher.publishEvent(...)`로 `realtime/dto/StateChangedEvent`를
 자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
-외부 이벤트 발행용 HTTP API는 제공하지 않습니다. 문의·답변 이벤트 생산자와 업무 저장 API는 아직 연결하지 않았습니다.
+메시지 저장은 `realtime/dto/MessageStoredEvent`를 같은 방식으로 발행합니다. 외부 이벤트 발행용 HTTP API는 제공하지 않습니다. INQUIRY의 `state.changed`(실행 종료 등)와 `answer.delta`·`agent.progress` 중계는 아직 연결하지 않았습니다.
 
 현재는 단일 Spring 프로세스의 연결만 관리합니다. 로그인 세션 종료 시 회원 단위 SSE 정리는 연결했습니다.
 부서·역할 변경을 즉시 모든 연결에 통지하는 `auth.invalidated`는 아직 없습니다.

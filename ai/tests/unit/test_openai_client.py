@@ -73,7 +73,7 @@ async def test_structured_output_is_requested_strictly_and_parsed() -> None:
     body = json.loads(request.content)
     assert request.headers["Authorization"] == "Bearer sk-test"
     assert body["model"] == "gpt-test"
-    assert body["store"] is False
+    assert body["store"] is True
     assert body["max_output_tokens"] == 300
     assert body["text"]["format"]["type"] == "json_schema"
     assert body["text"]["format"]["strict"] is True

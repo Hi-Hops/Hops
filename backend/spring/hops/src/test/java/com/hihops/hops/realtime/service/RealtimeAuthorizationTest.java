@@ -17,6 +17,8 @@ import com.hihops.hops.department.domain.Department;
 import com.hihops.hops.department.repository.DepartmentRepository;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.inquiry.domain.Inquiry;
+import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.ticket.service.TicketService;
 import com.hihops.hops.user.domain.Member;
@@ -26,7 +28,9 @@ import com.hihops.hops.user.repository.MemberRepository;
 class RealtimeAuthorizationTest {
     private final MemberRepository members = mock(MemberRepository.class);
     private final DepartmentRepository departments = mock(DepartmentRepository.class);
-    private final RealtimeAuthorization authorization = new RealtimeAuthorization(members, departments, mock(TicketService.class));
+    private final InquiryRepository inquiries = mock(InquiryRepository.class);
+    private final RealtimeAuthorization authorization = new RealtimeAuthorization(members, departments,
+            mock(TicketService.class), inquiries);
     private final UUID userId = UUID.randomUUID();
     private final UUID departmentId = UUID.randomUUID();
     private final Member member = mock(Member.class);
@@ -96,9 +100,28 @@ class RealtimeAuthorizationTest {
     }
 
     @Test
-    void 소유권_연결이_없는_문의는_허용하지_않는다() {
-        denied(token(List.of()), new RealtimeTarget(RealtimeTarget.Type.INQUIRY, UUID.randomUUID()),
-                ErrorCode.SERVICE_UNAVAILABLE);
+    void 문의는_문의자_본인만_구독한다() {
+        UUID inquiryId = UUID.randomUUID();
+        when(inquiries.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, userId))
+                .thenReturn(Optional.of(mock(Inquiry.class)));
+
+        authorization.check(token(List.of()), new RealtimeTarget(RealtimeTarget.Type.INQUIRY, inquiryId));
+    }
+
+    @Test
+    void 남의_문의_삭제된_문의_없는_문의는_구분하지_않고_404다() {
+        // 저장소가 본인 문의만 돌려주므로 남의 문의·삭제된 문의·없는 문의는 모두 비어 있다
+        denied(token(List.of()), new RealtimeTarget(RealtimeTarget.Type.INQUIRY, UUID.randomUUID()), ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    void 문의도_토큰_발급_뒤_역할이_바뀌면_구독을_거부한다() {
+        UUID inquiryId = UUID.randomUUID();
+        when(inquiries.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, userId))
+                .thenReturn(Optional.of(mock(Inquiry.class)));
+
+        denied(token(List.of("BIZ_ADMIN")), new RealtimeTarget(RealtimeTarget.Type.INQUIRY, inquiryId),
+                ErrorCode.AUTH_CONTEXT_CHANGED);
     }
 
     private void denied(Jwt jwt, RealtimeTarget target, ErrorCode code) {

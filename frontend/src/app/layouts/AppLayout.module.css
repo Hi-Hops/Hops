@@ -56,6 +56,27 @@
   place-items: center;
   font-size: var(--font-size-sm);
 }
+/* 로그아웃 아이콘은 사용자 정보 오른쪽에 구분선과 함께 둔다. */
+.logout {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  margin-left: var(--space-2);
+  padding: 0;
+  color: var(--color-text-secondary);
+}
+.logout::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-2) * -1);
+  top: 50%;
+  height: 16px;
+  border-left: 1px solid var(--color-border);
+  transform: translateY(-50%);
+}
 .mock + .user {
   margin-left: var(--space-3);
 }
@@ -69,10 +90,6 @@
 .sidebarFooter p {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
-}
-.sidebarFooter button {
-  width: 100%;
-  font-size: var(--font-size-label);
 }
 .body {
   display: flex;

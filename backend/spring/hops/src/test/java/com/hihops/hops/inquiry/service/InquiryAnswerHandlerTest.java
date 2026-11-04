@@ -3,6 +3,7 @@ package com.hihops.hops.inquiry.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -14,6 +15,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.AgentTask;
@@ -21,6 +23,7 @@ import com.hihops.hops.agent.service.AgentResultRejectedException;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 import com.hihops.hops.user.domain.Member;
 
 import tools.jackson.databind.JsonNode;
@@ -34,6 +37,7 @@ class InquiryAnswerHandlerTest {
     private final UUID inquiryId = UUID.randomUUID();
     private final UUID memberId = UUID.randomUUID();
     private final UUID answerMessageId = UUID.randomUUID();
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
 
     private InquiryRepository inquiries;
     private MessageRepository messages;
@@ -48,7 +52,7 @@ class InquiryAnswerHandlerTest {
         inquiries = mock(InquiryRepository.class);
         messages = mock(MessageRepository.class);
         writer = mock(AiAnswerMessageWriter.class);
-        handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper);
+        handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events);
 
         member = mock(Member.class);
         when(member.getId()).thenReturn(memberId);
@@ -120,6 +124,10 @@ class InquiryAnswerHandlerTest {
         verify(inquiry).recordAnalysisResult();
         assertThat(mapper.readTree(validation).path("applied").get(0).asString()).isEqualTo("answer");
         assertThat(mapper.readTree(validation).path("unapplied")).isEmpty();
+        // 저장한 AI 답변을 문의 구독에 알린다 (AI 메시지라 requestId는 없다)
+        verify(events).publishEvent(argThat((Object event) -> event instanceof MessageStoredEvent stored
+                && stored.inquiryId().equals(inquiryId) && stored.messageId().equals(answerMessageId)
+                && stored.inquiryVersion() == 1 && stored.requestId() == null));
     }
 
     @Test
@@ -143,6 +151,7 @@ class InquiryAnswerHandlerTest {
                 AgentResultRejectedException.class, e -> assertThat(e.code()).isEqualTo("AUTH_CONTEXT_INVALID"));
         verify(writer, never()).insert(any(), any(), any(), anyString());
         verify(inquiry, never()).recordAnalysisResult();
+        verify(events, never()).publishEvent(any(Object.class));
     }
 
     @Test

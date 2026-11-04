@@ -10,13 +10,20 @@
   align-items: center;
   justify-content: space-between;
   min-height: 83px;
-  padding: var(--space-7) var(--space-7) var(--space-6);
+  padding: var(--space-5) var(--space-7) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.titleBlock {
+  min-width: 0;
 }
 .head h1 {
-  font-size: var(--font-size-xl);
-  line-height: 1.4;
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
   font-weight: var(--font-weight-bold);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .metadata {
   display: flex;
@@ -36,7 +43,7 @@
   font-weight: var(--font-weight-semibold);
 }
 .log {
-  padding: 0 var(--space-7) var(--space-6);
+  padding: var(--space-6) var(--space-7);
   overflow-y: auto;
   overflow-anchor: none;
   flex: 1;
@@ -56,19 +63,19 @@
   align-self: flex-end;
   max-width: min(var(--message-width), 90%);
   width: 100%;
+  display: grid;
+  justify-items: end;
+  gap: var(--space-2);
 }
 .userBubble {
-  padding: var(--space-3) 14px;
+  padding: 14px var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--color-text);
   color: var(--color-on-ink);
+  font-size: var(--font-size-body);
+  line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.userBubble small {
-  font-size: var(--font-size-sm);
-  display: block;
-  margin-bottom: var(--space-1);
 }
 .aiRow {
   width: min(var(--answer-width), 100%);
@@ -79,29 +86,99 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  color: var(--color-text-muted);
 }
-.author span {
-  padding: 1px 6px;
+.author strong {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
   border-radius: var(--radius-sm);
   background: var(--color-primary);
   color: var(--color-on-ink);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
 }
+.stepToggle {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 18px;
+  margin-left: var(--space-1);
+  vertical-align: middle;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.stepToggle:hover {
+  background: var(--color-sunken);
+  color: var(--color-text);
+}
+.stepToggle svg {
+  transition: transform 160ms ease;
+}
+.stepToggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .stepToggle svg {
+    transition: none;
+  }
+}
+.steps {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-label);
+}
+.steps li::before {
+  content: '✓';
+  display: inline-block;
+  width: 1.2em;
+  color: var(--color-text-secondary);
+}
+.steps li[data-current]::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin: 0 calc(1.2em - 6px) 2px 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .steps li[data-current]::before {
+    animation: none;
+  }
+}
+/* 결과 카드는 바로 위 AI 답변·진행 표시에 이어 붙여 대화 간격보다 좁게 둔다. */
+.attached {
+  margin-top: calc(var(--space-3) - var(--space-6));
+}
+/* 봇 답변은 카드 없이 글로만 두고, 카드는 결과 영역에만 쓴다. 시작 위치는 진행 단계 글자(.steps 표식 폭 1.2em)에 맞춘다. */
 .aiBubble {
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
+  margin: 0;
+  padding-left: calc(var(--font-size-label) * 1.2);
   font-size: var(--font-size-body);
   line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.progress {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
 }
 .cursor {
   display: inline-block;
@@ -112,6 +189,8 @@
   vertical-align: middle;
 }
 .dock {
+  display: grid;
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-7) var(--space-7);
 }
 .runError {

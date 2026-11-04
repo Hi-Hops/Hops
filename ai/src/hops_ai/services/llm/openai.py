@@ -3,7 +3,7 @@
 - 이 어댑터는 스스로 재시도하지 않는다. 연결 장애·429·5xx는 TransientError로 알리고
   재시도·호출 상한·시간 제한은 BudgetedLLMClient가 맡는다(client.py 규약).
   요청 거절·형식 오류는 OutputRejected다.
-- 응답은 저장하지 않고(store=False) JSON Schema strict 구조화 출력만 사용한다.
+- 응답 저장을 요청하고(store=True) JSON Schema strict 구조화 출력을 사용한다.
 - 호출별 시간 제한은 BudgetedLLMClient가 실행 기한 안에서 적용한다.
   여기 둔 HTTP 제한은 마지막 안전망이다.
 """
@@ -68,7 +68,7 @@ class OpenAIClient:
                 "responses",
                 {
                     **payload,
-                    "store": False,
+                    "store": True,
                     "max_output_tokens": request.max_output_tokens,
                 },
             )

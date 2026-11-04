@@ -1,6 +1,39 @@
 .wrapper {
-  margin-top: var(--space-1);
+  margin-top: calc(var(--space-2) * -1);
   font-size: var(--font-size-sm);
+}
+/* 정정 아이콘은 평소 흐리게 두고, 메시지에 마우스를 올리거나 포커스하면 조금 더 드러낸다. */
+.editButton {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0.25;
+  transition: opacity 0.15s ease;
+}
+article:hover .editButton,
+article:focus-within .editButton {
+  opacity: 0.5;
+}
+article .editButton:hover:not(:disabled),
+article .editButton:focus-visible {
+  opacity: 1;
+  background: var(--color-sunken);
+  color: var(--color-text);
+}
+.editButton:disabled {
+  cursor: not-allowed;
+}
+@media (hover: none) {
+  .editButton {
+    opacity: 0.5;
+  }
 }
 .meta {
   display: flex;

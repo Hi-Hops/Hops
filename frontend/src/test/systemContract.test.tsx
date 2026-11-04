@@ -342,7 +342,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
         { timeout: 4000 },
       ),
     ).toBeVisible();
-    expect(screen.getByText('추가 질문 1 / 5회')).toBeVisible();
+    expect(screen.getByText('질문 1/5')).toBeVisible();
   });
   it('F005-CONTRACT-01 잘못된 성공 응답·구 프로필 DTO는 신규 계약에서 거부한다', () => {
     expect(() => readUser({ ...users[0], primarySystemIds: undefined })).toThrow();

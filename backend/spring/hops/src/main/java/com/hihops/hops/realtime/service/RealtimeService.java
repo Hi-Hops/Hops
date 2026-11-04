@@ -21,6 +21,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.realtime.dto.ResyncRequiredEvent;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
@@ -88,6 +89,19 @@ public class RealtimeService {
                     if (connection.authorized()) {
                         connection.send(SseEmitter.event().id(event.eventId().toString())
                                 .name("state.changed").data(event));
+                    }
+                });
+    }
+
+    /** 메시지 저장·정정이 commit되면 그 문의의 구독에 알린다. 보내기 직전에 현재 권한(문의자 본인)을 다시 확인한다. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void messageStored(MessageStoredEvent event) {
+        RealtimeTarget target = new RealtimeTarget(RealtimeTarget.Type.INQUIRY, event.inquiryId());
+        connections.values().stream().filter(connection -> connection.target.equals(target))
+                .forEach(connection -> {
+                    if (connection.authorized()) {
+                        connection.send(SseEmitter.event().id(event.eventId().toString())
+                                .name("message.stored").data(event));
                     }
                 });
     }
