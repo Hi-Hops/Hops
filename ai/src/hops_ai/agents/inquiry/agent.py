@@ -221,11 +221,29 @@ def _assemble(
 def _carry_facts(
     previous: ProblemProposal | None, found: list[EvidenceStatement]
 ) -> list[EvidenceStatement]:
-    """이전 확인 사실을 먼저 두고, 이번에 새로 확인된 사실만 뒤에 더한다."""
+    """이전 확인 사실을 먼저 두고, 이번에 새로 확인된 사실만 뒤에 더한다.
+
+    같은 항목·같은 메시지에서 이미 있는 구절의 일부일 뿐인 사실은 새 정보가 없으므로 더하지 않는다.
+    이전보다 긴 구절은 정보가 늘어나므로 더하고, 이전 사실은 병합 규칙 때문에 항상 남긴다.
+    """
     if previous is None:
         return found
     carried = list(previous.facts)
-    return carried + [fact for fact in found if fact not in carried]
+    return carried + [fact for fact in found if not _already_covered(fact, carried)]
+
+
+def _already_covered(fact: EvidenceStatement, carried: Sequence[EvidenceStatement]) -> bool:
+    label, _, quote = fact.text.partition(": ")
+    for existing in carried:
+        existing_label, _, existing_quote = existing.text.partition(": ")
+        if (
+            existing_label == label
+            and existing.sourceMessageIds == fact.sourceMessageIds
+            and existing.knowledgeEvidenceIds == fact.knowledgeEvidenceIds
+            and quote.strip() in existing_quote
+        ):
+            return True
+    return False
 
 
 def _known_values(

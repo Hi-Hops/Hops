@@ -122,3 +122,39 @@ def test_extraction_prompt_places_the_how_to_goal_in_expected_behavior() -> None
 
     assert "expectedBehavior에" in SYSTEM_PROMPT and "HOW_TO" in SYSTEM_PROMPT
     assert PROMPT_VERSION == "inquiry-extraction-v4"
+
+
+async def test_rerun_quote_that_only_shortens_an_earlier_one_adds_no_duplicate_fact() -> None:
+    # 두 번째 추출이 같은 항목을 더 짧은 구절로 다시 뽑아도 사실이 늘지 않는다.
+    llm = script(
+        extraction(taskOrScreen="결재선을 한 번에 바꾸는", expectedBehavior=FIRST_QUOTE),
+        decision("CALL_ROLE", AgentRole.TICKET),
+        decision("PROPOSE_TICKETS"),
+    )
+
+    result = await analyze(llm)
+
+    assert result.status == "SUCCEEDED", result.error
+    [problem] = result.problemProposals
+    texts = [fact.text for fact in problem.facts]
+    assert texts.count(f"하려던 업무·화면: {FIRST_QUOTE}") == 1
+    assert not any(text.endswith("결재선을 한 번에 바꾸는") for text in texts)
+    # 다른 항목의 새 사실은 그대로 더해진다.
+    assert f"기대한 동작: {FIRST_QUOTE}" in texts
+
+
+async def test_rerun_quote_that_adds_information_is_kept_next_to_the_earlier_fact() -> None:
+    longer = f"{FIRST_QUOTE}을 알려주세요"
+    llm = script(
+        extraction(taskOrScreen=longer, expectedBehavior=SECOND_QUOTE),
+        decision("CALL_ROLE", AgentRole.TICKET),
+        decision("PROPOSE_TICKETS"),
+    )
+
+    result = await analyze(llm)
+
+    assert result.status == "SUCCEEDED", result.error
+    [problem] = result.problemProposals
+    texts = [fact.text for fact in problem.facts]
+    assert f"하려던 업무·화면: {FIRST_QUOTE}" in texts
+    assert f"하려던 업무·화면: {longer}" in texts
