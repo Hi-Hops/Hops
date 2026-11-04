@@ -188,6 +188,7 @@ RDS 현재 상태를 재현한 경우도 로컬에서 확인했다. 슈퍼유저
 | 적용 | 위 4–5단계(01 → `\password hops_ai_migrator` → 02 → 03). 오류 없음 |
 | 적용 후 | DB·테이블 소유자 `hops_ai_migrator`, `PUBLIC` 권한 제거, 앱 권한 SELECT·INSERT·UPDATE 그대로. 앱 연결 문자열은 바꾸지 않음 |
 | 점검(`--business-dbname hops --write-check`) | 18/18 통과(적용 당시 점검 명령 `abe81cc` 기준, 업무 DB는 접속 거부). 이후 리뷰 반영으로 MAINTAIN·원장 외 권한·전체 스키마 검사가 추가돼 현재 명령은 같은 옵션에서 20항목이다 |
+| 현재 점검 명령(`33ef347`)으로 재점검 | `--business-dbname hops`(쓰기 검사 제외) 19/19 통과. 추가된 MAINTAIN·원장 외 테이블·열·시퀀스·전체 스키마 검사 포함, 업무 DB는 접속 거부 |
 | 준비 상태 | 적용 직후 `/readyz` 200, `docker restart hops-ai` 10초 뒤 `/readyz` 200(세션 잠금 재확보·재기동 복구) |
 
 확인하지 않은 것: `hops_knowledge` 검색 권한(#142에서 부여·점검), 자격 증명 교체 절차, RDS 장애 조치·네트워크 단절 시 잠금 해제 지연.
