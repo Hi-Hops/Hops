@@ -22,6 +22,7 @@ import com.hihops.hops.inquiry.dto.InquiryCreateCommand;
 import com.hihops.hops.inquiry.dto.InquiryResultResponse;
 import com.hihops.hops.inquiry.dto.InquirySummaryResponse;
 import com.hihops.hops.inquiry.dto.MessagePageResponse;
+import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
 import com.hihops.hops.inquiry.service.InquiryCommandService;
@@ -35,9 +36,9 @@ import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 문의자 본인의 문의 생성·메시지 전송·정정과 문의·대화 조회 API (WIRE_CONTRACT 12.2).
+ * 문의자 본인의 문의 생성·메시지 전송·정정·보완 대상 확정과 문의·대화 조회 API (WIRE_CONTRACT 12.2).
  *
- * <p>생성·전송·정정은 Idempotency-Key 헤더와 본문 requestId가 같아야 한다. 응답은 CommandReceipt이며 프론트는 resource의 문의를 다시 GET한다.
+ * <p>변경 명령은 Idempotency-Key 헤더와 본문 requestId가 같아야 한다. 응답은 CommandReceipt이며 프론트는 resource의 문의를 다시 GET한다.
  *
  * <p>페이지 값이 범위를 벗어나면 고쳐서 처리하지 않고 400이다 (12.2 "잘못된 필터·범위는 400이며 임의 보정하지 않는다").
  * 목록은 기본 20개, 대화는 기본 30개이고 둘 다 최대 100개다.
@@ -87,6 +88,15 @@ public class InquiryController {
             @Valid @RequestBody MessageReviseCommand command) {
         IdempotentRequest request = IdempotentRequest.of(jwt, http, idempotencyKey, command.requestId(), command);
         return messageCommandService.revise(request, inquiryId, messageId, command).toResponseEntity();
+    }
+
+    @PostMapping("/{inquiryId}/messages/{messageId}/problem-links")
+    public ResponseEntity<CommandReceipt> linkProblems(@AuthenticationPrincipal Jwt jwt, HttpServletRequest http,
+            @PathVariable UUID inquiryId, @PathVariable UUID messageId,
+            @RequestHeader(value = IdempotentRequest.HEADER, required = false) @Nullable String idempotencyKey,
+            @Valid @RequestBody MessageProblemLinkCommand command) {
+        IdempotentRequest request = IdempotentRequest.of(jwt, http, idempotencyKey, command.requestId(), command);
+        return messageCommandService.linkProblems(request, inquiryId, messageId, command).toResponseEntity();
     }
 
     @GetMapping("/{inquiryId}/messages")
