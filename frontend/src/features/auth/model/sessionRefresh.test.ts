@@ -4,7 +4,7 @@ import { systemMockBackend } from '@/shared/api/systemMockBackend';
 import { MockHttpError } from '@/shared/api/mockError';
 import { TEST_LOGINS } from '@/test/mockCredentials';
 import { login } from '../api/authApi';
-import { refreshSession, restoreSession, useSession } from './sessionStore';
+import { REFRESH_LOCK_NAME, refreshSession, restoreSession, useSession } from './sessionStore';
 beforeEach(async () => {
   systemMockBackend.reset();
   useSession.getState().logout();
@@ -188,4 +188,69 @@ describe('F001 새로고침 세션 복원', () => {
       restoreStatus: 'settled',
     });
   });
+  it('F001-AC05 다른 탭이 먼저 회전한 Refresh 거절은 한 번 다시 요청해 복원한다', async () => {
+    useSession.setState({ user: null, token: null, expiresAt: null, restoreStatus: 'pending' });
+    const request = revokeFirstRefresh();
+    await restoreSession();
+    expect(useSession.getState()).toMatchObject({ restoreStatus: 'settled' });
+    expect(useSession.getState().token).not.toBeNull();
+    expect(refreshCalls(request)).toBe(2);
+  });
+  it('F001-AC05 다시 요청해도 폐기된 Refresh는 로그인으로 보내고 반복하지 않는다', async () => {
+    useSession.getState().logout();
+    useSession.setState({ restoreStatus: 'pending' });
+    const request = vi.spyOn(systemMockBackend, 'request').mockImplementation(() => {
+      throw revoked();
+    });
+    await restoreSession();
+    expect(useSession.getState()).toMatchObject({ user: null, restoreStatus: 'settled' });
+    expect(refreshCalls(request)).toBe(2);
+  });
+  it('F001-AC05 탭 간 만료 갱신 경합도 로그인 만료로 바꾸지 않는다', async () => {
+    const previous = token();
+    const request = revokeFirstRefresh();
+    await expect(refreshSession(previous)).resolves.toBe(true);
+    expect(token()).not.toBe(previous);
+    expect(refreshCalls(request)).toBe(2);
+  });
+  it('F001-AC05 탭 사이 refresh는 같은 Web Lock 안에서 한 번에 하나씩 보낸다', async () => {
+    const order: string[] = [];
+    const request = vi.fn(async (name: string, task: () => Promise<unknown>) => {
+      order.push(`lock:${name}`);
+      const result = await task();
+      order.push('unlock');
+      return result;
+    });
+    Object.defineProperty(navigator, 'locks', { value: { request }, configurable: true });
+    try {
+      await expect(refreshSession(token())).resolves.toBe(true);
+      expect(order).toEqual([`lock:${REFRESH_LOCK_NAME}`, 'unlock']);
+    } finally {
+      Reflect.deleteProperty(navigator, 'locks');
+    }
+  });
 });
+function revoked() {
+  return new MockHttpError(401, {
+    code: 'REFRESH_TOKEN_REVOKED',
+    message: '폐기',
+    requestId: crypto.randomUUID(),
+    retryable: false,
+    fieldErrors: [],
+  });
+}
+/** 같은 Refresh로 먼저 갱신한 다른 탭이 있는 상황: 첫 refresh만 거절된다. */
+function revokeFirstRefresh() {
+  const original = systemMockBackend.request.bind(systemMockBackend);
+  let rejected = false;
+  return vi.spyOn(systemMockBackend, 'request').mockImplementation((path, ...args) => {
+    if (path === '/api/v2/auth/refresh' && !rejected) {
+      rejected = true;
+      throw revoked();
+    }
+    return original(path, ...args);
+  });
+}
+function refreshCalls(request: { mock: { calls: unknown[][] } }) {
+  return request.mock.calls.filter(([path]) => path === '/api/v2/auth/refresh').length;
+}
