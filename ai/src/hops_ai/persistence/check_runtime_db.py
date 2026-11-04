@@ -29,6 +29,11 @@ RUNTIME_DB = "hops_ai_runtime"
 LEDGER_TABLE = "public.ai_run_ledger"
 REQUIRED = ("SELECT", "INSERT", "UPDATE")
 FORBIDDEN = ("DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
+# 업무 DB에서는 테이블·시퀀스에 줄 수 있는 모든 권한이 없어야 한다.
+TABLE_PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
+SEQUENCE_PRIVILEGES = ("SELECT", "USAGE", "UPDATE")
+# PostgreSQL 17에서 추가된 테이블 권한(VACUUM·ANALYZE 등 유지 작업).
+MAINTAIN_SINCE = 170000
 SYSTEM_SCHEMAS = ("pg_catalog", "information_schema", "pg_toast")
 
 
@@ -63,7 +68,7 @@ async def check_runtime(conninfo: str) -> list[Check]:
         names = ", ".join(name for (name,) in memberships)
         checks.append(Check("다른 역할 권한을 물려받지 않음", not memberships, names))
 
-        for privilege in (*REQUIRED, *FORBIDDEN):
+        for privilege in (*REQUIRED, *FORBIDDEN, *_newer_privileges(conn)):
             granted = await _scalar(
                 conn, "SELECT has_table_privilege(current_user, %s, %s)", (LEDGER_TABLE, privilege)
             )
@@ -136,18 +141,18 @@ async def check_business(conninfo: str, dbname: str) -> list[Check]:
             return [Check(f"업무 DB {dbname} 접속 거부", True, "검색 연동 시 CONNECT 별도 부여")]
         return [Check(f"업무 DB {dbname} 접속", False, type(exc).__name__)]
     async with conn:
+        table_privileges = ",".join((*TABLE_PRIVILEGES, *_newer_privileges(conn)))
         tables = await (
             await conn.execute(
                 """SELECT n.nspname || '.' || c.relname FROM pg_class c
                    JOIN pg_namespace n ON n.oid = c.relnamespace
                    WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
                      AND n.nspname <> ALL(%s) AND n.nspname NOT LIKE 'pg_temp%%'
-                     AND (has_table_privilege(current_user, c.oid,
-                              'SELECT,INSERT,UPDATE,DELETE,TRUNCATE')
-                          OR (c.relkind = 'S'
-                              AND has_sequence_privilege(current_user, c.oid, 'USAGE,UPDATE')))
+                     AND CASE WHEN c.relkind = 'S'
+                              THEN has_sequence_privilege(current_user, c.oid, %s)
+                              ELSE has_table_privilege(current_user, c.oid, %s) END
                    ORDER BY 1""",
-                (list(SYSTEM_SCHEMAS),),
+                (list(SYSTEM_SCHEMAS), ",".join(SEQUENCE_PRIVILEGES), table_privileges),
             )
         ).fetchall()
         schemas = await (
@@ -174,6 +179,11 @@ async def check_business(conninfo: str, dbname: str) -> list[Check]:
         # 검색 연동(#142) 전에는 hops_knowledge 권한도 없어야 한다. 연동 시 이 기대값을 바꾼다.
         Check("hops_knowledge 스키마 권한 없음", not knowledge),
     ]
+
+
+def _newer_privileges(conn: psycopg.AsyncConnection) -> tuple[str, ...]:
+    """서버 버전에 따라 추가로 거부돼야 하는 테이블 권한."""
+    return ("MAINTAIN",) if conn.info.server_version >= MAINTAIN_SINCE else ()
 
 
 async def _scalar(conn: psycopg.AsyncConnection, query: str, params=None):
