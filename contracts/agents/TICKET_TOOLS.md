@@ -70,6 +70,8 @@ updatedAt: UTC timestamp
 
 Python 어댑터의 업무 도구 이름은 `create_ticket`, `get_ticket_creation_result`, `retry_ticket_creation`이다. TICKET 역할만 사용하며 공용 읽기 Mock의 ToolResult/Evidence로 저장 성공을 위장하지 않는다. 이름/필수 인자 등록·역할 정책·누적 예산·타입 검증을 별도 업무 경계에서 적용한다. 모델은 제목·책임 후보·실제 인용만 제안하며, 생성 이후의 조회·재시도는 코드로 제어해 추가 모델 호출을 하지 않는다. 공개 구간은 Inquiry의 원문 근거와 Ticket의 실제 인용에서 코드 포인트로 조립하며 근거를 찾지 못하면 첫 쓰기 전에 거부한다.
 
+Supervisor의 역할 선택지와 Ticket 실행은 동일한 대상 문제 검사를 사용한다. 질문 대기·시스템 미확인·기존 처리 결과 등으로 제안할 문제가 하나도 없으면 ModelTicketAgent와 ExecutingTicketAgent 모두 선택지에서 제외한다. 복합 문의에서 다른 문제가 티켓 처리 가능하면 Ticket은 계속 선택할 수 있다. 호출 시에도 같은 검사를 적용하며 모델 판단으로 우회하지 않는다.
+
 ### 역할·State·최종 결과 확장
 
 - 내부 TicketResult에 `creationResults: TicketExecution[]`, `messageQuotes: Map<problemRef,{sourceId,quote}[]>`를 추가한다. 순수 제안 구현은 빈 목록을 사용한다.

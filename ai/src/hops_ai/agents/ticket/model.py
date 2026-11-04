@@ -14,33 +14,27 @@ from hops_ai.agents.ticket.proposal import (
 )
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import TicketResult
-from hops_ai.contracts.wire import StandardRequestBody, TicketProposal
+from hops_ai.contracts.wire import ProblemProposal, StandardRequestBody, TicketProposal
 from hops_ai.harness.errors import OutputRejected
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
 
 if TYPE_CHECKING:
     from hops_ai.supervisor.execution import RoleRequest
+    from hops_ai.supervisor.state import SupervisorState
 
 
 class ModelTicketAgent:
     role = AgentRole.TICKET
 
-    async def run(self, call: "RoleRequest", services: SharedServices) -> TicketResult:
-        # registry의 순환 import를 피하고 동일한 Supervisor 검증을 재사용한다.
-        from hops_ai.supervisor.merge import validate_ticket
-        from hops_ai.supervisor.validation import (
-            get_problem_message_ids,
-            get_problem_progress,
-            problems_without_guide,
-            validate_evidence_scope,
-        )
+    @staticmethod
+    def eligible_problems(state: "SupervisorState") -> dict[str, ProblemProposal]:
+        """실행과 Supervisor 선택지가 동일한 문제별 처리 가능 조건을 사용한다."""
+        from hops_ai.supervisor.validation import get_problem_progress, problems_without_guide
 
-        services.runtime.ensure_active()
-        state = call.state
         pending = {p["problemRef"] for p in get_problem_progress(state) if p["outcome"] is None}
         no_guide = problems_without_guide(state)
-        problems = {
+        return {
             ref: p
             for ref, p in state["problems"].items()
             if ref in pending
@@ -50,6 +44,21 @@ class ModelTicketAgent:
                 or (p.processingType == "KNOWLEDGE_QA" and ref in no_guide)
             )
         }
+
+    def available_for(self, state: "SupervisorState") -> bool:
+        return bool(self.eligible_problems(state))
+
+    async def run(self, call: "RoleRequest", services: SharedServices) -> TicketResult:
+        # registry의 순환 import를 피하고 동일한 Supervisor 검증을 재사용한다.
+        from hops_ai.supervisor.merge import validate_ticket
+        from hops_ai.supervisor.validation import (
+            get_problem_message_ids,
+            validate_evidence_scope,
+        )
+
+        services.runtime.ensure_active()
+        state = call.state
+        problems = self.eligible_problems(state)
         if not problems:
             raise OutputRejected("티켓으로 제안할 수 있는 문제가 없다")
 

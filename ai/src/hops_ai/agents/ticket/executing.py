@@ -10,10 +10,14 @@ from hops_ai.services.tickets import creation_command
 
 if TYPE_CHECKING:
     from hops_ai.supervisor.execution import RoleRequest
+    from hops_ai.supervisor.state import SupervisorState
 
 
 class ExecutingTicketAgent:
     role = AgentRole.TICKET
+
+    def available_for(self, state: "SupervisorState") -> bool:
+        return ModelTicketAgent().available_for(state)
 
     async def run(self, call: "RoleRequest", services: SharedServices):
         from hops_ai.supervisor.execution import RoleResponse
