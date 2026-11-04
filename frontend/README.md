@@ -38,7 +38,7 @@ Spring은 [WIRE_CONTRACT 12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-�
 
 기능별 `system*Api.ts`는 같은 `/api/v2` DTO와 경로를 사용한다. `shared/api/systemWire.ts`가 응답 필수 필드·null·형식을 검사하고 `systemCommands.ts`가 requestId·resource 참조와 receipt를 검증한다. 화면은 후속 GET으로 최신 저장 결과를 읽는다. 응답 유실·PENDING/UNKNOWN에서는 입력·원 요청 키·본문을 보존하고 수동 확인을 제공하며 자동 업무 재전송을 하지 않는다. 400·409·429와 만료·권한 거부를 구분한다.
 
-`shared/realtime`은 flat SSE를 검증해 현재 대상에만 전달한다. 진행/답변 조각을 저장 성공으로 취급하지 않는다. 종료·실행 교체·저장 이벤트·재접속에는 문의와 메시지를 재조회하며 현재 실행 이외의 조각을 섞지 않는다. 알림 유실은 REST 폴링으로 보완한다. Access는 메모리에만 보관하고 새로고침 시 자동 로그인 복원은 제공하지 않는다.
+`shared/realtime`은 flat SSE를 검증해 현재 대상에만 전달한다. 진행/답변 조각을 저장 성공으로 취급하지 않는다. 종료·실행 교체·저장 이벤트·재접속에는 문의와 메시지를 재조회하며 현재 실행 이외의 조각을 섞지 않는다. 알림 유실은 REST 폴링으로 보완한다. Access는 메모리에만 보관한다. 새로고침하면 보호 화면 진입 전 `POST /auth/refresh`를 한 번 호출해 Refresh 쿠키로 세션을 복원한다. 쿠키 없음·만료·폐기는 원래 경로를 보존해 로그인으로 보내고, 네트워크 오류·429·5xx는 인증 만료로 확정하지 않고 다시 확인 또는 로그인 이동을 안내한다. Mock은 메모리 refresh라 새로고침하면 로그인으로 돌아간다.
 
 ## Mock으로 화면 개발
 

@@ -4,7 +4,7 @@ import { systemMockBackend } from '@/shared/api/systemMockBackend';
 import { MockHttpError } from '@/shared/api/mockError';
 import { TEST_LOGINS } from '@/test/mockCredentials';
 import { login } from '../api/authApi';
-import { refreshSession, useSession } from './sessionStore';
+import { refreshSession, restoreSession, useSession } from './sessionStore';
 beforeEach(async () => {
   systemMockBackend.reset();
   useSession.getState().logout();
@@ -143,5 +143,49 @@ describe('F001 Refresh Token 갱신', () => {
     await expect(apiRequest('/api/v2/tickets')).rejects.toMatchObject({ status: 403 });
     expect(token()).toBe(previous);
     expect(request.mock.calls.some(([path]) => path === '/api/v2/auth/refresh')).toBe(false);
+  });
+});
+describe('F001 새로고침 세션 복원', () => {
+  it('F001-AC05 live 복원은 Bearer 없이 Refresh 쿠키만 전달해 세션을 되살린다', async () => {
+    const user = useSession.getState().user;
+    useSession.setState({
+      user: null,
+      token: null,
+      expiresAt: null,
+      previousUserId: null,
+      restoreStatus: 'pending',
+    });
+    vi.stubEnv('VITE_DATA_MODE', 'live');
+    vi.stubEnv('VITE_API_BASE_URL', 'http://localhost:8080');
+    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          accessToken: 'restored-access',
+          expiresAt: new Date(Date.now() + 60000).toISOString(),
+          user,
+        }),
+      ),
+    );
+    vi.stubGlobal('fetch', request);
+    await restoreSession();
+    expect(request.mock.calls[0]?.[0]).toBe('http://localhost:8080/api/v2/auth/refresh');
+    expect(request.mock.calls[0]?.[1]).toMatchObject({ method: 'POST', credentials: 'include' });
+    expect(request.mock.calls[0]?.[1]?.headers).not.toHaveProperty('Authorization');
+    expect(useSession.getState()).toMatchObject({
+      token: 'restored-access',
+      user,
+      restoreStatus: 'settled',
+    });
+  });
+  it('F001-AC05 복원 중 로그아웃하면 늦게 온 복원 결과로 세션을 되살리지 않는다', async () => {
+    useSession.setState({ user: null, token: null, expiresAt: null, restoreStatus: 'pending' });
+    const pending = restoreSession();
+    useSession.getState().logout();
+    await pending;
+    expect(useSession.getState()).toMatchObject({
+      user: null,
+      token: null,
+      restoreStatus: 'settled',
+    });
   });
 });
