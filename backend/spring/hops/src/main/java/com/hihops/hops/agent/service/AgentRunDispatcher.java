@@ -40,7 +40,7 @@ import tools.jackson.databind.json.JsonMapper;
  * (WIRE_CONTRACT 12.8 3번, 6번).
  *
  * <p>흐름: 접수 거래가 commit되면 {@link AgentRunQueued}를 받아 전용 스레드에서 ① 작업 종류의 처리기가 접수 때의 권한 문맥을
- * 다시 확인 → ② AI에 접수(submit) → ③ QUEUED→RUNNING → ④ snapshot을 폴링 → ⑤ 종료 상태에 맞춰 결과를 처리기로 반영하거나
+ * 다시 확인 → ② AI에 접수(submit) → ③ QUEUED→RUNNING → ④ SSE와 snapshot을 병행 수신 → ⑤ 종료 상태에 맞춰 결과를 처리기로 반영하거나
  * 실패·시간 초과·대체로 끝낸다. 각 단계는 별도 거래이며 AI를 기다리는 동안 DB 거래나 연결을 잡지 않는다.
  *
  * <p>AI 응답이 없거나 계약과 다르거나 기한({@code expiresAt}+유예)을 넘기면 실행을 실패(또는 시간 초과)로 끝내고,
@@ -69,14 +69,17 @@ public class AgentRunDispatcher {
     private final TransactionTemplate transaction;
     private final Clock clock;
     private final AgentDispatchProperties properties;
+    private @Nullable AgentRunStream streams;
 
     /** 처리기가 하나도 등록되지 않은 환경에서도 시작되도록 ObjectProvider로 받는다. */
     @Autowired
     public AgentRunDispatcher(AgentRunRepository runs, AgentRunClient client,
             ObjectProvider<AgentRunResultHandler> handlers, JsonMapper mapper,
             @Qualifier(AgentDispatchConfig.AGENT_DISPATCH_EXECUTOR) TaskExecutor executor,
-            PlatformTransactionManager manager, Clock clock, AgentDispatchProperties properties) {
+            PlatformTransactionManager manager, Clock clock, AgentDispatchProperties properties,
+            AgentRunStream streams) {
         this(runs, client, handlers.orderedStream().toList(), mapper, executor, manager, clock, properties);
+        this.streams = streams;
     }
 
     AgentRunDispatcher(AgentRunRepository runs, AgentRunClient client, List<AgentRunResultHandler> handlers,
@@ -136,7 +139,9 @@ public class AgentRunDispatcher {
                 return;
             }
             start(runId);
-            poll(runId, input);
+            try (var stream = streams == null ? null : streams.open(runId)) {
+                poll(runId, input, stream);
+            }
         } catch (RuntimeException exception) {
             // 마지막 방어선. 어떤 예외든 실행이 QUEUED·RUNNING으로 영영 남지 않게 한다.
             log.error("AI 실행 전달 중 예기치 않은 오류: runId={}", runId, exception);
@@ -170,11 +175,17 @@ public class AgentRunDispatcher {
         }
     }
 
-    private void poll(UUID runId, JsonNode input) {
+    private void poll(UUID runId, JsonNode input, AgentRunStream.@Nullable Handle stream) {
         Instant limit = deadlineOf(input).plus(properties.dispatchDeadlineGrace());
         while (true) {
+            Boolean active = transaction.execute(status -> runs.findById(runId)
+                    .map(run -> run.getRunStatus() == RunStatus.QUEUED || run.getRunStatus() == RunStatus.RUNNING)
+                    .orElse(false));
+            if (!Boolean.TRUE.equals(active)) return;
             try {
-                JsonNode snapshot = client.snapshot(runId.toString());
+                // 같은 final을 두 경로로 받아도 이 루프 한 곳에서 한 번만 적용한다.
+                JsonNode eventResult = stream == null ? null : stream.result();
+                JsonNode snapshot = eventResult != null ? eventResult : client.snapshot(runId.toString());
                 if (settle(runId, input, snapshot, limit)) {
                     return;
                 }

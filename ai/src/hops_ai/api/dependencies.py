@@ -3,7 +3,12 @@
 from fastapi import Request
 
 from hops_ai.persistence.run_ledger import RunLedger
+from hops_ai.services.runs.events import RunEventHub
 from hops_ai.services.runs.executor import RunExecutor
+
+
+def get_run_events(request: Request) -> RunEventHub:
+    return request.app.state.run_events
 
 
 def get_run_ledger(request: Request) -> RunLedger:

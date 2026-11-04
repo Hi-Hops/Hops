@@ -20,6 +20,7 @@ from hops_ai.services.llm.client import LLMMessage, LLMRequest, LLMResponse, LLM
 from hops_ai.services.llm.openai import OpenAIClient
 from hops_ai.services.retrieval.neo4j import Neo4jRetriever
 from hops_ai.services.retrieval.pgvector import PgVectorRetriever
+from hops_ai.services.runs.events import RunEventHub, RunEvents
 from hops_ai.services.shared import SharedServices
 from hops_ai.settings import Settings
 from hops_ai.supervisor import graph as graph_module
@@ -142,9 +143,13 @@ async def test_question_finishes_this_run_and_appears_once_in_answer() -> None:
         decision("ASK_USER", summary="추가 확인이 필요합니다."),
     )
     inquiry = InquiryStub(ask=True)
-    result = await Supervisor({AgentRole.INQUIRY: inquiry}).analyze(
-        request, services_for(request, model)
-    )
+    services = services_for(request, model)
+    hub = RunEventHub()
+    services.runtime.events = RunEvents(request.runId, hub)
+    with hub.subscribe(request.runId) as queue:
+        result = await Supervisor({AgentRole.INQUIRY: inquiry}).analyze(request, services)
+        roles = [queue.get_nowait().payload.role for _ in range(queue.qsize())]
+    assert roles == ["SUPERVISOR", "INQUIRY", "SUPERVISOR"]
     assert result.status == "SUCCEEDED"
     assert len(result.questions) == 1
     assert result.answer.count(result.questions[0].text) == 1

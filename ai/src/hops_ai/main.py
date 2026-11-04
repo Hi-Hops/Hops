@@ -14,6 +14,7 @@ from hops_ai.harness.errors import ComponentNotReady
 from hops_ai.persistence.run_ledger import RunLedger
 from hops_ai.services.llm.openai import OpenAIClient
 from hops_ai.services.runs.admission import RunAdmissionService
+from hops_ai.services.runs.events import RunEventHub
 from hops_ai.services.runs.executor import RunExecutor, RunPipeline, server_ceilings
 from hops_ai.services.runs.maintenance import LedgerMaintenance
 from hops_ai.services.runs.supervisor import SupervisorPipeline
@@ -64,6 +65,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.run_executor = None
+        app.state.run_events = RunEventHub()
         if resolved_ledger is None:
             yield
             return
@@ -73,7 +75,14 @@ def create_app(
             executor: RunExecutor | None = None
             if pipeline is not None:
                 admission = RunAdmissionService(resolved_ledger, server_ceilings(resolved))
-                executor = RunExecutor(resolved_ledger, admission, pipeline, resolved, clock=clock)
+                executor = RunExecutor(
+                    resolved_ledger,
+                    admission,
+                    pipeline,
+                    resolved,
+                    clock=clock,
+                    events=app.state.run_events,
+                )
                 app.state.run_executor = executor
             maintenance = LedgerMaintenance(
                 resolved_ledger,
