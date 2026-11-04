@@ -19,7 +19,7 @@ from hops_ai.contracts.runtime import AgentErrorCode, ResultStatus
 from hops_ai.contracts.wire import AiError, AiResult, AiRunRequest
 from hops_ai.harness.budget import Clock, RunBudget
 from hops_ai.harness.context import RunContext
-from hops_ai.harness.errors import describe_failure
+from hops_ai.harness.errors import RunCancelled, describe_failure
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.persistence.run_ledger import (
     InvalidRunTransition,
@@ -125,6 +125,11 @@ def _timed_out(request: AiRunRequest) -> AiResult:
     )
 
 
+def _superseded(request: AiRunRequest) -> AiResult:
+    """취소 요청으로 끝난 run의 결과. 늦게 도착한 파이프라인 결과 대신 저장한다."""
+    return _failure_from_exception(request, RunCancelled())
+
+
 def _invalid_output(request: AiRunRequest) -> AiResult:
     return failure_result(
         request,
@@ -178,6 +183,9 @@ class RunExecutor:
         self._cancel_grace_seconds = cancel_grace_seconds
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
         self._stray: set[asyncio.Task[AiResult]] = set()
+        # 진행 중인 run의 문맥과, 문맥이 만들어지기 전에 들어온 취소 요청.
+        self._contexts: dict[UUID, RunContext] = {}
+        self._cancel_requested: set[UUID] = set()
         # 동시 실행 수 확인과 접수가 경쟁하지 않도록 한 번에 하나씩 처리한다.
         self._submit_lock = asyncio.Lock()
 
@@ -206,8 +214,25 @@ class RunExecutor:
             if acceptance.created:
                 task = asyncio.create_task(self._execute(request), name=f"hops-run-{run_id}")
                 self._tasks[run_id] = task
-                task.add_done_callback(lambda _task: self._tasks.pop(run_id, None))
+                task.add_done_callback(lambda _task: self._forget_run(run_id))
             return acceptance
+
+    def cancel(self, run_id: UUID) -> bool:
+        """이 프로세스에서 진행 중인 run에 취소를 전달한다. 최선 노력이며 결과는 snapshot으로 본다.
+
+        없는 run·이미 끝난 run·다른 프로세스의 run에는 아무것도 하지 않고 False를 돌려준다.
+        """
+        if run_id not in self._tasks:
+            return False
+        self._cancel_requested.add(run_id)
+        if (context := self._contexts.get(run_id)) is not None:
+            context.cancel()
+        return True
+
+    def _forget_run(self, run_id: UUID) -> None:
+        self._tasks.pop(run_id, None)
+        self._contexts.pop(run_id, None)
+        self._cancel_requested.discard(run_id)
 
     @property
     def stray_tasks(self) -> int:
@@ -279,14 +304,30 @@ class RunExecutor:
         # wait_for는 취소된 작업이 끝날 때까지 기다린다. 취소를 무시하는 파이프라인이
         # run과 실행 슬롯을 붙잡지 않도록 별도 작업으로 돌리고 기한까지만 기다린다.
         task = asyncio.create_task(self._pipeline.run(request, context))
+        cancelled = asyncio.create_task(context.wait_cancelled())
         try:
-            done, _ = await asyncio.wait({task}, timeout=context.budget.remaining_seconds())
+            done, _ = await asyncio.wait(
+                {task, cancelled},
+                timeout=context.budget.remaining_seconds(),
+                return_when=asyncio.FIRST_COMPLETED,
+            )
         except asyncio.CancelledError:
             # 앱 종료로 실행이 취소됐다. 파이프라인 작업도 취소하고 끝날 때까지 추적한다.
             task.cancel()
             self._stray.add(task)
             task.add_done_callback(self._forget_stray)
             raise
+        finally:
+            cancelled.cancel()
+        if task not in done and context.is_cancelled:
+            # 취소 요청. 파이프라인이 스스로 정리하도록 잠깐 기다리고, 응답하지 않으면 떼어 낸다.
+            await asyncio.wait({task}, timeout=self._cancel_grace_seconds)
+            if task.done():
+                self._forget_stray(task)
+            else:
+                task.cancel()
+                self._detach(task)
+            return _superseded(request)
         if task not in done:
             task.cancel()
             await asyncio.wait({task}, timeout=self._cancel_grace_seconds)
@@ -299,18 +340,45 @@ class RunExecutor:
             # 파이프라인이 스스로 취소됐다. 결과가 없으므로 안전한 실패로 끝낸다.
             return _failure_from_exception(request, RuntimeError())
         if (exc := task.exception()) is not None:
+            if isinstance(exc, RunCancelled):
+                # 요청된 취소는 실패가 아니다.
+                logger.info("AI 실행을 취소했습니다")
+                return _superseded(request)
             # 예외 메시지에 문의 원문이 담길 수 있어 종류만 기록한다.
             logger.warning("AI 실행이 실패했습니다: %s", type(exc).__name__)
             return _failure_from_exception(request, exc)
+        # 취소 뒤에 도착한 결과는 성공이어도 저장하지 않는다.
+        if context.is_cancelled:
+            return _superseded(request)
         # 파이프라인이 기한 직전·직후에 돌려준 결과도 기한을 넘겼으면 저장하지 않는다.
         if context.budget.remaining_seconds() <= 0:
             return _timed_out(request)
         return _checked_result(request, task.result())
 
+    async def _finish(self, run_id: UUID, result: AiResult, events: RunEvents) -> None:
+        """최종 결과를 저장한 뒤에만 result 이벤트를 내보낸다."""
+        event = events.prepare_result(result)
+        last_seq = event.seq
+        payload = result.model_dump(mode="json")
+        try:
+            await self._store(lambda: self._ledger.finish(run_id, result.status, payload, last_seq))
+            # 저장이 성공하기 전에는 result 이벤트를 내보내지 않는다.
+            self.events.publish(event)
+        except (RunConflict, InvalidRunTransition) as exc:
+            # 이미 다른 결과로 확정됐거나 소유권을 잃었다. 덮어쓰지 않는다.
+            logger.warning("실행 결과를 확정하지 못했습니다: %s", type(exc).__name__)
+        except Exception as exc:  # noqa: BLE001 - 저장 실패 run을 진행 상태로 남기지 않는다
+            logger.warning("AI 실행 결과를 저장하지 못했습니다: %s", type(exc).__name__)
+            await self._abandon(run_id)
+
     async def _execute(self, request: AiRunRequest) -> None:
         run_id = UUID(request.runId)
         events = RunEvents(request.runId, self.events)
         try:
+            if run_id in self._cancel_requested:
+                # 시작 전에 취소됐다. 파이프라인을 돌리지 않고 바로 대체됨으로 끝낸다.
+                await self._finish(run_id, _superseded(request), events)
+                return
             try:
                 started = await self._store(lambda: self._ledger.start(run_id))
             except Exception as exc:  # noqa: BLE001 - 시작 저장 실패도 진행 상태로 남기지 않는다
@@ -323,22 +391,12 @@ class RunExecutor:
                 return
             context = self._context(request)
             context.events = events
+            # 문맥 등록과 취소 확인 사이에 대기가 없어 그 사이 들어온 취소를 놓치지 않는다.
+            self._contexts[run_id] = context
+            if run_id in self._cancel_requested:
+                context.cancel()
             result = await self._run_pipeline(request, context)
-            event = context.events.prepare_result(result)
-            last_seq = event.seq
-            payload = result.model_dump(mode="json")
-            try:
-                await self._store(
-                    lambda: self._ledger.finish(run_id, result.status, payload, last_seq)
-                )
-                # 저장이 성공하기 전에는 result 이벤트를 내보내지 않는다.
-                self.events.publish(event)
-            except (RunConflict, InvalidRunTransition) as exc:
-                # 이미 다른 결과로 확정됐거나 소유권을 잃었다. 덮어쓰지 않는다.
-                logger.warning("실행 결과를 확정하지 못했습니다: %s", type(exc).__name__)
-            except Exception as exc:  # noqa: BLE001 - 저장 실패 run을 진행 상태로 남기지 않는다
-                logger.warning("AI 실행 결과를 저장하지 못했습니다: %s", type(exc).__name__)
-                await self._abandon(run_id)
+            await self._finish(run_id, result, events)
         except asyncio.CancelledError:
             # 종료 중 취소는 결과를 만들지 않는다. 소유 세션이 닫히면 복구가 UNKNOWN으로 바꾼다.
             raise

@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from psycopg import Error as PsycopgError
 from pydantic import ValidationError
 
@@ -189,6 +189,13 @@ async def get_run_events(
     )
 
 
-@router.post("/{runId}/cancel", status_code=503)
-async def cancel_run(runId: WireUuid) -> None:
-    raise _not_ready()
+@router.post("/{runId}/cancel", status_code=202, response_class=Response)
+async def cancel_run(
+    runId: WireUuid,
+    executor: Annotated[RunExecutor | None, Depends(get_run_executor)],
+) -> Response:
+    """최선 노력 취소. 없는 run·끝난 run·반복 요청도 202이며 실제 상태는 snapshot으로 확인한다."""
+    if executor is None:
+        raise _not_ready()
+    executor.cancel(UUID(runId))
+    return Response(status_code=202)
