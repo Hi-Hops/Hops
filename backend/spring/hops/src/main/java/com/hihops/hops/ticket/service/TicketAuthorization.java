@@ -51,4 +51,8 @@ public class TicketAuthorization {
     public void requireCurrentPrimary(Member member, Ticket ticket) {
         if (!currentPrimaryId(ticket).equals(member.getId())) throw new BusinessException(ErrorCode.ACCESS_DENIED);
     }
+
+    public boolean isCurrentPrimary(Member member, Ticket ticket) {
+        return systems.findActivePrimaryOwnerId(ticket.getResponsibleSystem().getId()).filter(member.getId()::equals).isPresent();
+    }
 }

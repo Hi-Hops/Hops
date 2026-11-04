@@ -12,6 +12,37 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ResolutionRequestControllerTest extends TicketCommandFixture {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"WORK_RECORD", "GUIDE"})
+    void 권한밖_확인요청과_없는_UUID는_조회와_응답에서_같은_404를_반환한다(String source) throws Exception {
+        String id;
+        if ("WORK_RECORD".equals(source)) {
+            result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+            id = detail().path("activeResolutionRequest").path("id").asString();
+        } else {
+            var guided = UUID.randomUUID(); var resolution = UUID.randomUUID();
+            jdbc.update("INSERT INTO inquiry_problem(id,inquiry_id,problem_no,title,problem_status,confirm_requested_at) VALUES (?,?,2,'안내 문제','GUIDED',now())", guided, inquiry);
+            var request = new com.hihops.hops.ticket.dto.ResolutionRequestResponse(resolution, inquiry, guided, null,
+                    "GUIDE", message, 1, 1, "PENDING", "안내", "HOPS_USER", Instant.now(), null);
+            jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(java.util.Map.of("resolutionRequest", request,
+                    "guide", java.util.Map.of("problemId", guided, "text", "안내", "evidenceIds", List.of()))), message);
+            id = resolution.toString();
+        }
+        for (var hidden : List.of(id, UUID.randomUUID().toString())) {
+            String path = "/resolution-requests/" + hidden;
+            for (var unauthorized : List.of(other, admin)) {
+                mvc.perform(as(unauthorized, get("/api/v2" + path))).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+                mvc.perform(command(unauthorized, path + "/responses", mapper.createObjectNode()
+                        .put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1).put("decision", "RESOLVED")))
+                        .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+            }
+        }
+        mvc.perform(as(requester, get("/api/v2/resolution-requests/" + id))).andExpect(status().isOk());
+        if ("WORK_RECORD".equals(source)) mvc.perform(as(staff, get("/api/v2/resolution-requests/" + id))).andExpect(status().isOk());
+        mvc.perform(command(requester, "/resolution-requests/" + id + "/responses", mapper.createObjectNode()
+                .put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1).put("decision", "RESOLVED"))).andExpect(status().isOk());
+    }
+
     @org.springframework.beans.factory.annotation.Autowired
     private com.hihops.hops.inquiry.service.InquiryAnswerHandler answers;
     @org.springframework.beans.factory.annotation.Autowired
@@ -102,7 +133,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         var path = "/api/v2/resolution-requests/" + request.path("id").asString();
         assertThat(result(as(requester, get(path)))).isEqualTo(request);
         assertThat(result(as(staff, get(path)))).isEqualTo(request);
-        mvc.perform(as(other, get(path))).andExpect(status().isForbidden());
+        mvc.perform(as(other, get(path))).andExpect(status().isNotFound());
         mvc.perform(as(requester, get("/api/v2/resolution-requests/" + UUID.randomUUID()))).andExpect(status().isNotFound());
     }
     @Test void 해결응답은_현재티켓을_최종완료하고_새키의_중복응답을_거절한다() throws Exception {
@@ -112,7 +143,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         result(command(requester, "/resolution-requests/" + id + "/responses", body));
         assertThat(detail().path("state").asString()).isEqualTo("RESOLVED");
         assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry)).isEqualTo("RESOLVED");
-        mvc.perform(as(admin, get("/api/v2/resolution-requests/" + id))).andExpect(status().isForbidden());
+        mvc.perform(as(admin, get("/api/v2/resolution-requests/" + id))).andExpect(status().isNotFound());
         var next = (tools.jackson.databind.node.ObjectNode) body.deepCopy(); next.put("requestId", UUID.randomUUID().toString());
         mvc.perform(command(requester, "/resolution-requests/" + id + "/responses", next)).andExpect(status().isConflict());
     }
@@ -136,7 +167,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         var id = detail().path("activeResolutionRequest").path("id").asString();
         var body = json("{\"requestId\":\"" + UUID.randomUUID() + "\",\"expectedRequestRevision\":1,\"decision\":\"UNRESOLVED\"}");
         var path = "/resolution-requests/" + id + "/responses";
-        mvc.perform(command(staff, path, body)).andExpect(status().isForbidden());
+        mvc.perform(command(staff, path, body)).andExpect(status().isNotFound());
         var first = result(command(requester, path, body));
         assertThat(result(command(requester, path, body))).isEqualTo(first);
         assertThat(detail().path("state").asString()).isEqualTo("IN_PROGRESS");
@@ -165,7 +196,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(java.util.Map.of("resolutionRequest", request,
                 "guide", java.util.Map.of("problemId", guided, "text", "안내", "evidenceIds", List.of()))), message);
         result(as(requester, get("/api/v2/resolution-requests/" + resolution)));
-        mvc.perform(as(staff, get("/api/v2/resolution-requests/" + resolution))).andExpect(status().isForbidden());
+        mvc.perform(as(staff, get("/api/v2/resolution-requests/" + resolution))).andExpect(status().isNotFound());
         var body = json("{\"requestId\":\"" + UUID.randomUUID() + "\",\"expectedRequestRevision\":1,\"decision\":\"UNRESOLVED\"}");
         result(command(requester, "/resolution-requests/" + resolution + "/responses", body));
         assertThat(jdbc.queryForObject("SELECT clarify_count FROM inquiry_problem WHERE id=?", Integer.class, guided)).isEqualTo(2);

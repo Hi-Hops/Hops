@@ -284,7 +284,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 - `POST /api/v2/tickets/{ticketId}/work-records`: 진행·실패·검증 완료 기록을 저장합니다. 검증 완료는 확인 요청과 CASE_DRAFT 접수를 같은 거래로 보존합니다. 확인 대기 중에는 모든 새 기록을 거절하고 문의자의 미해결 응답 후 다시 허용합니다.
 - `POST /api/v2/tickets/{ticketId}/processing-type-corrections`: 현재 PRIMARY가 미완료 조사/장애 유형을 근거와 함께 정정합니다.
 - `POST /api/v2/tickets/{ticketId}/assignment-corrections`: 현재 PRIMARY 또는 관리자가 책임 시스템을 정정합니다. 서버가 새 PRIMARY를 결정하며 배정 이력·진행 중 확인 요청을 보존합니다.
-- `GET /api/v2/resolution-requests/{resolutionRequestId}`: 문의 소유자 또는 원 티켓의 현재 PRIMARY가 저장된 확인 요청을 조회합니다. GUIDE는 문의 소유자만 조회합니다.
+- `GET /api/v2/resolution-requests/{resolutionRequestId}`: 문의 소유자 또는 원 티켓의 현재 PRIMARY가 저장된 확인 요청을 조회합니다. GUIDE는 문의 소유자만 조회합니다. 조회·응답 모두 권한 밖 ID와 없는 ID에는 동일한 404 NOT_FOUND를 반환합니다.
 - `POST /api/v2/resolution-requests/{resolutionRequestId}/responses`: 문의 소유자가 한 번 응답합니다. GUIDE 미해결은 같은 문제·입력 버전·질문 횟수·확인 문맥과 기존 분류를 유지한 재분석으로 접수합니다.
 
 명령은 본문 requestId와 같은 Idempotency-Key를 보내며 CommandReceipt를 반환합니다. Controller는 입력·응답, Service는 현재 인가·멱등 업무, Repository는 문의→티켓 순서의 잠금을 담당합니다. 확인 요청 조회·원 기록 검증은 `ResolutionRequestReader`, 응답 저장은 `ResolutionRequestService`로 나눴습니다. 문의 입력 버전과 도메인 revision을 구분하고 다른 분석이 진행 중이면 티켓 확인만으로 문의를 완료하지 않습니다. 분석 성공 결과를 적용할 때 현재 문제 상태를 다시 집계하며, 미적용 새 문제·질문·티켓 제안이 있으면 진행 상태를 유지합니다.

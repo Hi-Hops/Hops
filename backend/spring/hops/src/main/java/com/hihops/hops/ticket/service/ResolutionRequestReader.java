@@ -66,8 +66,7 @@ public class ResolutionRequestReader {
         var stored = stored(id);
         var inquiry = inquiries.findById(stored.request.inquiryId()).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         if (!inquiry.getRequester().getId().equals(actor.getId())) {
-            if (stored.ticket == null) throw new BusinessException(ErrorCode.ACCESS_DENIED);
-            authorization.requireCurrentPrimary(actor, stored.ticket);
+            if (stored.ticket == null || !authorization.isCurrentPrimary(actor, stored.ticket)) notFound();
         }
         return stored.request;
     }
@@ -77,7 +76,7 @@ public class ResolutionRequestReader {
         var actor = auth.currentMember(jwt);
         var request = stored(id).request;
         var inquiry = inquiries.findById(request.inquiryId()).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
-        if (!inquiry.getRequester().getId().equals(actor.getId())) throw new BusinessException(ErrorCode.ACCESS_DENIED);
+        if (!inquiry.getRequester().getId().equals(actor.getId())) notFound();
     }
 
     /** 문의 잠금을 확보한 응답 거래 안에서만 현재 안내를 다시 확인한다. 멱등 재확인은 이 검사보다 먼저 처리한다. */

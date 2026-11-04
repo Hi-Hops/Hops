@@ -110,7 +110,7 @@ class InquiryAnswerFlowTest {
         assertThat(request.path("state").asString()).isEqualTo("PENDING");
         String requestPath = "/api/v2/resolution-requests/" + request.path("id").asString();
         mockMvc.perform(as(get(requestPath))).andExpect(status().isOk()).andExpect(jsonPath("$.sourceVersion").value(1));
-        mockMvc.perform(as(ownerId, get(requestPath))).andExpect(status().isForbidden());
+        mockMvc.perform(as(ownerId, get(requestPath))).andExpect(status().isNotFound());
         UUID commandId = UUID.randomUUID();
         String command = jsonMapper.writeValueAsString(Map.of("requestId", commandId, "expectedRequestRevision", 1, "decision", decision));
         for (int replay = 0; replay < 2; replay++) mockMvc.perform(as(post(requestPath + "/responses"))
