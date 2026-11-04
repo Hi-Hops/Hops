@@ -4,6 +4,7 @@
 역할 선택 정확도나 실제 검색·Spring 저장까지 포함한 E2E 품질 측정은 아니다.
 """
 
+import json
 from copy import deepcopy
 
 import pytest
@@ -323,3 +324,64 @@ async def test_another_problems_message_cannot_reach_final_facts_or_ticket(role)
     assert result.answer is None
     assert result.problemProposals == result.questions == result.ticketProposals == []
     assert request == original
+
+
+@pytest.mark.parametrize("capture_content", [False, True])
+async def test_langfuse_exports_nested_role_and_model_observations(capture_content):
+    from langfuse import Langfuse
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    from hops_ai.services.runs.supervisor import SupervisorPipeline
+    from hops_ai.services.tracing import RunTracing
+
+    exporter = InMemorySpanExporter()
+    client = Langfuse(
+        public_key=f"pk-lf-test-{capture_content}",
+        secret_key="sk-lf-test",
+        tracer_provider=TracerProvider(),
+        span_exporter=exporter,
+    )
+    request = make_request()
+    context = RunContext.create(
+        run_id=request.runId,
+        inquiry_id=request.inquiryId,
+        inquiry_version=request.inquiryVersion,
+        access_scope_ref="synthetic-tracing",
+        settings=Settings(_env_file=None),
+    )
+    marker = "synthetic-content-marker"
+    pipeline = SupervisorPipeline(
+        FakeLLMClient(choice("CALL_ROLE", AgentRole.INQUIRY, marker), choice("ASK_USER")),
+        {AgentRole.INQUIRY: QuestionInquiry()},
+        tracing=RunTracing(client, capture_content=capture_content),
+    )
+    try:
+        result = await pipeline.run(request, context)
+        client.flush()
+        spans = exporter.get_finished_spans()
+        assert result.status == "SUCCEEDED"
+        assert [span.name for span in spans] == [
+            "model.generate",
+            "SUPERVISOR",
+            "INQUIRY",
+            "model.generate",
+            "SUPERVISOR",
+            "hops.ai.run",
+        ]
+        first_model, first_supervisor, inquiry, _, _, run = spans
+        assert first_model.parent.span_id == first_supervisor.context.span_id
+        assert inquiry.parent.span_id == run.context.span_id
+        assert "CALL_ROLE" in str(first_supervisor.attributes)
+        assert (marker in str(first_model.attributes)) == capture_content
+        assert ("messages" in str(first_model.attributes)) == capture_content
+        inquiry_output = json.loads(inquiry.attributes["langfuse.observation.output"])
+        run_output = json.loads(run.attributes["langfuse.observation.output"])
+        if capture_content:
+            assert inquiry_output["questions"] == [result.questions[0].text]
+            assert run_output["answer"] == result.answer
+        else:
+            assert "questions" not in inquiry_output
+            assert "answer" not in run_output
+    finally:
+        client.shutdown()

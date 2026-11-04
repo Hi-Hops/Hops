@@ -1,11 +1,12 @@
 """호출 측이 준비한 공통 의존성. 연결의 생성·종료는 각 어댑터의 소유자가 관리한다."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from hops_ai.harness.context import RunContext
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.base import GraphRetriever, VectorRetriever
 from hops_ai.services.tools.base import ToolGateway
+from hops_ai.services.tracing import RunTracing
 
 
 @dataclass(frozen=True)
@@ -22,3 +23,4 @@ class SharedServices:
     vector: VectorRetriever
     graph: GraphRetriever
     tools: ToolGateway
+    tracing: RunTracing = field(default_factory=RunTracing)
