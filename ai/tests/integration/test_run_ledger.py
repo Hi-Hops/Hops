@@ -131,6 +131,75 @@ async def test_detail_expiry_retains_id_and_digest(ledger: RunLedger) -> None:
         await ledger.accept(run_id, {"message": "다른 가상 문의"})
 
 
+async def finished_run(ledger: RunLedger, hours_ago: int) -> UUID:
+    run_id = uuid4()
+    await ledger.accept(run_id, {"message": f"가상 문의 {run_id}"})
+    await ledger.start(run_id)
+    await ledger.finish(run_id, "SUCCEEDED", {"runId": str(run_id), "status": "SUCCEEDED"}, 1)
+    async with await psycopg.AsyncConnection.connect(ledger._conninfo) as conn:
+        await conn.execute(
+            "UPDATE ai_run_ledger SET finished_at = CURRENT_TIMESTAMP - make_interval(hours => %s) "
+            "WHERE run_id = %s",
+            (hours_ago, run_id),
+        )
+    return run_id
+
+
+async def test_batch_expiry_only_touches_details_past_retention(ledger: RunLedger) -> None:
+    # 다른 테스트가 남긴 만료 대상은 먼저 비운다.
+    while await ledger.expire_details(1000):
+        pass
+    old = [await finished_run(ledger, 25) for _ in range(3)]
+    recent = await finished_run(ledger, 23)
+    active = uuid4()
+    await ledger.accept(active, {"message": "진행 중인 가상 문의"})
+
+    assert await ledger.expire_details(2) == 2
+    assert await ledger.expire_details(2) == 1
+    assert await ledger.expire_details(2) == 0
+
+    for run_id in old:
+        snapshot = await ledger.get(run_id)
+        assert snapshot.status == "UNKNOWN" and snapshot.result is None
+        assert snapshot.input_digest
+    assert (await ledger.get(recent)).status == "SUCCEEDED"
+    assert (await ledger.get(active)).status == "QUEUED"
+    with pytest.raises(ValueError):
+        await ledger.expire_details(0)
+
+
+async def test_ping_answers_only_while_the_owner_session_is_open(ledger: RunLedger) -> None:
+    await ledger.ping()
+
+    await ledger.close()
+
+    with pytest.raises(InvalidRunTransition):
+        await ledger.ping()
+
+
+async def test_running_app_periodically_recovers_runs_of_a_stopped_instance(
+    ledger: RunLedger,
+) -> None:
+    # 다른 인스턴스가 run을 잡은 채 세션을 잃는다. 이 앱은 재시작 없이 주기 복구로 정리해야 한다.
+    stopped = RunLedger(ledger._conninfo)
+    await stopped.open()
+    run_id = uuid4()
+    await stopped.accept(run_id, {"message": "중단될 가상 문의"})
+    await stopped.start(run_id)
+    settings = Settings(_env_file=None, ledger_recovery_interval_seconds=0.05)
+    app = create_app(settings, ledger=RunLedger(ledger._conninfo))
+
+    async with app.router.lifespan_context(app):
+        assert (await ledger.get(run_id)).status == "RUNNING"
+        await stopped.close()
+
+        async def recovered() -> None:
+            while (await ledger.get(run_id)).status != "UNKNOWN":
+                await asyncio.sleep(0.02)
+
+        await asyncio.wait_for(recovered(), 5)
+
+
 async def test_sequence_is_atomic_and_unavailable_after_termination(ledger: RunLedger) -> None:
     run_id = uuid4()
     await ledger.accept(run_id, {"message": "가상 문의"})

@@ -61,7 +61,7 @@ docker compose ps
 
 Frontend·Spring·AI·PostgreSQL·Redis 컨테이너 5개가 실행됩니다. PostgreSQL·Redis는 기존처럼 별도 컨테이너이며 DB 데이터 볼륨과 서비스 의존 관계도 유지합니다. 기본 주소는 Frontend `http://localhost:5173`, Spring Swagger `http://localhost:8080/swagger-ui/index.html`, AI 생존 확인 `http://localhost:8000/healthz`, DB `localhost:5432`입니다. Redis는 PC에 포트를 공개하지 않습니다.
 
-DB는 PostgreSQL 18·pgvector 0.8.7을 사용하고 Spring Flyway가 확장·테이블·개발용 가상 데이터를 적용합니다. AI 전용 `hops_ai_runtime` DB·계정은 기존처럼 별도 준비합니다. AI의 `/healthz`는 200, `/readyz`는 현재 골격의 준비되지 않은 상태를 나타내는 503이며 실제 모델·검색·업무 통합 완료를 뜻하지 않습니다.
+DB는 PostgreSQL 18·pgvector 0.8.7을 사용하고 Spring Flyway가 확장·테이블·개발용 가상 데이터를 적용합니다. AI 전용 `hops_ai_runtime` DB·계정은 기존처럼 별도 준비합니다. AI의 `/healthz`는 프로세스 생존 200이고, `/readyz`는 실행 파이프라인이 연결되고 RunLedger 세션이 응답하는 `real` 모드에서만 200(그 외 503)입니다. 200도 실제 모델·검색·업무 통합 완료를 뜻하지 않습니다.
 
 #### 4. 필요한 서비스만 실행
 

@@ -16,6 +16,7 @@ from hops_ai.services.llm.openai import OpenAIClient
 from hops_ai.services.runs.admission import RunAdmissionService
 from hops_ai.services.runs.events import RunEventHub
 from hops_ai.services.runs.executor import RunExecutor, RunPipeline, server_ceilings
+from hops_ai.services.runs.maintenance import LedgerMaintenance
 from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.tracing import RunTracing
 from hops_ai.settings import RunMode, Settings
@@ -83,9 +84,18 @@ def create_app(
                     events=app.state.run_events,
                 )
                 app.state.run_executor = executor
+            maintenance = LedgerMaintenance(
+                resolved_ledger,
+                recovery_interval=resolved.ledger_recovery_interval_seconds,
+                expiry_interval=resolved.ledger_expiry_interval_seconds,
+            )
+            maintenance.start()
             try:
                 yield
             finally:
+                # 종료가 시작되면 먼저 준비 상태를 내리고 주기 작업을 멈춘다.
+                app.state.run_executor = None
+                await maintenance.stop()
                 # 소유 세션을 닫기 전에 실행을 멈춘다. 남은 run은 다음 복구에서 UNKNOWN이 된다.
                 if executor is not None:
                     await executor.shutdown()

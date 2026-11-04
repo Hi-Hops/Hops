@@ -14,7 +14,7 @@ def test_scaffold_is_alive_but_not_ready_for_business_requests() -> None:
         assert response.status_code == 503
         assert response.json() == {
             "status": "not_ready",
-            "reason": "AI_PIPELINE_NOT_IMPLEMENTED",
+            "reason": "RUN_PIPELINE_DISABLED",
         }
         assert client.app.state.settings is settings
 
@@ -29,3 +29,14 @@ def test_retired_runs_and_events_cannot_return_fake_business_success() -> None:
 def test_real_mode_has_no_automatic_fake_fallback() -> None:
     with pytest.raises(ComponentNotReady):
         create_app(Settings(_env_file=None, mode="real"))
+
+
+def test_readiness_documents_both_ready_and_not_ready_responses() -> None:
+    with TestClient(create_app(Settings(_env_file=None))) as client:
+        schema = client.get("/openapi.json").json()
+
+    responses = schema["paths"]["/readyz"]["get"]["responses"]
+    assert set(responses) == {"200", "503"}
+    not_ready = schema["components"]["schemas"]["NotReady"]["properties"]
+    assert not_ready["reason"]["enum"] == ["RUN_PIPELINE_DISABLED", "RUN_LEDGER_UNAVAILABLE"]
+    assert schema["components"]["schemas"]["Ready"]["properties"]["status"]["const"] == "ready"
