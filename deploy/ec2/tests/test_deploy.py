@@ -36,8 +36,12 @@ elif a[0] == 'stop':
 elif a[0] == 'rename':
     containers[a[2]] = containers.pop(a[1])
 elif a[0] == 'run':
-    name = a[a.index('--name') + 1]
-    containers[name] = {'running': True, 'version': 'new'}
+    if '--rm' in a:
+        if os.environ.get('FAKE_NGINX_CONFIG_FAILURE'):
+            result = 1
+    else:
+        name = a[a.index('--name') + 1]
+        containers[name] = {'running': True, 'version': 'new'}
 elif a[0] == 'rm':
     containers.pop(a[-1], None)
 elif a[0] == 'start':
@@ -55,7 +59,11 @@ sys.exit(result)
 CURL = r'''#!/usr/bin/env python3
 import os, sys
 url = sys.argv[-1]
-if '8000/healthz' in url and os.environ.get('FAKE_AI_FAILURE'):
+if url.endswith('/v3/api-docs/swagger-config'):
+    print('200 text/html' if os.environ.get('FAKE_SWAGGER_FALLBACK') else '200 application/json', end='')
+elif url.endswith('/swagger-ui/swagger-ui-bundle.js'):
+    print('200 text/javascript', end='')
+elif '8000/healthz' in url and os.environ.get('FAKE_AI_FAILURE'):
     print('503', end='')
 elif url.endswith('/api/v2/auth/me'):
     print('401', end='')
@@ -74,13 +82,11 @@ class DeploymentTest(unittest.TestCase):
         self.state.mkdir()
         self.bin.mkdir()
         (self.home / ".config/hops").mkdir(parents=True)
-        (self.home / "hops-deploy/nginx").mkdir(parents=True)
         (self.home / ".config/hops/spring.env").write_text(
             "HOPS_CORS_ALLOWEDORIGINS=https://example.test\n"
         )
         (self.home / ".config/hops/ai.env").touch()
         (self.home / "rds-global-bundle.pem").touch()
-        (self.home / "hops-deploy/nginx/https.conf").touch()
         (self.state / "spring-migrations.tree").write_text(SPRING_TREE + "\n")
         (self.state / "ai-migrations.tree").write_text(AI_TREE + "\n")
         self.docker_state = self.root / "docker.json"
@@ -123,11 +129,37 @@ class DeploymentTest(unittest.TestCase):
     def test_success_replaces_three_services_and_keeps_redis(self):
         result = self.deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
-        state = self.state_after()["containers"]
+        result_state = self.state_after()
+        state = result_state["containers"]
+        preflight = next(call for call in result_state["calls"] if call[:2] == ["run", "--rm"])
+        nginx = next(call for call in result_state["calls"] if call[0] == "run" and "hops-nginx" in call)
+        self.assertIn(IMAGES[2], preflight)
+        self.assertIn("HOPS_PUBLIC_HOST=example.test", preflight)
+        self.assertIn("NGINX_ENVSUBST_FILTER=^HOPS_PUBLIC_HOST$", nginx)
+        self.assertFalse(any("https.conf:/etc/nginx" in arg for arg in nginx))
         self.assertEqual(set(state), {"hops-spring", "hops-ai", "hops-nginx", "hops-redis"})
         self.assertEqual(state["hops-nginx"]["version"], "new")
         self.assertEqual(state["hops-redis"]["version"], "old")
         self.assertEqual((self.state / "deployed-commit").read_text().strip(), COMMIT)
+
+    def test_invalid_nginx_template_stops_before_container_changes(self):
+        result = self.deploy(FAKE_NGINX_CONFIG_FAILURE="1")
+        self.assertNotEqual(result.returncode, 0)
+        state = self.state_after()
+        self.assertTrue(all(container["running"] and container["version"] == "old"
+                            for container in state["containers"].values()))
+        self.assertFalse(any(call[0] in ("stop", "rename") for call in state["calls"]))
+        self.assertFalse((self.state / "deployed-commit").exists())
+
+    def test_swagger_spa_fallback_restores_every_original_container(self):
+        result = self.deploy(FAKE_SWAGGER_FALLBACK="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("HTTPS OpenAPI check failed", result.stderr)
+        state = self.state_after()["containers"]
+        self.assertEqual(set(state), {"hops-spring", "hops-ai", "hops-nginx", "hops-redis"})
+        self.assertTrue(all(container["running"] and container["version"] == "old"
+                            for container in state.values()))
+        self.assertFalse((self.state / "deployed-commit").exists())
 
     def test_failed_ai_health_restores_every_original_container(self):
         result = self.deploy(FAKE_AI_FAILURE="1")

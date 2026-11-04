@@ -12,8 +12,10 @@ function selectChecks(files, event) {
   for (const file of files) {
     if (documentationOnly(file)) continue;
     docsOnly = false;
-    if (file.startsWith('frontend/')) checks.frontend = true;
-    else if (file.startsWith('backend/spring/hops/')) checks.spring = true;
+    if (file.startsWith('frontend/')) {
+      checks.frontend = true;
+      if (file.startsWith('frontend/nginx/') || file === 'frontend/Dockerfile.deploy') checks.deployment = true;
+    } else if (file.startsWith('backend/spring/hops/')) checks.spring = true;
     else if (file.startsWith('ai/')) checks.ai = true;
     else Object.keys(checks).forEach(key => { checks[key] = true; });
   }

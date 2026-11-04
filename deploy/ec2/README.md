@@ -8,13 +8,21 @@
 2. 항상 실행되는 `CI result`가 선택된 검사의 성공을 확인한다. `develop` push에서 전체 검사가 성공하고 자동 배포 변수가 켜진 경우에만 배포한다. PR 코드는 EC2에서 실행하지 않는다.
 3. GitHub OIDC로 제한된 AWS 역할을 사용한다. 테스트한 커밋에서 세 이미지를 빌드해 각각 ECR의 `hops-spring`, `hops-ai`, `hops-frontend` 저장소에 올린다. 배포에는 태그 대신 이미지 digest를 전달한다.
 4. Systems Manager의 고정된 `HopsDeploy` 문서가 해당 커밋의 배포 스크립트를 내려받아 SHA-256을 확인하고 EC2에서 실행한다.
-5. 기존 컨테이너를 잠시 보관한 뒤 Spring·AI·Nginx를 교체한다. Spring 인증 거부, AI 생존 상태, 로컬 HTTPS 프론트·API를 검사한다. 실패 시 이전 컨테이너 복원을 시도한다. Redis와 DB, 인증서 볼륨은 삭제하지 않는다.
+5. 프론트 이미지에 포함된 Nginx 템플릿을 공개 호스트에 맞춰 렌더링하고 설정을 검사한다. 기존 컨테이너를 잠시 보관한 뒤 Spring·AI·Nginx를 교체하고 HTTPS 프론트·API·Swagger와 AI 생존 상태를 검사한다. 실패 시 이전 컨테이너 복원을 시도한다. Redis와 DB, 인증서 볼륨은 삭제하지 않는다.
 
 서비스 디렉터리 변경만으로 다른 서비스의 호출 관계를 자동 추론하지는 못한다. API·계약 변경 시 작성자와 리뷰어가 관련 소비자 검사가 필요한지 확인한다. 공통 계약 디렉터리(`contracts/`, `specs/`) 변경과 분류되지 않은 파일은 보수적으로 전체 검사를 실행한다. `CI result`는 통합 상태 검사 이름이며 브랜치 규칙에 자동 등록하지 않는다.
 
 현재 단일 EC2라 교체 중 일시 중단이 있다. 로컬 HTTPS 응답은 전체 사용자 로그인·SSE·AI 모델 E2E가 아니다. AI `/readyz`가 현재 503인 점을 감안해 `/healthz`로 생존만 확인한다. 이전 이미지와 DB 백업은 별도로 보관해야 하며, 복원 시도 자체가 성공을 보장하지 않는다.
 
 `README.md`와 `docs/` 아래 Markdown만 변경한 push는 직전 커밋의 실제 배포 성공 로그가 확인된 경우에만 배포를 생략한다. 직전 배포가 진행 중이거나 실패·생략됐거나 로그를 조회할 수 없으면 기존과 같이 배포한다. 따라서 배포 이력 만료나 연속된 문서 변경 등에서는 불필요한 배포가 발생할 수 있다. GitHub Actions 외부의 수동 배포·복원은 이 기록에 포함되지 않으므로 별도 운영 절차가 필요하다.
+
+## Nginx 설정과 Swagger
+
+Nginx 설정은 [`frontend/nginx/default.conf.template`](../../frontend/nginx/default.conf.template)에서 관리하며 배포용 프론트 이미지에 포함한다. 배포 시 검증된 공개 호스트만 치환한다. Nginx의 `$host` 등 요청 변수는 치환하지 않는다. 인증서와 개인키는 Git에 넣지 않고 기존 Docker 볼륨에서 읽는다.
+
+HTTP는 인증서 갱신 경로를 제외하고 HTTPS로 전환한다. HTTPS의 `/api/v2/`·SSE·`/swagger-ui/`·`/v3/api-docs`는 Spring으로, 나머지 경로는 프론트로 전달한다. Swagger 문서와 UI는 공개되고 API의 인증·인가 검사는 Spring이 담당한다. 설정을 비공개로 바꿀 때는 접근 정책을 별도로 정한다.
+
+첫 전환 때 EC2의 기존 `hops-deploy/nginx/https.conf` 파일은 삭제하거나 덮어쓰지 않는다. 새 이미지가 만들어질 때까지 기존 배포는 그 파일을 사용한다. 새 배포에서는 이미지의 템플릿을 검사한 뒤 이전 컨테이너를 보존하면서 교체한다. 실패하면 기존 컨테이너와 기존에 연결된 설정의 복원을 시도한다. 새 이미지에서는 EC2의 수동 설정을 읽지 않으므로 설정 변경은 저장소에서 리뷰한 뒤 배포한다. 새 EC2에도 네트워크, 서비스 env와 유효한 인증서 볼륨은 별도 준비해야 한다.
 
 ## 마이그레이션 경계
 
@@ -40,7 +48,7 @@ AWS 계정에 장기 액세스 키를 만들거나 저장소에 비밀값을 넣
 2. EC2에 SSM Agent와 인스턴스 프로파일을 구성해 Systems Manager의 관리형 노드로 등록한다. 역할에 `AmazonSSMManagedInstanceCore`와 세 ECR 저장소에서 이미지를 받는 최소 권한을 부여한다. EC2의 AWS CLI·Docker·curl·flock과 AWS 및 GitHub HTTPS 접근도 필요하다.
 3. `ssm-document.yml`을 같은 계정·리전의 **명령 문서 `HopsDeploy`**로 생성한다. 기본 문서 버전을 관리자가 검토하고, GitHub 역할에는 임의의 `AWS-RunShellScript`가 아니라 이 문서와 대상 인스턴스에 대한 `ssm:SendCommand`만 허용한다. 문서 수정 권한은 별도 관리한다. SSM 명령은 EC2에서 root로 실행되므로 대상·문서·호출 권한 제한이 중요하다.
 4. GitHub OIDC 공급자와 배포용 IAM 역할을 준비한다. 신뢰 정책은 대상 저장소와 `refs/heads/develop`, `sts.amazonaws.com`으로 제한하고 조직의 실제 브랜치 보호·리뷰 권한을 확인한다. GitHub 역할에 ECR 세 저장소의 push·이미지 조회와 SSM 명령 전송·결과 조회에 필요한 권한만 부여한다.
-5. 현재 EC2의 `hops-spring`, `hops-ai`, `hops-nginx`, `hops-redis`, Docker 네트워크 `hops-internal`, RDS CA·서비스 env 파일, Nginx 설정과 인증서 볼륨을 확인한다. 배포 스크립트는 현재 수동 구성과 같은 이름·경로를 사용한다.
+5. 현재 EC2의 `hops-spring`, `hops-ai`, `hops-nginx`, `hops-redis`, Docker 네트워크 `hops-internal`, RDS CA·서비스 env 파일과 인증서 볼륨을 확인한다. `hops-letsencrypt`에는 공개 호스트에 해당하는 인증서와 개인키가 있어야 한다. 배포 스크립트는 현재 수동 구성과 같은 컨테이너·볼륨 이름을 사용한다.
 
 IAM 정책의 출발점은 [iam 디렉터리](iam/)에 있다. `github-trust.json`은 GitHub 역할의 신뢰 정책이고, `github-deploy-policy.json`은 해당 역할의 권한 정책이며, `ec2-ecr-pull-policy.json`은 EC2 역할의 ECR 읽기 권한 정책이다. AWS 콘솔에 입력할 때 각 `<...>` 자리에 실제 계정 ID, 리전과 인스턴스 ID를 넣고 범위를 확인한다. 이 템플릿을 저장소에 추가해도 AWS 권한은 생성되지 않는다.
 
