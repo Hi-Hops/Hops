@@ -91,9 +91,14 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
         onDismiss={setDismissedRevision}
       />
     ) : null;
-  const steps = chat.live?.steps.length
-    ? chat.live.steps
-    : [{ stepNo: 0, text: '문의 내용을 확인하고 있어요' }];
+  // 답변이 끝난 실행의 진행 단계는 사라지지 않고 해당 답변 위에 완료 기록으로 남는다.
+  const trailOf = (message: (typeof chat.items)[number]) =>
+    message.sender === 'AI' && !(chat.active && message.id === run?.answerMessageId)
+      ? chat.trails[message.id]
+      : undefined;
+  const steps = chat.trails[run?.answerMessageId ?? ''] ?? [
+    { stepNo: 0, text: '문의 내용을 확인하고 있어요' },
+  ];
   return (
     <main className={styles.chat}>
       <header className={styles.head}>
@@ -142,33 +147,43 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
             }}
           />
         )}
-        {chat.items.map((message) => (
-          <Fragment key={message.id}>
-            <article
-              data-message-id={message.id}
-              className={message.sender === 'USER' ? styles.userRow : styles.aiRow}
-              aria-label={message.sender === 'USER' ? '사용자 메시지' : 'Hops 답변'}
-            >
-              <div className={styles.author}>
-                {message.sender === 'AI' && (
-                  <span className={styles.avatar} aria-hidden="true">
-                    H
-                  </span>
+        {chat.items.map((message) => {
+          const trail = trailOf(message);
+          return (
+            <Fragment key={message.id}>
+              <article
+                data-message-id={message.id}
+                className={message.sender === 'USER' ? styles.userRow : styles.aiRow}
+                aria-label={message.sender === 'USER' ? '사용자 메시지' : 'Hops 답변'}
+              >
+                <div className={styles.author}>
+                  {message.sender === 'AI' && (
+                    <span className={styles.avatar} aria-hidden="true">
+                      H
+                    </span>
+                  )}
+                  <strong>{message.sender === 'USER' ? userName : 'Hops'}</strong>
+                  {!chat.active && message.id === lastAiId && <ConnectionIndicator />}
+                  <time dateTime={message.createdAt}>{displayChatTime(message.createdAt)}</time>
+                </div>
+                {trail && <ProgressSteps steps={trail} done />}
+                <div className={message.sender === 'USER' ? styles.userBubble : styles.aiBubble}>
+                  <p>{message.content}</p>
+                </div>
+                {message.sender === 'USER' && !closed && (
+                  <SystemMessageRevision
+                    message={message}
+                    inquiry={inquiry}
+                    disabled={!chat.ready}
+                  />
                 )}
-                <strong>{message.sender === 'USER' ? userName : 'Hops'}</strong>
-                {!chat.active && message.id === lastAiId && <ConnectionIndicator />}
-                <time dateTime={message.createdAt}>{displayChatTime(message.createdAt)}</time>
-              </div>
-              <div className={message.sender === 'USER' ? styles.userBubble : styles.aiBubble}>
-                <p>{message.content}</p>
-              </div>
-              {message.sender === 'USER' && !closed && (
-                <SystemMessageRevision message={message} inquiry={inquiry} disabled={!chat.ready} />
+              </article>
+              {message.id === anchorId && results && (
+                <div className={styles.attached}>{results}</div>
               )}
-            </article>
-            {message.id === anchorId && results && <div className={styles.attached}>{results}</div>}
-          </Fragment>
-        ))}
+            </Fragment>
+          );
+        })}
         {chat.active && (
           <div role="status" className={styles.aiRow}>
             <div className={styles.author}>

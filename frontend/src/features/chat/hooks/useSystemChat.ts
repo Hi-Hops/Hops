@@ -7,7 +7,7 @@ import { StreamBuffer } from '@/shared/realtime/streamBuffer';
 import type { ChatMessage } from '@/shared/api/types/hopsSystem1';
 
 export type ProgressStep = { stepNo: number; text: string };
-const idle = { runId: '', text: '', steps: [] as ProgressStep[] };
+const idle = { runId: '', text: '' };
 import {
   getSystemInquiry,
   getSystemMessages,
@@ -56,9 +56,14 @@ export function useSystemChat(id: string) {
   const runId = current?.id ?? '';
   const buffer = useMemo(() => new StreamBuffer(version, runId), [version, runId]);
   const [live, setLive] = useState(idle);
+  // 실행이 끝나도 진행 단계를 답변 위에 남기도록 답변 메시지별로 단계 목록을 보관한다.
+  const [trails, setTrails] = useState<Record<string, { runId: string; steps: ProgressStep[] }>>(
+    {},
+  );
+  const answerId = current?.answerMessageId;
   useEffect(() => {
     const offDelta = realtime.on('answer.delta', (event) => {
-      if (event.inquiryId !== id || event.payload.messageId !== current?.answerMessageId) return;
+      if (event.inquiryId !== id || event.payload.messageId !== answerId) return;
       const accepted = buffer.accept(event);
       if (buffer.needsRecovery) {
         buffer.clear();
@@ -67,32 +72,24 @@ export function useSystemChat(id: string) {
         void client.invalidateQueries({ queryKey: systemChatKeys.messages(actor, id) });
         return;
       }
-      if (accepted)
-        setLive((s) => ({
-          runId,
-          text: buffer.text(event.payload.messageId),
-          steps: s.runId === runId ? s.steps : [],
-        }));
+      if (accepted) setLive({ runId, text: buffer.text(event.payload.messageId) });
     });
     const offProgress = realtime.on('agent.progress', (event) => {
       if (event.inquiryId === id && event.runId === runId && event.inquiryVersion === version)
-        setLive((s) => {
-          // 공개 진행 요약을 단계 번호별로 쌓아 실행 중에만 체크 목록으로 보여준다.
-          const steps = (s.runId === runId ? s.steps : []).filter(
-            (step) => step.stepNo !== event.payload.stepNo,
-          );
+        setTrails((t) => {
+          if (!answerId) return t;
+          // 공개 진행 요약을 단계 번호별로 쌓아 체크 목록으로 보여준다.
+          const previous = t[answerId]?.runId === runId ? t[answerId].steps : [];
+          const steps = previous.filter((step) => step.stepNo !== event.payload.stepNo);
           steps.push({ stepNo: event.payload.stepNo, text: event.payload.displaySummary });
-          return {
-            runId,
-            text: s.runId === runId ? s.text : '',
-            steps: steps.sort((a, b) => a.stepNo - b.stepNo),
-          };
+          return { ...t, [answerId]: { runId, steps: steps.sort((a, b) => a.stepNo - b.stepNo) } };
         });
     });
     const offReset = realtime.on('stream.reset', (event) => {
       if (event.target.type === 'INQUIRY' && event.target.id === id) {
         buffer.clear();
         setLive(idle);
+        if (answerId) setTrails((t) => ({ ...t, [answerId]: { runId, steps: [] } }));
       }
     });
     return () => {
@@ -100,7 +97,7 @@ export function useSystemChat(id: string) {
       offProgress();
       offReset();
     };
-  }, [actor, buffer, client, current?.answerMessageId, id, runId, version]);
+  }, [actor, answerId, buffer, client, id, runId, version]);
   useEffect(() => {
     if (!buffer.hasGaps) return;
     const timer = setTimeout(() => {
@@ -123,6 +120,15 @@ export function useSystemChat(id: string) {
     return [...unique.values()].sort((a, b) => a.sequenceNo - b.sequenceNo);
   }, [messages.data]);
   const active = isActive(displayedRun?.status);
+  const steps = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(trails)
+          .filter(([, trail]) => trail.steps.length > 0)
+          .map(([messageId, trail]) => [messageId, trail.steps]),
+      ) as Record<string, ProgressStep[] | undefined>,
+    [trails],
+  );
   return {
     inquiry,
     messages,
@@ -131,6 +137,7 @@ export function useSystemChat(id: string) {
     items,
     subscription,
     active,
+    trails: steps,
     live:
       active && live.runId === runId && !items.some((m) => m.id === current?.answerMessageId)
         ? live

@@ -28,3 +28,10 @@ it('기준 개수 미만에서는 모든 단계를 보여주고 접기 아이콘
   expect(screen.getAllByRole('listitem')).toHaveLength(COLLAPSE_AT - 1);
   expect(screen.queryByRole('button')).not.toBeInTheDocument();
 });
+
+it('완료 기록으로 남긴 진행 단계는 진행 중 표시 없이 모든 단계를 체크로 보여준다', () => {
+  render(<ProgressSteps steps={steps.slice(0, COLLAPSE_AT - 1)} done />);
+  expect(screen.getByRole('list', { name: '완료된 진행 단계' })).toBeVisible();
+  for (const item of screen.getAllByRole('listitem'))
+    expect(item).not.toHaveAttribute('data-current');
+});
