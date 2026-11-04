@@ -80,6 +80,24 @@ def get_handoff_readiness(state: "SupervisorState") -> list[HandoffReadiness]:
     return readiness
 
 
+def all_unfinished_ready_for_handoff(state: "SupervisorState") -> bool:
+    """Knowledge가 근거를 못 찾은 뒤, 남은 문제가 모두 담당자 전달 정보를 갖췄는지.
+
+    처리 결과가 없는 문제가 있고, 그 문제가 전부 사용법 문제이며, 각각 누락 항목이 없을 때만
+    참이다. 다른 유형의 미처리 문제가 하나라도 있거나 누락이 있으면 거짓이다. 이 경우 Inquiry를
+    다시 불러도 같은 원문에서 같은 사실을 다시 뽑을 뿐 새 질문을 만들 수 없다.
+    """
+    if not knowledge_found_nothing(state):
+        return False
+    unfinished = [
+        item["problemRef"] for item in get_problem_progress(state) if item["outcome"] is None
+    ]
+    ready = {
+        item["problemRef"]: not item["missingForHandoff"] for item in get_handoff_readiness(state)
+    }
+    return bool(unfinished) and all(ready.get(ref, False) for ref in unfinished)
+
+
 class ProblemProgress(TypedDict):
     """문제별 준비 상태의 읽기 전용 투영. 업무 DB 상태를 새로 확정하지 않는다."""
 
