@@ -35,6 +35,12 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: node .github/scripts/ci-changes.cjs
+      - name: Check whitespace errors in the PR diff
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" "$HEAD_SHA"
 
   spring:
     name: Spring tests and build
@@ -193,7 +199,17 @@ jobs:
         run: |
           bash -n deploy/ec2/deploy.sh
           python3 -m unittest discover -s deploy/ec2/tests -v
-          node --test .github/scripts/ci-changes.test.cjs .github/scripts/ci-docs-deploy.test.cjs .github/scripts/ci-gate.test.cjs
+      # .github 변경은 모든 검사를 선택하므로 워크플로와 자동화 스크립트도 이 job에서 검사한다.
+      - name: Test workflow scripts
+        run: node --test .github/scripts/*.test.cjs
+      - name: Check workflow syntax and expressions
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -shellcheck=
 
   ci-gate:
     name: CI result
