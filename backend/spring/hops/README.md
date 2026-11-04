@@ -318,7 +318,8 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 | 구현 항목 | 현재 동작 |
 |---|---|
 | 대상 권한 | 현재 DB 회원·부서·역할과 토큰 문맥을 비교합니다. 현재 처리 부서 구성원 또는 BIZ_ADMIN만 허용합니다. 없는 부서는 404입니다. |
-| 문의·시스템·개별 티켓 대상 | `SYSTEM_TICKETS`·`TICKET`은 현재 시스템 담당 관계와 관리자 공개 범위를 검사해 구독합니다. `INQUIRY`는 후속 범위이며 503입니다. 업무 변경 이벤트 생산자는 아직 연결하지 않았습니다. |
+| 문의·시스템·개별 티켓 대상 | `SYSTEM_TICKETS`·`TICKET`은 현재 시스템 담당 관계와 관리자 공개 범위를 검사해 구독합니다. `INQUIRY`는 토큰·소속·역할 검사 뒤 문의자 본인의 삭제되지 않은 문의만 구독합니다(남의 문의·없는 문의는 404). 티켓 업무 변경 이벤트 생산자는 아직 연결하지 않았습니다. |
+| 메시지 저장 알림 | 문의 생성·메시지 전송·정정·AI 답변 저장이 commit되면 그 문의 구독에 `message.stored` `{eventId, inquiryId, inquiryVersion, messageId, requestId}`를 보냅니다(AI 답변은 `requestId=null`). 본문은 싣지 않으며 프론트는 문의·메시지를 다시 조회합니다. 보내기 직전에 구독 권한을 다시 확인합니다. |
 | 연결 유지 | 최초·유휴 시 comment를 전송합니다. `hops.realtime.heartbeat=15s`, `hops.realtime.timeout=5m`은 조정 가능한 개발 기본값이며 운영 부하·프록시 검증 수치가 아닙니다. |
 | 종료·권한 회수 | timeout·오류·완료·서버 종료 때 등록과 예약 작업을 정리합니다. 토큰 만료 시 종료하고, heartbeat 및 업무 이벤트 전 현재 DB 권한을 재검사합니다. |
 | 확정 이벤트 | 트랜잭션 안에서 `StateChangedEvent`를 발행하면 커밋 후 해당 부서 연결에 `state.changed`를 전달합니다. 롤백·트랜잭션 없는 발행은 전달하지 않습니다. |
@@ -326,7 +327,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 업무 서비스는 `ApplicationEventPublisher.publishEvent(...)`로 `realtime/dto/StateChangedEvent`를
 자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
-외부 이벤트 발행용 HTTP API는 제공하지 않습니다. 문의·답변 이벤트 생산자와 업무 저장 API는 아직 연결하지 않았습니다.
+메시지 저장은 `realtime/dto/MessageStoredEvent`를 같은 방식으로 발행합니다. 외부 이벤트 발행용 HTTP API는 제공하지 않습니다. INQUIRY의 `state.changed`(실행 종료 등)와 `answer.delta`·`agent.progress` 중계는 아직 연결하지 않았습니다.
 
 현재는 단일 Spring 프로세스의 연결만 관리합니다. 로그인 세션 종료 시 회원 단위 SSE 정리는 연결했습니다.
 부서·역할 변경을 즉시 모든 연결에 통지하는 `auth.invalidated`는 아직 없습니다.
