@@ -181,3 +181,43 @@ def test_unknown_intent_asks_what_the_user_wants_to_do() -> None:
 
     assert plan.action == "ASK"
     assert plan.fields == ("taskOrScreen",)
+
+
+# --- 안내를 먼저 찾을 수 있을 때(Knowledge 연결): 사용법은 검색에 필요한 정보만 확보한다 ---
+
+
+def test_guide_first_how_to_needs_only_system_and_task_to_search() -> None:
+    known = {"taskOrScreen": "전자결재 문서 조회"}
+
+    plan = plan_next("HOW_TO", known, system_known=True, guide_first=True)
+
+    assert plan.action == "COMPLETE"
+
+
+def test_guide_first_how_to_asks_the_task_but_never_the_current_workflow() -> None:
+    plan = plan_next("HOW_TO", {}, system_known=True, guide_first=True)
+
+    assert plan.action == "ASK"
+    assert plan.fields == ("taskOrScreen",)
+
+
+def test_guide_first_how_to_still_asks_the_system_first() -> None:
+    plan = plan_next("HOW_TO", {}, system_known=False, system_names=SYSTEMS, guide_first=True)
+
+    assert plan.fields == (SYSTEM, "taskOrScreen")
+
+
+def test_without_guide_first_how_to_keeps_the_existing_form() -> None:
+    known = {"taskOrScreen": "전자결재 문서 조회"}
+
+    plan = plan_next("HOW_TO", known, system_known=True)
+
+    assert plan.action == "ASK" and plan.fields == ("currentWorkflow",)
+
+
+@pytest.mark.parametrize("intent", [*(i for i in ASKABLE if i != "HOW_TO"), "UNKNOWN"])
+def test_guide_first_does_not_change_other_intents(intent) -> None:
+    for known, system_known in (({}, False), (everything(intent), True)):
+        assert plan_next(
+            intent, known, system_known=system_known, system_names=SYSTEMS, guide_first=True
+        ) == plan_next(intent, known, system_known=system_known, system_names=SYSTEMS)

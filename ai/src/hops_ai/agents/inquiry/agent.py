@@ -58,6 +58,14 @@ PROCESSING_TYPES: Mapping[str, ProcessingType] = {
 class ExtractionInquiryAgent:
     role = AgentRole.INQUIRY
 
+    def __init__(self, *, guide_first: bool = False) -> None:
+        """guide_first: 승인 가이드를 먼저 찾을 수 있을 때(Knowledge 연결) 참으로 둔다.
+
+        사용법 문의에서 검색에 필요한 정보(시스템, 하려는 작업·화면)만 확보하면 추가 질문 없이
+        Knowledge로 넘어간다. 거짓이면 기존 양식 질문을 그대로 한다.
+        """
+        self._guide_first = guide_first
+
     async def run(self, call: "RoleRequest", services: SharedServices) -> InquiryResult:
         services.runtime.ensure_active()
         request = call.state["input"]
@@ -83,6 +91,7 @@ class ExtractionInquiryAgent:
                 ground_unknown(extracted, messages),
                 system_ids,
                 system_names,
+                guide_first=self._guide_first,
             )
             problems.append(problem)
             if question is not None:
@@ -123,6 +132,8 @@ def _assemble(
     stated_unknown: set[str],
     system_ids: Mapping[str, str],
     system_names: Sequence[str],
+    *,
+    guide_first: bool = False,
 ) -> tuple[ProblemProposal, QuestionProposal | None]:
     """한 문제의 추출 결과를 제안으로 조립한다. 서버가 확정한 값은 모델이 바꾸지 못한다."""
     if original is not None:
@@ -145,6 +156,7 @@ def _assemble(
         system_names=system_names,
         question_count=original.questionCount if original is not None else 0,
         unknown=declared_unknown,
+        guide_first=guide_first,
     )
 
     facts = [

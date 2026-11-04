@@ -15,6 +15,7 @@ from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.base import GraphRetriever, VectorRetriever
+from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
 from hops_ai.services.retrieval.neo4j import Neo4jRetriever
 from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
@@ -37,12 +38,14 @@ class SupervisorPipeline:
         vector: VectorRetriever | None = None,
         graph: GraphRetriever | None = None,
         tools: ToolGateway | None = None,
+        knowledge_source: KnowledgeSource | None = None,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
         검색·도구를 주지 않으면 연결 전 자리(ComponentNotReady)와 거부 게이트웨이를 쓴다.
+        knowledge_source는 기본 역할 조합(agents를 주지 않은 경우)에서만 Knowledge를 연결한다.
         """
-        registry = dict(build_runtime_registry() if agents is None else agents)
+        registry = dict(build_runtime_registry(knowledge_source) if agents is None else agents)
         self._llm = llm
         self._vector = vector or PgVectorRetriever()
         self._graph = graph or Neo4jRetriever()
