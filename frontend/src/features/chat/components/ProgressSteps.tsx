@@ -17,8 +17,8 @@ export function ProgressSteps({ steps, done = false }: { steps: ProgressStep[]; 
       {shown.map((step) => (
         <li key={step.stepNo} data-current={(!done && step === latest) || undefined}>
           {step.text}
-          {/* 펼침 여부와 관계없이 항상 보이는 최신 단계 문장 바로 뒤에 둔다. */}
-          {step === latest && collapsible && (
+          {/* 목록 맨 위 단계 문장 바로 뒤에 둔다. 접혀 있으면 최신 단계, 펼치면 첫 단계다. */}
+          {step === shown[0] && collapsible && (
             <button
               type="button"
               className={styles.stepToggle}

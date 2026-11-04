@@ -17,10 +17,10 @@ it('기준 개수 이상 쌓인 진행 단계는 자동으로 접어 최신 단�
     screen.getByRole('button', { name: `이전 진행 단계 ${String(steps.length - 1)}개 펼치기` }),
   );
   expect(screen.getAllByRole('listitem')).toHaveLength(steps.length);
-  expect(screen.getByRole('button', { name: '진행 단계 접기' })).toHaveAttribute(
-    'aria-expanded',
-    'true',
-  );
+  const collapse = screen.getByRole('button', { name: '진행 단계 접기' });
+  expect(collapse).toHaveAttribute('aria-expanded', 'true');
+  // 펼친 뒤에는 접기 버튼이 마지막 단계가 아닌 맨 위 단계 옆에 있다.
+  expect(screen.getAllByRole('listitem')[0]).toContainElement(collapse);
 });
 
 it('기준 개수 미만에서는 모든 단계를 보여주고 접기 아이콘을 표시하지 않는다', () => {
