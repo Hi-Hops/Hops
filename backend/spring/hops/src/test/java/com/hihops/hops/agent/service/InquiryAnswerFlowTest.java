@@ -67,6 +67,128 @@ class InquiryAnswerFlowTest {
     private final UUID memberId = UUID.randomUUID();
     private final UUID ownerId = UUID.randomUUID();
     private final UUID systemId = UUID.randomUUID();
+    private final UUID guideDocument = UUID.randomUUID();
+    private final UUID guideEvidence = UUID.randomUUID();
+
+    private JsonNode guideSnapshot(UUID runId, UUID inquiryId) throws Exception {
+        String text = ANSWER;
+        String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 직원 가이드','EMPLOYEE_GUIDE',?,'EMPLOYEE','RAG','APPROVED')", guideDocument, systemId);
+        jdbc.update("INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status) VALUES (?,1,?,?,?::jsonb,'APPROVED')", guideDocument, text, digest,
+                "{\"origin\":\"SYNTHETIC\",\"applicability\":\"가상 로그인 화면\",\"appliesToSystemVersion\":null}");
+        var snapshot = (tools.jackson.databind.node.ObjectNode) succeeded(runId, inquiryId, 1, text);
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        var problem = result.putArray("problemProposals").addObject().put("problemRef", "new:guide")
+                .put("summary", "가상 로그인 안내").put("intent", "HOW_TO").put("processingType", "KNOWLEDGE_QA")
+                .put("reportedSystemCandidateId", systemId.toString());
+        problem.putArray("facts"); problem.putArray("assumptions"); problem.putArray("unknowns");
+        problem.set("details", jsonMapper.valueToTree(new com.hihops.hops.ticket.dto.StandardRequestResponse.RequestDetailsResponse(
+                "로그인 화면", null, null, null, null, null, null, null, java.util.List.of())));
+        result.putObject("guide").put("problemRef", "new:guide").put("messageText", text)
+                .putArray("evidenceIds").add(guideEvidence.toString());
+        result.putArray("evidence").add(jsonMapper.valueToTree(new com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse(
+                guideEvidence, guideDocument, 1, "GUIDE", "가상 직원 가이드", text, systemId, null, "가상 로그인 화면", "EMPLOYEE", "SYNTHETIC")));
+        return snapshot;
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"RESOLVED", "UNRESOLVED"})
+    void AI_안내_저장부터_GUIDE_확인요청_조회와_문의자_응답까지_연결한다(String decision) throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        when(client.snapshot(runId.toString())).thenReturn(guideSnapshot(runId, inquiryId));
+        dispatcher.deliver(runId);
+        dispatcher.deliver(runId);
+        var response = mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(status().isOk()).andReturn();
+        var problem = jsonMapper.readTree(response.getResponse().getContentAsString()).path("problems").get(0);
+        assertThat(problem.path("state").asString()).isEqualTo("WAITING_CONFIRMATION");
+        assertThat(problem.path("guide").path("evidence").size()).isEqualTo(1);
+        var request = problem.path("activeResolutionRequest");
+        assertThat(request.path("source").asString()).isEqualTo("GUIDE");
+        assertThat(request.path("sourceId").asString()).isEqualTo(answerMessageIdOf(runId).toString());
+        assertThat(request.path("state").asString()).isEqualTo("PENDING");
+        String requestPath = "/api/v2/resolution-requests/" + request.path("id").asString();
+        mockMvc.perform(as(get(requestPath))).andExpect(status().isOk()).andExpect(jsonPath("$.sourceVersion").value(1));
+        mockMvc.perform(as(ownerId, get(requestPath))).andExpect(status().isForbidden());
+        UUID commandId = UUID.randomUUID();
+        String command = jsonMapper.writeValueAsString(Map.of("requestId", commandId, "expectedRequestRevision", 1, "decision", decision));
+        for (int replay = 0; replay < 2; replay++) mockMvc.perform(as(post(requestPath + "/responses"))
+                .header("Idempotency-Key", commandId).contentType(MediaType.APPLICATION_JSON).content(command)).andExpect(status().isOk());
+        mockMvc.perform(as(get(requestPath))).andExpect(jsonPath("$.state").value(decision)).andExpect(jsonPath("$.requestRevision").value(2));
+        var latest = mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(status().isOk()).andReturn();
+        var latestProblem = jsonMapper.readTree(latest.getResponse().getContentAsString()).path("problems").get(0);
+        assertThat(latestProblem.path("id")).isEqualTo(problem.path("id"));
+        assertThat(latestProblem.path("questionCount").asInt()).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiryId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=? AND task='CURATION'", Integer.class, inquiryId)).isZero();
+        if ("RESOLVED".equals(decision)) assertThat(latestProblem.path("state").asString()).isEqualTo("RESOLVED");
+        else {
+            var next = jsonMapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id=(SELECT current_run_id FROM inquiry WHERE id=?)", String.class, inquiryId));
+            assertThat(next.path("inquiryVersion").asInt()).isEqualTo(1);
+            assertThat(next.path("problemIds").get(0)).isEqualTo(problem.path("id"));
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"withdrawn", "uncited", "unknown-problem", "unsupported-system", "staff", "null-details", "conflicting-ticket"})
+    void 잘못된_안내는_답변과_GUIDE_요청을_함께_저장하지_않는다(String invalid) throws Exception {
+        UUID inquiryId = createInquiry("로그인 방법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        var snapshot = guideSnapshot(runId, inquiryId);
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        var guide = (tools.jackson.databind.node.ObjectNode) result.path("guide");
+        switch (invalid) {
+            case "withdrawn" -> jdbc.update("UPDATE knowledge_document SET review_status='PENDING' WHERE id=?", guideDocument);
+            case "uncited" -> guide.putArray("evidenceIds");
+            case "unknown-problem" -> guide.put("problemRef", "new:absent");
+            case "unsupported-system" -> ((tools.jackson.databind.node.ObjectNode) result.path("problemProposals").get(0))
+                    .put("reportedSystemCandidateId", UUID.randomUUID().toString());
+            case "staff" -> jdbc.update("UPDATE knowledge_document SET access_level='STAFF' WHERE id=?", guideDocument);
+            case "null-details" -> ((tools.jackson.databind.node.ObjectNode) result.path("problemProposals").get(0)).putNull("details");
+            case "conflicting-ticket" -> result.putArray("ticketProposals").addObject().put("problemRef", "new:guide");
+            default -> throw new IllegalArgumentException(invalid);
+        }
+        when(client.snapshot(runId.toString())).thenReturn(snapshot);
+        dispatcher.deliver(runId);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id=?", Integer.class, inquiryId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inquiry_problem WHERE inquiry_id=?", Integer.class, inquiryId)).isZero();
+    }
+
+    @Test
+    void 새_안내가_생기면_이전_PENDING_요청으로_현재_문제를_완료할_수_없다() throws Exception {
+        UUID inquiryId = createInquiry("로그인 사용법을 알려 주세요");
+        UUID firstRun = runOf(inquiryId);
+        var firstSnapshot = guideSnapshot(firstRun, inquiryId);
+        when(client.snapshot(firstRun.toString())).thenReturn(firstSnapshot);
+        dispatcher.deliver(firstRun);
+        var first = mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(status().isOk()).andReturn();
+        var problem = jsonMapper.readTree(first.getResponse().getContentAsString()).path("problems").get(0);
+        String oldRequest = problem.path("activeResolutionRequest").path("id").asString();
+        UUID sendId = UUID.randomUUID();
+        mockMvc.perform(as(post("/api/v2/inquiries/" + inquiryId + "/messages")).header("Idempotency-Key", sendId)
+                .contentType(MediaType.APPLICATION_JSON).content(jsonMapper.writeValueAsString(Map.of(
+                        "requestId", sendId, "expectedInquiryVersion", 1, "content", "같은 화면 안내를 다시 확인해 주세요",
+                        "problemIds", List.of(problem.path("id").asString()))))).andExpect(status().isOk());
+        UUID nextRun = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiryId);
+        var next = (tools.jackson.databind.node.ObjectNode) firstSnapshot.deepCopy();
+        next.put("runId", nextRun.toString());
+        var result = (tools.jackson.databind.node.ObjectNode) next.path("result");
+        result.put("runId", nextRun.toString()).put("inquiryVersion", 2);
+        ((tools.jackson.databind.node.ObjectNode) result.path("guide")).put("problemRef", problem.path("id").asString());
+        ((tools.jackson.databind.node.ObjectNode) result.path("problemProposals").get(0)).put("problemRef", problem.path("id").asString());
+        when(client.snapshot(nextRun.toString())).thenReturn(next);
+        dispatcher.deliver(nextRun);
+        var current = mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(status().isOk()).andReturn();
+        var request = jsonMapper.readTree(current.getResponse().getContentAsString()).path("problems").get(0).path("activeResolutionRequest");
+        assertThat(request.path("id").asString()).isNotEqualTo(oldRequest);
+        UUID responseId = UUID.randomUUID();
+        mockMvc.perform(as(post("/api/v2/resolution-requests/" + oldRequest + "/responses"))
+                .header("Idempotency-Key", responseId).contentType(MediaType.APPLICATION_JSON)
+                .content(jsonMapper.writeValueAsString(Map.of("requestId", responseId, "expectedRequestRevision", 1, "decision", "RESOLVED"))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("RESOLUTION_REVISION_CONFLICT"));
+    }
 
     @BeforeEach
     void createFixtures() {
@@ -84,10 +206,14 @@ class InquiryAnswerFlowTest {
     void cleanup() {
         String mine = "SELECT id FROM inquiry WHERE requester_member_id IN (?, ?)";
         jdbc.update("UPDATE inquiry SET current_run_id = NULL WHERE requester_member_id IN (?, ?)", memberId, ownerId);
+        jdbc.update("DELETE FROM standard_request WHERE inquiry_problem_id IN (SELECT id FROM inquiry_problem WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
+        jdbc.update("DELETE FROM inquiry_problem WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM agent_run WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM message WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM inquiry WHERE requester_member_id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id IN (?, ?)", memberId, ownerId);
+        jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", guideDocument);
+        jdbc.update("DELETE FROM knowledge_document WHERE id=?", guideDocument);
         jdbc.update("DELETE FROM it_system WHERE id = ?", systemId);
         jdbc.update("DELETE FROM member WHERE id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM department WHERE id = ?", departmentId);
@@ -289,6 +415,13 @@ class InquiryAnswerFlowTest {
     }
 
     private MockHttpServletRequestBuilder as(MockHttpServletRequestBuilder request) {
-        return request.with(jwt().jwt(token -> token.subject(memberId.toString())));
+        return as(memberId, request);
+    }
+
+    private MockHttpServletRequestBuilder as(UUID actorId, MockHttpServletRequestBuilder request) {
+        return request.with(jwt().jwt(token -> token.subject(actorId.toString())
+                .claim("departmentId", departmentId.toString()).claim("roles", List.of()).claim("policyRevision", 1)
+                .claim("primarySystemIds", actorId.equals(ownerId) ? List.of(systemId.toString()) : List.of())
+                .expiresAt(java.time.Instant.now().plusSeconds(600))));
     }
 }

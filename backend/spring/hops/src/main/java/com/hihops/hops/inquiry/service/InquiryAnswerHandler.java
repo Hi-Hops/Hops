@@ -28,8 +28,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>AI 결과는 제안일 뿐이라 Spring이 현재 상태와 다시 대조한다. 접수 뒤 권한이 바뀌었거나, 더 새 입력·실행이 생겼거나,
  * 답변 형식이 계약과 다르면 저장하지 않는다. 늦게 온 이전 실행의 결과는 최신 문의에 반영하지 않는다.
  *
- * <p>현재 반영하는 것은 {@code answer}(채팅 본문)뿐이다. 문제 분리·질문 묶음·가이드·티켓 제안은 해당 업무 저장이 구현되기 전까지
- * 저장하지 않고, 받았다는 사실만 {@code validation_result.unapplied}에 남긴다(성공을 꾸며내지 않고, AI 결과 원문은 agent_run.result에 있다).
+ * <p>답변과 검증된 가이드의 대상 문제·표준 요청·해결 확인 요청을 함께 저장한다. 가이드 이외 문제 분리·질문 묶음·티켓 제안은
+ * 해당 업무 저장이 구현되기 전까지 {@code validation_result.unapplied}에 남긴다. AI 결과 원문은 agent_run.result에 있다.
  */
 @Component
 @RequiredArgsConstructor
@@ -44,6 +44,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     private final AiAnswerMessageWriter answerWriter;
     private final JsonMapper jsonMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final GuideResultWriter guides;
 
     @Override
     public AgentTask task() {
@@ -94,10 +95,11 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         }
 
         answerWriter.insert(inquiry.getId(), answerMessageId, run.getId(), answer);
+        var guide = guides.apply(run, inquiry, answerMessageId, input, result);
         // 저장한 AI 답변을 문의 구독에 알린다. 결과 반영 거래가 commit된 뒤에만 전달된다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), answerMessageId, null));
         inquiry.recordAnalysisResult();
-        return validationOf(result);
+        return validationOf(result, guide);
     }
 
     private static String answerOf(JsonNode result) {
@@ -119,20 +121,32 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     }
 
     // 반영한 것과 받았지만 아직 저장하지 않는 AI 제안을 구분해 남긴다.
-    private String validationOf(JsonNode result) {
+    private String validationOf(JsonNode result, GuideResultWriter.Applied guide) {
         List<String> unapplied = new ArrayList<>();
         for (String field : LIST_FIELDS) {
             if (result.path(field).isArray() && !result.path(field).isEmpty()) {
+                if (guide != null && "problemProposals".equals(field) && result.path(field).size() == 1) continue;
+                if (guide != null && "evidence".equals(field) && result.path(field).size() == guide.evidenceCount()) continue;
                 unapplied.add(field);
             }
         }
         for (String field : OBJECT_FIELDS) {
             if (result.path(field).isObject()) {
+                if (guide != null && "guide".equals(field)) continue;
                 unapplied.add(field);
             }
         }
         var validation = jsonMapper.createObjectNode();
         validation.putArray("applied").add("answer");
+        if (guide != null) {
+            ((tools.jackson.databind.node.ArrayNode) validation.path("applied")).add("guide");
+            if (result.path("problemProposals").size() == 1)
+                ((tools.jackson.databind.node.ArrayNode) validation.path("applied")).add("problemProposals");
+            if (result.path("evidence").size() == guide.evidenceCount())
+                ((tools.jackson.databind.node.ArrayNode) validation.path("applied")).add("evidence");
+            validation.put("appliedGuideProblemRef", guide.problemRef());
+            validation.put("appliedGuideProblemId", guide.problemId().toString());
+        }
         var ignored = validation.putArray("unapplied");
         unapplied.forEach(ignored::add);
         return validation.toString();

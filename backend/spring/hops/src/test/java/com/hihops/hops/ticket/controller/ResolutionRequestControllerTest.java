@@ -91,7 +91,8 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         jdbc.update("INSERT INTO inquiry_problem(id,inquiry_id,problem_no,title,problem_status,clarify_count,confirm_requested_at) VALUES (?,?,2,'안내 문제','GUIDED',2,now())", guided, inquiry);
         var request = new com.hihops.hops.ticket.dto.ResolutionRequestResponse(resolution, inquiry, guided, null,
                 "GUIDE", message, 1, 1, "PENDING", "안내 확인", "HOPS_USER", Instant.now(), null);
-        jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(java.util.Map.of("resolutionRequest", request)), message);
+        jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(java.util.Map.of("resolutionRequest", request,
+                "guide", java.util.Map.of("problemId", guided, "text", "안내", "evidenceIds", List.of()))), message);
         var body = json("{\"requestId\":\"" + UUID.randomUUID() + "\",\"expectedRequestRevision\":1,\"decision\":\"RESOLVED\"}");
         result(command(requester, "/resolution-requests/" + resolution + "/responses", body));
         assertThat(jdbc.queryForObject("SELECT problem_status FROM inquiry_problem WHERE id=?", String.class, guided)).isEqualTo("RESOLVED_WITHOUT_TICKET");
@@ -130,7 +131,8 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         }
         var request = new com.hihops.hops.ticket.dto.ResolutionRequestResponse(resolution, inquiry, guided, null,
                 "GUIDE", message, 1, 1, "PENDING", "안내 후 확인", "HOPS_USER", Instant.now(), null);
-        jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(java.util.Map.of("resolutionRequest", request)), message);
+        jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(java.util.Map.of("resolutionRequest", request,
+                "guide", java.util.Map.of("problemId", guided, "text", "안내", "evidenceIds", List.of()))), message);
         result(as(requester, get("/api/v2/resolution-requests/" + resolution)));
         mvc.perform(as(staff, get("/api/v2/resolution-requests/" + resolution))).andExpect(status().isForbidden());
         var body = json("{\"requestId\":\"" + UUID.randomUUID() + "\",\"expectedRequestRevision\":1,\"decision\":\"UNRESOLVED\"}");

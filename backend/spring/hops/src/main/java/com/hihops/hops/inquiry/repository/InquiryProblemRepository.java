@@ -11,6 +11,9 @@ import com.hihops.hops.inquiry.domain.InquiryProblem;
 
 /** inquiry_problem 테이블 저장·조회. 기본 save·findById는 JpaRepository가 제공한다. */
 public interface InquiryProblemRepository extends JpaRepository<InquiryProblem, UUID> {
+    @Query("SELECT COALESCE(MAX(p.problemNo), 0) FROM InquiryProblem p WHERE p.inquiry.id = :inquiryId")
+    int findMaxProblemNo(UUID inquiryId);
+
     @Query(value = """
             SELECT count(*) FROM inquiry_problem p LEFT JOIN ticket t ON t.inquiry_problem_id=p.id AND t.deleted_at IS NULL
             WHERE p.inquiry_id=:inquiryId AND p.deleted_at IS NULL

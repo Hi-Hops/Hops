@@ -142,4 +142,11 @@ public class InquiryProblem extends BaseEntity {
         confirmRequestedAt = null;
         if (reanalysis != null) agentRun = reanalysis;
     }
+
+    public void requestGuideConfirmation(AgentRun run, Instant at) {
+        problemStatus = ProblemStatus.GUIDED;
+        confirmRequestedAt = at;
+        resolvedAt = null;
+        agentRun = run;
+    }
 }

@@ -52,7 +52,7 @@ class InquiryAnswerHandlerTest {
         inquiries = mock(InquiryRepository.class);
         messages = mock(MessageRepository.class);
         writer = mock(AiAnswerMessageWriter.class);
-        handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events);
+        handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events, mock(GuideResultWriter.class));
 
         member = mock(Member.class);
         when(member.getId()).thenReturn(memberId);
@@ -133,12 +133,12 @@ class InquiryAnswerHandlerTest {
     @Test
     void 아직_저장하지_않는_AI_제안은_unapplied에_남기고_실패시키지_않는다() {
         String extra = ",\"questions\":[{\"text\":\"q\"}],\"ticketProposals\":[{\"title\":\"t\"}],\"problemProposals\":[],"
-                + "\"guide\":{\"messageText\":\"g\"},\"caseProposal\":null,\"evidence\":[]";
+                + "\"guide\":null,\"caseProposal\":null,\"evidence\":[]";
 
         String validation = handler.apply(run, input(), result(extra));
 
         JsonNode unapplied = mapper.readTree(validation).path("unapplied");
-        assertThat(unapplied).extracting(JsonNode::asString).containsExactlyInAnyOrder("questions", "ticketProposals", "guide");
+        assertThat(unapplied).extracting(JsonNode::asString).containsExactlyInAnyOrder("questions", "ticketProposals");
         verify(writer).insert(any(), any(), any(), anyString());
     }
 

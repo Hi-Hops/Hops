@@ -80,6 +80,15 @@ public class ResolutionRequestReader {
         if (!inquiry.getRequester().getId().equals(actor.getId())) throw new BusinessException(ErrorCode.ACCESS_DENIED);
     }
 
+    /** 문의 잠금을 확보한 응답 거래 안에서만 현재 안내를 다시 확인한다. 멱등 재확인은 이 검사보다 먼저 처리한다. */
+    public void requireCurrentGuide(Stored stored) {
+        var request = stored.request();
+        var latest = messages.findLatestGuide(request.inquiryId(), request.problemId());
+        if (stored.guide() == null || latest.isEmpty() || !latest.get().getId().equals(stored.guide().getId())) {
+            throw new BusinessException(ErrorCode.RESOLUTION_REVISION_CONFLICT);
+        }
+    }
+
     private static void unavailable() { throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE); }
     private static void notFound() { throw new BusinessException(ErrorCode.NOT_FOUND); }
 }

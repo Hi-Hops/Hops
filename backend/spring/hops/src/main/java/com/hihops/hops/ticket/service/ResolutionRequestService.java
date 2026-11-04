@@ -105,6 +105,7 @@ public class ResolutionRequestService {
                     mapper.writeValueAsString(Map.of("resolutionRequest", response)), null));
             publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
         } else {
+            reader.requireCurrentGuide(stored);
             var problem = problems.findById(request.problemId()).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
             if (problem.getProblemStatus() != ProblemStatus.GUIDED) {
                 throw new BusinessException(ErrorCode.RESOLUTION_REVISION_CONFLICT);
