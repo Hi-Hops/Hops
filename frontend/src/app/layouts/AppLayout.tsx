@@ -4,7 +4,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { logout, refreshSession, useSession } from '@/features/auth';
-import { RealtimeBoundary } from '@/features/realtime';
+import { ConnectionIndicator, RealtimeBoundary } from '@/features/realtime';
 import { RecentInquiries } from '@/features/inquiry';
 import { getSystems } from '@/features/ticket';
 import { Button } from '@/shared/ui/Button';
@@ -49,10 +49,13 @@ export function AppLayout() {
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
-        <NavLink className={styles.brand} to="/">
-          <span aria-hidden="true" />
-          Hops
-        </NavLink>
+        <div className={styles.brandGroup}>
+          <NavLink className={styles.brand} to="/">
+            <span aria-hidden="true" />
+            Hops
+          </NavLink>
+          <ConnectionIndicator />
+        </div>
         {connectionMode() === 'mock' && <span className={styles.mock}>Mock 체험</span>}
         <div className={styles.user}>
           <span className={styles.avatar}>{user.name.slice(0, 1)}</span>
