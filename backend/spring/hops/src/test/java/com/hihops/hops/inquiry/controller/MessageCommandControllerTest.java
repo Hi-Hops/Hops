@@ -635,6 +635,66 @@ class MessageCommandControllerTest {
         assertThat(count("SELECT count(*) FROM message WHERE inquiry_id = ?::uuid")).isEqualTo(2);
     }
 
+    @Test
+    void 보완_전용_메시지가_진행_중인_다른_문제의_분석을_잃지_않고_이어_간다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+        send(memberId, UUID.randomUUID(), 1, "비밀번호는 어제 바꿨어요", List.of(open)).andExpect(status().isOk());
+        String openRunId = currentRunId(); // B(open)를 분석 중이다
+
+        // A(배정) 보완만 보내도 입력 버전이 바뀌어 B의 실행은 대체되므로, B의 분석을 새 실행으로 잇는다
+        send(memberId, UUID.randomUUID(), 2, "다른 PC에서도 같아요", List.of(assigned)).andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, openRunId))
+                .isEqualTo("CANCELLED");
+        String resumedId = currentRunId();
+        assertThat(resumedId).isNotEqualTo(openRunId);
+        Map<String, Object> resumed = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", resumedId);
+        assertThat(resumed.get("run_status")).isEqualTo("QUEUED");
+        assertThat(resumed.get("input_version")).isEqualTo(3);
+        assertThat(resumed.get("trigger_message_id").toString()).isEqualTo(messageIdAt(3));
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").size()).isEqualTo(1);
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(open.toString());
+        // 보완 메시지는 A에만 이어진다
+        assertThat(payloadOf(messageIdAt(3)).path("problemLinks").get(0).path("problemId").asString())
+                .isEqualTo(assigned.toString());
+    }
+
+    @Test
+    void 대기로_멈춘_분석은_보완_대상을_확정할_때_이어_간다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+        send(memberId, UUID.randomUUID(), 1, "비밀번호는 어제 바꿨어요", List.of(open)).andExpect(status().isOk());
+        String openRunId = currentRunId();
+
+        // 대상 없는 보완은 대기가 되고, B의 분석은 대체만 된 채 대상 선택을 기다린다
+        send(memberId, UUID.randomUUID(), 2, "참고로요", List.of()).andExpect(status().isOk());
+        String pendingId = messageIdAt(3);
+        assertThat(currentRunId()).isEqualTo(openRunId);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, openRunId))
+                .isEqualTo("CANCELLED");
+
+        // A(배정)로 확정하면 그 자체로는 보완뿐이지만, 멈춰 있던 B의 분석을 잇는다
+        link(memberId, pendingId, UUID.randomUUID(), 3, List.of(assigned)).andExpect(status().isOk());
+
+        String resumedId = currentRunId();
+        assertThat(resumedId).isNotEqualTo(openRunId);
+        Map<String, Object> resumed = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", resumedId);
+        assertThat(resumed.get("run_status")).isEqualTo("QUEUED");
+        assertThat(resumed.get("input_version")).isEqualTo(4);
+        assertThat(resumed.get("trigger_message_id").toString()).isEqualTo(pendingId);
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").size()).isEqualTo(1);
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(open.toString());
+    }
+
     private ResultActions link(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,
             List<UUID> problemIds) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();

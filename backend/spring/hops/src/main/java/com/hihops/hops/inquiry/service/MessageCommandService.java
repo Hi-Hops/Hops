@@ -2,13 +2,16 @@ package com.hihops.hops.inquiry.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -234,23 +237,65 @@ public class MessageCommandService {
     }
 
     /**
-     * 입력이 바뀐 뒤 분석을 이어 갈지 정한다. 진행 중인 이전 실행은 언제나 대체한다(입력 버전이 바뀌었다).
-     * 대기 메시지가 남아 있으면 대상이 정해지기 전 정보가 섞이지 않게, 대상이 모두 배정된 문제면 보완 정보일 뿐이라 새 실행을 만들지 않는다.
+     * 입력이 바뀐 뒤 분석을 이어 갈지 정한다. 진행 중인 이전 실행은 언제나 대체한다(입력 버전이 바뀌어 그 결과는 버려진다).
+     * <ul>
+     *   <li>대기 메시지가 남아 있으면 대상이 정해지기 전 정보가 섞이지 않게 새 실행을 만들지 않는다. 멈춘 분석은 대상을 확정할 때 잇는다.</li>
+     *   <li>멈춘 분석(이번에 대체한 실행, 또는 앞서 대체만 되고 다시 접수되지 않은 현재 실행)이 있으면 그 대상을 새 실행에 이어 붙인다.
+     *       보완 전용 입력 때문에 다른 문제의 분석이 사라지지 않게 한다.</li>
+     *   <li>그 밖에 대상이 모두 배정된 문제면 보완 정보일 뿐이라 새 실행을 만들지 않는다.</li>
+     * </ul>
      */
     private void continueAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, ProblemScope scope) {
         Instant now = clock.instant();
         AgentRun previous = inquiry.getCurrentRun();
-        if (previous != null
-                && (previous.getRunStatus() == RunStatus.QUEUED || previous.getRunStatus() == RunStatus.RUNNING)) {
+        Optional<List<UUID>> interrupted = interruptedTargets(previous);
+        if (previous != null && isActive(previous)) {
             previous.finish(RunStatus.CANCELLED, now);
         }
         messageRepository.flush(); // 방금 바꾼 대기 표시를 아래 조회가 보게 한다
-        boolean waitingTarget = !messageRepository.findPendingTargetIds(inquiry.getId()).isEmpty();
-        boolean supplementOnly = !problemIds.isEmpty() && scope.assigned().containsAll(problemIds);
-        if (waitingTarget || supplementOnly) {
+        if (!messageRepository.findPendingTargetIds(inquiry.getId()).isEmpty()) {
             return;
         }
-        startAnalysis(inquiry, trigger, problemIds, now);
+        boolean supplementOnly = !problemIds.isEmpty() && scope.assigned().containsAll(problemIds);
+        if (interrupted.isEmpty()) {
+            if (!supplementOnly) {
+                startAnalysis(inquiry, trigger, problemIds, now);
+            }
+            return;
+        }
+        // 대상 없이 하던 분석이 멈췄으면 대상 없이 다시 한다
+        if (interrupted.get().isEmpty()) {
+            startAnalysis(inquiry, trigger, supplementOnly ? List.of() : problemIds, now);
+            return;
+        }
+        Set<UUID> targets = new LinkedHashSet<>();
+        if (!supplementOnly) {
+            targets.addAll(problemIds);
+        }
+        // 그 사이 해결·범위 밖이 된 문제는 잇지 않는다
+        interrupted.get().stream().filter(scope.linkable()::contains).forEach(targets::add);
+        if (!targets.isEmpty()) {
+            startAnalysis(inquiry, trigger, List.copyOf(targets), now);
+        }
+    }
+
+    /**
+     * 이번 입력으로 멈추는 분석의 대상 문제. 진행 중인 현재 실행, 또는 대체만 되고 다시 접수되지 않은 현재 실행이다
+     * (새 실행을 접수하면 currentRun이 바뀌므로 대체된 실행이 현재 실행으로 남아 있으면 이어 가지 못한 것이다).
+     * 비어 있으면 멈추는 분석이 없고, 빈 목록이면 대상 없이 하던 분석이다.
+     */
+    private Optional<List<UUID>> interruptedTargets(@Nullable AgentRun run) {
+        if (run == null || (!isActive(run) && run.getRunStatus() != RunStatus.CANCELLED)) {
+            return Optional.empty();
+        }
+        List<UUID> targets = new ArrayList<>();
+        jsonMapper.readTree(run.getInputSnapshot()).path("problemIds")
+                .forEach(id -> targets.add(UUID.fromString(id.asString())));
+        return Optional.of(List.copyOf(targets));
+    }
+
+    private static boolean isActive(AgentRun run) {
+        return run.getRunStatus() == RunStatus.QUEUED || run.getRunStatus() == RunStatus.RUNNING;
     }
 
     // 문의 행을 잠그고, 화면이 본 버전이며 아직 끝나지 않은 문의인지 확인한다
