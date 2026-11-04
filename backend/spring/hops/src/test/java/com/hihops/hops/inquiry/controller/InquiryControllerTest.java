@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.EntityManager;
 
 /**
  * 문의자 조회 API(GET /api/v2/inquiries, /{id}, /{id}/messages)가 본인 문의만, 계약 형식으로 돌려주는지 확인한다
@@ -48,6 +51,10 @@ class InquiryControllerTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    // 테스트 하나가 한 트랜잭션이라, JDBC로 바꾼 행을 다시 조회하려면 JPA 1차 캐시를 비워야 한다
+    @Autowired
+    private EntityManager entityManager;
 
     @BeforeEach
     void 테스트용_문의를_넣는다() {
@@ -189,27 +196,83 @@ class InquiryControllerTest {
     }
 
     @Test
-    void 분석_중이면_질문_중인_문제는_분석_중이고_시스템_확인_대기는_보고_시스템을_숨긴다() throws Exception {
+    void 분석_중인_실행의_대상_문제만_분석_중이고_나머지는_답을_기다린다() throws Exception {
         UUID runId = insertRun(NEW_INQUIRY_ID);
-        UUID clarifying = problem(NEW_INQUIRY_ID, 1, "CLARIFYING", 1, null, null);
-        UUID systemPending = problem(NEW_INQUIRY_ID, 2, "SYSTEM_PENDING", 5, null, null);
-        insertRequest(clarifying, runId, "로그인 실패", SYSTEM_ID, 1);
+        UUID answered = problem(NEW_INQUIRY_ID, 1, "CLARIFYING", 1, null, null);
+        UUID waiting = problem(NEW_INQUIRY_ID, 2, "CLARIFYING", 1, null, null);
+        UUID systemPending = problem(NEW_INQUIRY_ID, 3, "SYSTEM_PENDING", 5, null, null);
+        insertRequest(answered, runId, "로그인 실패", SYSTEM_ID, 1);
+        insertRequest(waiting, runId, "비밀번호 문의", SYSTEM_ID, 1);
         insertRequest(systemPending, runId, "파일 공유 오류", SYSTEM_ID, 1);
-        UUID trigger = insertMessage(NEW_INQUIRY_ID, 1, "USER", "답했어요", "{\"requestId\": \"" + REQUEST_ID + "\"}",
-                "COMPLETED");
-        UUID queued = UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, trigger_message_id, task, run_status, input_version, "
-                + "input_snapshot, model_version, prompt_version, schema_version) VALUES (?, ?, ?, 'INQUIRY_ANALYSIS', "
-                + "'QUEUED', 1, ?::jsonb, 'pending', 'pending', 'hops-system-1')",
-                queued, NEW_INQUIRY_ID, trigger, "{\"answerMessageId\": \"" + UUID.randomUUID() + "\"}");
-        jdbcTemplate.update("UPDATE inquiry SET current_run_id = ? WHERE id = ?", queued, NEW_INQUIRY_ID);
+        queueRun(List.of(answered));
 
         mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.problems[0].state").value("ANALYZING"))
-                .andExpect(jsonPath("$.problems[1].state").value("WAITING_SYSTEM"))
-                .andExpect(jsonPath("$.problems[1].reportedSystemId").isEmpty())
-                .andExpect(jsonPath("$.problems[1].questionCount").value(5));
+                .andExpect(jsonPath("$.problems[1].state").value("WAITING_USER"))
+                .andExpect(jsonPath("$.problems[2].state").value("WAITING_SYSTEM"))
+                .andExpect(jsonPath("$.problems[2].reportedSystemId").isEmpty())
+                .andExpect(jsonPath("$.problems[2].questionCount").value(5));
+    }
+
+    @Test
+    void 대상_없이_접수한_실행이면_질문_중인_문제는_모두_답을_기다린다() throws Exception {
+        UUID runId = insertRun(NEW_INQUIRY_ID);
+        UUID first = problem(NEW_INQUIRY_ID, 1, "CLARIFYING", 1, null, null);
+        UUID second = problem(NEW_INQUIRY_ID, 2, "CLARIFYING", 2, null, null);
+        insertRequest(first, runId, "로그인 실패", SYSTEM_ID, 1);
+        insertRequest(second, runId, "비밀번호 문의", SYSTEM_ID, 1);
+        queueRun(List.of());
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(jsonPath("$.problems[0].state").value("WAITING_USER"))
+                .andExpect(jsonPath("$.problems[1].state").value("WAITING_USER"));
+    }
+
+    @Test
+    void 티켓_없는_안내_문제는_안내_메시지의_해결_확인_요청을_돌려준다() throws Exception {
+        UUID runId = insertRun(NEW_INQUIRY_ID);
+        UUID guided = problem(NEW_INQUIRY_ID, 1, "GUIDED", 0, null, null);
+        insertRequest(guided, runId, "작성 기간 설정 안내", SYSTEM_ID, 1);
+        UUID messageId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        String pending = "{\"id\": \"" + requestId + "\", \"inquiryId\": \"" + NEW_INQUIRY_ID + "\", \"problemId\": \""
+                + guided + "\", \"ticketId\": null, \"source\": \"GUIDE\", \"sourceId\": \"" + messageId + "\", "
+                + "\"sourceVersion\": 1, \"requestRevision\": 1, \"state\": \"PENDING\", "
+                + "\"resultSummary\": \"작성 기간을 확인해 보세요\", \"confirmationOrigin\": \"HOPS_USER\", "
+                + "\"createdAt\": \"2026-11-04T00:00:00Z\", \"respondedAt\": null}";
+        jdbcTemplate.update("INSERT INTO message (id, inquiry_id, sequence_no, sender_type, content, payload, message_status) "
+                + "VALUES (?, ?, 1, 'AI', '작성 기간을 확인해 보세요', ?::jsonb, 'COMPLETED')", messageId, NEW_INQUIRY_ID,
+                "{\"answerRunId\": \"" + runId + "\", \"guide\": {\"problemId\": \"" + guided
+                        + "\", \"text\": \"작성 기간을 확인해 보세요\", \"evidenceIds\": []}, \"resolutionRequest\": " + pending + "}");
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problems[0].ticket").isEmpty())
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.id").value(requestId.toString()))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.source").value("GUIDE"))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.sourceId").value(messageId.toString()))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.ticketId").isEmpty())
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.state").value("PENDING"))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.requestRevision").value(1));
+
+        // 응답한 요청도 최신 요청으로 돌려준다
+        String responded = pending.replace("\"requestRevision\": 1", "\"requestRevision\": 2")
+                .replace("\"PENDING\"", "\"RESOLVED\"").replace("\"respondedAt\": null", "\"respondedAt\": \"2026-11-04T01:00:00Z\"");
+        jdbcTemplate.update("UPDATE message SET payload = jsonb_set(payload, '{resolutionRequest}', ?::jsonb) WHERE id = ?",
+                responded, messageId);
+        entityManager.clear();
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.state").value("RESOLVED"))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.requestRevision").value(2))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest.respondedAt").isString());
+
+        // 다른 문제를 가리키는 요청은 짐작해 붙이지 않고 실패한다
+        jdbcTemplate.update("UPDATE message SET payload = jsonb_set(payload, '{resolutionRequest,problemId}', ?::jsonb) "
+                + "WHERE id = ?", "\"" + UUID.randomUUID() + "\"", messageId);
+        entityManager.clear();
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(status().isInternalServerError());
     }
 
     @Test
@@ -384,6 +447,19 @@ class InquiryControllerTest {
                 + "VALUES (?, ?, 'INQUIRY_ANALYSIS', ?, 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now(), now())",
                 id, inquiryId, status);
         return id;
+    }
+
+    // 분석 중인 실행을 현재 실행으로 둔다. 입력의 problemIds가 이 실행이 대상으로 삼은 문제다
+    private void queueRun(List<UUID> targetProblemIds) {
+        UUID trigger = insertMessage(NEW_INQUIRY_ID, 1, "USER", "답했어요", "{\"requestId\": \"" + REQUEST_ID + "\"}",
+                "COMPLETED");
+        UUID queued = UUID.randomUUID();
+        String targets = targetProblemIds.stream().map(id -> "\"" + id + "\"").reduce((a, b) -> a + "," + b).orElse("");
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, trigger_message_id, task, run_status, input_version, "
+                + "input_snapshot, model_version, prompt_version, schema_version) VALUES (?, ?, ?, 'INQUIRY_ANALYSIS', "
+                + "'QUEUED', 1, ?::jsonb, 'pending', 'pending', 'hops-system-1')", queued, NEW_INQUIRY_ID, trigger,
+                "{\"answerMessageId\": \"" + UUID.randomUUID() + "\", \"problemIds\": [" + targets + "]}");
+        jdbcTemplate.update("UPDATE inquiry SET current_run_id = ? WHERE id = ?", queued, NEW_INQUIRY_ID);
     }
 
     private UUID problem(UUID inquiryId, int problemNo, String status, int clarifyCount, String creationOutcome,

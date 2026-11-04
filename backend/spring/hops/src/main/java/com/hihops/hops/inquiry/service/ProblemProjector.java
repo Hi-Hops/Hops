@@ -57,11 +57,13 @@ import tools.jackson.databind.node.ArrayNode;
  *   <li>guide: 이 문제의 안내를 담은 최신 AI 메시지(payload.guide)와, 그 답변 실행 결과의 근거 중 guide.evidenceIds에 있고
  *       지금 문의자에게 공개 가능한 직원용(EMPLOYEE) 근거만 (docs/DATA.md 11.3)</li>
  *   <li>creationResult: inquiry_problem.creation_outcome·creation_input_version·ticket_error_code (workItemId = problemId)</li>
- *   <li>ticket·activeResolutionRequest: 티켓 화면과 같은 {@link TicketSummaryResponse}·{@link TicketProgressReader}로 읽는다</li>
+ *   <li>ticket: 티켓 화면과 같은 {@link TicketSummaryResponse}</li>
+ *   <li>activeResolutionRequest: 티켓이 있으면 티켓 화면과 같은 {@link TicketProgressReader}(ticket_event), 없으면 그 문제의 최신 안내
+ *       메시지 payload.resolutionRequest(GUIDE 출처, 같은 ResolutionRequest 형식) (docs/DATA.md 확인 메타데이터)</li>
  * </ul>
  *
- * <p>상태: CLARIFYING은 질문을 했고(질문 수 1 이상) 지금 분석 중인 실행이 없으면 문의자의 답을 기다리는 WAITING_USER,
- * 그 외 ANALYZING이다 (DATA 11.2 "질문 응답 대기이면 WAITING_USER, 그 외 ANALYZING. 활성 실행 여부는 currentRun으로 별도 표시").
+ * <p>상태: CLARIFYING은 질문을 했고(질문 수 1 이상) 지금 분석 중인 실행이 그 문제를 대상으로 삼지 않았으면 문의자의 답을 기다리는
+ * WAITING_USER, 그 외 ANALYZING이다 (DATA 11.2). 대상은 현재 실행 입력의 problemIds로, AI 입력({@code InputProblemReader})과 같은 기준이다.
  * 담당자 내부 표준 요청서는 담지 않는다. 트랜잭션 안에서 부른다.
  */
 @Component
@@ -91,33 +93,43 @@ public class ProblemProjector {
         Map<UUID, StandardRequest> latest = new LinkedHashMap<>();
         standardRequestRepository.findAppliedNewestFirst(problems.stream().map(InquiryProblem::getId).toList())
                 .forEach(request -> latest.putIfAbsent(request.getInquiryProblem().getId(), request));
-        boolean analyzing = isActive(inquiry.getCurrentRun());
+        Set<String> analyzing = analyzingProblemIds(inquiry.getCurrentRun());
         return problems.stream().map(problem -> project(inquiry, problem, latest.get(problem.getId()), analyzing)).toList();
     }
 
+    // 분석 중인 실행이 대상으로 삼은 문제. 실행이 없거나 끝났으면 없다. 대상 없이 접수한 실행은 어느 문제의 답인지 분석이 정한다.
+    private Set<String> analyzingProblemIds(@Nullable AgentRun run) {
+        if (run == null || (run.getRunStatus() != RunStatus.QUEUED && run.getRunStatus() != RunStatus.RUNNING)) {
+            return Set.of();
+        }
+        Set<String> ids = new HashSet<>();
+        jsonMapper.readTree(run.getInputSnapshot()).path("problemIds").forEach(id -> ids.add(id.asString("")));
+        return ids;
+    }
+
     private ProblemResponse project(Inquiry inquiry, InquiryProblem problem, @Nullable StandardRequest request,
-            boolean analyzing) {
+            Set<String> analyzing) {
         if (request == null) {
             throw new IllegalStateException("적용된 표준 요청서가 없는 문제다: " + problem.getId());
         }
         Optional<Ticket> ticket = ticketRepository.findByInquiryProblem_Id(problem.getId())
                 .filter(found -> !found.isDeleted());
-        String state = ProblemStateView.of(problem, ticket, !analyzing && problem.getClarifyCount() > 0);
+        boolean answered = analyzing.contains(problem.getId().toString());
+        String state = ProblemStateView.of(problem, ticket, problem.getClarifyCount() > 0 && !answered);
+        Optional<Message> guideMessage = messageRepository.findLatestGuide(inquiry.getId(), problem.getId());
         boolean systemUnknown = "WAITING_SYSTEM".equals(state);
         return new ProblemResponse(problem.getId(), inquiry.getId(), request.getSummary(), request.getIntent().name(),
                 request.getWorkType().name(),
                 systemUnknown || request.getReportedSystem() == null ? null : request.getReportedSystem().getId(),
                 systemUnknown || request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
-                state, problem.getClarifyCount(), guideOf(inquiry, problem), creationOf(problem, ticket),
-                ticket.map(this::summaryOf).orElse(null), ticket.map(this::resolutionOf).orElse(null));
+                state, problem.getClarifyCount(), guideMessage.map(message -> guideOf(inquiry, message)).orElse(null),
+                creationOf(problem, ticket), ticket.map(this::summaryOf).orElse(null),
+                ticket.isPresent() ? resolutionOf(ticket.get())
+                        : guideMessage.map(message -> guideResolutionOf(inquiry, problem, message)).orElse(null));
     }
 
-    private @Nullable GuideAnswerResponse guideOf(Inquiry inquiry, InquiryProblem problem) {
-        Optional<Message> message = messageRepository.findLatestGuide(inquiry.getId(), problem.getId());
-        if (message.isEmpty()) {
-            return null;
-        }
-        JsonNode payload = jsonMapper.readTree(message.get().getPayload());
+    private GuideAnswerResponse guideOf(Inquiry inquiry, Message message) {
+        JsonNode payload = jsonMapper.readTree(message.getPayload());
         Set<String> cited = new HashSet<>();
         payload.path("guide").path("evidenceIds").forEach(id -> cited.add(id.asString("")));
         // 근거 원본은 그 답변을 만든 실행의 결과(AiResult.evidence)에 있다
@@ -133,7 +145,7 @@ public class ProblemProjector {
         }
         List<KnowledgeEvidenceResponse> visible = knowledgeReader.visible(evidence.toString(), inquiry.getRequester())
                 .stream().filter(item -> "EMPLOYEE".equals(item.accessScope())).toList();
-        return new GuideAnswerResponse(message.get().getId(), visible);
+        return new GuideAnswerResponse(message.getId(), visible);
     }
 
     private @Nullable CreationResultResponse creationOf(InquiryProblem problem, Optional<Ticket> ticket) {
@@ -173,7 +185,23 @@ public class ProblemProjector {
         return progressReader.resolution(ticket, workLogRepository.findByTicketIdOrderByCreatedAtAscIdAsc(ticket.getId()));
     }
 
-    private static boolean isActive(@Nullable AgentRun run) {
-        return run != null && (run.getRunStatus() == RunStatus.QUEUED || run.getRunStatus() == RunStatus.RUNNING);
+    /**
+     * 티켓 없이 안내한 문제의 해결 확인 요청. 안내 메시지 payload.resolutionRequest에 ResolutionRequest 형식으로 둔다
+     * (티켓의 ticket_event.after_data.resolutionRequest와 같은 형식). 출처는 그 안내 메시지(GUIDE)여야 한다.
+     *
+     * @throws IllegalStateException 저장된 요청이 이 문의·문제·안내 메시지와 맞지 않을 때
+     */
+    private @Nullable ResolutionRequestResponse guideResolutionOf(Inquiry inquiry, InquiryProblem problem, Message message) {
+        JsonNode stored = jsonMapper.readTree(message.getPayload()).path("resolutionRequest");
+        if (stored.isMissingNode() || stored.isNull()) {
+            return null;
+        }
+        ResolutionRequestResponse request = jsonMapper.treeToValue(stored, ResolutionRequestResponse.class);
+        if (!"GUIDE".equals(request.source()) || !message.getId().equals(request.sourceId())
+                || !problem.getId().equals(request.problemId()) || !inquiry.getId().equals(request.inquiryId())
+                || request.ticketId() != null) {
+            throw new IllegalStateException("안내 확인 요청이 안내 메시지와 맞지 않는다: " + message.getId());
+        }
+        return request;
     }
 }
