@@ -11,9 +11,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.hihops.hops.agent.client.AgentRunClient;
+import com.hihops.hops.agent.client.AgentRunEventClient;
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.AgentTask;
 import com.hihops.hops.agent.repository.AgentRunRepository;
+import com.hihops.hops.realtime.service.RealtimeService;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -28,6 +30,10 @@ class AgentDispatchWiringTest {
             .withUserConfiguration(AgentDispatchConfig.class)
             .withBean(AgentRunRepository.class, () -> mock(AgentRunRepository.class))
             .withBean(AgentRunClient.class, () -> mock(AgentRunClient.class))
+            .withBean(AgentRunEventClient.class, () -> mock(AgentRunEventClient.class))
+            .withBean(AgentProgressReader.class, () -> mock(AgentProgressReader.class))
+            .withBean(RealtimeService.class, () -> mock(RealtimeService.class))
+            .withBean(AgentRunStream.class)
             .withBean(JsonMapper.class, () -> JsonMapper.builder().build())
             .withBean(PlatformTransactionManager.class, () -> mock(PlatformTransactionManager.class))
             .withBean(Clock.class, Clock::systemUTC)
@@ -37,6 +43,7 @@ class AgentDispatchWiringTest {
     void 결과_처리기가_없어도_기동되고_기본_설정이_적용된다() {
         runner.run(context -> {
             assertThat(context).hasNotFailed().hasSingleBean(AgentRunDispatcher.class);
+            assertThat(context).hasSingleBean(AgentRunStream.class);
             AgentDispatchProperties properties = context.getBean(AgentDispatchProperties.class);
             assertThat(properties.dispatchEnabled()).isTrue();
             assertThat(properties.dispatchPollInterval()).isEqualTo(Duration.ofMillis(500));

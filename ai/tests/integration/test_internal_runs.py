@@ -195,11 +195,11 @@ def test_post_validates_input_but_never_accepts_without_pipeline(client, ledger)
     assert "PRIVATE-INVALID" not in response.text
 
 
-def test_unimplemented_event_and_cancel_do_not_claim_success(client, ledger) -> None:
+def test_events_require_existing_run_and_cancel_is_still_unimplemented(client, ledger) -> None:
     run_id = uuid4()
-    assert client.get(f"/internal/v2/runs/{run_id}/events", headers=auth()).status_code == 503
+    assert client.get(f"/internal/v2/runs/{run_id}/events", headers=auth()).status_code == 404
     assert client.post(f"/internal/v2/runs/{run_id}/cancel", headers=auth()).status_code == 503
-    assert ledger.get_calls == 0
+    assert ledger.get_calls == 1
 
 
 @pytest.mark.parametrize(

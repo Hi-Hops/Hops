@@ -22,6 +22,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.realtime.dto.MessageStoredEvent;
+import com.hihops.hops.realtime.dto.AgentProgressEvent;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.realtime.dto.ResyncRequiredEvent;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
@@ -102,6 +103,18 @@ public class RealtimeService {
                     if (connection.authorized()) {
                         connection.send(SseEmitter.event().id(event.eventId().toString())
                                 .name("message.stored").data(event));
+                    }
+                });
+    }
+
+    /** AI 진행은 저장 이벤트가 아니다. 중계기의 현재 run 검사 후 전송 권한도 다시 확인한다. */
+    public void agentProgress(AgentProgressEvent event) {
+        RealtimeTarget target = new RealtimeTarget(RealtimeTarget.Type.INQUIRY, event.inquiryId());
+        connections.values().stream().filter(connection -> connection.target.equals(target))
+                .forEach(connection -> {
+                    if (connection.authorized()) {
+                        connection.send(SseEmitter.event().id(event.eventId().toString())
+                                .name("agent.progress").data(event));
                     }
                 });
     }
