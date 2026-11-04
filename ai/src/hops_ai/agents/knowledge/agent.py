@@ -1,9 +1,9 @@
 """Knowledge 역할: 허용된 지식을 검색해 근거와 직원 안내를 제안한다.
 
-이 구현은 모델을 호출하지 않는다. 질의는 그 문제 자신의 정보(요약과 확인한 상세 값)로 규칙에
-따라 만들고, 문제 하나가 문의 전체의 주제일 때만 사용자 원문을 보조로 쓴다. 한 문의에 다른
-문제가 함께 있으면 그 문제의 단어로 검색이 오염되므로 원문은 쓰지 않는다. 검색 범위(공개
-범위·시스템)는 서버가 확정한 접근 문맥에서만 가져온다. 안내문은 근거 문서의
+이 구현은 모델을 호출하지 않는다. 질의는 그 문제 자신의 정보로 규칙에 따라 만든다. 문제 하나가
+문의 전체의 주제일 때만 요약과 사용자 원문을 함께 쓰고, 한 문의에 다른 문제가 함께 있으면 그
+문제의 단어로 검색이 오염되므로 원문과 모델이 쓴 요약은 쓰지 않고 검증된 상세 값만 쓴다.
+검색 범위(공개 범위·시스템)는 서버가 확정한 접근 문맥에서만 가져온다. 안내문은 근거 문서의
 승인된 본문을 그대로 쓰고 출처 제목만 덧붙인다. 모델이 문구를 새로 쓰지 않으므로 안내가
 근거와 어긋나거나 근거 밖 내용을 담을 수 없다.
 
@@ -134,10 +134,15 @@ def _guide_target(state: "SupervisorState") -> ProblemProposal:
 def _build_query(state: "SupervisorState", target: ProblemProposal) -> KnowledgeQuery:
     request = state["input"]
     access = request.accessContext
-    # 그 문제 자신의 정보: 요약과 확인한 상세 값. 새 사실이 더해지면 질의도 달라진다.
-    parts = [target.summary, *_detail_values(target)]
-    if not _messages_are_shared(state, target):
-        parts.extend(_recent_user_messages(state, target))
+    # 그 문제 자신의 정보: 확인한 상세 값(사용자 인용으로 검증됨)과 요약. 새 사실이 더해지면
+    # 질의도 달라진다. 새 문제가 둘 이상이면 모델이 쓴 요약에도 다른 문제의 내용이 섞일 수 있어
+    # (실제 모델이 두 문제를 한 요약에 적은 사례) 검증된 상세 값만 쓰고, 상세 값이 하나도 없을
+    # 때에만 요약을 대신 쓴다. 문제가 하나이면 섞일 문제가 없어 요약과 원문을 함께 쓴다.
+    details = _detail_values(target)
+    if _messages_are_shared(state, target):
+        parts = details or [target.summary]
+    else:
+        parts = [target.summary, *details, *_recent_user_messages(state, target)]
 
     # 공개 범위는 서버가 확정한 값 그대로 쓴다. 직원 상담에 담당자 범위가 섞인 입력은
     # 실행 입력 검증이 이미 거부한다.

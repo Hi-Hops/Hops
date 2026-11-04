@@ -58,8 +58,39 @@ async def test_query_of_a_problem_sharing_the_message_has_no_text_of_the_other_p
     await search_once(request, _with_problems(request, first, second), source)
 
     [query] = source.queries
-    assert query.text.split("\n") == ["도장 이미지 등록 방법 문의", "도장 이미지 등록"]
+    # 문제를 나눠 쓰는 경우 질의는 검증된 상세 값뿐이다(원문과 모델이 쓴 요약은 쓰지 않는다).
+    assert query.text.split("\n") == ["도장 이미지 등록"]
     assert "문서 조회" not in query.text
+
+
+async def test_summary_that_mixes_in_the_other_problem_never_reaches_the_query() -> None:
+    # 실제 모델이 두 문제를 한 요약에 적은 사례: 첫 문제의 요약에 둘째 문제의 내용이 들어 있다.
+    request = _request_with_text(TWO_HOW_TOS)
+    first = problem(
+        "new:1",
+        "도장 이미지 등록 방법을 묻고 문서 조회 방법도 묻고 있습니다.",
+        taskOrScreen="도장 이미지 등록",
+    )
+    second = problem("new:2", "문서 조회 방법 문의", taskOrScreen="문서 조회 방법")
+    source = RecordingSource()
+
+    await search_once(request, _with_problems(request, first, second), source)
+
+    [query] = source.queries
+    assert query.text == "도장 이미지 등록"
+
+
+async def test_shared_problem_without_any_detail_falls_back_to_its_summary() -> None:
+    request = _request_with_text(TWO_HOW_TOS)
+    bare = how_to_problem("new:1").model_copy(
+        update={"summary": "도장 이미지 등록 방법 문의", "details": details()}
+    )
+    second = problem("new:2", "문서 조회 방법 문의", taskOrScreen="문서 조회 방법")
+    source = RecordingSource()
+
+    await search_once(request, _with_problems(request, bare, second), source)
+
+    assert source.queries[0].text == "도장 이미지 등록 방법 문의"
 
 
 async def test_query_of_the_only_problem_still_uses_the_recent_messages() -> None:
@@ -235,6 +266,37 @@ async def test_how_to_without_a_document_beside_a_symptom_with_a_guide_keyword_g
         ("new:1", "REVIEW_REQUIRED")
     ]
     assert [question.problemRef for question in result.questions] == ["new:2"]
+
+
+async def test_mixed_up_summary_from_the_model_still_gets_no_wrong_guide() -> None:
+    # 실제 모델 시험(S8)에서 나온 형태: 첫 문제의 요약에 둘째 문제의 내용이 들어 있다.
+    result, _ = await analyze(
+        "전자결재 도장 이미지 등록 방법을 알려주세요. 그리고 문서 조회가 안 돼요",
+        [
+            _extracted(
+                "전자결재 도장 이미지 등록 방법을 묻고 문서 조회가 안 된다고 알렸습니다.",
+                "HOW_TO",
+                "ELECTRONIC_APPROVAL",
+                task="도장 이미지 등록",
+            ),
+            _extracted(
+                "문서 조회가 안 된다고 알렸습니다.",
+                "OBSERVED_SYMPTOM",
+                "ELECTRONIC_APPROVAL",
+                task="문서 조회",
+                actual="문서 조회가 안 돼요",
+            ),
+        ],
+        decision("CALL_ROLE", AgentRole.KNOWLEDGE),
+        decision("CALL_ROLE", AgentRole.TICKET),
+        decision("PROPOSE_TICKETS"),
+    )
+
+    assert result.status == "SUCCEEDED", result.error
+    assert result.guide is None
+    assert [(t.problemRef, t.processingType) for t in result.ticketProposals] == [
+        ("new:1", "REVIEW_REQUIRED")
+    ]
 
 
 async def test_two_how_tos_each_get_their_own_search_and_outcome() -> None:
