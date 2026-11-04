@@ -39,13 +39,16 @@ def problems_without_guide(state: "SupervisorState") -> frozenset[str]:
     )
 
 
-def searched_problem_refs(state: "SupervisorState") -> frozenset[str]:
-    """이번 실행에서 Knowledge가 이미 검색한 문제. 같은 질의의 반복 검색을 피하는 데 쓴다."""
-    return frozenset(
-        result.problemRef
-        for result in state["roleResults"].values()
-        if isinstance(result, KnowledgeResult) and result.problemRef is not None
-    )
+def searched_queries(state: "SupervisorState") -> dict[str, set[str | None]]:
+    """문제별로 이번 실행에서 이미 검색한 질의의 지문. 지문이 없는 결과는 None으로 센다.
+
+    같은 문제를 같은 질의로 다시 검색해도 같은 결과이므로 반복을 피하는 데 쓴다.
+    """
+    searched: dict[str, set[str | None]] = {}
+    for result in state["roleResults"].values():
+        if isinstance(result, KnowledgeResult) and result.problemRef is not None:
+            searched.setdefault(result.problemRef, set()).add(result.queryDigest)
+    return searched
 
 
 class HandoffReadiness(TypedDict):

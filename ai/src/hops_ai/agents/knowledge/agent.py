@@ -1,7 +1,9 @@
 """Knowledge 역할: 허용된 지식을 검색해 근거와 직원 안내를 제안한다.
 
-이 구현은 모델을 호출하지 않는다. 질의는 문제 요약과 사용자 원문으로 규칙에 따라 만들고,
-검색 범위(공개 범위·시스템)는 서버가 확정한 접근 문맥에서만 가져온다. 안내문은 근거 문서의
+이 구현은 모델을 호출하지 않는다. 질의는 그 문제 자신의 정보(요약과 확인한 상세 값)로 규칙에
+따라 만들고, 문제 하나가 문의 전체의 주제일 때만 사용자 원문을 보조로 쓴다. 한 문의에 다른
+문제가 함께 있으면 그 문제의 단어로 검색이 오염되므로 원문은 쓰지 않는다. 검색 범위(공개
+범위·시스템)는 서버가 확정한 접근 문맥에서만 가져온다. 안내문은 근거 문서의
 승인된 본문을 그대로 쓰고 출처 제목만 덧붙인다. 모델이 문구를 새로 쓰지 않으므로 안내가
 근거와 어긋나거나 근거 밖 내용을 담을 수 없다.
 
@@ -66,7 +68,9 @@ class SearchKnowledgeAgent:
             hits = list(await self._source.search(query))
         except RetrievalUnavailable:
             # 검색 오류를 0건으로 바꾸지 않는다. 원인 상세는 사용자·모델 입력에 싣지 않는다.
-            return RoleResponse(result=_error_result(call.invocation_id, target.problemRef))
+            return RoleResponse(
+                result=_error_result(call.invocation_id, target.problemRef, query.digest())
+            )
         services.runtime.ensure_active()
 
         evidence = tuple(hit.evidence for hit in hits)
@@ -79,6 +83,7 @@ class SearchKnowledgeAgent:
             ),
             guide=_guide(target, hits),
             problemRef=target.problemRef,
+            queryDigest=query.digest(),
         )
         return RoleResponse(
             result=result,
@@ -91,22 +96,27 @@ def guidable_problem(state: "SupervisorState") -> ProblemProposal | None:
     """안내를 만들 수 있는 문제 하나를 고른다. 없으면 None이다.
 
     이미 안내가 있거나, 처리 결과가 준비되지 않은 사용법 문제 중 보고 시스템이 정해졌고
-    이번 실행에서 아직 검색하지 않은 것이 없으면 검색할 대상이 없다. 같은 문제를 같은 질의로
-    다시 검색해도 같은 결과이므로 이미 검색한 문제는 고르지 않는다. 사용자의 새 메시지는
-    새 실행이라 다시 검색한다.
+    아직 검색하지 않은 것이 없으면 검색할 대상이 없다. 같은 문제를 같은 질의로 다시 검색해도
+    같은 결과이므로, 이번 실행에서 같은 질의로 이미 검색한 문제는 고르지 않는다. 질의가 바뀌었다면
+    (확인한 사실이 더해진 뒤 등) 다시 검색할 수 있다. 사용자의 새 메시지는 새 실행이다.
     Supervisor가 이 역할을 고를 수 있는지 판단하는 데도 쓴다.
     """
-    from hops_ai.supervisor.validation import get_problem_progress, searched_problem_refs
+    from hops_ai.supervisor.validation import get_problem_progress, searched_queries
 
     if state["guide"] is not None:
         return None
-    searched = searched_problem_refs(state)
+    searched = searched_queries(state)
     for item in get_problem_progress(state):
-        if item["outcome"] is not None or item["problemRef"] in searched:
+        if item["outcome"] is not None:
             continue
         problem = state["problems"][item["problemRef"]]
-        if problem.processingType == "KNOWLEDGE_QA" and problem.reportedSystemCandidateId:
-            return problem
+        if problem.processingType != "KNOWLEDGE_QA" or not problem.reportedSystemCandidateId:
+            continue
+        digests = searched.get(problem.problemRef, set())
+        # 지문이 없는 결과는 어떤 질의였는지 알 수 없어 다시 검색하지 않는다.
+        if None in digests or _build_query(state, problem).digest() in digests:
+            continue
+        return problem
     return None
 
 
@@ -122,20 +132,12 @@ def _guide_target(state: "SupervisorState") -> ProblemProposal:
 
 
 def _build_query(state: "SupervisorState", target: ProblemProposal) -> KnowledgeQuery:
-    from hops_ai.supervisor.validation import get_problem_message_ids
-
     request = state["input"]
     access = request.accessContext
-    message_ids = get_problem_message_ids(state, target.problemRef)
-    user_messages = sorted(
-        (
-            message
-            for message in request.messages
-            if message.sender == "USER" and message.id in message_ids
-        ),
-        key=lambda message: message.sequenceNo,
-    )
-    parts = [target.summary, *(message.content for message in user_messages[-MAX_QUERY_MESSAGES:])]
+    # 그 문제 자신의 정보: 요약과 확인한 상세 값. 새 사실이 더해지면 질의도 달라진다.
+    parts = [target.summary, *_detail_values(target)]
+    if not _messages_are_shared(state, target):
+        parts.extend(_recent_user_messages(state, target))
 
     # 공개 범위는 서버가 확정한 값 그대로 쓴다. 직원 상담에 담당자 범위가 섞인 입력은
     # 실행 입력 검증이 이미 거부한다.
@@ -150,6 +152,40 @@ def _build_query(state: "SupervisorState", target: ProblemProposal) -> Knowledge
     )
 
 
+def _detail_values(problem: ProblemProposal) -> list[str]:
+    """확인한 상세 값(문자열)만 모델 필드 순서대로. 값이 없는 항목은 건너뛴다."""
+    return [
+        value.strip()
+        for name, value in problem.details
+        if name != "acceptanceCriteria" and isinstance(value, str) and value.strip()
+    ]
+
+
+def _messages_are_shared(state: "SupervisorState", target: ProblemProposal) -> bool:
+    """새 문제가 다른 문제와 같은 원문을 나눠 쓰는지. 그러면 원문 전체는 이 문제의 질의가 아니다.
+
+    서버가 연결한 기존 문제의 메시지는 그 문제 것이다. 새 문제가 둘 이상이면 어느 문장이 어느
+    문제의 것인지 알 수 없어 다른 문제의 단어가 질의에 섞인다.
+    """
+    return target.problemRef.startswith("new:") and len(state["problems"]) > 1
+
+
+def _recent_user_messages(state: "SupervisorState", target: ProblemProposal) -> list[str]:
+    from hops_ai.supervisor.validation import get_problem_message_ids
+
+    request = state["input"]
+    message_ids = get_problem_message_ids(state, target.problemRef)
+    user_messages = sorted(
+        (
+            message
+            for message in request.messages
+            if message.sender == "USER" and message.id in message_ids
+        ),
+        key=lambda message: message.sequenceNo,
+    )
+    return [message.content for message in user_messages[-MAX_QUERY_MESSAGES:]]
+
+
 def _guide(target: ProblemProposal, hits: list[KnowledgeHit]) -> GuideProposal | None:
     """직원 공개 가이드 근거가 있을 때만 그 승인 본문으로 안내를 구성한다."""
     for hit in hits:
@@ -162,7 +198,7 @@ def _guide(target: ProblemProposal, hits: list[KnowledgeHit]) -> GuideProposal |
     return None
 
 
-def _error_result(invocation_id: str, problem_ref: str) -> KnowledgeResult:
+def _error_result(invocation_id: str, problem_ref: str, query_digest: str) -> KnowledgeResult:
     return KnowledgeResult(
         invocationId=invocation_id,
         search=SearchResult(
@@ -178,4 +214,5 @@ def _error_result(invocation_id: str, problem_ref: str) -> KnowledgeResult:
         ),
         guide=None,
         problemRef=problem_ref,
+        queryDigest=query_digest,
     )

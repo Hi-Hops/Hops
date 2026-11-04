@@ -8,6 +8,8 @@ VectorRetriever·GraphRetriever로 후보를 찾고 Spring 권한 확인을 거�
 빈 목록으로 바꾸지 않는다.
 """
 
+import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -36,6 +38,20 @@ class KnowledgeQuery:
             raise ValueError("검색어가 비어 있다")
         if not 1 <= self.top_k <= MAX_TOP_K:
             raise ValueError("검색 결과 수는 1~5건이어야 한다")
+
+    def digest(self) -> str:
+        """같은 검색인지 비교하는 지문. 검색어와 접근 범위·시스템·건수가 같으면 같다."""
+        canonical = json.dumps(
+            {
+                "text": self.text,
+                "scopes": sorted(self.allowed_scopes),
+                "systems": sorted(self.system_ids),
+                "topK": self.top_k,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
