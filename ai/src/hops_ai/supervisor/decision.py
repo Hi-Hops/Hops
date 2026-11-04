@@ -18,6 +18,7 @@ from hops_ai.supervisor.policy import get_allowed_roles, validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
     ensure_active,
+    get_handoff_readiness,
     get_problem_progress,
     validate_completion,
     validate_questions,
@@ -180,6 +181,7 @@ def _decision_context(
             for problem in state["problems"].values()
         ],
         "problemProgress": progress,
+        "handoffReadiness": get_handoff_readiness(state),
         "questions": [question.model_dump(mode="json") for question in state["questions"].values()],
         "guide": state["guide"].model_dump(mode="json") if state["guide"] else None,
         "ticketProblemRefs": list(state["ticketProposals"]),
@@ -238,7 +240,10 @@ async def decide_next_action(
                     "searchState가 EMPTY) 안내할 근거가 없는 것이다. 남은 질문 횟수와 "
                     "이미 확보한 정보를 보고, 담당자 전달에 필요한 정보가 더 필요하면 "
                     "Inquiry로 질문하고, 충분하거나 질문 한도에 이르렀으면 Ticket으로 "
-                    "담당자에게 넘긴다. 검색 오류는 결과 없음이 아니다. "
+                    "담당자에게 넘긴다. handoffReadiness는 검색 결과가 없는 사용법 문제가 담당자 "
+                    "전달에 아직 확보하지 못한 항목(missingForHandoff)을 코드가 센 값이며, 비어 "
+                    "있으면 더 확인할 정보가 없는 것이므로 같은 확인을 반복하지 않는다. "
+                    "검색 오류는 결과 없음이 아니다. "
                     "기존 저장·확인 중 업무를 재생성하지 않는다. "
                     "publicSummary는 공개 가능한 짧은 한국어 행동 설명이며 내부 사고 과정이나 "
                     "담당자 전용 지식을 담지 않는다. 최종 답변은 검증된 결과로 별도 구성한다. "
@@ -251,7 +256,7 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v4",
+        prompt_version="supervisor.decision.v5",
     )
     response = await services.llm.generate(request)
     # 지연된 응답은 취소·기한을 재검사한 뒤에만 사용한다.

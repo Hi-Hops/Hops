@@ -33,6 +33,53 @@ def knowledge_found_nothing(state: "SupervisorState") -> bool:
     )
 
 
+class HandoffReadiness(TypedDict):
+    """가이드를 찾지 못한 사용법 문제가 담당자 전달에 필요한 정보를 갖췄는지의 읽기 전용 투영."""
+
+    problemRef: str
+    missingForHandoff: list[str]
+    remainingQuestions: int
+
+
+def get_handoff_readiness(state: "SupervisorState") -> list[HandoffReadiness]:
+    """Knowledge가 근거를 찾지 못한(EMPTY) 뒤, 처리 결과가 없는 사용법 문제별로 계산한다.
+
+    모델이 "정보가 충분한가"를 추측하지 않도록 코드가 양식 규칙(forms)으로 센 사실이다.
+    missingForHandoff가 비어 있으면 담당자 전달에 필요한 항목이 모두 확보됐다는 뜻이다.
+    역할 선택을 정하지 않으며, 사용자가 모른다고 답한 항목은 누락에서 뺀다.
+    """
+    if not knowledge_found_nothing(state):
+        return []
+    # forms·extraction은 agents 패키지에 있고 그쪽이 supervisor를 불러오므로 호출 시점에 가져온다.
+    from hops_ai.agents.inquiry.extraction import DETAIL_FIELDS
+    from hops_ai.agents.inquiry.forms import FIELD_LABELS, missing_fields
+
+    names_by_label = {label: name for name, label in FIELD_LABELS.items()}
+    readiness: list[HandoffReadiness] = []
+    for item in get_problem_progress(state):
+        problem = state["problems"][item["problemRef"]]
+        if item["outcome"] is not None or problem.processingType != "KNOWLEDGE_QA":
+            continue
+        known = {name: getattr(problem.details, name) for name in DETAIL_FIELDS}
+        declared_unknown = {
+            names_by_label[label] for label in problem.unknowns if label in names_by_label
+        }
+        readiness.append(
+            HandoffReadiness(
+                problemRef=item["problemRef"],
+                missingForHandoff=missing_fields(
+                    problem.intent,
+                    known,
+                    system_known=problem.reportedSystemCandidateId is not None,
+                    unknown=declared_unknown,
+                    handoff=True,
+                ),
+                remainingQuestions=item["remainingQuestions"],
+            )
+        )
+    return readiness
+
+
 class ProblemProgress(TypedDict):
     """문제별 준비 상태의 읽기 전용 투영. 업무 DB 상태를 새로 확정하지 않는다."""
 

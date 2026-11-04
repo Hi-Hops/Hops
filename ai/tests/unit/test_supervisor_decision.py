@@ -156,7 +156,7 @@ async def test_decision_uses_structured_llm_and_remaining_output_tokens():
     assert state == before
     sent = llm.requests[0]
     assert sent.response_model is SupervisorDecision
-    assert sent.prompt_version == "supervisor.decision.v4"
+    assert sent.prompt_version == "supervisor.decision.v5"
     assert sent.max_output_tokens == 500
     context = json.loads(sent.messages[1].content)
     assert context["allowedRoles"] == ["INQUIRY", "KNOWLEDGE", "TICKET"]
