@@ -101,6 +101,7 @@ async def test_schema_after_an_empty_search_leaves_out_inquiry_when_nothing_is_m
     assert result.status == "SUCCEEDED", result.error
     after_empty = llm.requests[3]
     allowed = json.loads(after_empty.messages[-1].content)["allowedRoles"]
-    assert role_enum(after_empty.response_schema) == allowed == ["KNOWLEDGE", "TICKET"]
+    # 검색한 문제는 같은 질의로 다시 검색하지 않으므로 Knowledge도 선택지에서 빠진다.
+    assert role_enum(after_empty.response_schema) == allowed == ["TICKET"]
     # 검색 직전의 판단에서는 세 역할이 모두 선택지에 있다. 스키마가 이후 상태를 반영해 좁아진다.
     assert role_enum(llm.requests[2].response_schema) == ["INQUIRY", "KNOWLEDGE", "TICKET"]

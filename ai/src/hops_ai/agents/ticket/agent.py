@@ -36,14 +36,15 @@ class RuleTicketAgent:
     async def run(self, call: "RoleRequest", services: SharedServices) -> TicketResult:
         services.runtime.ensure_active()
         # supervisor 패키지는 이 모듈을 불러오는 registry를 거쳐 초기화되므로 호출 시점에 가져온다.
-        from hops_ai.supervisor.validation import get_problem_progress, knowledge_found_nothing
+        from hops_ai.supervisor.validation import get_problem_progress, problems_without_guide
 
         state = call.state
         pending = {
             item["problemRef"] for item in get_problem_progress(state) if item["outcome"] is None
         }
-        # 사용법 문제는 가이드를 찾지 못한 경우(오류 아님)에만 담당자 검토로 넘길 수 있다.
-        review_handoff = knowledge_found_nothing(state)
+        # 사용법 문제는 Knowledge가 그 문제를 검색했지만 안내를 만들지 못한 경우(오류 아님)에만
+        # 담당자 검토로 넘길 수 있다. 검색하지 않은 문제는 넘기지 않는다.
+        no_guide = problems_without_guide(state)
         proposals = [
             _propose(problem)
             for ref, problem in state["problems"].items()
@@ -51,7 +52,7 @@ class RuleTicketAgent:
             and problem.reportedSystemCandidateId is not None
             and (
                 problem.processingType in TICKETABLE_TYPES
-                or (problem.processingType == "KNOWLEDGE_QA" and review_handoff)
+                or (problem.processingType == "KNOWLEDGE_QA" and ref in no_guide)
             )
         ]
         if not proposals:

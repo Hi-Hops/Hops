@@ -66,7 +66,7 @@ class SearchKnowledgeAgent:
             hits = list(await self._source.search(query))
         except RetrievalUnavailable:
             # 검색 오류를 0건으로 바꾸지 않는다. 원인 상세는 사용자·모델 입력에 싣지 않는다.
-            return RoleResponse(result=_error_result(call.invocation_id))
+            return RoleResponse(result=_error_result(call.invocation_id, target.problemRef))
         services.runtime.ensure_active()
 
         evidence = tuple(hit.evidence for hit in hits)
@@ -78,6 +78,7 @@ class SearchKnowledgeAgent:
                 else SearchResult(state="EMPTY", evidence=[], error=None)
             ),
             guide=_guide(target, hits),
+            problemRef=target.problemRef,
         )
         return RoleResponse(
             result=result,
@@ -89,15 +90,19 @@ class SearchKnowledgeAgent:
 def guidable_problem(state: "SupervisorState") -> ProblemProposal | None:
     """안내를 만들 수 있는 문제 하나를 고른다. 없으면 None이다.
 
-    이미 안내가 있거나, 처리 결과가 준비되지 않은 사용법 문제 중 보고 시스템이 정해진 것이 없으면
-    검색할 대상이 없다. Supervisor가 이 역할을 고를 수 있는지 판단하는 데도 쓴다.
+    이미 안내가 있거나, 처리 결과가 준비되지 않은 사용법 문제 중 보고 시스템이 정해졌고
+    이번 실행에서 아직 검색하지 않은 것이 없으면 검색할 대상이 없다. 같은 문제를 같은 질의로
+    다시 검색해도 같은 결과이므로 이미 검색한 문제는 고르지 않는다. 사용자의 새 메시지는
+    새 실행이라 다시 검색한다.
+    Supervisor가 이 역할을 고를 수 있는지 판단하는 데도 쓴다.
     """
-    from hops_ai.supervisor.validation import get_problem_progress
+    from hops_ai.supervisor.validation import get_problem_progress, searched_problem_refs
 
     if state["guide"] is not None:
         return None
+    searched = searched_problem_refs(state)
     for item in get_problem_progress(state):
-        if item["outcome"] is not None:
+        if item["outcome"] is not None or item["problemRef"] in searched:
             continue
         problem = state["problems"][item["problemRef"]]
         if problem.processingType == "KNOWLEDGE_QA" and problem.reportedSystemCandidateId:
@@ -157,7 +162,7 @@ def _guide(target: ProblemProposal, hits: list[KnowledgeHit]) -> GuideProposal |
     return None
 
 
-def _error_result(invocation_id: str) -> KnowledgeResult:
+def _error_result(invocation_id: str, problem_ref: str) -> KnowledgeResult:
     return KnowledgeResult(
         invocationId=invocation_id,
         search=SearchResult(
@@ -172,4 +177,5 @@ def _error_result(invocation_id: str) -> KnowledgeResult:
             ),
         ),
         guide=None,
+        problemRef=problem_ref,
     )

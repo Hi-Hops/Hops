@@ -58,15 +58,17 @@ def services_for(request: AiRunRequest, llm: FakeLLMClient | None = None) -> Sha
     )
 
 
-def empty_search(invocation: str = "inv-k") -> KnowledgeResult:
+def empty_search(invocation: str = "inv-k", problem_ref: str | None = "new:1") -> KnowledgeResult:
+    """problem_ref가 검색한 문제다. None이면 어느 문제의 결과인지 알 수 없는 결과다."""
     return KnowledgeResult(
         invocationId=invocation,
         search=SearchResult(state="EMPTY", evidence=[], error=None),
         guide=None,
+        problemRef=problem_ref,
     )
 
 
-def error_search(invocation: str = "inv-k") -> KnowledgeResult:
+def error_search(invocation: str = "inv-k", problem_ref: str | None = "new:1") -> KnowledgeResult:
     error = SearchError(
         code="SEARCH_UNAVAILABLE",
         message="검색 시스템에 일시적으로 연결하지 못했다",
@@ -78,6 +80,7 @@ def error_search(invocation: str = "inv-k") -> KnowledgeResult:
         invocationId=invocation,
         search=SearchResult(state="ERROR", evidence=[], error=error),
         guide=None,
+        problemRef=problem_ref,
     )
 
 

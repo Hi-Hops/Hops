@@ -22,14 +22,29 @@ if TYPE_CHECKING:
     from hops_ai.supervisor.state import SupervisorState
 
 
-def knowledge_found_nothing(state: "SupervisorState") -> bool:
-    """이번 실행에서 Knowledge가 오류 없이 근거를 찾지 못했는지(EMPTY).
+def problems_without_guide(state: "SupervisorState") -> frozenset[str]:
+    """Knowledge가 오류 없이 검색했지만 직원 안내를 만들 수 없었던 문제의 problemRef 집합.
 
-    검색 오류(ERROR)는 포함하지 않는다. 오류를 근거 없음으로 바꾸지 않는다.
+    검색 결과가 없거나(EMPTY), 결과는 있지만 직원에게 공개할 가이드가 없어 안내가 만들어지지
+    않은 경우(FOUND이고 guide가 없음)다. 검색 오류(ERROR)는 포함하지 않는다. 오류를 근거 없음으로
+    바꾸지 않는다. 검색한 문제가 기록되지 않은 결과는 어느 문제에도 적용하지 않는다.
     """
-    return any(
-        isinstance(result, KnowledgeResult) and result.search.state == "EMPTY"
+    return frozenset(
+        result.problemRef
         for result in state["roleResults"].values()
+        if isinstance(result, KnowledgeResult)
+        and result.problemRef is not None
+        and result.search.state != "ERROR"
+        and result.guide is None
+    )
+
+
+def searched_problem_refs(state: "SupervisorState") -> frozenset[str]:
+    """이번 실행에서 Knowledge가 이미 검색한 문제. 같은 질의의 반복 검색을 피하는 데 쓴다."""
+    return frozenset(
+        result.problemRef
+        for result in state["roleResults"].values()
+        if isinstance(result, KnowledgeResult) and result.problemRef is not None
     )
 
 
@@ -42,13 +57,14 @@ class HandoffReadiness(TypedDict):
 
 
 def get_handoff_readiness(state: "SupervisorState") -> list[HandoffReadiness]:
-    """Knowledge가 근거를 찾지 못한(EMPTY) 뒤, 처리 결과가 없는 사용법 문제별로 계산한다.
+    """Knowledge가 안내를 만들지 못한 뒤, 처리 결과가 없는 그 사용법 문제별로 계산한다.
 
     모델이 "정보가 충분한가"를 추측하지 않도록 코드가 양식 규칙(forms)으로 센 사실이다.
     missingForHandoff가 비어 있으면 담당자 전달에 필요한 항목이 모두 확보됐다는 뜻이다.
     역할 선택을 정하지 않으며, 사용자가 모른다고 답한 항목은 누락에서 뺀다.
     """
-    if not knowledge_found_nothing(state):
+    no_guide = problems_without_guide(state)
+    if not no_guide:
         return []
     # forms·extraction은 agents 패키지에 있고 그쪽이 supervisor를 불러오므로 호출 시점에 가져온다.
     from hops_ai.agents.inquiry.extraction import DETAIL_FIELDS
@@ -58,7 +74,11 @@ def get_handoff_readiness(state: "SupervisorState") -> list[HandoffReadiness]:
     readiness: list[HandoffReadiness] = []
     for item in get_problem_progress(state):
         problem = state["problems"][item["problemRef"]]
-        if item["outcome"] is not None or problem.processingType != "KNOWLEDGE_QA":
+        if (
+            item["outcome"] is not None
+            or problem.processingType != "KNOWLEDGE_QA"
+            or item["problemRef"] not in no_guide
+        ):
             continue
         known = {name: getattr(problem.details, name) for name in DETAIL_FIELDS}
         declared_unknown = {
@@ -81,14 +101,13 @@ def get_handoff_readiness(state: "SupervisorState") -> list[HandoffReadiness]:
 
 
 def all_unfinished_ready_for_handoff(state: "SupervisorState") -> bool:
-    """Knowledge가 근거를 못 찾은 뒤, 남은 문제가 모두 담당자 전달 정보를 갖췄는지.
+    """남은 문제가 모두, 안내를 만들지 못한 사용법 문제이고 담당자 전달 정보를 갖췄는지.
 
-    처리 결과가 없는 문제가 있고, 그 문제가 전부 사용법 문제이며, 각각 누락 항목이 없을 때만
-    참이다. 다른 유형의 미처리 문제가 하나라도 있거나 누락이 있으면 거짓이다. 이 경우 Inquiry를
-    다시 불러도 같은 원문에서 같은 사실을 다시 뽑을 뿐 새 질문을 만들 수 없다.
+    처리 결과가 없는 문제가 있고, 그 문제가 전부 검색했지만 안내를 만들지 못한 사용법 문제이며,
+    각각 누락 항목이 없을 때만 참이다. 다른 유형의 미처리 문제나 아직 검색하지 않은 사용법 문제가
+    하나라도 있거나 누락이 있으면 거짓이다. 이 경우 Inquiry를 다시 불러도 같은 원문에서 같은 사실을
+    다시 뽑을 뿐 새 질문을 만들 수 없다.
     """
-    if not knowledge_found_nothing(state):
-        return False
     unfinished = [
         item["problemRef"] for item in get_problem_progress(state) if item["outcome"] is None
     ]

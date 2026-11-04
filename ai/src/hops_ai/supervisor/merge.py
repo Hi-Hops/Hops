@@ -27,7 +27,7 @@ from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
     ensure_active,
     get_problem_message_ids,
-    knowledge_found_nothing,
+    problems_without_guide,
     validate_details,
     validate_evidence_scope,
     validate_problem_ref,
@@ -85,14 +85,14 @@ def _is_review_handoff(
 ) -> bool:
     """안내할 가이드를 찾지 못한 사용법 문제를 담당자 검토 티켓으로 넘기는 경우인지.
 
-    사용법(KNOWLEDGE_QA)은 안내로 끝나는 처리 유형이라 티켓 유형이 없다. Knowledge가
-    오류 없이 근거를 찾지 못했을 때에 한해 REVIEW_REQUIRED 티켓을 허용한다.
-    다른 유형 불일치는 계속 거부한다.
+    사용법(KNOWLEDGE_QA)은 안내로 끝나는 처리 유형이라 티켓 유형이 없다. Knowledge가 그 문제를
+    오류 없이 검색했지만 안내를 만들지 못했을 때에 한해 REVIEW_REQUIRED 티켓을 허용한다.
+    검색하지 않은 문제나 다른 문제의 결과로는 허용하지 않으며 다른 유형 불일치는 계속 거부한다.
     """
     return (
         problem.processingType == "KNOWLEDGE_QA"
         and proposal.processingType == "REVIEW_REQUIRED"
-        and knowledge_found_nothing(state)
+        and problem.problemRef in problems_without_guide(state)
     )
 
 
@@ -311,6 +311,10 @@ def merge_knowledge_result(
         return state
     if result.search.state == "ERROR":
         raise RetrievalUnavailable
+    if result.problemRef is not None:
+        validate_problem_ref(state, result.problemRef)
+        if result.guide is not None and result.guide.problemRef != result.problemRef:
+            raise OutputRejected("안내가 검색한 문제와 다른 문제를 가리킨다")
     if result.search.state == "EMPTY" and result.guide is not None:
         raise OutputRejected("검색 0건을 근거 있는 안내로 바꿀 수 없다")
     if len(result.search.evidence) > 5:

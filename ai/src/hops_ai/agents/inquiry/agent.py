@@ -82,14 +82,14 @@ class ExtractionInquiryAgent:
 
     async def run(self, call: "RoleRequest", services: SharedServices) -> InquiryResult:
         # supervisor 패키지는 이 모듈을 불러오는 registry를 거쳐 초기화되므로 호출 시점에 가져온다.
-        from hops_ai.supervisor.validation import knowledge_found_nothing
+        from hops_ai.supervisor.validation import problems_without_guide
 
         services.runtime.ensure_active()
         request = call.state["input"]
         existing = list(request.problems)
-        # Knowledge가 오류 없이 근거를 찾지 못했다면 사용법 문제는 안내 대신 담당자 전달에
-        # 필요한 정보를 묻는다. 검색 오류는 여기에 해당하지 않는다.
-        knowledge_empty = knowledge_found_nothing(call.state)
+        # Knowledge가 그 문제를 오류 없이 검색했지만 안내를 만들지 못했다면 사용법 문제는 안내 대신
+        # 담당자 전달에 필요한 정보를 묻는다. 검색 오류는 여기에 해당하지 않는다.
+        no_guide = problems_without_guide(call.state)
         extraction = await self._extract(call, services)
         services.runtime.ensure_active()
         if not extraction.problems:
@@ -114,7 +114,7 @@ class ExtractionInquiryAgent:
                 system_ids,
                 system_names,
                 guide_first=self._guide_first,
-                knowledge_empty=knowledge_empty,
+                knowledge_empty=ref in no_guide,
                 previous=previous,
             )
             problems.append(problem)

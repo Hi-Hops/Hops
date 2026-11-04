@@ -73,11 +73,21 @@ def test_problem_that_cannot_be_guided_hides_knowledge(changes) -> None:
     assert {AgentRole.INQUIRY, AgentRole.TICKET} <= roles_for(state)
 
 
-def test_knowledge_stays_selectable_after_an_empty_search() -> None:
-    # 검색 결과 없음 뒤에 다시 묻거나 넘기는 것은 Supervisor의 판단이며 역할을 막지 않는다.
+def test_problem_already_searched_is_not_searched_again_but_other_options_stay() -> None:
+    # 같은 문제를 같은 질의로 다시 검색해도 같은 결과다. 검색 뒤의 질문·티켓은 막지 않는다.
     state = state_after(empty_search(), how_to_problem())
 
-    assert roles_for(state) == ALL_THREE
+    assert guidable_problem(state) is None
+    assert roles_for(state) == {AgentRole.INQUIRY, AgentRole.TICKET}
+
+
+def test_knowledge_stays_selectable_for_a_problem_that_was_not_searched_yet() -> None:
+    state = state_after(empty_search(), how_to_problem("new:1"), how_to_problem("new:2"))
+
+    target = guidable_problem(state)
+
+    assert target is not None and target.problemRef == "new:2"
+    assert AgentRole.KNOWLEDGE in roles_for(state)
 
 
 def test_knowledge_is_hidden_once_a_guide_exists() -> None:

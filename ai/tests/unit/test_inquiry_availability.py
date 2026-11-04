@@ -43,7 +43,7 @@ def roles_for(state) -> set[AgentRole]:
 def test_inquiry_is_hidden_when_nothing_is_missing_after_an_empty_search() -> None:
     state = state_after(empty_search(), how_to(**COMPLETE))
 
-    assert roles_for(state) == {AgentRole.KNOWLEDGE, AgentRole.TICKET}
+    assert roles_for(state) == {AgentRole.TICKET}
 
 
 def test_inquiry_stays_while_something_is_still_missing() -> None:
@@ -119,7 +119,7 @@ async def test_supervisor_after_an_empty_search_no_longer_offers_inquiry_when_re
 
     assert result.status == "SUCCEEDED", result.error
     after_empty = json.loads(llm.requests[3].messages[-1].content)
-    assert after_empty["allowedRoles"] == ["KNOWLEDGE", "TICKET"]
+    assert after_empty["allowedRoles"] == ["TICKET"]
     assert after_empty["handoffReadiness"][0]["missingForHandoff"] == []
     # 검색 전과 첫 분석 전에는 Inquiry가 선택지에 있다.
     assert "INQUIRY" in json.loads(llm.requests[2].messages[-1].content)["allowedRoles"]
