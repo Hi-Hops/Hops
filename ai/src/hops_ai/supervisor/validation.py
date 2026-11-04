@@ -104,18 +104,22 @@ def get_handoff_readiness(state: "SupervisorState") -> list[HandoffReadiness]:
 
 
 def all_unfinished_ready_for_handoff(state: "SupervisorState") -> bool:
-    """남은 문제가 모두, 안내를 만들지 못한 사용법 문제이고 담당자 전달 정보를 갖췄는지.
+    """남은 문제가 모두, 안내를 만들지 못한 사용법 문제이고 Inquiry가 더 할 일이 없는지.
 
     처리 결과가 없는 문제가 있고, 그 문제가 전부 검색했지만 안내를 만들지 못한 사용법 문제이며,
-    각각 누락 항목이 없을 때만 참이다. 다른 유형의 미처리 문제나 아직 검색하지 않은 사용법 문제가
-    하나라도 있거나 누락이 있으면 거짓이다. 이 경우 Inquiry를 다시 불러도 같은 원문에서 같은 사실을
-    다시 뽑을 뿐 새 질문을 만들 수 없다.
+    각각 (1) 담당자 전달 정보가 갖춰졌거나 (2) 질문 한도에 도달해 더 물을 수 없을 때만 참이다.
+    (2)에서는 정보가 비어 있어도 Inquiry가 질문 없이 담당자 전달(HANDOFF)만 반환하므로 다시
+    불러도 문제가 처리되지 않은 채 남는다. 다른 유형의 미처리 문제나 아직 검색하지 않은 사용법
+    문제가 하나라도 있거나, 정보가 비었고 물을 수 있는 질문이 남았으면 거짓이다. 이 경우가 아닌
+    상태에서 Inquiry를 다시 불러도 같은 원문에서 같은 사실을 다시 뽑을 뿐 새 질문을 만들 수 없다.
     """
     unfinished = [
         item["problemRef"] for item in get_problem_progress(state) if item["outcome"] is None
     ]
+    # 정보가 갖춰졌거나 질문 한도에 도달해 더 물을 수 없다.
     ready = {
-        item["problemRef"]: not item["missingForHandoff"] for item in get_handoff_readiness(state)
+        item["problemRef"]: not item["missingForHandoff"] or item["remainingQuestions"] <= 0
+        for item in get_handoff_readiness(state)
     }
     return bool(unfinished) and all(ready.get(ref, False) for ref in unfinished)
 

@@ -10,15 +10,16 @@ import json
 
 import pytest
 
-from hops_ai.agents.inquiry.extraction import QuotedValue
+from hops_ai.agents.inquiry.extraction import InquiryExtraction, QuotedValue
 from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
+from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.policy import get_allowed_roles
-from hops_ai.supervisor.validation import get_problem_progress
+from hops_ai.supervisor.validation import get_handoff_readiness, get_problem_progress
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -227,3 +228,81 @@ async def test_supervisor_after_a_guide_and_a_question_offers_no_inquiry() -> No
     assert after_search["allowedRoles"] == ["TICKET"]
     first = json.loads(llm.requests[0].messages[-1].content)
     assert "INQUIRY" in first["allowedRoles"]
+
+
+# --- 질문 한도에 도달해 더 묻지 못하는 문제 (코드 리뷰 지적) ---
+
+
+def at_question_limit_request(text: str = "전자결재 도장 이미지 등록 방법을 알려주세요"):
+    """서버가 질문을 이미 5번 했다고 알린 기존 사용법 문제 하나."""
+    from tests.unit.test_knowledge_agent import how_to_request
+
+    fields = how_to_request(text, summary="도장 이미지 등록 방법 문의").model_dump(mode="json")
+    fields["problems"][0]["questionCount"] = 5
+    return AiRunRequest.model_validate(fields)
+
+
+def test_inquiry_is_hidden_when_a_problem_cannot_be_asked_anything_more() -> None:
+    from tests.supervisor_fixtures import PROBLEM
+
+    request = at_question_limit_request()
+    state = {
+        **running_state(request),
+        "roleResults": {"inv-k": empty_search(problem_ref=PROBLEM)},
+    }
+
+    [item] = get_handoff_readiness(state)
+    # 전달에 필요한 항목이 아직 비었지만 질문 한도(5회)에 도달해 더 물을 수 없다.
+    assert item["missingForHandoff"] and item["remainingQuestions"] == 0
+    assert AgentRole.INQUIRY not in roles_for(state)
+    assert AgentRole.TICKET in roles_for(state)
+
+
+def test_inquiry_stays_while_questions_remain_for_the_missing_items() -> None:
+    from tests.supervisor_fixtures import PROBLEM
+
+    request = at_question_limit_request()
+    fields = request.model_dump(mode="json")
+    fields["problems"][0]["questionCount"] = 4
+    state = {
+        **running_state(AiRunRequest.model_validate(fields)),
+        "roleResults": {"inv-k": empty_search(problem_ref=PROBLEM)},
+    }
+
+    [item] = get_handoff_readiness(state)
+    assert item["missingForHandoff"] and item["remainingQuestions"] == 1
+    assert AgentRole.INQUIRY in roles_for(state)
+
+
+async def test_run_at_the_question_limit_ends_in_a_review_ticket() -> None:
+    from tests.unit.test_composite_inquiry import _extracted
+    from tests.unit.test_knowledge_empty_handoff import services_for as handoff_services
+
+    request = at_question_limit_request()
+    llm = FakeLLMClient(
+        decision("CALL_ROLE", AgentRole.INQUIRY),
+        InquiryExtraction(
+            problems=[
+                _extracted(
+                    "도장 이미지 등록 방법 문의",
+                    "HOW_TO",
+                    "ELECTRONIC_APPROVAL",
+                    task="도장 이미지 등록",
+                )
+            ]
+        ),
+        decision("CALL_ROLE", AgentRole.KNOWLEDGE),
+        decision("CALL_ROLE", AgentRole.TICKET),
+        decision("PROPOSE_TICKETS"),
+    )
+    agents = build_runtime_registry(FixtureKnowledgeSource())
+    roles = implemented_roles(agents)
+    supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
+
+    result = await supervisor.analyze(request, handoff_services(request, llm))
+
+    assert result.status == "SUCCEEDED", result.error
+    assert [t.processingType for t in result.ticketProposals] == ["REVIEW_REQUIRED"]
+    after_search = json.loads(llm.requests[3].messages[-1].content)
+    # 검색 뒤 더 물을 수 없으므로 Inquiry와 이미 검색한 Knowledge가 모두 선택지에서 빠진다.
+    assert after_search["allowedRoles"] == ["TICKET"]
