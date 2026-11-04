@@ -119,6 +119,11 @@ public class Inquiry extends BaseEntity {
         resultRevision++;
     }
 
+    /** 새 메시지·정정을 저장할 때 입력 버전을 1 올린다. 이전 버전으로 만든 늦은 결과는 버전이 달라 적용되지 않는다. */
+    public void recordInput() {
+        version = Math.incrementExact(version);
+    }
+
     public void resumeAnalysis(AgentRun run) {
         currentRun = run;
         inquiryStatus = InquiryStatus.IN_PROGRESS;
