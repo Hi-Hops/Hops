@@ -46,3 +46,51 @@ test('CI 테스트 실패를 보존하고 actionlint도 실행하며 실패 로�
     assert.equal(report.checks[2].status, 'passed');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test('Spring 테스트 실패 시 결과 XML의 실패 테스트를 details 앞과 별도 필드에 짧게 남긴다', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'hops-review-'));
+  try {
+    const results = path.join(root, 'backend/spring/hops/build/test-results/test');
+    mkdirSync(results, { recursive: true });
+    writeFileSync(path.join(results, 'TEST-a.SseTest.xml'), `<?xml version="1.0"?>
+<testsuite name="a.SseTest">
+  <testcase name="passes()" classname="a.SseTest" time="0.1"/>
+  <testcase name="times_out()" classname="a.SseTest" time="5">
+    <failure message="expected: &lt;3&gt; but was: &lt;2&gt;&#10;secret-tail" type="org.opentest4j.AssertionFailedError">stack</failure>
+  </testcase>
+  <testcase name="long()" classname="a.SseTest" time="1">
+    <error message="${'y'.repeat(1000)}" type="java.lang.IllegalStateException"/>
+  </testcase>
+</testsuite>`);
+    const report = validate({ root, files: ['backend/spring/hops/src/A.java'],
+      baseSha: 'base', headSha: 'head', output: path.join(root, 'evidence'),
+      run: (command, args) => ({ exitCode: args.includes('test') ? 1 : 0, details: 'z'.repeat(8000) }),
+    });
+    const spring = report.checks.find(check => check.name === 'Spring 컴파일·테스트');
+    assert.equal(spring.failedTestCount, 2);
+    assert.deepEqual(spring.failedTests[0], { className: 'a.SseTest', name: 'times_out()', kind: 'failure',
+      type: 'org.opentest4j.AssertionFailedError', message: 'expected: <3> but was: <2>' });
+    assert.equal(spring.failedTests[1].kind, 'error');
+    assert.equal(spring.failedTests[1].message.length, 301);
+    assert.ok(spring.details.startsWith('[실패 테스트 2개]\n- a.SseTest > times_out()'));
+    assert.ok(!spring.details.includes('secret-tail'));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('Spring 결과 XML이 없거나 DB 준비 실패로 skip되면 실패 테스트 필드를 만들지 않거나 없음을 표시한다', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'hops-review-'));
+  try {
+    const files = ['backend/spring/hops/src/A.java'];
+    const output = path.join(root, 'evidence');
+    const compileFail = validate({ root, files, baseSha: 'base', headSha: 'head', output,
+      run: (command, args) => ({ exitCode: args.includes('test') ? 1 : 0, details: 'compile error' }) });
+    const spring = compileFail.checks.find(check => check.name === 'Spring 컴파일·테스트');
+    assert.deepEqual(spring.failedTests, []);
+    assert.ok(spring.details.startsWith('[실패 테스트] 테스트 결과 XML 없음'));
+    const dbFail = validate({ root, files, baseSha: 'base', headSha: 'head', output,
+      run: command => ({ exitCode: command === 'bash' ? 1 : 0, details: 'db' }) });
+    const skipped = dbFail.checks.find(check => check.name === 'Spring 컴파일·테스트');
+    assert.equal(skipped.status, 'skipped');
+    assert.equal(skipped.failedTests, undefined);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
