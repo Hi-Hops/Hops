@@ -25,7 +25,7 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 |---|---|---|---|
 | 1 | [01_roles_and_database.sql](01_roles_and_database.sql) | 관리자(로컬 `hops`, RDS 마스터) | `hops` |
 | 2 | 각 계정 비밀번호 설정(`\password`) | 관리자 | `hops` |
-| 3 | [02_adopt_existing_tables.sql](02_adopt_existing_tables.sql) | 관리자 | `hops_ai_runtime` | 
+| 3 | [02_adopt_existing_tables.sql](02_adopt_existing_tables.sql) | 관리자 | `hops_ai_runtime` |
 | 4 | `ai/migrations/001`, `002` | `hops_ai_migrator` | `hops_ai_runtime` |
 | 5 | [03_app_privileges.sql](03_app_privileges.sql) | `hops_ai_migrator` | `hops_ai_runtime` |
 | 6 | 점검 명령 | `hops_ai_app` | `hops_ai_runtime` |
