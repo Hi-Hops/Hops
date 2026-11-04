@@ -67,9 +67,15 @@ class ExtractionInquiryAgent:
         self._guide_first = guide_first
 
     async def run(self, call: "RoleRequest", services: SharedServices) -> InquiryResult:
+        # supervisor 패키지는 이 모듈을 불러오는 registry를 거쳐 초기화되므로 호출 시점에 가져온다.
+        from hops_ai.supervisor.validation import knowledge_found_nothing
+
         services.runtime.ensure_active()
         request = call.state["input"]
         existing = list(request.problems)
+        # Knowledge가 오류 없이 근거를 찾지 못했다면 사용법 문제는 안내 대신 담당자 전달에
+        # 필요한 정보를 묻는다. 검색 오류는 여기에 해당하지 않는다.
+        knowledge_empty = knowledge_found_nothing(call.state)
         extraction = await self._extract(call, services)
         services.runtime.ensure_active()
         if not extraction.problems:
@@ -92,6 +98,7 @@ class ExtractionInquiryAgent:
                 system_ids,
                 system_names,
                 guide_first=self._guide_first,
+                knowledge_empty=knowledge_empty,
             )
             problems.append(problem)
             if question is not None:
@@ -134,6 +141,7 @@ def _assemble(
     system_names: Sequence[str],
     *,
     guide_first: bool = False,
+    knowledge_empty: bool = False,
 ) -> tuple[ProblemProposal, QuestionProposal | None]:
     """한 문제의 추출 결과를 제안으로 조립한다. 서버가 확정한 값은 모델이 바꾸지 못한다."""
     if original is not None:
@@ -157,6 +165,7 @@ def _assemble(
         question_count=original.questionCount if original is not None else 0,
         unknown=declared_unknown,
         guide_first=guide_first,
+        handoff=knowledge_empty and processing_type == "KNOWLEDGE_QA",
     )
 
     facts = [

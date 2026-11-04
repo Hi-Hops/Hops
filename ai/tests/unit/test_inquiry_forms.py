@@ -221,3 +221,61 @@ def test_guide_first_does_not_change_other_intents(intent) -> None:
         assert plan_next(
             intent, known, system_known=system_known, system_names=SYSTEMS, guide_first=True
         ) == plan_next(intent, known, system_known=system_known, system_names=SYSTEMS)
+
+
+# --- 가이드를 찾지 못한 뒤: 사용법은 담당자 전달에 필요한 항목을 확인한다 ---
+
+
+def test_handoff_how_to_asks_the_desired_result_not_the_current_workflow() -> None:
+    known = {"taskOrScreen": "전자결재 문서 조회"}
+
+    plan = plan_next("HOW_TO", known, system_known=True, guide_first=True, handoff=True)
+
+    assert plan.action == "ASK" and plan.fields == ("expectedBehavior",)
+    assert "원하시는 결과" in plan.text
+    # 장애용 문구("원래 어떻게 동작하길 기대하셨나요?")를 사용법에 쓰지 않는다.
+    assert "기대하셨나요" not in plan.text
+
+
+def test_handoff_how_to_is_complete_once_the_desired_result_is_known() -> None:
+    known = {"taskOrScreen": "문서 조회", "expectedBehavior": "지난달 문서를 찾고 싶다"}
+
+    plan = plan_next("HOW_TO", known, system_known=True, guide_first=True, handoff=True)
+
+    assert plan.action == "COMPLETE"
+
+
+def test_handoff_does_not_ask_what_the_user_said_they_do_not_know() -> None:
+    known = {"taskOrScreen": "문서 조회"}
+
+    plan = plan_next(
+        "HOW_TO",
+        known,
+        system_known=True,
+        guide_first=True,
+        handoff=True,
+        unknown={"expectedBehavior"},
+    )
+
+    assert plan.action == "COMPLETE" and plan.text is None
+
+
+def test_handoff_respects_the_question_limit_and_keeps_missing_as_unknown() -> None:
+    plan = plan_next(
+        "HOW_TO",
+        {"taskOrScreen": "문서 조회"},
+        system_known=True,
+        guide_first=True,
+        handoff=True,
+        question_count=MAX_QUESTIONS_PER_PROBLEM,
+    )
+
+    assert plan.action == "HANDOFF" and plan.unknown == ("expectedBehavior",)
+
+
+@pytest.mark.parametrize("intent", [*(i for i in ASKABLE if i != "HOW_TO"), "UNKNOWN"])
+def test_handoff_does_not_change_other_intents(intent) -> None:
+    for known, system_known in (({}, False), (everything(intent), True)):
+        assert plan_next(
+            intent, known, system_known=system_known, system_names=SYSTEMS, handoff=True
+        ) == plan_next(intent, known, system_known=system_known, system_names=SYSTEMS)

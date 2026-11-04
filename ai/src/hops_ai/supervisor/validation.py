@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, TypedDict
 
+from hops_ai.contracts.roles import KnowledgeResult
 from hops_ai.contracts.wire import (
     AiRunRequest,
     EvidenceStatement,
@@ -19,6 +20,17 @@ from hops_ai.harness.errors import (
 
 if TYPE_CHECKING:
     from hops_ai.supervisor.state import SupervisorState
+
+
+def knowledge_found_nothing(state: "SupervisorState") -> bool:
+    """이번 실행에서 Knowledge가 오류 없이 근거를 찾지 못했는지(EMPTY).
+
+    검색 오류(ERROR)는 포함하지 않는다. 오류를 근거 없음으로 바꾸지 않는다.
+    """
+    return any(
+        isinstance(result, KnowledgeResult) and result.search.state == "EMPTY"
+        for result in state["roleResults"].values()
+    )
 
 
 class ProblemProgress(TypedDict):

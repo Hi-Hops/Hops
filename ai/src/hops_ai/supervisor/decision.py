@@ -232,6 +232,11 @@ async def decide_next_action(
                     "조사 티켓을 제안할 수 있다. "
                     "availableDetails는 값이 있는 상세 항목명이며 필수 항목 목록이 아니다. "
                     "추가 질문은 문제별 남은 횟수를 지킨다. "
+                    "사용법 문제에서 Knowledge 검색 결과가 없으면(completedCalls의 "
+                    "searchState가 EMPTY) 안내할 근거가 없는 것이다. 남은 질문 횟수와 "
+                    "이미 확보한 정보를 보고, 담당자 전달에 필요한 정보가 더 필요하면 "
+                    "Inquiry로 질문하고, 충분하거나 질문 한도에 이르렀으면 Ticket으로 "
+                    "담당자에게 넘긴다. 검색 오류는 결과 없음이 아니다. "
                     "기존 저장·확인 중 업무를 재생성하지 않는다. "
                     "publicSummary는 공개 가능한 짧은 한국어 행동 설명이며 내부 사고 과정이나 "
                     "담당자 전용 지식을 담지 않는다. 최종 답변은 검증된 결과로 별도 구성한다. "
@@ -244,7 +249,7 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v2",
+        prompt_version="supervisor.decision.v3",
     )
     response = await services.llm.generate(request)
     # 지연된 응답은 취소·기한을 재검사한 뒤에만 사용한다.

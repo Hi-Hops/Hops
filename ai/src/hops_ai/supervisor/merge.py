@@ -27,6 +27,7 @@ from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
     ensure_active,
     get_problem_message_ids,
+    knowledge_found_nothing,
     validate_details,
     validate_evidence_scope,
     validate_problem_ref,
@@ -79,6 +80,22 @@ def validate_guide(state: SupervisorState, guide: GuideProposal) -> None:
         raise OutputRejected("같은 문제에 안내 확인과 티켓을 동시에 제안할 수 없다")
 
 
+def _is_review_handoff(
+    state: SupervisorState, problem: ProblemProposal, proposal: TicketProposal
+) -> bool:
+    """안내할 가이드를 찾지 못한 사용법 문제를 담당자 검토 티켓으로 넘기는 경우인지.
+
+    사용법(KNOWLEDGE_QA)은 안내로 끝나는 처리 유형이라 티켓 유형이 없다. Knowledge가
+    오류 없이 근거를 찾지 못했을 때에 한해 REVIEW_REQUIRED 티켓을 허용한다.
+    다른 유형 불일치는 계속 거부한다.
+    """
+    return (
+        problem.processingType == "KNOWLEDGE_QA"
+        and proposal.processingType == "REVIEW_REQUIRED"
+        and knowledge_found_nothing(state)
+    )
+
+
 def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     """티켓 대상·보고/책임 시스템·기존 저장 결과·표준 요청의 출처를 대조한다.
 
@@ -87,7 +104,9 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     """
     validate_problem_ref(state, proposal.problemRef)
     problem = state["problems"][proposal.problemRef]
-    if proposal.processingType != problem.processingType:
+    if proposal.processingType != problem.processingType and not _is_review_handoff(
+        state, problem, proposal
+    ):
         raise OutputRejected("티켓과 문제의 처리 유형이 다르다")
     original = next(
         (item for item in state["input"].problems if item.id == proposal.problemRef), None
@@ -365,6 +384,7 @@ def merge_ticket_result(state: SupervisorState, result: TicketResult) -> Supervi
     if not _prepare_merge(state, AgentRole.TICKET, result):
         return state
     proposals = dict(state["ticketProposals"])
+    problems = dict(state["problems"])
     seen: set[str] = set()
     for proposal in result.proposals:
         if proposal.problemRef in seen:
@@ -372,7 +392,13 @@ def merge_ticket_result(state: SupervisorState, result: TicketResult) -> Supervi
         seen.add(proposal.problemRef)
         validate_ticket(state, proposal)
         proposals[proposal.problemRef] = proposal
-    candidate = {**state, "ticketProposals": proposals}
+        problem = state["problems"][proposal.problemRef]
+        if proposal.processingType != problem.processingType:
+            # 담당자 검토로 넘기기로 한 문제는 최종 결과에서도 같은 처리 유형으로 보인다.
+            problems[proposal.problemRef] = problem.model_copy(
+                update={"processingType": proposal.processingType}
+            )
+    candidate = {**state, "problems": problems, "ticketProposals": proposals}
     validate_questions(candidate)
     return _complete_merge(candidate, result)
 
