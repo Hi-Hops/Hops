@@ -90,10 +90,11 @@ async def check_runtime(conninfo: str) -> list[Check]:
                 (privilege,),
             )
             checks.append(Check(f"런타임 DB {privilege} 거부", not granted))
-        granted = await _scalar(
-            conn, "SELECT has_schema_privilege(current_user, 'public', 'CREATE')"
-        )
-        checks.append(Check("public 스키마 CREATE 거부", not granted))
+        schemas = await _creatable_schemas(conn)
+        checks.append(Check("런타임 DB 스키마 생성 거부", not schemas, _names(schemas)))
+        # 원장 외 테이블·열·시퀀스에는 어떤 권한도 없어야 한다.
+        others = await _privileged_relations(conn, exclude=[LEDGER_TABLE])
+        checks.append(Check("원장 외 테이블·열·시퀀스 권한 없음", not others, _names(others)))
 
         checks.append(
             await _denied(
@@ -149,50 +150,64 @@ async def check_business(conninfo: str, dbname: str) -> list[Check]:
             return [Check(f"업무 DB {dbname} 접속 거부", True, "검색 연동 시 CONNECT 별도 부여")]
         return [Check(f"업무 DB {dbname} 접속", False, type(exc).__name__)]
     async with conn:
-        table_privileges = ",".join((*TABLE_PRIVILEGES, *_newer_privileges(conn)))
-        tables = await (
-            await conn.execute(
-                """SELECT n.nspname || '.' || c.relname FROM pg_class c
-                   JOIN pg_namespace n ON n.oid = c.relnamespace
-                   WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
-                     AND n.nspname <> ALL(%s) AND n.nspname NOT LIKE 'pg_temp%%'
-                     AND CASE WHEN c.relkind = 'S'
-                              THEN has_sequence_privilege(current_user, c.oid, %s)
-                              ELSE has_table_privilege(current_user, c.oid, %s)
-                                   OR has_any_column_privilege(current_user, c.oid, %s) END
-                   ORDER BY 1""",
-                (
-                    list(SYSTEM_SCHEMAS),
-                    ",".join(SEQUENCE_PRIVILEGES),
-                    table_privileges,
-                    ",".join(COLUMN_PRIVILEGES),
-                ),
-            )
-        ).fetchall()
-        schemas = await (
-            await conn.execute(
-                """SELECT nspname FROM pg_namespace
-                   WHERE nspname <> ALL(%s) AND nspname NOT LIKE 'pg_temp%%'
-                     AND nspname NOT LIKE 'pg_toast%%'
-                     AND has_schema_privilege(current_user, oid, 'CREATE')""",
-                (list(SYSTEM_SCHEMAS),),
-            )
-        ).fetchall()
+        tables = await _privileged_relations(conn, exclude=[])
+        schemas = await _creatable_schemas(conn)
         knowledge = await _scalar(
             conn,
             """SELECT has_schema_privilege(current_user, 'hops_knowledge', 'USAGE')
                WHERE EXISTS (SELECT FROM pg_namespace WHERE nspname = 'hops_knowledge')""",
         )
     return [
-        Check(
-            f"업무 DB {dbname} 테이블·열·시퀀스 권한 없음",
-            not tables,
-            ", ".join(name for (name,) in tables[:5]) + (" 외" if len(tables) > 5 else ""),
-        ),
-        Check(f"업무 DB {dbname} 스키마 생성 거부", not schemas, ", ".join(n for (n,) in schemas)),
+        Check(f"업무 DB {dbname} 테이블·열·시퀀스 권한 없음", not tables, _names(tables)),
+        Check(f"업무 DB {dbname} 스키마 생성 거부", not schemas, _names(schemas)),
         # 검색 연동(#142) 전에는 hops_knowledge 권한도 없어야 한다. 연동 시 이 기대값을 바꾼다.
         Check("hops_knowledge 스키마 권한 없음", not knowledge),
     ]
+
+
+async def _privileged_relations(conn: psycopg.AsyncConnection, *, exclude: list[str]) -> list[str]:
+    """현재 계정이 어떤 권한이라도 가진 테이블·뷰·시퀀스(열 단위 포함). exclude는 schema.name."""
+    table_privileges = ",".join((*TABLE_PRIVILEGES, *_newer_privileges(conn)))
+    rows = await (
+        await conn.execute(
+            """SELECT n.nspname || '.' || c.relname FROM pg_class c
+               JOIN pg_namespace n ON n.oid = c.relnamespace
+               WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+                 AND n.nspname <> ALL(%s) AND n.nspname NOT LIKE 'pg_temp%%'
+                 AND n.nspname || '.' || c.relname <> ALL(%s)
+                 AND CASE WHEN c.relkind = 'S'
+                          THEN has_sequence_privilege(current_user, c.oid, %s)
+                          ELSE has_table_privilege(current_user, c.oid, %s)
+                               OR has_any_column_privilege(current_user, c.oid, %s) END
+               ORDER BY 1""",
+            (
+                list(SYSTEM_SCHEMAS),
+                exclude,
+                ",".join(SEQUENCE_PRIVILEGES),
+                table_privileges,
+                ",".join(COLUMN_PRIVILEGES),
+            ),
+        )
+    ).fetchall()
+    return [name for (name,) in rows]
+
+
+async def _creatable_schemas(conn: psycopg.AsyncConnection) -> list[str]:
+    rows = await (
+        await conn.execute(
+            """SELECT nspname FROM pg_namespace
+               WHERE nspname <> ALL(%s) AND nspname NOT LIKE 'pg_temp%%'
+                 AND nspname NOT LIKE 'pg_toast%%'
+                 AND has_schema_privilege(current_user, oid, 'CREATE')
+               ORDER BY 1""",
+            (list(SYSTEM_SCHEMAS),),
+        )
+    ).fetchall()
+    return [name for (name,) in rows]
+
+
+def _names(names: list[str], limit: int = 5) -> str:
+    return ", ".join(names[:limit]) + (" 외" if len(names) > limit else "")
 
 
 def _newer_privileges(conn: psycopg.AsyncConnection) -> tuple[str, ...]:

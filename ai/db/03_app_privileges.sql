@@ -13,7 +13,8 @@ SELECT current_database() = 'hops_ai_runtime' AND current_user = 'hops_ai_migrat
 
 BEGIN;
 -- PostgreSQL 15 미만에서 만든 DB도 같은 결과가 되도록 public 스키마의 기본 권한을 거둔다.
-REVOKE ALL ON SCHEMA public FROM PUBLIC;
+-- 앱 계정에 예전에 직접 준 스키마 권한(CREATE 등)도 거둔 뒤 필요한 USAGE만 다시 준다.
+REVOKE ALL ON SCHEMA public FROM PUBLIC, hops_ai_app;
 GRANT USAGE ON SCHEMA public TO hops_ai_app;
 
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, hops_ai_app;
