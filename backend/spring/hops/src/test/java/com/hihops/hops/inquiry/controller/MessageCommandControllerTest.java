@@ -603,6 +603,38 @@ class MessageCommandControllerTest {
                 .isEqualTo(2);
     }
 
+    @Test
+    void 해결된_문제와_지원_범위_밖_문제는_보완_대상이_될_수_없다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        UUID resolved = insertProblem(3, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID outOfScope = insertProblem(4, "OUT_OF_SCOPE", 0, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertTicket(resolved, insertStandardRequest(resolved, firstRunId, "권한 요청", "[]"), "RESOLVED");
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+        insertStandardRequest(outOfScope, firstRunId, "개인 PC 수리", "[]");
+        send(memberId, UUID.randomUUID(), 1, "참고로요", List.of()).andExpect(status().isOk());
+        String pendingId = messageIdAt(2);
+
+        // 완료한 티켓을 다시 열지 않고, 범위 밖 문제로 새 분석을 시작하지 않는다
+        for (UUID closed : List.of(resolved, outOfScope)) {
+            link(memberId, pendingId, UUID.randomUUID(), 2, List.of(closed))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+            send(memberId, UUID.randomUUID(), 2, "이 문제도요", List.of(closed))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        }
+
+        assertThat(payloadOf(pendingId).path("pendingTarget").asBoolean()).isTrue();
+        assertThat(payloadOf(pendingId).path("problemLinks").isEmpty()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id = ?::uuid", Integer.class, inquiryId))
+                .isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM message WHERE inquiry_id = ?::uuid")).isEqualTo(2);
+    }
+
     private ResultActions link(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,
             List<UUID> problemIds) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
@@ -625,12 +657,18 @@ class MessageCommandControllerTest {
     }
 
     private void insertTicket(UUID problemId, UUID standardRequestId) {
+        insertTicket(problemId, standardRequestId, "OPEN");
+    }
+
+    private void insertTicket(UUID problemId, UUID standardRequestId, String status) {
         UUID ticketId = UUID.randomUUID();
+        // 해결된 티켓은 해결 시각이 있어야 한다 (ck_ticket_resolved)
         jdbc.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, title, detail, "
-                + "work_type, ticket_status, responsible_system_id, assignee_member_id) "
-                + "VALUES (?, ?, ?::uuid, ?, ?, '티켓', '내용', 'INVESTIGATION', 'OPEN', ?, ?)",
-                ticketId, "TK-" + ticketId.toString().substring(0, 8), inquiryId, problemId, standardRequestId, systemId,
-                otherMemberId);
+                + "work_type, ticket_status, responsible_system_id, assignee_member_id, resolved_at) "
+                + "VALUES (?, ?, ?::uuid, ?, ?, '티켓', '내용', 'INVESTIGATION', ?, ?, ?, "
+                + ("RESOLVED".equals(status) ? "now()" : "NULL") + ")",
+                ticketId, "TK-" + ticketId.toString().substring(0, 8), inquiryId, problemId, standardRequestId, status,
+                systemId, otherMemberId);
     }
 
     private String messageIdAt(int sequenceNo) {

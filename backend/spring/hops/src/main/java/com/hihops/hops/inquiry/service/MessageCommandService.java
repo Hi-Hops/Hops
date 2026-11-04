@@ -2,7 +2,9 @@ package com.hihops.hops.inquiry.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -31,6 +33,7 @@ import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
 import com.hihops.hops.inquiry.domain.MessageRevision;
 import com.hihops.hops.inquiry.domain.MessageStatus;
+import com.hihops.hops.inquiry.domain.ProblemStateView;
 import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
@@ -41,6 +44,7 @@ import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.MessageRevisionRepository;
 import com.hihops.hops.itsystem.service.SystemQueryService;
 import com.hihops.hops.realtime.dto.MessageStoredEvent;
+import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.repository.TicketRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -63,7 +67,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 해결 확인으로 상태가 바뀌어도 입력 버전은 그대로라 버전 검사만으로는 막히지 않으므로, 상태를 따로 보고 409 INVALID_STATE로 거절한다.
  *
  * <p>거절: 남의 문의·없는 문의 404, 버전이 다르면 409 INQUIRY_VERSION_CONFLICT, 끝난 문의는 409 INVALID_STATE,
- * 이 문의의 문제가 아닌 problemIds는 400 INVALID_INPUT.
+ * 이 문의에서 보완할 수 없는 problemIds(남의 문제·해결된 문제·지원 범위 밖 문제)는 400 INVALID_INPUT.
  * 업무 거절은 REJECTED로 기록돼 같은 키로 다시 보내도 같은 오류다.
  *
  * <p>보완 대상 (WIRE_CONTRACT 12.6, TARGET_CONTRACT 4절): 티켓이 배정된 문제가 있는데 대상을 고르지 않은 메시지는, 문제가 둘 이상이면
@@ -125,14 +129,14 @@ public class MessageCommandService {
         Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
         List<UUID> problemIds = command.problemIds().stream().distinct().toList();
         ProblemScope scope = scopeOf(inquiryId);
-        if (!scope.active().containsAll(problemIds)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택한 문제를 찾을 수 없습니다.");
+        if (!scope.linkable().containsAll(problemIds)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "보완할 수 있는 문제가 아닙니다.");
         }
         // 대상을 고르지 않았는데 배정된 문제가 있으면: 문제가 하나뿐이면 그 문제의 보완, 둘 이상이면 대상 선택을 기다린다
         boolean pending = false;
         if (problemIds.isEmpty() && !scope.assigned().isEmpty()) {
-            if (scope.active().size() == 1) {
-                problemIds = List.copyOf(scope.active());
+            if (scope.linkable().size() == 1) {
+                problemIds = List.copyOf(scope.linkable());
             } else {
                 pending = true;
             }
@@ -166,7 +170,7 @@ public class MessageCommandService {
         // 그 사이 삭제된 문제는 대상에서 뺀다. 대기 중인 메시지를 정정하면 계속 대상 선택을 기다린다
         ProblemScope scope = scopeOf(inquiryId);
         List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
-                .problemIds(message.getRevision()).stream().filter(scope.active()::contains).toList();
+                .problemIds(message.getRevision()).stream().filter(scope.linkable()::contains).toList();
         continueAnalysis(inquiry, message, problemIds, scope);
         // 정정도 저장 알림이다. requestId는 이 정정 요청이다 (WIRE_CONTRACT 12.4 "저장 메시지·정정")
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
@@ -183,8 +187,8 @@ public class MessageCommandService {
         }
         List<UUID> problemIds = command.problemIds().stream().distinct().toList();
         ProblemScope scope = scopeOf(inquiryId);
-        if (!scope.active().containsAll(problemIds)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택한 문제를 찾을 수 없습니다.");
+        if (!scope.linkable().containsAll(problemIds)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "보완할 수 있는 문제가 아닙니다.");
         }
 
         message.confirmTargets(UserMessagePayload.confirmed(jsonMapper, message.getPayload(), message.getRevision(),
@@ -204,18 +208,29 @@ public class MessageCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
-    /** 이 문의의 삭제되지 않은 문제와, 그중 티켓이 배정된 문제. */
-    private record ProblemScope(Set<UUID> active, Set<UUID> assigned) {
+    /**
+     * 이 문의에서 보완할 수 있는 문제와, 그중 티켓이 배정된 문제.
+     * 해결됐거나(RESOLVED) 지원 범위 밖(OUT_OF_SCOPE)인 문제는 대상이 될 수 없다. 완료한 티켓·문제를 다시 열지 않는다
+     * (TARGET_CONTRACT 4절 "완료 티켓의 이후 같은 현상은 새 문의 진입을 안내하고 재오픈하지 않는다"). 브라우저가 선택지에서 빼더라도 서버가 막는다.
+     */
+    private record ProblemScope(Set<UUID> linkable, Set<UUID> assigned) {
     }
 
     private ProblemScope scopeOf(UUID inquiryId) {
-        Set<UUID> active = inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiryId).stream()
-                .map(InquiryProblem::getId).collect(Collectors.toSet());
-        Set<UUID> assigned = active.stream()
-                .filter(problemId -> ticketRepository.findByInquiryProblem_Id(problemId).filter(t -> !t.isDeleted())
-                        .isPresent())
-                .collect(Collectors.toSet());
-        return new ProblemScope(active, assigned);
+        Set<UUID> linkable = new HashSet<>();
+        Set<UUID> assigned = new HashSet<>();
+        for (InquiryProblem problem : inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiryId)) {
+            Optional<Ticket> ticket = ticketRepository.findByInquiryProblem_Id(problem.getId()).filter(t -> !t.isDeleted());
+            String state = ProblemStateView.of(problem, ticket, false);
+            if ("RESOLVED".equals(state) || "OUT_OF_SCOPE".equals(state)) {
+                continue;
+            }
+            linkable.add(problem.getId());
+            if (ticket.isPresent()) {
+                assigned.add(problem.getId());
+            }
+        }
+        return new ProblemScope(linkable, assigned);
     }
 
     /**
