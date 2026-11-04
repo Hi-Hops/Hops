@@ -32,6 +32,8 @@ FORBIDDEN = ("DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
 # 업무 DB에서는 테이블·시퀀스에 줄 수 있는 모든 권한이 없어야 한다.
 TABLE_PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
 SEQUENCE_PRIVILEGES = ("SELECT", "USAGE", "UPDATE")
+# 열 단위로도 줄 수 있는 권한. 테이블 권한이 없어도 일부 열에만 부여됐을 수 있다.
+COLUMN_PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "REFERENCES")
 # PostgreSQL 17에서 추가된 테이블 권한(VACUUM·ANALYZE 등 유지 작업).
 MAINTAIN_SINCE = 170000
 SYSTEM_SCHEMAS = ("pg_catalog", "information_schema", "pg_toast")
@@ -69,10 +71,16 @@ async def check_runtime(conninfo: str) -> list[Check]:
         checks.append(Check("다른 역할 권한을 물려받지 않음", not memberships, names))
 
         for privilege in (*REQUIRED, *FORBIDDEN, *_newer_privileges(conn)):
-            granted = await _scalar(
-                conn, "SELECT has_table_privilege(current_user, %s, %s)", (LEDGER_TABLE, privilege)
-            )
             expected = privilege in REQUIRED
+            # 거부돼야 하는 권한은 일부 열에만 부여된 경우도 찾는다.
+            function = (
+                "has_any_column_privilege"
+                if not expected and privilege in COLUMN_PRIVILEGES
+                else "has_table_privilege"
+            )
+            granted = await _scalar(
+                conn, f"SELECT {function}(current_user, %s, %s)", (LEDGER_TABLE, privilege)
+            )
             label = f"ai_run_ledger {privilege} {'허용' if expected else '거부'}"
             checks.append(Check(label, granted == expected))
         for privilege in ("CREATE", "TEMPORARY"):
@@ -150,9 +158,15 @@ async def check_business(conninfo: str, dbname: str) -> list[Check]:
                      AND n.nspname <> ALL(%s) AND n.nspname NOT LIKE 'pg_temp%%'
                      AND CASE WHEN c.relkind = 'S'
                               THEN has_sequence_privilege(current_user, c.oid, %s)
-                              ELSE has_table_privilege(current_user, c.oid, %s) END
+                              ELSE has_table_privilege(current_user, c.oid, %s)
+                                   OR has_any_column_privilege(current_user, c.oid, %s) END
                    ORDER BY 1""",
-                (list(SYSTEM_SCHEMAS), ",".join(SEQUENCE_PRIVILEGES), table_privileges),
+                (
+                    list(SYSTEM_SCHEMAS),
+                    ",".join(SEQUENCE_PRIVILEGES),
+                    table_privileges,
+                    ",".join(COLUMN_PRIVILEGES),
+                ),
             )
         ).fetchall()
         schemas = await (
@@ -171,7 +185,7 @@ async def check_business(conninfo: str, dbname: str) -> list[Check]:
         )
     return [
         Check(
-            f"업무 DB {dbname} 테이블·시퀀스 권한 없음",
+            f"업무 DB {dbname} 테이블·열·시퀀스 권한 없음",
             not tables,
             ", ".join(name for (name,) in tables[:5]) + (" 외" if len(tables) > 5 else ""),
         ),
