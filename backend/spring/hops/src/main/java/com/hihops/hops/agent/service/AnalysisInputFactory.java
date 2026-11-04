@@ -12,6 +12,7 @@ import com.hihops.hops.agent.dto.AiRunRequest.AccessContext;
 import com.hihops.hops.agent.dto.AiRunRequest.InputMessage;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.Message;
+import com.hihops.hops.inquiry.domain.MessagePayload;
 import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 
 import lombok.RequiredArgsConstructor;
@@ -37,18 +38,21 @@ public class AnalysisInputFactory {
     private final JsonMapper jsonMapper;
 
     /**
-     * @param run      저장해서 ID가 정해진 대기 실행
-     * @param messages AI에 보여 줄 저장된 메시지 (순번 순)
-     * @param systems  지원 시스템 목록 (GET /systems와 같은 값)
-     * @param now      접수 시각. expiresAt = now + deadline
+     * @param run              저장해서 ID가 정해진 대기 실행
+     * @param messages         AI에 보여 줄 저장된 메시지 (순번 순)
+     * @param problems         기존 문제와 티켓 생성 작업 ({@link InputProblemReader}). 첫 분석이면 {@link InputProblemReader.ProblemInputs#NONE}
+     * @param targetProblemIds 사용자가 고른 대상 문제. 빈 목록이면 분석이 대상을 정한다
+     * @param systems          지원 시스템 목록 (GET /systems와 같은 값)
+     * @param now              접수 시각. expiresAt = now + deadline
      */
-    public String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, List<SupportedSystemResponse> systems,
-            Instant now) {
+    public String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, InputProblemReader.ProblemInputs problems,
+            List<UUID> targetProblemIds, List<SupportedSystemResponse> systems, Instant now) {
         AccessContext access = accessOf(inquiry, systems);
         AiRunRequest request = new AiRunRequest(CONTRACT_VERSION, run.getId(), "INQUIRY_ANALYSIS", inquiry.getId(),
-                run.getInputVersion(), UUID.randomUUID(), List.of(), messages.stream().map(AnalysisInputFactory::input).toList(),
-                List.of(), systems, access, List.of(), null, AiRunRequest.time(now.plus(properties.deadline())),
-                properties.limits());
+                run.getInputVersion(), UUID.randomUUID(), List.copyOf(targetProblemIds),
+                messages.stream().map(this::input).toList(), problems.problems(), systems, access,
+                problems.existingWorkItems(), null,
+                AiRunRequest.time(now.plus(properties.deadline())), properties.limits());
         return jsonMapper.writeValueAsString(request);
     }
 
@@ -77,9 +81,10 @@ public class AnalysisInputFactory {
                 inquiry.getRequester().getPolicyRevision());
     }
 
-    // 문제 연결은 아직 투영하지 않는다. 첫 메시지는 원래 연결된 문제가 없다.
-    private static InputMessage input(Message message) {
+    // 문제 연결은 서버가 확인해 payload.problemLinks에 둔 값이다 (docs/DATA.md 11.3)
+    private InputMessage input(Message message) {
+        List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class).problemIds();
         return new InputMessage(message.getId(), message.getRevision(), message.getSequenceNo(), message.getSenderType(),
-                message.getContent(), List.of(), AiRunRequest.time(message.getCreatedAt()));
+                message.getContent(), problemIds, AiRunRequest.time(message.getCreatedAt()));
     }
 }
