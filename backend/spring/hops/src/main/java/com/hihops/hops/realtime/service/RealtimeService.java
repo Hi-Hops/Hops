@@ -102,6 +102,17 @@ public class RealtimeService {
             String resourceType, UUID resourceId, long revision) {}
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void caseChanged(com.hihops.hops.knowledge.service.CaseChanged event) {
+        var target = new RealtimeTarget(RealtimeTarget.Type.CASE, event.caseId());
+        var signal = new TicketStateChanged(UUID.randomUUID(), target.type(), target.id(), "CASE", event.caseId(),
+                ticketNotificationSequence.incrementAndGet());
+        connections.values().stream().filter(connection -> connection.target.equals(target)).forEach(connection -> {
+            if (connection.authorized()) connection.send(SseEmitter.event().id(signal.eventId().toString())
+                    .name("state.changed").data(signal));
+        });
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void ticketChanged(TicketChangedEvent event) {
         var targets = new ArrayList<RealtimeTarget>();
         targets.add(new RealtimeTarget(RealtimeTarget.Type.TICKET, event.ticketId()));

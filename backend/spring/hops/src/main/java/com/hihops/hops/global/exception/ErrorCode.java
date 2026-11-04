@@ -43,6 +43,10 @@ public enum ErrorCode {
     INVALID_STATE(HttpStatus.CONFLICT, "현재 상태에서는 요청을 처리할 수 없습니다.", false),
     TICKET_REVISION_CONFLICT(HttpStatus.CONFLICT, "티켓이 변경되었습니다. 최신 내용을 확인해 주세요.", false),
     RESOLUTION_REVISION_CONFLICT(HttpStatus.CONFLICT, "이미 응답했거나 확인 요청이 변경되었습니다.", false),
+
+    CASE_VERSION_CONFLICT(HttpStatus.CONFLICT, "사례가 변경되었습니다. 최신 내용을 확인해 주세요.", false),
+    APPROVAL_PRECONDITION_FAILED(HttpStatus.CONFLICT, "원 처리 기록의 해결 확인과 검증이 필요합니다.", false),
+    INDEX_NOT_RETRYABLE(HttpStatus.CONFLICT, "현재 반영 상태에서는 요청을 처리할 수 없습니다.", false),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 본문 형식입니다.", false),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", true),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.", false),

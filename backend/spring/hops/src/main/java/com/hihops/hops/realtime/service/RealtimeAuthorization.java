@@ -24,17 +24,23 @@ public class RealtimeAuthorization {
     private final DepartmentRepository departments;
     private final TicketService tickets;
     private final InquiryRepository inquiries;
+    private final com.hihops.hops.knowledge.service.CaseAccess cases;
 
     public RealtimeAuthorization(MemberRepository members, DepartmentRepository departments, TicketService tickets,
-            InquiryRepository inquiries) {
+            InquiryRepository inquiries, com.hihops.hops.knowledge.service.CaseAccess cases) {
         this.members = members;
         this.departments = departments;
         this.tickets = tickets;
         this.inquiries = inquiries;
+        this.cases = cases;
     }
 
     @Transactional(readOnly = true)
     public void check(Jwt jwt, RealtimeTarget target) {
+        if (target.type() == RealtimeTarget.Type.CASE) {
+            cases.check(jwt, target.id());
+            return;
+        }
         if (target.type() == RealtimeTarget.Type.TICKET) {
             tickets.requireStaffTicket(jwt, target.id());
             return;

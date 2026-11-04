@@ -75,6 +75,8 @@ public class KnowledgeDocument extends BaseEntity {
         return title;
     }
 
+    public void approve() { reviewStatus = ReviewStatus.APPROVED; }
+
     public DocumentType getDocumentType() {
         return documentType;
     }

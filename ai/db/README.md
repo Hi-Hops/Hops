@@ -32,6 +32,9 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 
 - 3번은 예전 안내대로 `hops` 소유의 `hops_ai_runtime`이 이미 있을 때만 실행한다. 행 데이터와 인덱스는 그대로 두고 소유자만 `hops_ai_migrator`로 옮긴다. PostgreSQL 15 이전에 만든 DB처럼 `public` 스키마 소유자가 관리자로 남아 있으면 스키마 소유권도 옮겨, 03이 기존 `public` CREATE 권한을 거둘 수 있게 한다.
 - 이미 테이블이 있으면 4번은 건너뛴다. 001만 적용된 DB는 실행기를 모두 멈춘 뒤 002를 한 번 적용한다.
+- 승인 CASE 색인을 활성화할 때는 별도로 `ai/migrations/003_index_jobs.sql`과
+  [04_index_privileges.sql](04_index_privileges.sql)을 migrator로 실행한다.
+  런타임 계정에는 `ai_index_job`의 SELECT·INSERT·UPDATE만 추가하며 업무 DB 권한을 늘리지 않는다.
 - 01·02·03은 여러 번 실행해도 된다.
 - 01은 같은 이름의 계정에 관리자 속성이 있거나, 앱 계정이 다른 역할에 속해 있으면 고치지 않고 멈춘다.
 - 새 마이그레이션이 테이블을 추가하면 03에 필요한 최소 권한을 함께 추가하고 다시 실행한다.

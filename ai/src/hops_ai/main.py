@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from hops_ai.api.auth import ServiceAuthMiddleware
 from hops_ai.api.errors import install_error_handlers
 from hops_ai.api.routes import health, runs
+from hops_ai.api.routes.index_jobs import index_router
 from hops_ai.harness.budget import Clock
 from hops_ai.harness.errors import ComponentNotReady
 from hops_ai.persistence.run_ledger import RunLedger
@@ -118,4 +119,6 @@ def create_app(
         app.add_middleware(ServiceAuthMiddleware, token=resolved.ai_service_token)
         install_error_handlers(app)
         app.include_router(runs.router)
+        if resolved.index_jobs_enabled:
+            app.include_router(index_router(resolved))
     return app

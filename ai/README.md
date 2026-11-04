@@ -264,6 +264,32 @@ DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 
 
 수정 후 새 가상 문의의 두 실행은 모두 `SUCCEEDED`, 티켓은 정확히 1건·`AUTO` 배정이며 최종 생성 안내와 담당자 상세가 오류 없이 표시됐다. Linux AI 회귀는 998 passed, 23 skipped, 1 xfailed다. 화면 검증은 이 정상 생성 경로에 한정하며 모든 화면·실패 경로·모델 품질 평가 완료를 의미하지 않는다. 질문 상태의 영속화는 위 미완료 범위 그대로다.
 
+## 승인 CASE 색인 API
+
+`HOPS_AI_INDEX_JOBS_ENABLED=true`에서 서비스 인증된 `POST /internal/v2/index-jobs`와
+`GET /internal/v2/index-jobs/{jobId}?attempt={n}`를 등록한다. 기본값은 비활성화다.
+내부 API 설정 외에 `HOPS_AI_INDEX_VECTOR_DSN`, `HOPS_AI_INDEX_NEO4J_URL`,
+`HOPS_AI_INDEX_NEO4J_PASSWORD`, `OPENAI_API_KEY`, 명시적인 `HOPS_AI_INDEX_EMBEDDING_MODEL`과
+`HOPS_AI_INDEX_EMBEDDING_DIMENSIONS`가 필요하다. 모델·차원의 공통 기본값은 선정하지 않는다.
+
+기존 AI 런타임 DB에 `migrations/003_index_jobs.sql`을 수동 적용하고 migrator로
+`db/04_index_privileges.sql`을 실행한다. 앱·배포가 migration을 자동 적용하지 않는다.
+색인 계정은 업무 원본 쓰기 권한 없이 `hops_knowledge.knowledge_chunk`의 SELECT·INSERT만 사용한다.
+원장 계정과 색인 계정은 분리한다. Neo4j에는 대상 System과 승인할 기존 노드를 먼저 준비한다.
+
+보존 구현의 pgvector·Neo4j 어댑터를 현재 API에 연결했다. 저장소별 요청 digest를 재검증하고,
+Vector는 Spring 전용 `X-Hops-Document-Version`·`X-Hops-Document-Digest` 헤더의 원본 참조와 대조한다.
+같은 `(jobId, attempt)`와 같은 본문은 기존 결과를 반환하고 다른 본문은409다.
+RUNNING을 원장에 먼저 commit하여 응답 유실·프로세스 종료 뒤 같은 작업을 새로 실행하지 않는다.
+원장 상세와 키를 삭제·자동 재시도하지 않으며, 미확인 결과는 새 작업으로 간주하지 않는다.
+승인·양쪽 공개·사용자 권한의 정본은 Spring이다. 실제 Knowledge 후보 검색 연결은 #142에서 이어간다.
+
+색인 검사는 `tests/unit/test_case_indexing.py`, `tests/integration/test_index_jobs.py`다.
+격리 DB를 명시한 `HOPS_INDEX_TEST_DSN`과 선택적인 `HOPS_INDEX_VECTOR_TEST_DSN`,
+`HOPS_INDEX_NEO4J_TEST_URL`에서 실제 원장·저장소 검사를 실행한다. Neo4j 검사의 테스트 전용
+비밀번호는 `case170-fixture`이며 운영·공유 서버에 사용하지 않는다.
+pgvector 검사의 임베딩은 합성 벡터다. 이 검사를 실제 OpenAI 임베딩 품질·모델 E2E로 보고하지 않는다.
+
 ## 구현 경계와 다음 작업
 
 - **Inquiry·Ticket:** 의도와 내부 처리 유형을 분리한다. 질문 묶음은 독립 문제당 최대 5회다. 보고 시스템·책임 시스템 후보·근거와 미확인을 보존한다. 구체 질문 전이·서버 저장 검증은 구현 전이다.

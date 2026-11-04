@@ -169,6 +169,36 @@ public class ResolvedCase extends BaseEntity {
         return versionNo;
     }
 
+    public void editDraft(String title, String problem, String action, String verification, String applicability,
+            String appliedVersion, AccessLevel access, String facts) {
+        if (caseStatus != CaseStatus.DRAFT) throw new IllegalStateException("승인 사례는 수정할 수 없습니다");
+        this.title = title;
+        this.problemStatement = problem;
+        this.actionDetail = action;
+        this.verificationResult = verification;
+        this.applicability = applicability;
+        this.appliedVersion = appliedVersion;
+        this.accessLevel = access;
+        this.confirmedFacts = facts;
+        this.versionNo++;
+    }
+
+    public void approve(Member actor, Instant at) {
+        if (caseStatus != CaseStatus.DRAFT) throw new IllegalStateException("이미 승인한 사례입니다");
+        caseStatus = CaseStatus.APPROVED;
+        approvedBy = actor;
+        approvedAt = at;
+        vectorStatus = IndexStatus.PENDING;
+        graphStatus = IndexStatus.PENDING;
+    }
+
+    public void recordIndex(String store, IndexStatus status) {
+        if ("VECTOR".equals(store)) vectorStatus = status;
+        else if ("NEO4J".equals(store)) graphStatus = status;
+        else throw new IllegalArgumentException("지원하지 않는 검색 저장소");
+        markUpdated();
+    }
+
     public TicketWorkLog getSourceWorkLog() {
         return sourceWorkLog;
     }

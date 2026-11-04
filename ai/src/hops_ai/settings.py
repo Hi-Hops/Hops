@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     ai_service_token: SecretStr | None = Field(default=None, validation_alias="AI_SERVICE_TOKEN")
     # 모델과 관측 설정은 AI 서비스에서만 읽는다.
     openai_api_key: SecretStr | None = Field(default=None, validation_alias="OPENAI_API_KEY")
+    # 승인 CASE 색인은 명시 설정에서만 연다. 모델·차원을 공통 기본값으로 선정하지 않는다.
+    index_jobs_enabled: bool = False
+    index_vector_dsn: SecretStr | None = None
+    index_neo4j_url: str | None = None
+    index_neo4j_password: SecretStr | None = None
+    index_embedding_model: str | None = None
+    index_embedding_dimensions: int | None = Field(default=None, gt=0, le=3072)
     # real 모드에서 Supervisor와 역할이 쓰는 OpenAI 모델.
     # 비용 최소화를 기준으로 정하고 실측 후 검토한다.
     supervisor_model: str = "gpt-6-luna"
@@ -124,6 +131,31 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _internal_api_configuration(self) -> "Settings":
+        if self.index_jobs_enabled and not all(
+            (
+                self.internal_api_enabled,
+                self.runtime_dsn,
+                self.openai_api_key,
+                self.index_vector_dsn,
+                self.index_neo4j_url,
+                self.index_neo4j_password,
+                self.index_embedding_model,
+                self.index_embedding_dimensions,
+            )
+        ):
+            raise ValueError("색인 API에는 내부 인증·저장소·명시적 임베딩 설정이 필요합니다")
+        if self.index_neo4j_url is not None:
+            origin = urlsplit(self.index_neo4j_url)
+            if (
+                origin.scheme not in ("http", "https")
+                or not origin.hostname
+                or origin.username
+                or origin.password
+                or origin.path not in ("", "/")
+                or origin.query
+                or origin.fragment
+            ):
+                raise ValueError("Neo4j는 인증값·경로 없는 고정 HTTP origin이어야 합니다")
         if not self.internal_api_enabled:
             return self
         token = self.ai_service_token.get_secret_value() if self.ai_service_token else ""

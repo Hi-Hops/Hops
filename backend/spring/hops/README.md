@@ -12,6 +12,25 @@ Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에�
 
 PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/contracts/README.md)에서 데이터·전송·상태·AI 경계를 함께 검토합니다. 기존 `/api` 구현과 제안된 `hops-system-1`을 구분하며, 물리 ERD·엔티티 매핑은 이슈 #66과 맞춥니다.
 
+## 해결 사례 API
+
+`GET /api/v2/cases`, `GET /api/v2/cases/{id}`와 `versions`, `approvals`, `index-checks`,
+`index-retries` POST를 제공한다. 현재 사례 시스템의 PRIMARY만 조회·변경·CASE SSE를 사용할 수 있다.
+관리자 역할만으로 사례에 접근할 수 없으며 자기 승인은 허용한다. 변경 명령은 공통 멱등 영수증을 사용한다.
+현재 DRAFT 편집만 버전을 증가시키며 승인 후 본문은 읽기 전용이다.
+
+승인은 원 WorkRecord의 문의자 해결 확인·처리 검증을 확인하고, 사례 승인과 검색 문서 및
+두 `source_metadata.indexRequests`를 한 거래에 저장한다. commit 후 서비스 토큰으로 AI에 전달한다.
+Vector에는 Spring이 검증한 문서 버전 ID·digest를 내부 헤더로 함께 제공한다.
+접수 후 5초 간격으로 최대 30초까지 조회하며 미확인 결과는 UNKNOWN으로 표시한다.
+상세 GET은 읽기만 수행한다. 담당자의 명시적 확인에서 유효한 원격 NOT_FOUND인 경우에만
+보존한 동일 요청을 재전달하고, FAILED 저장소의 수동 재시도만 attempt를 증가시킨다.
+
+같은 승인 버전의 두 성공과 현재 권한을 통과해야 검색 공개된다.
+`POST /internal/v2/knowledge/authorizations`는 저장된 run의 사용자·policyRevision·허용 범위를 다시 검증한다.
+실제 색인 서버의 설정·원장 migration·저장소 권한 준비는 [AI 실행 안내](../../../ai/README.md)를 따른다.
+Knowledge 역할의 pgvector·Neo4j 후보 검색 및 다음 문의 재검색 연결은 #142의 별도 구현 범위다.
+
 ## 패키지 구성
 
 Ticket용 내부 REST 생성·조회·제한 재시도 API는 [Ticket 도구 계약](../../../contracts/agents/TICKET_TOOLS.md)을 따른다. `SPRING_SERVICE_TOKEN` 서비스 인증과 V23 전달 journal을 사용한다. Python 도구 어댑터·생성 확인 루프를 연결했고 실제 HTTP로 검증했다. 문의 상세 Problem 투영도 develop 갱신 후 실제 모델 생성 결과로 조회를 확인했다. 질문 상태 저장·공개 work-item 복구·전체 브라우저 E2E는 별도다. Gradle 직접 실행에는 해당 환경변수를 주입해야 한다. 실제 모델 품질 검증과 API/HTTP 검증을 구분한다.

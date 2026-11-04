@@ -30,7 +30,7 @@ class RealtimeAuthorizationTest {
     private final DepartmentRepository departments = mock(DepartmentRepository.class);
     private final InquiryRepository inquiries = mock(InquiryRepository.class);
     private final RealtimeAuthorization authorization = new RealtimeAuthorization(members, departments,
-            mock(TicketService.class), inquiries);
+            mock(TicketService.class), inquiries, mock(com.hihops.hops.knowledge.service.CaseAccess.class));
     private final UUID userId = UUID.randomUUID();
     private final UUID departmentId = UUID.randomUUID();
     private final Member member = mock(Member.class);
