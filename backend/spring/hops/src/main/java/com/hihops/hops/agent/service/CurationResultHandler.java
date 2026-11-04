@@ -22,6 +22,8 @@ import com.hihops.hops.knowledge.repository.ResolvedCaseRepository;
 import com.hihops.hops.ticket.domain.WorkLogType;
 import com.hihops.hops.ticket.repository.TicketRepository;
 import com.hihops.hops.ticket.service.ResolutionRequestReader;
+import com.hihops.hops.ticket.service.TicketKnowledgeReader;
+import com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse;
 import com.hihops.hops.user.repository.MemberRepository;
 import com.hihops.hops.realtime.dto.TicketChangedEvent;
 
@@ -44,6 +46,7 @@ public class CurationResultHandler implements AgentRunResultHandler {
     private final JsonMapper mapper;
     private final ApplicationEventPublisher publisher;
     private final ResolutionRequestReader confirmations;
+    private final TicketKnowledgeReader knowledge;
 
     @Override
     public AgentTask task() { return AgentTask.CURATION; }
@@ -77,7 +80,8 @@ public class CurationResultHandler implements AgentRunResultHandler {
         entities.refresh(run);
         if (run.getRunStatus() != RunStatus.RUNNING) throw rejected(AgentResultRejectedException.SUPERSEDED);
         verifyAccess(run, input);
-        for (var field : List.of("problemProposals", "questions", "ticketProposals", "evidence")) requireEmpty(result.path(field));
+        for (var field : List.of("problemProposals", "questions", "ticketProposals")) requireEmpty(result.path(field));
+        require(result.path("evidence").isArray());
         require(result.path("answer").isNull() && result.path("guide").isNull() && result.path("error").isNull());
         var confirmation = confirmations.stored(UUID.fromString(input.path("workRecord").path("resolutionRequestId").asString())).request();
         require("WORK_RECORD".equals(confirmation.source()) && ticket.getId().equals(confirmation.ticketId())
@@ -87,6 +91,9 @@ public class CurationResultHandler implements AgentRunResultHandler {
             return mapper.writeValueAsString(Map.of("applied", true, "resources", List.of(),
                     "caseGenerationState", "NO_REUSABLE_CASE", "reason", "USER_UNRESOLVED"));
         }
+        var verifiedKnowledge = verifiedKnowledge(run, input, result.path("evidence"));
+        Set<String> relationEvidence = new LinkedHashSet<>();
+        verifiedKnowledge.forEach(evidence -> relationEvidence.add(evidence.id().toString()));
         var proposal = result.path("caseProposal");
         require(proposal.path("reusable").isBoolean());
         require(proposal.path("limitations").isArray());
@@ -103,11 +110,12 @@ public class CurationResultHandler implements AgentRunResultHandler {
         }
         var sources = sourceIds(proposal.path("sourceMessageIds"));
         require(!sources.isEmpty() && allowedSourceIds(input, ticket.getInquiryProblem().getId()).containsAll(sources));
+        relationEvidence.addAll(sources);
         for (var link : proposal.path("entityLinks")) {
             require(link.isObject() && "APPLIES_TO".equals(link.path("relation").asString())
                     && ticket.getResponsibleSystem().getId().toString().equals(link.path("targetId").asString()));
             var evidence = sourceIds(link.path("evidenceIds"));
-            require(!evidence.isEmpty() && sources.containsAll(evidence));
+            require(!evidence.isEmpty() && relationEvidence.containsAll(evidence));
         }
         for (var field : List.of("title", "action", "verification", "applicability", "problemStatement")) {
             require(proposal.path(field).isString() && !proposal.path(field).asString().isBlank());
@@ -127,12 +135,39 @@ public class CurationResultHandler implements AgentRunResultHandler {
         var metadata = mapper.createObjectNode();
         metadata.putArray("facts"); metadata.set("limitations", proposal.path("limitations"));
         metadata.set("sourceMessageIds", proposal.path("sourceMessageIds"));
+        metadata.set("knowledge", mapper.valueToTree(verifiedKnowledge));
         draft.recordDraftMetadata(proposal.path("applicability").asString(), work.getConfirmedCause(), work.getAppliedVersion(),
                 metadata.toString(), proposal.path("entityLinks").toString());
         cases.saveAndFlush(draft);
         publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
         return mapper.writeValueAsString(Map.of("applied", true,
                 "resources", List.of(Map.of("type", "CASE", "id", draft.getId())), "caseGenerationState", "SUCCEEDED"));
+    }
+
+    private List<KnowledgeEvidenceResponse> verifiedKnowledge(AgentRun run, JsonNode input, JsonNode evidence) {
+        var ids = mapper.createArrayNode();
+        for (var item : evidence) {
+            require(item.isObject());
+            ids.add(item.path("id"));
+            try {
+                require(mapper.treeToValue(item, KnowledgeEvidenceResponse.class) != null);
+            } catch (RuntimeException exception) {
+                throw rejected("INVALID_OUTPUT");
+            }
+        }
+        var unique = sourceIds(ids);
+        var actor = members.findWithDepartmentAndRolesByIdAndDeletedAtIsNull(
+                UUID.fromString(input.path("accessContext").path("actorId").asString()))
+                .orElseThrow(() -> rejected("AUTH_CONTEXT_INVALID"));
+        var visible = knowledge.visible(evidence.toString(), actor);
+        require(visible.size() == unique.size());
+        Set<String> scopes = new LinkedHashSet<>();
+        input.path("accessContext").path("allowedDocumentScopes").forEach(scope -> scopes.add(scope.asString()));
+        for (var item : visible) {
+            require(scopes.contains(item.accessScope()) && (run.getTicket().getResponsibleSystem().getId().equals(item.systemId())
+                    || item.systemId() == null && "POLICY".equals(item.kind())));
+        }
+        return visible;
     }
 
     /** 입력에 실제로 고정한 해당 문제의 USER 원문만 사례 출처로 허용한다. */

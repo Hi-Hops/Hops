@@ -29,6 +29,54 @@ class TicketAgentDispatchTest extends TicketCommandFixture {
     private AgentRunClient client;
     @Autowired
     private ResolvedCaseRepository cases;
+    private final UUID knowledgeDocument = UUID.randomUUID();
+    private final UUID knowledgeEvidence = UUID.randomUUID();
+
+    @org.junit.jupiter.api.AfterEach
+    void 지식근거_정리() {
+        jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", knowledgeDocument);
+        jdbc.update("DELETE FROM knowledge_document WHERE id=?", knowledgeDocument);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"visible", "withdrawn", "other-system", "unapproved-version", "outside-scope"})
+    void 사례의_Knowledge_관계근거는_현재_권한과_시스템과_승인버전으로_재검증한다(String mode) throws Exception {
+        var documentSystem = "other-system".equals(mode) ? otherSystem : system;
+        if ("other-system".equals(mode)) jdbc.update("UPDATE it_system SET primary_owner_member_id=? WHERE id=?", staff, otherSystem);
+        String scope = "outside-scope".equals(mode) ? "EMPLOYEE" : "STAFF";
+        jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 지식','STAFF_RUNBOOK',?,?,'RAG','APPROVED')", knowledgeDocument, documentSystem, scope);
+        String content = "가상 조치 검증 근거";
+        String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        jdbc.update("INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status) VALUES (?,1,?,?,?::jsonb,'APPROVED')", knowledgeDocument, content, digest,
+                "{\"origin\":\"SYNTHETIC\",\"applicability\":\"가상 시연\",\"appliesToSystemVersion\":null}");
+        if ("withdrawn".equals(mode)) jdbc.update("UPDATE knowledge_document SET review_status='PENDING' WHERE id=?", knowledgeDocument);
+        if ("unapproved-version".equals(mode)) jdbc.update("UPDATE knowledge_document_version SET review_status='PENDING' WHERE knowledge_document_id=?", knowledgeDocument);
+        when(client.snapshot(any())).thenAnswer(invocation -> {
+            var snapshot = sourcedSnapshot(invocation.getArgument(0, String.class));
+            var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+            result.putArray("evidence").add(mapper.valueToTree(new com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse(
+                    knowledgeEvidence, knowledgeDocument, 1, "RUNBOOK", "가상 지식", content, documentSystem, null, "가상 시연",
+                    "EMPLOYEE".equals(scope) ? "EMPLOYEE" : "SYSTEM_STAFF", "SYNTHETIC")));
+            ((tools.jackson.databind.node.ObjectNode) result.path("caseProposal").path("entityLinks").get(0))
+                    .putArray("evidenceIds").add(knowledgeEvidence.toString());
+            return snapshot;
+        });
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        boolean allowed = "visible".equals(mode);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo(allowed ? "SUCCEEDED" : "FAILED"));
+        assertThat(detail().path("workRecords").size()).isEqualTo(1);
+        if (allowed) {
+            var metadata = json(jdbc.queryForObject("SELECT confirmed_facts::text FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket));
+            assertThat(metadata.path("knowledge").get(0).path("id").asString()).isEqualTo(knowledgeEvidence.toString());
+            var links = json(jdbc.queryForObject("SELECT relation_candidates::text FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket));
+            assertThat(links.get(0).path("evidenceIds").get(0).asString()).isEqualTo(knowledgeEvidence.toString());
+        } else {
+            assertThat(jdbc.queryForObject("SELECT error_code FROM agent_run WHERE ticket_id=?", String.class, ticket)).isEqualTo("INVALID_OUTPUT");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", Integer.class, ticket)).isZero();
+        }
+    }
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
