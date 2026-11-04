@@ -5,6 +5,9 @@ import { useSubscription } from '@/features/realtime';
 import { realtime } from '@/shared/realtime';
 import { StreamBuffer } from '@/shared/realtime/streamBuffer';
 import type { ChatMessage } from '@/shared/api/types/hopsSystem1';
+
+export type ProgressStep = { stepNo: number; text: string };
+const idle = { runId: '', text: '', steps: [] as ProgressStep[] };
 import {
   getSystemInquiry,
   getSystemMessages,
@@ -52,14 +55,14 @@ export function useSystemChat(id: string) {
   const version = inquiry.data?.inquiryVersion ?? 0;
   const runId = current?.id ?? '';
   const buffer = useMemo(() => new StreamBuffer(version, runId), [version, runId]);
-  const [live, setLive] = useState({ runId: '', text: '', progress: '' });
+  const [live, setLive] = useState(idle);
   useEffect(() => {
     const offDelta = realtime.on('answer.delta', (event) => {
       if (event.inquiryId !== id || event.payload.messageId !== current?.answerMessageId) return;
       const accepted = buffer.accept(event);
       if (buffer.needsRecovery) {
         buffer.clear();
-        setLive({ runId: '', text: '', progress: '' });
+        setLive(idle);
         void client.invalidateQueries({ queryKey: systemChatKeys.inquiry(actor, id) });
         void client.invalidateQueries({ queryKey: systemChatKeys.messages(actor, id) });
         return;
@@ -68,21 +71,28 @@ export function useSystemChat(id: string) {
         setLive((s) => ({
           runId,
           text: buffer.text(event.payload.messageId),
-          progress: s.runId === runId ? s.progress : '',
+          steps: s.runId === runId ? s.steps : [],
         }));
     });
     const offProgress = realtime.on('agent.progress', (event) => {
       if (event.inquiryId === id && event.runId === runId && event.inquiryVersion === version)
-        setLive((s) => ({
-          runId,
-          text: s.runId === runId ? s.text : '',
-          progress: event.payload.displaySummary,
-        }));
+        setLive((s) => {
+          // 공개 진행 요약을 단계 번호별로 쌓아 실행 중에만 체크 목록으로 보여준다.
+          const steps = (s.runId === runId ? s.steps : []).filter(
+            (step) => step.stepNo !== event.payload.stepNo,
+          );
+          steps.push({ stepNo: event.payload.stepNo, text: event.payload.displaySummary });
+          return {
+            runId,
+            text: s.runId === runId ? s.text : '',
+            steps: steps.sort((a, b) => a.stepNo - b.stepNo),
+          };
+        });
     });
     const offReset = realtime.on('stream.reset', (event) => {
       if (event.target.type === 'INQUIRY' && event.target.id === id) {
         buffer.clear();
-        setLive({ runId: '', text: '', progress: '' });
+        setLive(idle);
       }
     });
     return () => {
@@ -96,7 +106,7 @@ export function useSystemChat(id: string) {
     const timer = setTimeout(() => {
       if (!buffer.hasGaps) return;
       buffer.clear();
-      setLive({ runId: '', text: '', progress: '' });
+      setLive(idle);
       void client.invalidateQueries({ queryKey: systemChatKeys.inquiry(actor, id) });
       void client.invalidateQueries({ queryKey: systemChatKeys.messages(actor, id) });
     }, 2000);

@@ -61,6 +61,31 @@ export function AppLayout() {
             <p>{user.department.name}</p>
           </div>
         </div>
+        <Button
+          variant="ghost"
+          className={styles.logout}
+          aria-label="로그아웃"
+          title="로그아웃"
+          onClick={() => {
+            void logout()
+              .catch(() => undefined)
+              .finally(() => {
+                client.clear();
+                void navigate('/login', { replace: true });
+              });
+          }}
+        >
+          <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+            <path
+              d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 6.5 15.5 10 12 13.5M15.5 10H8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </Button>
       </header>
       {refreshError && (
         <div role="alert">
@@ -127,19 +152,6 @@ export function AppLayout() {
           <RecentInquiries />
           <footer className={styles.sidebarFooter}>
             <p>{catalog.data?.map((system) => system.name).join(' · ')}</p>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                void logout()
-                  .catch(() => undefined)
-                  .finally(() => {
-                    client.clear();
-                    void navigate('/login', { replace: true });
-                  });
-              }}
-            >
-              로그아웃
-            </Button>
           </footer>
         </aside>
         <div className={styles.content}>
