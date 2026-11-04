@@ -24,6 +24,7 @@ from hops_ai.supervisor.bootstrap import create_run_services
 from hops_ai.supervisor.decision import SupervisorDecision
 from hops_ai.supervisor.execution import RoleRequest, RoleResponse, execute_role
 from hops_ai.supervisor.graph import Supervisor
+from hops_ai.supervisor.validation import validate_request
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -234,6 +235,25 @@ async def test_reusable_draft_missing_required_text_is_an_output_error_not_no_ca
 async def test_overlong_text_is_an_output_error() -> None:
     with pytest.raises(OutputRejected):
         await run_agent(case_request(), draft(applicability="가" * 1001))
+
+
+def test_case_input_with_another_problems_message_is_rejected_before_the_curator() -> None:
+    """사례 출처는 원 기록 문제의 원문으로만 한정된다. 다른 문제의 원문은 입력 검증에서 막는다."""
+    fields = case_request().model_dump(mode="json")
+    other_problem = uid(11)
+    fields["problems"].append({**fields["problems"][0], "id": other_problem})
+    fields["messages"].append(
+        {
+            **fields["messages"][0],
+            "id": uid(22),
+            "sequenceNo": 3,
+            "content": "그리고 메일 첨부파일도 열리지 않아요",
+            "problemIds": [other_problem],
+        }
+    )
+
+    with pytest.raises(InputRejected):
+        validate_request(AiRunRequest.model_validate(fields))
 
 
 async def test_model_failure_is_not_turned_into_no_case() -> None:
