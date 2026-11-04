@@ -32,18 +32,23 @@ class ModelTicketAgent:
         from hops_ai.supervisor.validation import (
             get_problem_message_ids,
             get_problem_progress,
+            problems_without_guide,
             validate_evidence_scope,
         )
 
         services.runtime.ensure_active()
         state = call.state
         pending = {p["problemRef"] for p in get_problem_progress(state) if p["outcome"] is None}
+        no_guide = problems_without_guide(state)
         problems = {
             ref: p
             for ref, p in state["problems"].items()
             if ref in pending
             and p.reportedSystemCandidateId is not None
-            and p.processingType in TICKETABLE_TYPES
+            and (
+                p.processingType in TICKETABLE_TYPES
+                or (p.processingType == "KNOWLEDGE_QA" and ref in no_guide)
+            )
         }
         if not problems:
             raise OutputRejected("티켓으로 제안할 수 있는 문제가 없다")
@@ -137,7 +142,11 @@ class ModelTicketAgent:
             proposal = TicketProposal(
                 problemRef=problem.problemRef,
                 title=decision.title,
-                processingType=problem.processingType,
+                processingType=(
+                    "REVIEW_REQUIRED"
+                    if problem.processingType == "KNOWLEDGE_QA"
+                    else problem.processingType
+                ),
                 responsibleSystemCandidateId=system_id,
                 evidenceIds=ids,
                 standardRequestSnapshot=StandardRequestBody(

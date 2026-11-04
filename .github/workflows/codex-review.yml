@@ -81,6 +81,17 @@ jobs:
           path: ${{ runner.temp }}/review-evidence/validation.json
           retention-days: 3
           if-no-files-found: warn
+      # review job은 validation.json만 내려받으므로 Spring 리포트는 별도 artifact로 둔다.
+      - name: Upload Spring test reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: review-validation-spring-reports
+          path: |
+            backend/spring/hops/build/test-results/test/*.xml
+            backend/spring/hops/build/reports/tests/test/
+          retention-days: 3
+          if-no-files-found: ignore
       - name: Stop temporary test database
         if: always()
         run: docker rm -f hops-review-db >/dev/null 2>&1 || true

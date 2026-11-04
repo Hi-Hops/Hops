@@ -26,7 +26,9 @@ class ExecutingTicketAgent:
         commands = [
             creation_command(
                 call.state["input"],
-                call.state["problems"][p.problemRef],
+                call.state["problems"][p.problemRef].model_copy(
+                    update={"processingType": p.processingType}
+                ),
                 p,
                 proposed.messageQuotes.get(p.problemRef, []),
             )

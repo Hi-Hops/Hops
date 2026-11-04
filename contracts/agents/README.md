@@ -1,6 +1,6 @@
 # 에이전트 공통 입출력 계약 — PRD 1.44
 
-상태: hops-system-1 계약 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 실행 wire 검증·RunLedger·명시 활성화한 서비스 인증/저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. Spring은 내부 SSE와 snapshot 폴링을 병행하고 현재 문의 버전·run의 agent.progress를 공개 구독에 중계한다. Inquiry·Ticket·Curator 모델 실행과 Spring 티켓 도구는 연결돼 있다. answer.delta·취소 전파·Knowledge 실검색·전체 브라우저 E2E는 별도다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)를 확인하며 옛 agent-1 실행 모델은 활성 코드에서 제거됐다.
+상태: hops-system-1 계약 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 실행 wire 검증·RunLedger·명시 활성화한 서비스 인증/저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. Spring은 내부 SSE와 snapshot 폴링을 병행하고 현재 문의 버전·run의 agent.progress를 공개 구독에 중계한다. Python은 최선 노력 취소(`POST .../cancel` 202, 진행 중 run을 SUPERSEDED로 저장)를 제공하며 Spring의 취소 호출 연결은 별도다. Inquiry·Ticket·Curator와 Spring 티켓 도구는 연결돼 있다. Knowledge는 명시적 개발용 고정 자료 설정 시 연결되며 운영 실검색·answer.delta·전체 브라우저 E2E는 별도다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)를 확인하며 옛 agent-1 실행 모델은 활성 코드에서 제거됐다.
 
 AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURITY.md)의 해당 SEC 요구사항을 적용한다. Markdown 형식 일치만으로 현재 권한·안전한 표시·저장 성공을 확정하지 않는다.
 

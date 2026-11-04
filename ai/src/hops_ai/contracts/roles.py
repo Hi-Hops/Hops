@@ -11,6 +11,7 @@ from hops_ai.contracts.wire import (
     GuideProposal,
     KnowledgeEvidence,
     ProblemProposal,
+    ProblemRef,
     QuestionProposal,
     TicketExecution,
     TicketProposal,
@@ -71,6 +72,12 @@ class KnowledgeResult(ContractModel):
     invocationId: WireText
     search: SearchResult
     guide: GuideProposal | None
+    # 이 검색이 다룬 문제. 비어 있으면 어느 문제의 결과인지 알 수 없어 문제별 판단(안내를 만들지
+    # 못한 뒤의 담당자 전달 등)에 쓰지 않는다. 검색한 문제에만 그 결과가 적용된다.
+    problemRef: ProblemRef | None = None
+    # 이 검색에 쓴 질의의 지문. 같은 질의의 반복 검색을 피하는 데 쓰며, 비어 있으면 같은 문제를
+    # 다시 검색하지 않는다. 질의가 바뀌었을 때(새 사실이 더해진 뒤)만 다시 검색할 수 있다.
+    queryDigest: str | None = None
 
 
 class TicketResult(ContractModel):

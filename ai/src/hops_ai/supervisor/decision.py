@@ -1,7 +1,8 @@
 """Supervisor의 다음 행동 제안과 실행 전 검증. 모델은 State를 직접 수정하지 않는다."""
 
 import json
-from typing import Literal
+from collections.abc import Sequence
+from typing import Any, Literal
 
 from pydantic import ValidationError, model_validator
 
@@ -18,6 +19,7 @@ from hops_ai.supervisor.policy import get_allowed_roles, validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
     ensure_active,
+    get_handoff_readiness,
     get_problem_progress,
     validate_completion,
     validate_questions,
@@ -43,6 +45,22 @@ class SupervisorDecision(ContractModel):
         if (self.nextAction == "CALL_ROLE") != (self.role is not None):
             raise ValueError("CALL_ROLE에만 전문 역할이 필요하다")
         return self
+
+
+def decision_schema(allowed_roles: Sequence[str]) -> dict[str, Any]:
+    """이번 판단에서 모델이 낼 수 있는 role만 열거한 출력 스키마.
+
+    허용되지 않은 역할은 출력 단계에서 고를 수 없다. 응답 해석은 기본 SupervisorDecision으로
+    하며, 선택 뒤의 정책·State 검사와 허용 역할 검사는 그대로 적용한다.
+    """
+    schema = SupervisorDecision.model_json_schema()
+    role: dict[str, Any] = {"type": "null"}
+    if allowed_roles:
+        role = {"anyOf": [{"type": "string", "enum": list(allowed_roles)}, {"type": "null"}]}
+    schema["properties"]["role"] = role
+    # 더 이상 참조하지 않는 역할 정의는 남기지 않는다.
+    schema.pop("$defs", None)
+    return schema
 
 
 def _ensure_decision_ready(state: SupervisorState) -> None:
@@ -180,6 +198,7 @@ def _decision_context(
             for problem in state["problems"].values()
         ],
         "problemProgress": progress,
+        "handoffReadiness": get_handoff_readiness(state),
         "questions": [question.model_dump(mode="json") for question in state["questions"].values()],
         "guide": state["guide"].model_dump(mode="json") if state["guide"] else None,
         "ticketProblemRefs": list(state["ticketProposals"]),
@@ -235,6 +254,16 @@ async def decide_next_action(
                     "조사 티켓을 제안할 수 있다. "
                     "availableDetails는 값이 있는 상세 항목명이며 필수 항목 목록이 아니다. "
                     "추가 질문은 문제별 남은 횟수를 지킨다. "
+                    "problems는 Inquiry가 문의를 분석해야 생긴다. problems가 비어 있으면 아직 "
+                    "분석 전이므로 문제를 대상으로 하는 검색·티켓 제안은 성립하지 않는다. "
+                    "사용법 문제에서 Knowledge 검색 결과가 없으면(completedCalls의 "
+                    "searchState가 EMPTY) 안내할 근거가 없는 것이다. 남은 질문 횟수와 "
+                    "이미 확보한 정보를 보고, 담당자 전달에 필요한 정보가 더 필요하면 "
+                    "Inquiry로 질문하고, 충분하거나 질문 한도에 이르렀으면 Ticket으로 "
+                    "담당자에게 넘긴다. handoffReadiness는 검색 결과가 없는 사용법 문제가 담당자 "
+                    "전달에 아직 확보하지 못한 항목(missingForHandoff)을 코드가 센 값이며, 비어 "
+                    "있으면 더 확인할 정보가 없는 것이므로 같은 확인을 반복하지 않는다. "
+                    "검색 오류는 결과 없음이 아니다. "
                     "기존 저장·확인 중 업무를 재생성하지 않는다. "
                     "publicSummary는 공개 가능한 짧은 한국어 행동 설명이며 내부 사고 과정이나 "
                     "담당자 전용 지식을 담지 않는다. 최종 답변은 검증된 결과로 별도 구성한다. "
@@ -247,7 +276,8 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v2",
+        prompt_version="supervisor.decision.v6",
+        response_schema=decision_schema(context["allowedRoles"]),
     )
     response = await services.llm.generate(request)
     # 지연된 응답은 취소·기한을 재검사한 뒤에만 사용한다.

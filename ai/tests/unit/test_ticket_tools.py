@@ -1,6 +1,7 @@
 """티켓 REST 어댑터·업무 도구의 한도와 불확실성 처리. HTTP는 명시적인 대역이다."""
 
 import asyncio
+import json
 from dataclasses import replace
 
 import httpx
@@ -10,7 +11,7 @@ from pydantic import ValidationError
 from hops_ai.agents.ticket.executing import ExecutingTicketAgent
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import TicketResult
+from hops_ai.contracts.roles import KnowledgeResult, SearchResult, TicketResult
 from hops_ai.contracts.wire import SpringTicketResult, TicketExecution
 from hops_ai.harness.errors import (
     ComponentNotReady,
@@ -291,13 +292,24 @@ def test_model_cannot_supply_a_business_success_without_adapter_verification():
         )
 
 
-async def test_executing_agent_returns_verified_results_and_public_confirmation():
-    session, command, _, services = prepare(result(), result())
+@pytest.mark.parametrize("review_handoff", [False, True])
+async def test_executing_agent_returns_verified_results_and_public_confirmation(review_handoff):
+    session, command, calls, services = prepare(result(), result())
     request = make_request()
     state = running_state(request)
     from hops_ai.contracts.wire import ProblemProposal
 
     state["problems"][PROBLEM] = ProblemProposal.model_validate(command["problem"])
+    if review_handoff:
+        state["problems"][PROBLEM] = state["problems"][PROBLEM].model_copy(
+            update={"intent": "HOW_TO", "processingType": "KNOWLEDGE_QA"}
+        )
+        state["roleResults"]["knowledge"] = KnowledgeResult(
+            invocationId="knowledge",
+            problemRef=PROBLEM,
+            search=SearchResult(state="EMPTY", evidence=[], error=None),
+            guide=None,
+        )
     services = replace(
         services,
         ticket_tools=session,
@@ -320,6 +332,9 @@ async def test_executing_agent_returns_verified_results_and_public_confirmation(
     )
     final = finalize_result(merged)["finalResult"]
     assert final.ticketCreationResults[0].result.ticketId == uid(300)
+    sent = json.loads(calls[0].content)
+    expected_type = "REVIEW_REQUIRED" if review_handoff else "INVESTIGATION"
+    assert sent["problem"]["processingType"] == sent["proposal"]["processingType"] == expected_type
     assert "티켓 생성과 담당자 배정이 확인되었습니다" in final.answer
 
 

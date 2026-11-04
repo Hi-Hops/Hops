@@ -82,6 +82,8 @@ Python 어댑터의 업무 도구 이름은 `create_ticket`, `get_ticket_creatio
 
 TicketCreationApiTest는 MockMvc와 실제 PostgreSQL로 서비스 인증·원자적 저장/배정·동일/동시 요청·본문 충돌·미생성 복구·상한·부분 성공·AI 실패 후 기존 결과 보존을 검사한다. 실제 모델 품질·Python HTTP 도구·브라우저 E2E 검증과 구분한다.
 
+Knowledge가 해당 사용법 문제를 오류 없이 검색했지만 직원 안내를 만들지 못한 경우에는 기존 전달 계약대로 `KNOWLEDGE_QA`를 `REVIEW_REQUIRED` 티켓으로 넘길 수 있다. 모델 Ticket도 같은 문제별 검색 결과 검증을 적용하며 Spring 생성 요청의 problem과 proposal에 동일한 처리 유형을 사용한다. 미검색·검색 오류·다른 문제의 검색 결과로는 이 예외를 허용하지 않는다.
+
 실제 OpenAI 연결 API E2E에서는 격리된 로컬 환경과 가상 문의로 로그인·문의 입력부터 Spring 자동 실행 전달, Supervisor·Inquiry·Ticket 모델 호출, 도구의 생성·조회, 최종 답변 저장 및 담당자 티켓 상세 조회까지 확인했다. 정상 시나리오의 도구 호출은 최초 생성 POST 1회와 결과 확인 GET 1회이며 재시도하지 않았다. 동일 문의 재전송도 기존 실행·티켓을 유지했다. 최신 develop의 ProblemProjector 반영 후 문의 상세 200과 생성된 Problem 표시도 확인했다. 부분 답변 후 Supervisor가 Inquiry를 반복 호출해 호출 상한에 도달한 실패와 질문 상태 미저장이 남아 있어 멀티턴·브라우저 전체 E2E 완료로 보고하지 않는다. 실행 조건과 검증 범위는 [AI 실행 안내](../../ai/README.md)를 따른다.
 
 로컬 bootJar 서버에 실제 TCP/HTTP 요청 27회와 응답/DB 검증 38개를 수행했다. 생성·조회·재시도, 중복/동시 요청, 최대 3회 제한, 서비스 인증/버전/출처 오류, 부분 성공 및 AI 종료 후 저장 보존을 확인했다. 문의 접수와 담당자 티켓 상세도 실제 HTTP로 확인했으며 최종 티켓·배정 이력은 각각 3개였다. 가상 데이터·검증 전용 JWT/서비스 토큰과 별도 PostgreSQL·Redis를 사용했고 AI 자동 전달은 비활성화했다. 로그인·실제 모델·제품 Python 도구 어댑터·브라우저 E2E 검증은 포함하지 않는다.
