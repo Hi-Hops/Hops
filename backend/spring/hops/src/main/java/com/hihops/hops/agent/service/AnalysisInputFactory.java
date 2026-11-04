@@ -83,7 +83,8 @@ public class AnalysisInputFactory {
 
     // 문제 연결은 서버가 확인해 payload.problemLinks에 둔 값이다 (docs/DATA.md 11.3)
     private InputMessage input(Message message) {
-        List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class).problemIds();
+        List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
+                .problemIds(message.getRevision());
         return new InputMessage(message.getId(), message.getRevision(), message.getSequenceNo(), message.getSenderType(),
                 message.getContent(), problemIds, AiRunRequest.time(message.getCreatedAt()));
     }
