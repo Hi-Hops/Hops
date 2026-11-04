@@ -12,6 +12,30 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class ResolutionRequestControllerTest extends TicketCommandFixture {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"RESOLVED", "UNRESOLVED"})
+    void 문의자_문제투영은_처리기록의_확인요청과_응답후_티켓상태를_반영한다(String decision) throws Exception {
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        var request = detail().path("activeResolutionRequest");
+        var inquiryPath = "/api/v2/inquiries/" + inquiry;
+        var pending = result(as(requester, get(inquiryPath))).path("problems").get(0);
+        assertThat(pending.path("id").asString()).isEqualTo(problem.toString());
+        assertThat(pending.path("state").asString()).isEqualTo("WAITING_CONFIRMATION");
+        assertThat(pending.path("activeResolutionRequest")).isEqualTo(request);
+        assertThat(pending.path("ticket").path("state").asString()).isEqualTo("WAITING_CONFIRMATION");
+
+        var body = mapper.createObjectNode().put("requestId", UUID.randomUUID().toString())
+                .put("expectedRequestRevision", 1).put("decision", decision);
+        result(command(requester, "/resolution-requests/" + request.path("id").asString() + "/responses", body));
+        var answered = result(as(requester, get(inquiryPath))).path("problems").get(0);
+        assertThat(answered.path("activeResolutionRequest")).isEqualTo(detail().path("activeResolutionRequest"));
+        assertThat(answered.path("activeResolutionRequest").path("state").asString()).isEqualTo(decision);
+        assertThat(answered.path("activeResolutionRequest").path("requestRevision").asInt()).isEqualTo(2);
+        assertThat(answered.path("state").asString()).isEqualTo("RESOLVED".equals(decision) ? "RESOLVED" : "IN_SERVICE");
+        assertThat(answered.path("ticket").path("state").asString())
+                .isEqualTo("RESOLVED".equals(decision) ? "RESOLVED" : "IN_PROGRESS");
+    }
+
     @Test void 다른_분석이_진행중이면_마지막_티켓_확인만으로_문의를_완료하지_않는다() throws Exception {
         result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
         var id = detail().path("activeResolutionRequest").path("id").asString();
