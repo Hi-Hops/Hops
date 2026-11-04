@@ -21,6 +21,7 @@ import com.hihops.hops.knowledge.domain.ResolvedCase;
 import com.hihops.hops.knowledge.repository.ResolvedCaseRepository;
 import com.hihops.hops.ticket.domain.WorkLogType;
 import com.hihops.hops.ticket.repository.TicketRepository;
+import com.hihops.hops.ticket.service.ResolutionRequestReader;
 import com.hihops.hops.user.repository.MemberRepository;
 import com.hihops.hops.realtime.dto.TicketChangedEvent;
 
@@ -42,6 +43,7 @@ public class CurationResultHandler implements AgentRunResultHandler {
     private final EntityManager entities;
     private final JsonMapper mapper;
     private final ApplicationEventPublisher publisher;
+    private final ResolutionRequestReader confirmations;
 
     @Override
     public AgentTask task() { return AgentTask.CURATION; }
@@ -77,6 +79,14 @@ public class CurationResultHandler implements AgentRunResultHandler {
         verifyAccess(run, input);
         for (var field : List.of("problemProposals", "questions", "ticketProposals", "evidence")) requireEmpty(result.path(field));
         require(result.path("answer").isNull() && result.path("guide").isNull() && result.path("error").isNull());
+        var confirmation = confirmations.stored(UUID.fromString(input.path("workRecord").path("resolutionRequestId").asString())).request();
+        require("WORK_RECORD".equals(confirmation.source()) && ticket.getId().equals(confirmation.ticketId())
+                && run.getTriggerWorkLog().getId().equals(confirmation.sourceId()));
+        if ("UNRESOLVED".equals(confirmation.state())) {
+            publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
+            return mapper.writeValueAsString(Map.of("applied", true, "resources", List.of(),
+                    "caseGenerationState", "NO_REUSABLE_CASE", "reason", "USER_UNRESOLVED"));
+        }
         var proposal = result.path("caseProposal");
         require(proposal.path("reusable").isBoolean());
         require(proposal.path("limitations").isArray());

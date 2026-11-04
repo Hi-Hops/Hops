@@ -30,6 +30,24 @@ class TicketAgentDispatchTest extends TicketCommandFixture {
     @Autowired
     private ResolvedCaseRepository cases;
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void Curator_결과보다_먼저_저장한_해결확인_응답을_초안생성에_반영한다(boolean resolved) throws Exception {
+        when(client.snapshot(any())).thenAnswer(invocation -> {
+            String confirmation = detail().path("activeResolutionRequest").path("id").asString();
+            result(command(requester, "/resolution-requests/" + confirmation + "/responses",
+                    mapper.createObjectNode().put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1)
+                            .put("decision", resolved ? "RESOLVED" : "UNRESOLVED")));
+            return sourcedSnapshot(invocation.getArgument(0, String.class));
+        });
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo(resolved ? "SUCCEEDED" : "NO_REUSABLE_CASE"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", Integer.class, ticket))
+                .isEqualTo(resolved ? 1 : 0);
+        assertThat(detail().path("state").asString()).isEqualTo(resolved ? "RESOLVED" : "IN_PROGRESS");
+    }
+
     @org.junit.jupiter.api.BeforeEach
     void userSource() {
         var payload = mapper.createObjectNode();
