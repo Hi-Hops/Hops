@@ -175,7 +175,7 @@ public class AgentRunDispatcher {
         while (true) {
             try {
                 JsonNode snapshot = client.snapshot(runId.toString());
-                if (settle(runId, input, snapshot)) {
+                if (settle(runId, input, snapshot, limit)) {
                     return;
                 }
             } catch (AgentRunClientException exception) {
@@ -198,12 +198,17 @@ public class AgentRunDispatcher {
     }
 
     // 실행을 끝냈으면 true, 아직 진행 중이면 false.
-    private boolean settle(UUID runId, JsonNode input, JsonNode snapshot) {
+    private boolean settle(UUID runId, JsonNode input, JsonNode snapshot, Instant limit) {
         String status = snapshot.path("status").asString("");
         switch (status) {
             case "QUEUED", "RUNNING", "UNKNOWN":
                 return false;
             case "SUCCEEDED":
+                // 기한+유예를 넘겨 확인된 성공 결과는 반영하지 않고 시간 초과로 끝낸다.
+                if (clock.instant().isAfter(limit)) {
+                    finish(runId, RunStatus.TIMED_OUT, "DEADLINE_EXCEEDED");
+                    return true;
+                }
                 applyResult(runId, input, snapshot.path("result"));
                 return true;
             case "FAILED":

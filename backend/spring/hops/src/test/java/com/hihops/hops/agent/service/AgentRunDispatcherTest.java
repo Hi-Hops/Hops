@@ -263,6 +263,36 @@ class AgentRunDispatcherTest {
     }
 
     @Test
+    void 기한과_유예를_넘긴_뒤_도착한_성공_결과는_반영하지_않고_시간_초과로_끝낸다() {
+        // expiresAt 60초 + 유예 5초를 1초 넘긴 시각에 snapshot이 SUCCEEDED를 돌려준다
+        when(client.snapshot(runId.toString())).thenAnswer(invocation -> {
+            clock.advance(Duration.ofSeconds(66));
+            return snapshot("SUCCEEDED", goodResult(), null);
+        });
+
+        queue(dispatcher());
+
+        assertThat(handler.applied).isZero();
+        assertThat(run.getRunStatus()).isEqualTo(RunStatus.TIMED_OUT);
+        assertThat(run.getErrorCode()).isEqualTo("DEADLINE_EXCEEDED");
+        assertThat(run.getResult()).isNull();
+    }
+
+    @Test
+    void 기한과_유예가_정확히_끝나는_시각에_도착한_성공_결과는_반영한다() {
+        when(client.snapshot(runId.toString())).thenAnswer(invocation -> {
+            clock.advance(Duration.ofSeconds(65));
+            return snapshot("SUCCEEDED", goodResult(), null);
+        });
+
+        queue(dispatcher());
+
+        assertThat(handler.applied).isEqualTo(1);
+        assertThat(run.getRunStatus()).isEqualTo(RunStatus.SUCCEEDED);
+        assertThat(run.getErrorCode()).isNull();
+    }
+
+    @Test
     void AI가_실패로_끝내면_AI_오류_코드를_남기고_실패로_끝낸다() {
         when(client.snapshot(runId.toString())).thenReturn(snapshot("FAILED", null, "BUDGET_EXCEEDED"));
 
