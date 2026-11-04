@@ -13,6 +13,13 @@ test('PR에서는 변경된 서비스만 검사한다', () => {
     { spring: true, frontend: false, ai: true, deployment: false, docs_only: false });
 });
 
+test('배포용 Nginx 설정과 이미지 변경은 프론트와 배포 검사를 모두 선택한다', () => {
+  for (const file of ['frontend/nginx/default.conf.template', 'frontend/Dockerfile.deploy']) {
+    assert.deepEqual(selectChecks([file], 'pull_request'),
+      { spring: false, frontend: true, ai: false, deployment: true, docs_only: false });
+  }
+});
+
 test('공통 계약과 미분류 파일은 모든 검사를 선택한다', () => {
   for (const file of ['contracts/agents/README.md', 'specs/contracts/a.md', '.github/workflows/ci.yml', 'compose.yaml']) {
     assert.deepEqual(selectChecks([file], 'pull_request'),

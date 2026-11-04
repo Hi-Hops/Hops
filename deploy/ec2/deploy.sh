@@ -43,7 +43,7 @@ done
 
 for path in "$state_dir/spring-migrations.tree" "$state_dir/ai-migrations.tree" \
   "$app_home/.config/hops/spring.env" "$app_home/.config/hops/ai.env" \
-  "$app_home/rds-global-bundle.pem" "$app_home/hops-deploy/nginx/https.conf"; do
+  "$app_home/rds-global-bundle.pem"; do
   [[ -f "$path" ]] || { echo "Required deployment file is missing: $path" >&2; exit 1; }
 done
 [[ "$(<"$state_dir/spring-migrations.tree")" == "$spring_tree" ]] || {
@@ -79,6 +79,11 @@ aws ecr get-login-password --region "$region" | docker login --username AWS --pa
 docker pull "$spring_image"
 docker pull "$ai_image"
 docker pull "$web_image"
+# Render and validate the configuration from the exact frontend image before stopping services.
+docker run --rm --network hops-internal \
+  -e "HOPS_PUBLIC_HOST=$public_host" -e 'NGINX_ENVSUBST_FILTER=^HOPS_PUBLIC_HOST$' \
+  -v hops-letsencrypt:/etc/letsencrypt:ro \
+  -v hops-certbot-webroot:/var/www/certbot:ro "$web_image" nginx -t
 
 mutating=0
 rollback() {
@@ -135,7 +140,7 @@ wait_for_http http://127.0.0.1:8000/healthz 200
 
 docker run -d --name hops-nginx --network hops-internal --restart unless-stopped \
   -p 80:80 -p 443:443 \
-  -v "$app_home/hops-deploy/nginx/https.conf:/etc/nginx/conf.d/default.conf:ro" \
+  -e "HOPS_PUBLIC_HOST=$public_host" -e 'NGINX_ENVSUBST_FILTER=^HOPS_PUBLIC_HOST$' \
   -v hops-letsencrypt:/etc/letsencrypt:ro \
   -v hops-certbot-webroot:/var/www/certbot:ro "$web_image" >/dev/null
 docker exec hops-nginx nginx -t
@@ -145,6 +150,14 @@ status=$(curl -sS --noproxy '*' --max-time 10 --resolve "$public_host:443:127.0.
 status=$(curl -sS --noproxy '*' --max-time 10 --resolve "$public_host:443:127.0.0.1" \
   -o /dev/null -w '%{http_code}' "https://$public_host/api/v2/auth/me")
 [[ "$status" == 401 ]] || { echo "HTTPS API check failed: $status" >&2; false; }
+status=$(curl -sS --noproxy '*' --max-time 10 --resolve "$public_host:443:127.0.0.1" \
+  -o /dev/null -w '%{http_code} %{content_type}' "https://$public_host/v3/api-docs/swagger-config")
+[[ "$status" == '200 application/json'* ]] || { echo "HTTPS OpenAPI check failed: $status" >&2; false; }
+status=$(curl -sS --noproxy '*' --max-time 10 --resolve "$public_host:443:127.0.0.1" \
+  -o /dev/null -w '%{http_code} %{content_type}' "https://$public_host/swagger-ui/swagger-ui-bundle.js")
+[[ "$status" == '200 text/javascript'* || "$status" == '200 application/javascript'* ]] || {
+  echo "HTTPS Swagger asset check failed: $status" >&2; false;
+}
 
 # A successful deployment retains the previous images locally, but the stopped
 # containers are no longer needed. Migrations and persisted volumes are untouched.
