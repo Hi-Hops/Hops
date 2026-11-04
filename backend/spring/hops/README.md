@@ -285,7 +285,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 | API | 요청 | 성공 | 실패 |
 |---|---|---|---|
 | `POST /api/v2/inquiries` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, content, reportedSystemId}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(헤더·본문 키 불일치, `content` 규칙 위반은 `fieldErrors[{field: content, code: UserContent}]`, 없는 시스템), 409 `IDEMPOTENCY_KEY_REUSED` |
-| `POST /api/v2/inquiries/{inquiryId}/messages` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion, content, problemIds}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(`content` 규칙 위반, 이 문의의 문제가 아닌 `problemIds`), 404 `NOT_FOUND`, 409 `INQUIRY_VERSION_CONFLICT` |
+| `POST /api/v2/inquiries/{inquiryId}/messages` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion, content, problemIds}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(`content` 규칙 위반, 이 문의의 문제가 아닌 `problemIds`), 404 `NOT_FOUND`, 409 `INQUIRY_VERSION_CONFLICT`, 409 `INVALID_STATE`(끝난 문의) |
 | `GET /api/v2/systems` | 없음 | 200 `SupportedSystem[]` (코드 순, 기능 포함. 주담당자는 넣지 않음) | |
 | `GET /api/v2/inquiries` | `page`(기본 0), `size`(기본 20, 1~100) | 200 `{items: InquirySummary[], page, size, totalElements}` (본인 문의, 최근 수정 순) | 400 `INVALID_INPUT`(범위 밖 값은 고치지 않음) |
 | `GET /api/v2/inquiries/{inquiryId}` | 없음 | 200 `InquiryResult` | 404 `NOT_FOUND`(남의 문의·삭제·없음을 구분하지 않음) |
@@ -301,7 +301,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 - **실행 한도·버전:** `hops.agent.run.*`(전체 60초, 호출 8회, 재시도 2회, 출력 토큰은 실행 합계 12,000 = 호출 8회 × 호출당 1,500). `model-version`·`prompt-version`은 AI 서버와 정하기 전까지 `pending`입니다.
 - **보고 시스템:** `reportedSystemId`는 첫 메시지 payload에만 저장하고 AI 입력에는 넣지 않습니다. AiRunRequest에 받을 필드가 없어 전달 방식을 정해야 합니다.
 - **실행 상태:** DB `CANCELLED`는 `SUPERSEDED`로 보냅니다. 실패 오류는 공개 코드(`AI_INVALID_OUTPUT`·`MODEL_UNAVAILABLE`·`SEARCH_UNAVAILABLE`·`SERVICE_UNAVAILABLE`·`AUTH_CONTEXT_CHANGED`·`AI_RUN_STATE_UNKNOWN`, 시간 초과는 `DEADLINE_EXCEEDED`)로 바꾸고 `requestId`에 실행을 접수한 명령 ID를 넣습니다.
-- **메시지 전송:** 문의 행을 잠그고 `expectedInquiryVersion`을 확인한 뒤 버전을 1 올려 USER 메시지를 저장합니다. 진행 중인 문의면 이전 활성 실행(QUEUED·RUNNING)을 대체(`SUPERSEDED`)하고 새 버전의 실행을 접수합니다. AI 입력에는 저장된 대화 전체와 기존 문제(`inquiry_problem` 상태·질문 수 + 문제별 최신 적용 실행의 `standard_request`)를 넣습니다. 고른 `problemIds`는 메시지 전체 구간으로 연결합니다. 끝난 문의(RESOLVED·CLOSED)의 메시지는 보완으로 저장만 하고 다시 분석하지 않습니다. 이전 실행의 AI 서버 취소 전파는 아직 없습니다.
+- **메시지 전송:** 문의 행을 잠그고 `expectedInquiryVersion`을 확인한 뒤 버전을 1 올려 USER 메시지를 저장합니다. 진행 중인 문의면 이전 활성 실행(QUEUED·RUNNING)을 대체(`SUPERSEDED`)하고 새 버전의 실행을 접수합니다. AI 입력에는 저장된 대화 전체, 기존 문제(`inquiry_problem` 상태·질문 수 + 문제별 최신 적용 실행의 `standard_request`), 티켓 생성 작업 결과(`existingWorkItems`)를 넣습니다. 질문 중(CLARIFYING)인 문제는 이번 메시지가 고른 문제만 `ANALYZING`, 나머지는 `WAITING_USER`입니다. 고른 `problemIds`는 메시지 전체 구간으로 연결합니다. 끝난 문의(RESOLVED·CLOSED)는 재오픈하지 않고 409 `INVALID_STATE`로 새 문의를 안내합니다. 이전 실행의 AI 서버 취소 전파는 아직 없습니다.
 - **거절 기록:** 업무 규칙으로 거절한 변경 요청(409 버전 충돌·재분석 불가, 업무 검사 400)은 `REJECTED`로 기록합니다. 같은 키로 다시 보내면 다시 검사하지 않고 같은 오류를 돌려주고, `GET /operations/...`는 `state=REJECTED`와 `error`를 반환합니다. 입력 형식 400·401·403·429·5xx는 기록하지 않습니다.
 - **재분석:** 문의의 현재 실행이 `retryable=true`인 FAILED/TIMED_OUT일 때만 같은 문의 버전으로 새 runId·새 `answerMessageId`의 QUEUED 실행을 접수합니다. 실패한 실행은 그대로 두고 대화 입력은 재사용하며, 권한 문맥·시스템 목록·기한은 새로 만듭니다. 재분석 실행의 실패 오류 `requestId`는 그 재분석 요청 ID입니다.
 - **아직 남은 것:** 문의 상세의 `problems`(Problem) 형식은 AI 결과로 문제를 저장하는 기능과 함께 만듭니다. 지금은 문제가 있는 문의를 빈 목록으로 숨기지 않고 500으로 응답합니다.
