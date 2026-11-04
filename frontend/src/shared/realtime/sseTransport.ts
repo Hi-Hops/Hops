@@ -9,7 +9,7 @@ import { liveConnection } from '@/shared/config/connection';
 import type { SubscriptionTarget } from '@/shared/api/types';
 import { TransportEvents } from './transportEvents';
 import { readSse } from './sseParser';
-import type { RealtimeTransport, TargetState } from './types';
+import type { ConnectionState, RealtimeTransport, TargetState } from './types';
 import { apiPath } from '@/shared/config/api';
 import { decodeSystemEvent } from './systemSseEvents';
 
@@ -35,6 +35,18 @@ function pause(ms: number, signal: AbortSignal) {
   });
 }
 
+/**
+ * 대상별 상태를 화면 전체 상태 하나로 합친다. 자동 재시도가 멈춘 대상(disconnected)은 수동 재연결이
+ * 필요하므로 다른 대상이 재시도 중(connecting)이어도 먼저 드러낸다. denied의 집계는 #160에서 다룬다.
+ */
+export function combineStates(states: TargetState[]): ConnectionState {
+  if (!states.length) return 'idle';
+  if (states.includes('disconnected')) return 'disconnected';
+  if (states.includes('connecting')) return 'connecting';
+  if (states.includes('denied')) return 'disconnected';
+  return 'connected';
+}
+
 export class SseTransport extends TransportEvents implements RealtimeTransport {
   private token: string | null = null;
   private entries = new Map<string, Entry>();
@@ -54,16 +66,7 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
   private update(entry: Entry, state: TargetState) {
     entry.state = state;
     for (const listener of entry.listeners) listener(state);
-    const entries = [...this.entries.values()];
-    this.setState(
-      !entries.length
-        ? 'idle'
-        : entries.some((e) => e.state === 'connecting')
-          ? 'connecting'
-          : entries.some((e) => ['disconnected', 'denied'].includes(e.state))
-            ? 'disconnected'
-            : 'connected',
-    );
+    this.setState(combineStates([...this.entries.values()].map((e) => e.state)));
   }
   connect(token: string) {
     this.token = token;
