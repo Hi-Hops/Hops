@@ -16,15 +16,11 @@ import org.jspecify.annotations.Nullable;
  * @param problemLinks       서버가 확인한 이 메시지와 문제의 연결. 원문 차수(revision)마다 따로 둔다
  * @param revisionRequestIds 정정한 차수 → 그 정정 요청의 ID. 정정으로 시작한 실행의 오류에 접수 명령 ID를 넣는 데 쓴다
  * @param pendingTarget      보완 대상을 아직 정하지 못한 메시지인지 (없으면 false)
- * @param targetConfirmation 보완 대상을 확정한 problem-links 요청과 그때의 원문 차수
+ * @param runRequestIds      이 메시지를 시작점으로 접수한 실행 ID → 그 실행을 접수한 공개 명령 ID(전송·정정·보완 대상 확정)
  */
 public record MessagePayload(@Nullable UUID requestId, @Nullable List<ProblemLink> problemLinks,
         @Nullable Map<String, UUID> revisionRequestIds, @Nullable Boolean pendingTarget,
-        @Nullable TargetConfirmation targetConfirmation) {
-
-    /** 보완 대상 확정 요청. 그 차수에서 시작한 실행은 이 요청이 접수한 것이다(대기 중에는 실행을 시작하지 않는다). */
-    public record TargetConfirmation(UUID requestId, int revision) {
-    }
+        @Nullable Map<String, UUID> runRequestIds) {
 
     public boolean isPendingTarget() {
         return Boolean.TRUE.equals(pendingTarget);
@@ -46,6 +42,11 @@ public record MessagePayload(@Nullable UUID requestId, @Nullable List<ProblemLin
         return problemLinks.stream()
                 .filter(link -> link.revision() == null || link.revision() == revision)
                 .map(ProblemLink::problemId).distinct().toList();
+    }
+
+    /** 이 실행을 접수한 공개 명령 ID. 기록 전에 만든 실행이면 null. */
+    public @Nullable UUID runRequestId(UUID runId) {
+        return runRequestIds == null ? null : runRequestIds.get(runId.toString());
     }
 
     /** 이 차수를 만든 정정 요청 ID. 처음 원문(1)이거나 기록이 없으면 null. */

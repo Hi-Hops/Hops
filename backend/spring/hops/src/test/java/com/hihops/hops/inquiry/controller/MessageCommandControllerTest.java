@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -502,16 +503,11 @@ class MessageCommandControllerTest {
                 .andExpect(jsonPath("$.pendingTargetMessageIds.length()").value(1))
                 .andExpect(jsonPath("$.pendingTargetMessageIds[0]").value(pendingId));
 
-        // 대상이 정해지기 전에는 다른 메시지·재분석도 새 실행을 만들지 않는다
+        // 대기는 그 메시지만 분석에서 뺀다. 다른 메시지는 평소대로 분석하고, 대기 메시지는 AI 입력 대화에 넣지 않는다
         send(memberId, UUID.randomUUID(), 2, "비밀번호는 어제 바꿨어요", List.of(open)).andExpect(status().isOk());
-        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(1);
-        jdbc.update("UPDATE agent_run SET run_status = 'FAILED', error_code = 'MODEL_UNAVAILABLE' WHERE id = ?::uuid",
-                firstRunId);
-        retry(firstRunId, 3)
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("RUN_NOT_RETRYABLE"));
-        // 요청서는 적용된(SUCCEEDED) 실행의 것만 쓰므로 재분석 확인을 위해 바꾼 상태를 되돌린다
-        jdbc.update("UPDATE agent_run SET run_status = 'SUCCEEDED', error_code = NULL WHERE id = ?::uuid", firstRunId);
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(2);
+        assertThat(currentInput().path("messages").findValuesAsString("id")).doesNotContain(pendingId)
+                .contains(messageIdAt(3));
 
         UUID linkRequestId = UUID.randomUUID();
         link(memberId, pendingId, linkRequestId, 3, List.of(open)).andExpect(status().isOk());
@@ -521,7 +517,6 @@ class MessageCommandControllerTest {
         assertThat(linked.path("problemId").asString()).isEqualTo(open.toString());
         assertThat(linked.path("revision").asInt()).isEqualTo(1);
         assertThat(linked.path("spans").get(0).path("end").asInt()).isEqualTo("참고로 다른 PC에서도 같아요".length());
-        assertThat(payload.path("targetConfirmation").path("requestId").asString()).isEqualTo(linkRequestId.toString());
         assertThat(jdbc.queryForObject("SELECT content FROM message WHERE id = ?::uuid", String.class, pendingId))
                 .isEqualTo("참고로 다른 PC에서도 같아요"); // 원문은 바꾸지 않는다
         mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
@@ -537,6 +532,9 @@ class MessageCommandControllerTest {
         JsonNode input = currentInput();
         assertThat(input.path("problemIds").size()).isEqualTo(1);
         assertThat(input.path("problemIds").get(0).asString()).isEqualTo(open.toString());
+        assertThat(input.path("messages").findValuesAsString("id")).contains(pendingId); // 대상을 정해 이제 분석에 넣는다
+        // 확정으로 접수한 실행은 시작 메시지에 그 확정 요청을 기록한다
+        assertThat(payloadOf(pendingId).path("runRequestIds").path(nextRunId).asString()).isEqualTo(linkRequestId.toString());
         assertThat(events.stream(MessageStoredEvent.class).filter(stored -> stored.inquiryVersion() == 4))
                 .singleElement().satisfies(stored -> assertThat(stored.requestId()).isEqualTo(linkRequestId));
         // 대상 확정으로 시작한 실행의 오류 requestId는 그 확정 요청이다
@@ -665,7 +663,7 @@ class MessageCommandControllerTest {
     }
 
     @Test
-    void 대기로_멈춘_분석은_보완_대상을_확정할_때_이어_간다() throws Exception {
+    void 대기_메시지가_멈춘_분석은_바로_잇고_실행마다_접수한_명령을_오류_requestId로_쓴다() throws Exception {
         String firstRunId = succeedFirstRun();
         UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
         UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
@@ -674,25 +672,66 @@ class MessageCommandControllerTest {
         send(memberId, UUID.randomUUID(), 1, "비밀번호는 어제 바꿨어요", List.of(open)).andExpect(status().isOk());
         String openRunId = currentRunId();
 
-        // 대상 없는 보완은 대기가 되고, B의 분석은 대체만 된 채 대상 선택을 기다린다
-        send(memberId, UUID.randomUUID(), 2, "참고로요", List.of()).andExpect(status().isOk());
+        // 대상 없는 보완은 대기이고 자기 분석은 없지만, 대체한 B의 분석은 그 메시지를 시작점으로 바로 잇는다
+        UUID pendingRequestId = UUID.randomUUID();
+        send(memberId, pendingRequestId, 2, "참고로요", List.of()).andExpect(status().isOk());
         String pendingId = messageIdAt(3);
-        assertThat(currentRunId()).isEqualTo(openRunId);
         assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, openRunId))
                 .isEqualTo("CANCELLED");
-
-        // A(배정)로 확정하면 그 자체로는 보완뿐이지만, 멈춰 있던 B의 분석을 잇는다
-        link(memberId, pendingId, UUID.randomUUID(), 3, List.of(assigned)).andExpect(status().isOk());
-
         String resumedId = currentRunId();
         assertThat(resumedId).isNotEqualTo(openRunId);
-        Map<String, Object> resumed = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", resumedId);
-        assertThat(resumed.get("run_status")).isEqualTo("QUEUED");
-        assertThat(resumed.get("input_version")).isEqualTo(4);
-        assertThat(resumed.get("trigger_message_id").toString()).isEqualTo(pendingId);
-        JsonNode input = currentInput();
-        assertThat(input.path("problemIds").size()).isEqualTo(1);
-        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(open.toString());
+        assertThat(jdbc.queryForObject("SELECT trigger_message_id FROM agent_run WHERE id = ?::uuid", UUID.class, resumedId)
+                .toString()).isEqualTo(pendingId);
+        assertThat(currentInput().path("problemIds").get(0).asString()).isEqualTo(open.toString());
+        assertThat(currentInput().path("messages").findValuesAsString("id")).doesNotContain(pendingId);
+
+        // A(배정)로 확정하면 자기 분석은 없지만 진행 중이던 B의 분석을 다시 잇는다
+        UUID linkRequestId = UUID.randomUUID();
+        link(memberId, pendingId, linkRequestId, 3, List.of(assigned)).andExpect(status().isOk());
+        String afterLinkId = currentRunId();
+        assertThat(afterLinkId).isNotEqualTo(resumedId);
+        Map<String, Object> afterLink = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", afterLinkId);
+        assertThat(afterLink.get("run_status")).isEqualTo("QUEUED");
+        assertThat(afterLink.get("input_version")).isEqualTo(4);
+        assertThat(afterLink.get("trigger_message_id").toString()).isEqualTo(pendingId);
+        assertThat(currentInput().path("problemIds").get(0).asString()).isEqualTo(open.toString());
+
+        // 같은 메시지·차수에서 시작한 두 실행이라도 각자 접수한 명령을 오류 requestId로 돌려준다
+        jdbc.update("UPDATE agent_run SET run_status = 'FAILED', error_code = 'MODEL_UNAVAILABLE', completed_at = now() "
+                + "WHERE id IN (?::uuid, ?::uuid)", resumedId, afterLinkId);
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + resumedId)))
+                .andExpect(jsonPath("$.error.requestId").value(pendingRequestId.toString()));
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + afterLinkId)))
+                .andExpect(jsonPath("$.error.requestId").value(linkRequestId.toString()));
+    }
+
+    @Test
+    void 대기_중_다른_메시지로_지정한_문제도_대상을_확정한_뒤_분석에_남는다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID b = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        UUID c = insertProblem(3, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(b, firstRunId, "비밀번호 문의", "[]");
+        insertStandardRequest(c, firstRunId, "결재선 문의", "[]");
+        send(memberId, UUID.randomUUID(), 1, "비밀번호는 어제 바꿨어요", List.of(b)).andExpect(status().isOk());
+        send(memberId, UUID.randomUUID(), 2, "참고로요", List.of()).andExpect(status().isOk()); // 대기
+        String pendingId = messageIdAt(3);
+
+        // 대기 중에도 C를 지정한 메시지는 바로 분석하고, 멈춘 B의 분석도 함께 잇는다
+        send(memberId, UUID.randomUUID(), 3, "결재선은 팀장님까지예요", List.of(c)).andExpect(status().isOk());
+        assertThat(problemIdsOf(currentInput())).containsExactlyInAnyOrder(b.toString(), c.toString());
+
+        link(memberId, pendingId, UUID.randomUUID(), 4, List.of(assigned)).andExpect(status().isOk());
+        assertThat(problemIdsOf(currentInput())).containsExactlyInAnyOrder(b.toString(), c.toString());
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, currentRunId()))
+                .isEqualTo("QUEUED");
+    }
+
+    private static List<String> problemIdsOf(JsonNode input) {
+        List<String> ids = new ArrayList<>();
+        input.path("problemIds").forEach(id -> ids.add(id.asString()));
+        return ids;
     }
 
     private ResultActions link(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,

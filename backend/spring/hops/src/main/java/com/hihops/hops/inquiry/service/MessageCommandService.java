@@ -76,8 +76,9 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>보완 대상 (WIRE_CONTRACT 12.6, TARGET_CONTRACT 4절): 티켓이 배정된 문제가 있는데 대상을 고르지 않은 메시지는, 문제가 둘 이상이면
  * 어느 티켓에도 자동으로 붙이지 않고 pendingTarget으로 저장해 대상 선택을 기다린다(배정된 문제가 하나뿐이면 그 문제의 보완이다).
  * {@link #linkProblems}(problem-links)가 원문을 바꾸지 않고 대상을 확정하며 입력 버전을 1 올린다.
- * 새 실행은 대기 메시지가 남아 있거나 대상이 모두 이미 배정된 문제면 시작하지 않는다(보완 정보로 저장만, 자동 새 티켓·재배정 없음).
- * 그래도 입력 버전은 올라가므로 진행 중이던 이전 실행은 대체한다.
+ * 대기 메시지는 대상이 정해질 때까지 AI 입력의 대화에서 빠지고 그 메시지 자체로는 분석하지 않는다. 다른 메시지의 분석은 막지 않는다.
+ * 대상이 모두 이미 배정된 문제인 입력도 보완 정보일 뿐이라 자기 분석을 만들지 않는다(자동 새 티켓·재배정 없음).
+ * 그래도 입력 버전은 올라가 진행 중이던 실행의 결과는 버려지므로, 그 실행의 대상은 새 실행으로 잇는다({@link #continueAnalysis}).
  *
  * <p>저장·정정·대상 확정한 메시지는 {@link MessageStoredEvent}로 문의 구독(SSE)에 commit 뒤 알린다.
  *
@@ -151,7 +152,7 @@ public class MessageCommandService {
                 command.content(),
                 UserMessagePayload.json(jsonMapper, command.requestId(), null, problemIds, command.content(), pending),
                 MessageStatus.COMPLETED));
-        continueAnalysis(inquiry, message, problemIds, scope);
+        continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
         return inquiry.getId();
@@ -174,7 +175,7 @@ public class MessageCommandService {
         ProblemScope scope = scopeOf(inquiryId);
         List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
                 .problemIds(message.getRevision()).stream().filter(scope.linkable()::contains).toList();
-        continueAnalysis(inquiry, message, problemIds, scope);
+        continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
         // 정정도 저장 알림이다. requestId는 이 정정 요청이다 (WIRE_CONTRACT 12.4 "저장 메시지·정정")
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
@@ -194,10 +195,10 @@ public class MessageCommandService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "보완할 수 있는 문제가 아닙니다.");
         }
 
-        message.confirmTargets(UserMessagePayload.confirmed(jsonMapper, message.getPayload(), message.getRevision(),
-                message.getContent(), problemIds, command.requestId()));
+        message.updatePayload(UserMessagePayload.confirmed(jsonMapper, message.getPayload(), message.getRevision(),
+                message.getContent(), problemIds));
         inquiry.recordInput();
-        continueAnalysis(inquiry, message, problemIds, scope);
+        continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
         // 원문은 그대로지만 문제 연결이 바뀌었으므로 다시 조회하게 알린다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
@@ -239,43 +240,41 @@ public class MessageCommandService {
     /**
      * 입력이 바뀐 뒤 분석을 이어 갈지 정한다. 진행 중인 이전 실행은 언제나 대체한다(입력 버전이 바뀌어 그 결과는 버려진다).
      * <ul>
-     *   <li>대기 메시지가 남아 있으면 대상이 정해지기 전 정보가 섞이지 않게 새 실행을 만들지 않는다. 멈춘 분석은 대상을 확정할 때 잇는다.</li>
-     *   <li>멈춘 분석(이번에 대체한 실행, 또는 앞서 대체만 되고 다시 접수되지 않은 현재 실행)이 있으면 그 대상을 새 실행에 이어 붙인다.
-     *       보완 전용 입력 때문에 다른 문제의 분석이 사라지지 않게 한다.</li>
-     *   <li>그 밖에 대상이 모두 배정된 문제면 보완 정보일 뿐이라 새 실행을 만들지 않는다.</li>
+     *   <li>이번 입력의 자기 분석: 시작 메시지가 대기 중이거나 대상이 모두 배정된 문제면 없다(보완 정보). 그 밖에는 이번 대상으로 분석한다.</li>
+     *   <li>멈춘 분석(이번에 대체한 실행, 또는 대체만 되고 다시 접수되지 않은 현재 실행)이 있으면 그 대상을 새 실행에 합친다.
+     *       보완 전용 입력 때문에 다른 문제의 분석이 사라지지 않게 한다. 그 사이 해결·범위 밖이 된 문제는 잇지 않는다.</li>
      * </ul>
+     *
+     * @param requestId 이 입력을 저장한 공개 명령. 새 실행을 접수하면 그 실행의 접수 명령으로 기록한다
      */
-    private void continueAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, ProblemScope scope) {
+    private void continueAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, ProblemScope scope,
+            UUID requestId) {
         Instant now = clock.instant();
         AgentRun previous = inquiry.getCurrentRun();
         Optional<List<UUID>> interrupted = interruptedTargets(previous);
         if (previous != null && isActive(previous)) {
             previous.finish(RunStatus.CANCELLED, now);
         }
-        messageRepository.flush(); // 방금 바꾼 대기 표시를 아래 조회가 보게 한다
-        if (!messageRepository.findPendingTargetIds(inquiry.getId()).isEmpty()) {
-            return;
-        }
-        boolean supplementOnly = !problemIds.isEmpty() && scope.assigned().containsAll(problemIds);
+        boolean pending = jsonMapper.readValue(trigger.getPayload(), MessagePayload.class).isPendingTarget();
+        boolean ownAnalysis = !pending && (problemIds.isEmpty() || !scope.assigned().containsAll(problemIds));
         if (interrupted.isEmpty()) {
-            if (!supplementOnly) {
-                startAnalysis(inquiry, trigger, problemIds, now);
+            if (ownAnalysis) {
+                startAnalysis(inquiry, trigger, problemIds, now, requestId);
             }
             return;
         }
         // 대상 없이 하던 분석이 멈췄으면 대상 없이 다시 한다
         if (interrupted.get().isEmpty()) {
-            startAnalysis(inquiry, trigger, supplementOnly ? List.of() : problemIds, now);
+            startAnalysis(inquiry, trigger, ownAnalysis ? problemIds : List.of(), now, requestId);
             return;
         }
         Set<UUID> targets = new LinkedHashSet<>();
-        if (!supplementOnly) {
+        if (ownAnalysis) {
             targets.addAll(problemIds);
         }
-        // 그 사이 해결·범위 밖이 된 문제는 잇지 않는다
         interrupted.get().stream().filter(scope.linkable()::contains).forEach(targets::add);
         if (!targets.isEmpty()) {
-            startAnalysis(inquiry, trigger, List.copyOf(targets), now);
+            startAnalysis(inquiry, trigger, List.copyOf(targets), now, requestId);
         }
     }
 
@@ -312,12 +311,19 @@ public class MessageCommandService {
         return inquiry;
     }
 
-    // 새 입력 버전의 실행을 접수한다: 새 실행·불변 입력 → currentRun 연결 → commit 뒤 전달
-    private void startAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, Instant now) {
+    /**
+     * 새 입력 버전의 실행을 접수한다: 새 실행·불변 입력 → currentRun 연결 → 시작 메시지에 접수 명령 기록 → commit 뒤 전달.
+     * 대기 메시지(보완 대상 미정)는 대상이 정해질 때까지 AI 입력의 대화에서 뺀다.
+     */
+    private void startAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, Instant now, UUID requestId) {
         AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, trigger, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
-        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messageRepository.findAllCompletedInOrder(inquiry.getId()),
-                inputProblemReader.read(inquiry, problemIds), problemIds, systemQueryService.findSupportedSystems(), now));
+        List<Message> messages = messageRepository.findAllCompletedInOrder(inquiry.getId()).stream()
+                .filter(message -> !jsonMapper.readValue(message.getPayload(), MessagePayload.class).isPendingTarget())
+                .toList();
+        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messages, inputProblemReader.read(inquiry, problemIds),
+                problemIds, systemQueryService.findSupportedSystems(), now));
+        trigger.updatePayload(UserMessagePayload.withRun(jsonMapper, trigger.getPayload(), run.getId(), requestId));
         inquiry.resumeAnalysis(run);
         eventPublisher.publishEvent(new AgentRunQueued(run.getId()));
     }
