@@ -4,13 +4,11 @@ import type { ReactNode } from 'react';
 import { useSession } from '@/features/auth';
 import { realtime } from '@/shared/realtime';
 import type { SubscriptionTarget } from '@/shared/api/types';
-import { Button } from '@/shared/ui/Button';
 import { useConnection } from '../model/connectionStore';
-import styles from './RealtimeBoundary.module.css';
+import { ReconnectNotice } from './ReconnectNotice';
 
 export function RealtimeBoundary({ children }: { children: ReactNode }) {
   const token = useSession((session) => session.token);
-  const state = useConnection((connection) => connection.state);
   const client = useQueryClient();
   useEffect(() => {
     let active = true;
@@ -102,27 +100,10 @@ export function RealtimeBoundary({ children }: { children: ReactNode }) {
       window.removeEventListener('online', online);
     };
   }, [token]);
-  function reconnect() {
-    try {
-      if (token) realtime.connect(token);
-    } catch {
-      useConnection.getState().setState('disconnected');
-    }
-  }
+  // 연결 상태는 채팅의 ConnectionIndicator가, 끊김의 수동 재연결은 떠 있는 ReconnectNotice가 맡는다.
   return (
     <>
-      {state !== 'connected' && state !== 'idle' && (
-        <div className={styles.banner} role="status">
-          <span>
-            {state === 'connecting'
-              ? '실시간 상태를 연결하고 있어요.'
-              : '실시간 연결이 끊겼어요. 입력과 저장된 결과는 유지돼요.'}
-          </span>
-          <Button variant="secondary" onClick={reconnect}>
-            다시 연결
-          </Button>
-        </div>
-      )}
+      <ReconnectNotice />
       {children}
     </>
   );

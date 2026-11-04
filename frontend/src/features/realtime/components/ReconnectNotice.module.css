@@ -1,0 +1,58 @@
+/* 앱 헤더 가운데 빈 영역에 겹쳐 띄워 본문과 컨트롤을 밀거나 가리지 않는다. */
+.notice {
+  position: fixed;
+  top: calc((var(--header-height) - var(--control-height-sm) - var(--space-1) * 2) / 2);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  max-width: calc(100vw - var(--space-4) * 2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-raised);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+/* 모달 본문 위쪽에 두는 작은 안내. 모달 밖 전역 안내를 누를 수 없을 때 쓴다. */
+.inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+.short {
+  display: none;
+}
+.button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+}
+/* 좁은 화면은 헤더 가운데가 좁아 사용자 정보를 가리므로 헤더 아래 오른쪽에 짧게 띄운다. */
+@media (max-width: 600px) {
+  .notice {
+    top: calc(var(--header-height) + var(--space-2));
+    left: auto;
+    right: var(--space-4);
+    transform: none;
+  }
+  .long {
+    display: none;
+  }
+  .short {
+    display: inline;
+  }
+}

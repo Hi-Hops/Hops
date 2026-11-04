@@ -43,6 +43,8 @@
   --color-attention-bg: #fffbeb;
   --color-attention: #b45309;
   --color-attention-border: #fde68a;
+  /* 글자 없이 색만으로 읽히는 작은 표시(연결 중 점)용 노랑. */
+  --color-attention-dot: #eab308;
   --color-danger-bg: #fef2f2;
   --color-danger: #b91c1c;
   --color-danger-border: #fecaca;

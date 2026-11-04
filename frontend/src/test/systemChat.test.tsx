@@ -9,6 +9,7 @@ import type { ChatMessage, InquiryResult, RunSummary } from '@/shared/api/types/
 
 vi.mock('@/features/realtime', () => ({
   useSubscription: () => ({ denied: false, state: 'connected' }),
+  ConnectionIndicator: () => null,
 }));
 vi.mock('@/shared/realtime', () => ({ realtime: { on: () => () => undefined } }));
 
