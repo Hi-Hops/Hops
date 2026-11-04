@@ -156,6 +156,15 @@ public class ResolvedCase extends BaseEntity {
         return caseNumber;
     }
 
+    /** 출처 기록은 고정하고 초안의 적용 조건·제한·관계 후보만 보존한다. */
+    public void recordDraftMetadata(String applicability, String cause, String appliedVersion, String facts, String relations) {
+        this.applicability = applicability;
+        this.confirmedCause = cause;
+        this.appliedVersion = appliedVersion;
+        this.confirmedFacts = facts;
+        this.relationCandidates = relations;
+    }
+
     public int getVersionNo() {
         return versionNo;
     }
