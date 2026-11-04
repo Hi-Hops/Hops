@@ -64,8 +64,8 @@ WHERE d.datname = 'hops_ai_runtime' AND pg_get_userbyid(d.datdba) <> 'hops_ai_mi
 
 -- 런타임 DB는 소유자(마이그레이션), 앱 계정, 이 스크립트를 실행한 관리자만 접속한다.
 -- RDS 관리자는 슈퍼유저가 아니므로 PUBLIC 권한을 거둔 뒤에도 점검·02 단계를 위해 접속 권한을 남긴다.
--- 임시 테이블 생성 권한은 주지 않는다.
-REVOKE ALL ON DATABASE hops_ai_runtime FROM PUBLIC;
+-- 임시 테이블 생성 권한은 주지 않는다. 앱 계정에 예전에 직접 준 CREATE·TEMPORARY도 거둔 뒤 CONNECT만 다시 준다.
+REVOKE ALL ON DATABASE hops_ai_runtime FROM PUBLIC, hops_ai_app;
 GRANT CONNECT ON DATABASE hops_ai_runtime TO hops_ai_app;
 GRANT CONNECT ON DATABASE hops_ai_runtime TO CURRENT_USER;
 

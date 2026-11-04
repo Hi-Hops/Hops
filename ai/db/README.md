@@ -175,17 +175,19 @@ RDS 마스터 계정은 슈퍼유저가 아니다. PostgreSQL 16부터는 역할
 | 업무 DB 22개 테이블의 행 지문 | 전후 동일 |
 | 일부러 DELETE 권한을 준 경우 | 점검 명령이 FAIL과 종료 코드 1로 잡아냄 |
 
-RDS 현재 상태를 재현한 경우도 로컬에서 확인했다. 슈퍼유저가 아닌 마스터가 DB·테이블을 소유하고, 앱 계정과 실행 기록 6건이 있으며, 업무 DB에는 `PUBLIC` 접속 권한이 없는 상태다. 이 상태에서 적용 전 점검은 16/17(TEMPORARY만 실패)이었고, 01·02·03 적용과 재실행 뒤 18/18 통과, 실행 기록 보존, 마스터의 임시 역할 권한 해제를 확인했다.
+RDS 현재 상태를 재현한 경우도 로컬에서 확인했다. 슈퍼유저가 아닌 마스터가 DB·테이블을 소유하고, 앱 계정과 실행 기록 6건이 있으며, 업무 DB에는 `PUBLIC` 접속 권한이 없는 상태다. 현재 점검 명령 기준으로 적용 전 18/19(TEMPORARY만 실패), 01·02·03 적용과 재실행 뒤 `--write-check` 포함 20/20 통과였다. 실행 기록 보존과 마스터의 임시 역할 권한 해제도 확인했다.
+
+앱 계정에 넘치는 권한을 미리 준 경우도 확인했다. 런타임 DB CREATE·TEMPORARY, `public`·다른 스키마 CREATE, 원장 외 테이블·열·시퀀스 권한, 원장 DELETE·TRUNCATE·열 REFERENCES 등이다. 01·03만 다시 실행해도 CONNECT와 원장 SELECT·INSERT·UPDATE만 남고 열 단위 권한은 0건이 되어 점검 22/22 통과였다. 점검 명령이 업무 DB·런타임 DB의 테이블·열·시퀀스·스키마 권한 21가지를 하나씩 부여했을 때 모두 실패로 보고하는 것도 확인했다.
 
 ### 개발 RDS 적용 (2026-11-04)
 
 | 항목 | 결과 |
 |---|---|
 | 대상 | 개발 RDS PostgreSQL 18.3, EC2의 AI 컨테이너(real 모드), `sslmode=verify-full` TLS 1.3 |
-| 적용 전 | `hops_ai_app`은 이미 최소 권한이었음. DB·`ai_run_ledger` 소유자는 마스터 `postgres`, `PUBLIC`에 런타임 DB TEMPORARY가 남아 점검 16/17. 업무 DB `hops`는 Spring 계정(`hops_spring_migrate`·`hops_spring_app`)만 접속 가능 |
+| 적용 전 | `hops_ai_app`은 이미 최소 권한이었음. DB·`ai_run_ledger` 소유자는 마스터 `postgres`, `PUBLIC`에 런타임 DB TEMPORARY가 남아 점검 16/17(적용 당시 점검 명령 `abe81cc` 기준). 업무 DB `hops`는 Spring 계정(`hops_spring_migrate`·`hops_spring_app`)만 접속 가능 |
 | 적용 | 위 4–5단계(01 → `\password hops_ai_migrator` → 02 → 03). 오류 없음 |
 | 적용 후 | DB·테이블 소유자 `hops_ai_migrator`, `PUBLIC` 권한 제거, 앱 권한 SELECT·INSERT·UPDATE 그대로. 앱 연결 문자열은 바꾸지 않음 |
-| 점검(`--business-dbname hops --write-check`) | 18/18 통과. 업무 DB는 접속 거부 |
+| 점검(`--business-dbname hops --write-check`) | 18/18 통과(적용 당시 점검 명령 `abe81cc` 기준, 업무 DB는 접속 거부). 이후 리뷰 반영으로 MAINTAIN·원장 외 권한·전체 스키마 검사가 추가돼 현재 명령은 같은 옵션에서 20항목이다 |
 | 준비 상태 | 적용 직후 `/readyz` 200, `docker restart hops-ai` 10초 뒤 `/readyz` 200(세션 잠금 재확보·재기동 복구) |
 
 확인하지 않은 것: `hops_knowledge` 검색 권한(#142에서 부여·점검), 자격 증명 교체 절차, RDS 장애 조치·네트워크 단절 시 잠금 해제 지연.
