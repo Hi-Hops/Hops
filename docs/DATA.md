@@ -184,7 +184,7 @@ PostgreSQL 격리는 READ COMMITTED, 잠금 순서는 Inquiry → problemId 정�
 
 | 저장 위치 | 결정한 내용·조회 규칙 |
 |---|---|
-| message.payload | 서버 관리 contractVersion, requestId:Uuid?(USER 최초 생성 명령·AI는null), answerRunId:Uuid?(AI 실행·USER는null), problemLinks[{problemId,revision,spans:[{start,end}]}], questionBundles[{problemId,bundleRef}], guide:{problemId,text,evidenceIds}?, pendingTarget:boolean, reportedSystemId:Uuid?(첫 USER 메시지에서 사용자가 고른 시스템·그 밖에는 null 또는 키 없음, AI 전달 방식 미정). guide.text는 GuideProposal.messageText이며 같은 AI 본문의 부분 문자열. 질문 번들 유일성/횟수 갱신은 문제 행 잠금 안에서 적용. 범위는 Unicode 코드 포인트 [start,end) |
+| message.payload | 서버 관리 contractVersion, requestId:Uuid?(USER 최초 생성 명령·AI는null), answerRunId:Uuid?(AI 실행·USER는null), problemLinks[{problemId,revision,spans:[{start,end}]}], questionBundles[{problemId,bundleRef}], guide:{problemId,text,evidenceIds}?, pendingTarget:boolean, reportedSystemId:Uuid?(첫 USER 메시지에서 사용자가 고른 시스템·그 밖에는 null 또는 키 없음, AI 전달 방식 미정), revisionRequestIds:{"차수":Uuid}(USER 메시지를 정정한 차수별 정정 요청 ID. 정정으로 시작한 Run 오류의 requestId. 처음 원문은 requestId). guide.text는 GuideProposal.messageText이며 같은 AI 본문의 부분 문자열. 질문 번들 유일성/횟수 갱신은 문제 행 잠금 안에서 적용. 범위는 Unicode 코드 포인트 [start,end) |
 | message_revision | revision_no는 보존한 과거 원문의 번호. 현재 content/revision은 message에서 읽고 둘을 합쳐 정정 이력 구성. 미수정 메시지는 revision1·이력[] |
 | standard_request.system_candidates | [{systemId,evidenceIds}]와 현재 responsible_system_id 후보. confirmed_facts/assumptions는 EvidenceStatement[], missing_items는 string[], type_detail은 RequestDetails, related_knowledge는 KnowledgeEvidence[] |
 | ticket_event.before_data/after_data | WORK_TYPE_CHANGED이면 {processingType,evidence:{messageIds:Uuid[],note:string?}}. 현재 담당자의 근거/사유와 실제 값 변경을 ticket.version 증가와 같은 거래로 기록 |
