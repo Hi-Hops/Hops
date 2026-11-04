@@ -14,7 +14,7 @@ def test_scaffold_is_alive_but_not_ready_for_business_requests() -> None:
         assert response.status_code == 503
         assert response.json() == {
             "status": "not_ready",
-            "reason": "AI_PIPELINE_NOT_IMPLEMENTED",
+            "reason": "RUN_PIPELINE_DISABLED",
         }
         assert client.app.state.settings is settings
 

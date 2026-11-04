@@ -10,6 +10,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
+from hops_ai.api.routes import health
 from hops_ai.main import create_app
 from hops_ai.persistence.run_ledger import RunSnapshot
 from hops_ai.settings import Settings
@@ -298,7 +299,10 @@ def test_internal_prefix_match_is_segment_based(client) -> None:
 
 def test_health_is_public_with_internal_auth_enabled(client) -> None:
     assert client.get("/healthz").status_code == 200
-    assert client.get("/readyz").status_code == 503
+    # 조회만 열리고 실행 파이프라인이 없으면 업무 요청을 받을 준비가 아니다.
+    response = client.get("/readyz")
+    assert response.status_code == 503
+    assert response.json() == {"status": "not_ready", "reason": "RUN_PIPELINE_DISABLED"}
 
 
 # --- 실행 파이프라인이 연결된 접수 경로 ---
@@ -412,3 +416,53 @@ def test_storage_failure_on_accept_is_safe_503() -> None:
         assert response.status_code == 503
         assert response.json()["code"] == "SERVICE_UNAVAILABLE"
         assert "PRIVATE" not in response.text
+
+
+# --- 준비 상태 ---
+
+
+def test_ready_when_pipeline_is_connected_and_ledger_session_answers() -> None:
+    with run_client(SucceedingPipeline()) as (client, _):
+        response = client.get("/readyz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+def test_not_ready_when_ledger_session_is_lost(caplog) -> None:
+    ledger = MemoryLedger(ping_failure=psycopg.OperationalError("server closed the connection"))
+
+    with run_client(SucceedingPipeline(), ledger) as (client, _):
+        response = client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "not_ready", "reason": "RUN_LEDGER_UNAVAILABLE"}
+    assert "server closed" not in caplog.text
+
+
+def test_not_ready_when_ledger_session_does_not_answer_in_time(monkeypatch) -> None:
+    monkeypatch.setattr(health, "READY_CHECK_TIMEOUT_SECONDS", 0.01)
+    ledger = MemoryLedger(ping_delay=1)
+
+    with run_client(SucceedingPipeline(), ledger) as (client, _):
+        response = client.get("/readyz")
+
+    assert response.status_code == 503
+    assert response.json()["reason"] == "RUN_LEDGER_UNAVAILABLE"
+
+
+async def test_shutdown_closes_execution_and_ledger_and_is_no_longer_ready() -> None:
+    ledger = MemoryLedger()
+    resolved = Settings(
+        _env_file=None,
+        internal_api_enabled=True,
+        runtime_dsn=TEST_DSN,
+        ai_service_token=TEST_TOKEN,
+    )
+    app = create_app(resolved, ledger=ledger, pipeline=SucceedingPipeline())
+
+    async with app.router.lifespan_context(app):
+        assert app.state.run_executor is not None
+
+    assert app.state.run_executor is None
+    assert not ledger.opened
