@@ -16,7 +16,8 @@ import jakarta.validation.constraints.NotNull;
  * 상담 실행 접수 설정. application.properties의 {@code hops.agent.run.*}에서 읽는다.
  *
  * <p>expiresAt·limits는 Spring이 정한 실행 전체 한도이며 역할 전환·재시도에서 초기화하지 않는다 (contracts/agents/README.md).
- * 초기 값은 WIRE_CONTRACT의 AI 실행 초기 상한(전체 60초, 호출 8회, 재시도 2회, 출력 1,500토큰)을 따른다.
+ * 초기 값은 WIRE_CONTRACT의 AI 실행 초기 상한(전체 60초, 호출 8회, 재시도 2회, 호출당 출력 1,500토큰)을 따른다.
+ * 출력 토큰은 호출당 값이 아니라 실행 합계로 보낸다(호출 수 x 호출당 상한). AI 서버가 호출당 상한은 따로 적용한다.
  *
  * @param deadline      접수 시각부터 expiresAt까지
  * @param limits        AiRunRequest.limits

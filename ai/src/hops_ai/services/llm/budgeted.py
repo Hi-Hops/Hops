@@ -55,8 +55,13 @@ class BudgetedLLMClient:
         """
         async with self._lock:
             self._ensure_active()
+            input_limit = request.max_input_tokens
+            if self._budget.max_input_tokens is not None:
+                remaining = self._budget.max_input_tokens - self._budget.input_tokens_used
+                input_limit = remaining if input_limit is None else min(remaining, input_limit)
             limited = replace(
                 request,
+                max_input_tokens=input_limit,
                 max_output_tokens=self._budget.limit_output_tokens(request.max_output_tokens),
             )
 

@@ -114,6 +114,11 @@ public class Inquiry extends BaseEntity {
         return summaryUpdatedAt;
     }
 
+    /** AI 상담 결과를 반영했음을 알린다. 화면은 이 값이 바뀌면 문의 결과를 다시 읽는다. */
+    public void recordAnalysisResult() {
+        resultRevision++;
+    }
+
     public void resumeAnalysis(AgentRun run) {
         currentRun = run;
         inquiryStatus = InquiryStatus.IN_PROGRESS;

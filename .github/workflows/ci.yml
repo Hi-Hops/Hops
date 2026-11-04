@@ -279,7 +279,7 @@ jobs:
           docker build -f frontend/Dockerfile.deploy --build-arg "VITE_API_BASE_URL=$PUBLIC_ORIGIN" -t "$registry/hops-frontend:$tag" frontend
           docker run --rm --entrypoint java "$registry/hops-spring:$tag" -version
           docker run --rm --entrypoint python "$registry/hops-ai:$tag" -c 'import hops_ai.main'
-          docker run --rm --entrypoint sh "$registry/hops-frontend:$tag" -c 'test -s /srv/index.html && test -d /srv/assets'
+          docker run --rm --entrypoint sh "$registry/hops-frontend:$tag" -c 'test -s /srv/index.html && test -d /srv/assets && test -s /etc/nginx/templates/default.conf.template'
           for service in spring ai frontend; do
             repo="hops-$service"
             docker push "$registry/$repo:$tag"
