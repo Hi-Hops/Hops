@@ -118,6 +118,34 @@ class AgentRunDispatcherTest {
     }
 
     @Test
+    void SSE_최종_결과는_폴링과_같은_경로로_한번만_반영한다() {
+        var streams = mock(AgentRunStream.class);
+        var stream = mock(AgentRunStream.Handle.class);
+        when(streams.open(runId)).thenReturn(stream);
+        when(stream.result()).thenReturn(snapshot("SUCCEEDED", goodResult(), null));
+        var dispatcher = dispatcher();
+        ReflectionTestUtils.setField(dispatcher, "streams", streams);
+        queue(dispatcher);
+        assertThat(handler.applied).isEqualTo(1);
+        assertThat(run.getRunStatus()).isEqualTo(RunStatus.SUCCEEDED);
+        verify(client, never()).snapshot(any());
+        verify(stream).close();
+    }
+
+    @Test
+    void SSE가_최종_결과없이_끊겨도_snapshot으로_완료한다() {
+        var streams = mock(AgentRunStream.class);
+        var stream = mock(AgentRunStream.Handle.class);
+        when(streams.open(runId)).thenReturn(stream);
+        when(client.snapshot(runId.toString())).thenReturn(snapshot("SUCCEEDED", goodResult(), null));
+        var dispatcher = dispatcher();
+        ReflectionTestUtils.setField(dispatcher, "streams", streams);
+        queue(dispatcher);
+        assertThat(handler.applied).isEqualTo(1);
+        verify(stream).close();
+    }
+
+    @Test
     void 접수한_실행이_성공하면_처리기로_결과를_반영하고_실행을_성공으로_끝낸다() {
         when(client.snapshot(runId.toString())).thenReturn(snapshot("RUNNING", null, null))
                 .thenReturn(snapshot("SUCCEEDED", goodResult(), null));

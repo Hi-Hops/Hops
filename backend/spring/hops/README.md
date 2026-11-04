@@ -341,7 +341,7 @@ AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다
 
 업무 서비스는 `ApplicationEventPublisher.publishEvent(...)`로 `realtime/dto/StateChangedEvent`를
 자신의 저장 트랜잭션 안에서 발행합니다. 이벤트에는 사용자 JWT·원문 대화·내부 예외를 넣지 않습니다.
-메시지 저장은 `realtime/dto/MessageStoredEvent`를 같은 방식으로 발행합니다. 티켓 업무 저장과 변경 이벤트는 위 명령 API에 연결했습니다. 외부 이벤트 발행용 HTTP API는 제공하지 않습니다. INQUIRY의 `state.changed`(실행 종료 등)와 `answer.delta`·`agent.progress` 중계는 아직 연결하지 않았습니다.
+메시지 저장은 `realtime/dto/MessageStoredEvent`를 같은 방식으로 발행합니다. 티켓 업무 저장과 변경 이벤트는 위 명령 API에 연결했습니다. 외부 이벤트 발행용 HTTP API는 제공하지 않습니다. AI 접수 뒤 별도 수신 풀에서 내부 progress/result SSE를 구독하며 snapshot 폴링도 즉시 병행합니다. 현재 RUNNING 상담 실행·문의 입력 버전이 맞는 진행만 `agent.progress`로 중계하고 전송 직전 구독 권한을 다시 검사합니다. CURATOR 진행은 문의자에게 보내지 않습니다. 내부 seq를 공개 stepNo로 사용하고 공개 eventId는 새로 발급합니다. SSE 최종 결과와 snapshot은 dispatcher 한 경로에서 한 번만 적용합니다. 스트림 종료·오류·수신 풀 포화 시 snapshot 폴링으로 완료를 확인하며 업무 명령을 다시 만들지 않습니다. INQUIRY의 `state.changed`(실행 종료 등)와 `answer.delta`는 아직 연결하지 않았습니다.
 
 현재는 단일 Spring 프로세스의 연결만 관리합니다. 로그인 세션 종료 시 회원 단위 SSE 정리는 연결했습니다.
 부서·역할 변경을 즉시 모든 연결에 통지하는 `auth.invalidated`는 아직 없습니다.

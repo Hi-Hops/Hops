@@ -114,6 +114,7 @@ class SupervisorRuntime:
         cancelled = self._context.is_cancelled or state["cancellation"]["cancelled"]
         return {
             **state,
+            "eventSeq": self._context.events.seq if self._context.events else state["eventSeq"],
             "usage": Usage(
                 calls=budget.llm_calls_used,
                 inputTokens=budget.input_tokens_used,

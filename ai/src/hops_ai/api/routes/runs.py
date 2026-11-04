@@ -1,18 +1,22 @@
 """Spring 전용 실행 접수·조회. 실행 파이프라인이 없으면 접수하지 않는다."""
 
+import asyncio
 import logging
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from psycopg import Error as PsycopgError
 from pydantic import ValidationError
 
+from hops_ai.api.dependencies import get_run_events as get_event_hub
 from hops_ai.api.dependencies import get_run_executor, get_run_ledger
 from hops_ai.api.errors import ApiFault
 from hops_ai.contracts.wire import (
     AiAccepted,
     AiError,
+    AiEvent,
     AiResult,
     AiRunRequest,
     AiRunSnapshot,
@@ -20,6 +24,7 @@ from hops_ai.contracts.wire import (
 )
 from hops_ai.persistence.run_ledger import InvalidRunTransition, RunConflict, RunLedger
 from hops_ai.services.runs.admission import AdmissionRejected, LimitsExceeded
+from hops_ai.services.runs.events import RunEventHub
 from hops_ai.services.runs.executor import ExecutorBusy, RunExecutor
 
 router = APIRouter(prefix="/internal/v2/runs", tags=["internal runs"])
@@ -129,9 +134,59 @@ async def get_run(
         ) from None
 
 
-@router.get("/{runId}/events", status_code=503)
-async def get_run_events(runId: WireUuid) -> None:
-    raise _not_ready()
+def _frame(event: AiEvent) -> str:
+    return f"id: {event.seq}\nevent: {event.eventType}\ndata: {event.model_dump_json()}\n\n"
+
+
+@router.get("/{runId}/events")
+async def get_run_events(
+    runId: WireUuid,
+    ledger: Annotated[RunLedger, Depends(get_run_ledger)],
+    hub: Annotated[RunEventHub, Depends(get_event_hub)],
+) -> StreamingResponse:
+    # HTTP 오류는 스트림을 열기 전에 반환한다. 서비스 인증은 기존 middleware가 수행한다.
+    await get_run(runId, ledger)
+
+    async def stream():
+        try:
+            with hub.subscribe(runId) as queue:
+                # 구독 등록 뒤 다시 읽어 연결 직전 종료와 result 발행 사이의 경합을 막는다.
+                snapshot = await get_run(runId, ledger)
+                while True:
+                    if snapshot.result is not None:
+                        # 구버전(lastSeq=0) 결과에도 유효한 SSE 순번을 부여한다.
+                        yield _frame(
+                            AiEvent(
+                                contractVersion="hops-system-1",
+                                runId=runId,
+                                seq=max(1, snapshot.lastSeq),
+                                eventType="result",
+                                payload=snapshot.result,
+                            )
+                        )
+                        return
+                    if snapshot.status == "UNKNOWN":
+                        return
+                    try:
+                        event = await asyncio.wait_for(queue.get(), timeout=15)
+                    except TimeoutError:
+                        yield ": heartbeat\n\n"
+                        snapshot = await get_run(runId, ledger)
+                        continue
+                    if event is None:
+                        return  # 느린 소비자: Spring snapshot 폴링으로 복구
+                    yield _frame(event)
+                    if event.eventType == "result":
+                        return
+        except (ApiFault, OverflowError):
+            # 연결 뒤 저장소 오류/구독 상한은 원문 없이 종료하고 snapshot 복구에 맡긴다.
+            logger.warning("AI 이벤트 스트림을 유지할 수 없습니다")
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/{runId}/cancel", status_code=503)
