@@ -133,6 +133,8 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     if proposal.responsibleSystemCandidateId not in systems:
         raise OutputRejected("책임 시스템이 지원 시스템 목록에 없다")
     snapshot = proposal.standardRequestSnapshot
+    if len(snapshot.knowledge) > 5:
+        raise OutputRejected("표준 요청의 지식 근거는 최대 5건이다")
     if snapshot.responsibleSystemCandidateId != proposal.responsibleSystemCandidateId:
         raise OutputRejected("티켓과 표준 요청의 책임 시스템이 다르다")
     scoped_knowledge = get_problem_knowledge(state, proposal.problemRef)

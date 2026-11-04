@@ -412,3 +412,40 @@ def test_ticket_merge_rejects_evidence_linked_only_to_another_problem():
     )
     with pytest.raises(OutputRejected):
         validate_ticket(state, proposal)
+
+
+@pytest.mark.parametrize("existing_count", [4, 5])
+async def test_accumulated_knowledge_limit_is_checked_before_spring_post(existing_count):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from hops_ai.agents.ticket.executing import ExecutingTicketAgent
+    from tests.supervisor_fixtures import make_ticket
+
+    existing = [make_evidence(id=uid(600 + i)) for i in range(existing_count)]
+    fresh = make_evidence(id=uid(700))
+    data = make_request().model_dump(mode="json")
+    snapshot = make_ticket().standardRequestSnapshot.model_dump(mode="json")
+    snapshot["knowledge"] = [item.model_dump(mode="json") for item in existing]
+    data["problems"][0]["standardRequest"] = snapshot
+    state, services, _ = setup_call(
+        decision(knowledgeEvidenceIds=[fresh.id]),
+        request=AiRunRequest.model_validate(data),
+        evidence=[fresh],
+    )
+    state["evidence"].update({item.id: item for item in existing})
+    before = state["input"].model_dump(mode="json")
+    if existing_count == 4:
+        [proposal] = (await run(state, services)).proposals
+        assert len(proposal.standardRequestSnapshot.knowledge) == 5
+        assert {e.id for e in proposal.standardRequestSnapshot.knowledge} == {
+            e.id for e in [*existing, fresh]
+        }
+    else:
+        tools = SimpleNamespace(execute=AsyncMock())
+        with pytest.raises(OutputRejected, match="최대 5건"):
+            await ExecutingTicketAgent().run(
+                RoleRequest("ticket-call", state), replace(services, ticket_tools=tools)
+            )
+        tools.execute.assert_not_called()
+    assert state["input"].model_dump(mode="json") == before
