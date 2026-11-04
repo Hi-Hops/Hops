@@ -63,6 +63,22 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     int findLastSequenceNo(UUID inquiryId);
 
     /**
+     * 이 문제의 안내를 담은 가장 최근 AI 메시지 (payload.guide.problemId, docs/DATA.md 11.3). 없으면 비어 있다.
+     * 가이드 미해결 뒤 다시 안내하면 새 메시지가 생기므로 최신 것을 쓴다.
+     */
+    @Query(value = """
+            SELECT * FROM message
+            WHERE inquiry_id = :inquiryId
+              AND sender_type = 'AI'
+              AND message_status = 'COMPLETED'
+              AND deleted_at IS NULL
+              AND payload -> 'guide' ->> 'problemId' = CAST(:problemId AS text)
+            ORDER BY sequence_no DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Message> findLatestGuide(UUID inquiryId, UUID problemId);
+
+    /**
      * 보완 대상을 아직 정하지 못한 메시지 ID (InquiryResult.pendingTargetMessageIds), 보낸 순서대로.
      * payload.pendingTarget=true로 표시한다 (docs/DATA.md 11.3).
      */

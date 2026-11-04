@@ -306,7 +306,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 - **정정:** 바꾸기 전 원문을 `message_revision`에 보존하고 같은 메시지의 `content`를 바꿔 `revision`을 1 올립니다. ID·순번·처음 `requestId`는 그대로입니다. 그 뒤는 전송과 같이 문의 버전을 올리고 이전 실행을 대체해 새 실행을 접수하며, 대상 문제는 그 메시지에 연결된 문제입니다. 원문 전체에 걸린 문제 연결은 새 원문 전체로 잇고(일부 구간 연결은 잇지 않음), payload `revisionRequestIds`에 차수별 정정 요청 ID를 남겨 정정으로 시작한 실행의 오류 `requestId`로 씁니다.
 - **거절 기록:** 업무 규칙으로 거절한 변경 요청(409 버전 충돌·재분석 불가, 업무 검사 400)은 `REJECTED`로 기록합니다. 같은 키로 다시 보내면 다시 검사하지 않고 같은 오류를 돌려주고, `GET /operations/...`는 `state=REJECTED`와 `error`를 반환합니다. 입력 형식 400·401·403·429·5xx는 기록하지 않습니다.
 - **재분석:** 문의의 현재 실행이 `retryable=true`인 FAILED/TIMED_OUT일 때만 같은 문의 버전으로 새 runId·새 `answerMessageId`의 QUEUED 실행을 접수합니다. 실패한 실행은 그대로 두고 대화 입력은 재사용하며, 권한 문맥·시스템 목록·기한은 새로 만듭니다. 재분석 실행의 실패 오류 `requestId`는 그 재분석 요청 ID입니다.
-- **아직 남은 것:** 문의 상세의 `problems`(Problem) 형식은 AI 결과로 문제를 저장하는 기능과 함께 만듭니다. 지금은 문제가 있는 문의를 빈 목록으로 숨기지 않고 500으로 응답합니다.
+- **문의 상세의 `problems`:** 문제 번호 순으로 `Problem`을 돌려줍니다. 요약·의도·처리 유형·보고 시스템은 문제별 최신 적용(SUCCEEDED) 실행의 `standard_request`, 상태·질문 수는 `inquiry_problem`(DATA.md 11.2 변환), 안내는 최신 AI 메시지의 `payload.guide`와 그 실행 결과 중 지금 공개 가능한 직원용 근거, 티켓 생성 결과는 `creation_outcome`, 티켓은 티켓 화면과 같은 방식으로 읽습니다. 해결 확인 요청은 티켓이 있으면 티켓 이벤트, 없으면 안내 메시지의 `payload.resolutionRequest`(GUIDE)입니다. 질문 중인 문제는 질문을 했고 분석 중인 실행이 그 문제를 대상으로 삼지 않았으면 `WAITING_USER`(대상은 실행 입력의 `problemIds`), 시스템 확인 대기는 `reportedSystemId=null`입니다. 담당자 내부 표준 요청서는 담지 않습니다. 적용된 요청서가 없는 문제처럼 저장 규칙이 깨진 경우는 짐작하지 않고 500입니다.
 
 ## Spring SSE 공통 기반
 
