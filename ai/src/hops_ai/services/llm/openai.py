@@ -48,7 +48,7 @@ class OpenAIClient:
                     "type": "json_schema",
                     "name": "hops_result",
                     "strict": True,
-                    "schema": request.response_model.model_json_schema(),
+                    "schema": request.response_schema or request.response_model.model_json_schema(),
                 }
             },
         }

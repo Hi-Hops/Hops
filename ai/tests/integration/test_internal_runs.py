@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from hops_ai.api.routes import health
+from hops_ai.harness.errors import RunCancelled
 from hops_ai.main import create_app
 from hops_ai.persistence.run_ledger import RunSnapshot
 from hops_ai.settings import Settings
@@ -196,7 +197,7 @@ def test_post_validates_input_but_never_accepts_without_pipeline(client, ledger)
     assert "PRIVATE-INVALID" not in response.text
 
 
-def test_events_require_existing_run_and_cancel_is_still_unimplemented(client, ledger) -> None:
+def test_events_require_existing_run_and_cancel_needs_a_pipeline(client, ledger) -> None:
     run_id = uuid4()
     assert client.get(f"/internal/v2/runs/{run_id}/events", headers=auth()).status_code == 404
     assert client.post(f"/internal/v2/runs/{run_id}/cancel", headers=auth()).status_code == 503
@@ -466,3 +467,54 @@ async def test_shutdown_closes_execution_and_ledger_and_is_no_longer_ready() -> 
 
     assert app.state.run_executor is None
     assert not ledger.opened
+
+
+# --- 취소 ---
+
+
+class WaitsForCancelPipeline:
+    """하네스처럼 취소 신호를 기다리다 RunCancelled로 끝난다."""
+
+    async def run(self, request, context):
+        await context.wait_cancelled()
+        raise RunCancelled
+
+
+def cancel(client: TestClient, run_id: str, headers=None) -> httpx.Response:
+    headers = auth() if headers is None else headers
+    return client.post(f"/internal/v2/runs/{run_id}/cancel", headers=headers)
+
+
+def test_cancel_running_run_returns_empty_202_and_snapshot_becomes_superseded() -> None:
+    with run_client(WaitsForCancelPipeline()) as (client, _):
+        request = inquiry_request(expires_at=expires_in(60))
+        assert post_run(client, request).status_code == 202
+
+        response = cancel(client, request.runId)
+
+        assert response.status_code == 202
+        assert response.content == b""
+        snapshot = wait_for_terminal(client, request.runId)
+        assert snapshot["status"] == "SUPERSEDED"
+        assert snapshot["result"]["status"] == "SUPERSEDED"
+        assert snapshot["error"]["code"] == "SUPERSEDED"
+
+
+def test_cancel_unknown_finished_and_repeated_runs_are_all_202() -> None:
+    with run_client(SucceedingPipeline()) as (client, _):
+        request = inquiry_request(expires_at=expires_in(60))
+        post_run(client, request)
+        assert wait_for_terminal(client, request.runId)["status"] == "SUCCEEDED"
+
+        for run_id in (request.runId, request.runId, str(uuid4())):
+            response = cancel(client, run_id)
+            assert response.status_code == 202
+            assert response.content == b""
+        # 끝난 run의 결과는 바뀌지 않는다.
+        assert wait_for_terminal(client, request.runId)["status"] == "SUCCEEDED"
+
+
+def test_cancel_requires_service_auth_and_a_valid_run_id() -> None:
+    with run_client(SucceedingPipeline()) as (client, _):
+        assert cancel(client, str(uuid4()), headers={}).status_code == 401
+        assert cancel(client, "not-a-uuid").status_code == 422

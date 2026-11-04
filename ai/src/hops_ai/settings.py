@@ -15,6 +15,14 @@ class RunMode(StrEnum):
     REAL = "real"
 
 
+class KnowledgeSourceKind(StrEnum):
+    """Knowledge 역할이 사용할 검색 자료. 기본은 연결하지 않는다."""
+
+    NONE = "none"
+    # 개발용 고정 데이터. 검색 품질 검증이나 운영 지식으로 쓰지 않는다.
+    FIXTURE = "fixture"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="HOPS_AI_",
@@ -36,6 +44,8 @@ class Settings(BaseSettings):
     # real 모드에서 Supervisor와 역할이 쓰는 OpenAI 모델.
     # 비용 최소화를 기준으로 정하고 실측 후 검토한다.
     supervisor_model: str = "gpt-6-luna"
+    # none이면 Knowledge 역할은 연결 전으로 남아 Supervisor가 고르지 못한다.
+    knowledge_source: KnowledgeSourceKind = KnowledgeSourceKind.NONE
     langfuse_public_key: SecretStr | None = Field(
         default=None, validation_alias="LANGFUSE_PUBLIC_KEY"
     )
