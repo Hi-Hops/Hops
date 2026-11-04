@@ -123,6 +123,14 @@ class TicketCreationApiTest {
     }
 
     @Test
+    void 다른_문제의_검색_범위를_첨부하면_업무를_저장하지_않는다() throws Exception {
+        var command = body("new:target");
+        command.put("knowledgeScope", Map.of("problemRef", "new:other", "evidenceIds", List.of()));
+        create(command).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
+    }
+
+    @Test
     void 생성과_배정을_commit하고_재전송과_조회는_같은_티켓을_반환한다() throws Exception {
         var first = stored("new:1");
         var second = stored("new:1");

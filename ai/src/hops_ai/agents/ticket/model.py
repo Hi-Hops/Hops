@@ -52,6 +52,7 @@ class ModelTicketAgent:
         # registry의 순환 import를 피하고 동일한 Supervisor 검증을 재사용한다.
         from hops_ai.supervisor.merge import validate_ticket
         from hops_ai.supervisor.validation import (
+            get_problem_knowledge,
             get_problem_message_ids,
             validate_evidence_scope,
         )
@@ -63,14 +64,17 @@ class ModelTicketAgent:
             raise OutputRejected("티켓으로 제안할 수 있는 문제가 없다")
 
         # 병합된 근거만 사용하며 모델 입력 전 접근 범위를 다시 검사한다.
-        knowledge = state["evidence"]
-        for item in knowledge.values():
-            validate_evidence_scope(state["input"], item)
+        knowledge_by_problem = {ref: get_problem_knowledge(state, ref) for ref in problems}
         contexts = {}
         for ref, problem in problems.items():
             allowed = get_problem_message_ids(state, ref)
+            for item in knowledge_by_problem[ref].values():
+                validate_evidence_scope(state["input"], item)
             contexts[ref] = {
                 "problem": problem.model_dump(mode="json"),
+                "knowledge": [
+                    item.model_dump(mode="json") for item in knowledge_by_problem[ref].values()
+                ],
                 "messages": [
                     {"id": m.id, "content": m.content}
                     for m in state["input"].messages
@@ -89,9 +93,6 @@ class ModelTicketAgent:
                                     s.model_dump(mode="json") for s in state["input"].systems
                                 ],
                                 "problems": list(contexts.values()),
-                                "knowledge": [
-                                    item.model_dump(mode="json") for item in knowledge.values()
-                                ],
                             },
                             ensure_ascii=False,
                         ),
@@ -114,6 +115,7 @@ class ModelTicketAgent:
         proposals = []
         for decision in decisions.decisions:
             problem = problems[decision.problemRef]
+            knowledge = knowledge_by_problem[decision.problemRef]
             if decision.responsibleSystemCandidateId not in systems:
                 raise OutputRejected("책임 시스템이 지원 목록에 없다")
             messages = {m["id"]: m["content"] for m in contexts[decision.problemRef]["messages"]}

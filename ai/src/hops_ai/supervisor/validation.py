@@ -22,6 +22,26 @@ if TYPE_CHECKING:
     from hops_ai.supervisor.state import SupervisorState
 
 
+def get_problem_knowledge(
+    state: "SupervisorState", problem_ref: str
+) -> dict[str, KnowledgeEvidence]:
+    """서버의 해당 문제 스냅샷과 검증·병합된 문제별 검색 결과만 허용한다."""
+    ids = {
+        item.id
+        for problem in state["input"].problems
+        if problem.id == problem_ref and problem.standardRequest is not None
+        for item in problem.standardRequest.knowledge
+    }
+    for result in state["roleResults"].values():
+        if (
+            isinstance(result, KnowledgeResult)
+            and result.problemRef == problem_ref
+            and result.search.state == "FOUND"
+        ):
+            ids.update(item.id for item in result.search.evidence)
+    return {key: item for key, item in state["evidence"].items() if key in ids}
+
+
 def problems_without_guide(state: "SupervisorState") -> frozenset[str]:
     """Knowledge가 오류 없이 검색했지만 직원 안내를 만들 수 없었던 문제의 problemRef 집합.
 

@@ -13,6 +13,7 @@ from hops_ai.agents.ticket.proposal import (
     TicketDecisions,
 )
 from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.roles import KnowledgeResult, SearchResult
 from hops_ai.contracts.wire import AiRunRequest, QuestionProposal
 from hops_ai.harness.errors import OutputRejected, TransientError
 from hops_ai.services.retrieval.neo4j import Neo4jRetriever
@@ -58,6 +59,13 @@ def setup_call(*decisions, request=None, evidence=()):
         "problems": {p.id: make_problem(p.id) for p in request.problems},
         "evidence": {item.id: item for item in evidence},
     }
+    if evidence:
+        state["roleResults"]["search"] = KnowledgeResult(
+            invocationId="search",
+            problemRef=PROBLEM,
+            guide=None,
+            search=SearchResult(state="FOUND", evidence=list(evidence), error=None),
+        )
     llm = FakeLLMClient(TicketDecisions(decisions=list(decisions or [decision()])))
     services = create_run_services(
         request,
@@ -309,3 +317,98 @@ async def test_injection_cannot_add_assignment_or_storage_fields():
     data.update(ticketId=uid(300), assigneeId=uid(200), stored=True)
     with pytest.raises(ValidationError):
         TicketDecision.model_validate(data)
+
+
+@pytest.mark.parametrize("selection", ["selected", "support", "fact"])
+async def test_cross_problem_knowledge_is_rejected_before_spring_post(selection):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from hops_ai.agents.ticket.executing import ExecutingTicketAgent
+
+    second = uid(11)
+    data = make_request().model_dump(mode="json")
+    data["problems"].append({**data["problems"][0], "id": second})
+    data["problemIds"].append(second)
+    data["messages"][0]["problemIds"].append(second)
+    evidence = make_evidence()
+    changes = (
+        {"knowledgeEvidenceIds": [EVIDENCE]}
+        if selection == "selected"
+        else {"supports": [ResponsibilitySupport(sourceId=EVIDENCE, quote=evidence.excerpt)]}
+        if selection == "support"
+        else {}
+    )
+    state, services, llm = setup_call(
+        decision(),
+        decision(second, **changes),
+        request=AiRunRequest.model_validate(data),
+        evidence=[evidence],
+    )
+    if selection == "fact":
+        other = state["problems"][second]
+        state["problems"][second] = other.model_copy(
+            update={
+                "facts": [other.facts[0].model_copy(update={"knowledgeEvidenceIds": [EVIDENCE]})]
+            }
+        )
+    tools = SimpleNamespace(execute=AsyncMock())
+    services = replace(services, ticket_tools=tools)
+    with pytest.raises(OutputRejected):
+        await ExecutingTicketAgent().run(RoleRequest("ticket-call", state), services)
+    tools.execute.assert_not_called()
+    payload = json.loads(llm.requests[0].messages[-1].content)
+    assert "knowledge" not in payload
+    contexts = {p["problem"]["problemRef"]: p for p in payload["problems"]}
+    assert contexts[PROBLEM]["knowledge"] == [evidence.model_dump(mode="json")]
+    assert contexts[second]["knowledge"] == []
+
+
+async def test_unscoped_search_does_not_authorize_ticket_knowledge():
+    state, services, _ = setup_call(
+        decision(knowledgeEvidenceIds=[EVIDENCE]), evidence=[make_evidence()]
+    )
+    state["roleResults"]["search"] = state["roleResults"]["search"].model_copy(
+        update={"problemRef": None}
+    )
+    with pytest.raises(OutputRejected):
+        await run(state, services)
+
+
+async def test_shared_evidence_is_allowed_only_when_linked_to_both_problems():
+    second = uid(11)
+    data = make_request().model_dump(mode="json")
+    data["problems"].append({**data["problems"][0], "id": second})
+    data["problemIds"].append(second)
+    data["messages"][0]["problemIds"].append(second)
+    state, services, _ = setup_call(
+        decision(knowledgeEvidenceIds=[EVIDENCE]),
+        decision(second, knowledgeEvidenceIds=[EVIDENCE]),
+        request=AiRunRequest.model_validate(data),
+        evidence=[make_evidence()],
+    )
+    state["roleResults"]["search-other"] = state["roleResults"]["search"].model_copy(
+        update={"invocationId": "search-other", "problemRef": second}
+    )
+    proposals = (await run(state, services)).proposals
+    assert all(p.standardRequestSnapshot.knowledge == [make_evidence()] for p in proposals)
+
+
+def test_ticket_merge_rejects_evidence_linked_only_to_another_problem():
+    from hops_ai.supervisor.merge import validate_ticket
+    from tests.supervisor_fixtures import make_ticket
+
+    state, _, _ = setup_call(evidence=[make_evidence()])
+    state["roleResults"]["search"] = state["roleResults"]["search"].model_copy(
+        update={"problemRef": "new:other"}
+    )
+    proposal = make_ticket()
+    proposal = proposal.model_copy(
+        update={
+            "standardRequestSnapshot": proposal.standardRequestSnapshot.model_copy(
+                update={"knowledge": [make_evidence()]}
+            )
+        }
+    )
+    with pytest.raises(OutputRejected):
+        validate_ticket(state, proposal)

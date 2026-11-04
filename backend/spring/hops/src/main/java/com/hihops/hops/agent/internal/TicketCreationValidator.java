@@ -68,6 +68,19 @@ public class TicketCreationValidator {
         require(s.knowledge().size() <= 5);
         var knowledgeIds = s.knowledge().stream().map(it -> it.id()).toList();
         require(new HashSet<>(knowledgeIds).size() == knowledgeIds.size());
+        // 문제별 검색 연결은 서비스 인증된 런타임이 전달한다. 생략한 구 클라이언트는
+        // 서버가 이미 보존한 해당 문제의 근거만 재사용할 수 있다.
+        Set<UUID> scopedKnowledgeIds = new HashSet<>();
+        if (original.isPresent() && original.get().standardRequest() != null) {
+            original.get().standardRequest().knowledge().forEach(it -> scopedKnowledgeIds.add(it.id()));
+        }
+        var scope = command.knowledgeScope();
+        if (scope != null) {
+            require(p.problemRef().equals(scope.problemRef()) && scope.evidenceIds() != null
+                    && new HashSet<>(scope.evidenceIds()).size() == scope.evidenceIds().size());
+            scopedKnowledgeIds.addAll(scope.evidenceIds());
+        }
+        require(scopedKnowledgeIds.containsAll(knowledgeIds));
         require(s.knowledge().stream().allMatch(it -> "EMPLOYEE".equals(it.accessScope())
                 && (it.systemId() == null || input.accessContext().systemIds().contains(it.systemId()))));
         // digest·승인·현재 ACL 및 원문 발췌를 기존 검색 검증기로 대조한다. 필터링으로 조용히 누락시키지 않는다.

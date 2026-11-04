@@ -27,6 +27,7 @@ from hops_ai.supervisor.policy import validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
     ensure_active,
+    get_problem_knowledge,
     get_problem_message_ids,
     problems_without_guide,
     validate_details,
@@ -134,7 +135,8 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     snapshot = proposal.standardRequestSnapshot
     if snapshot.responsibleSystemCandidateId != proposal.responsibleSystemCandidateId:
         raise OutputRejected("티켓과 표준 요청의 책임 시스템이 다르다")
-    known_ids = set(state["evidence"]) | get_problem_message_ids(state, proposal.problemRef)
+    scoped_knowledge = get_problem_knowledge(state, proposal.problemRef)
+    known_ids = set(scoped_knowledge) | get_problem_message_ids(state, proposal.problemRef)
     if not set(proposal.evidenceIds + snapshot.responsibilityEvidenceIds) <= known_ids:
         raise OutputRejected("티켓 책임 판단에 대상 문제에서 허용되지 않은 근거를 사용했다")
     if proposal.responsibleSystemCandidateId != problem.reportedSystemCandidateId and not (
@@ -142,8 +144,11 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     ):
         raise OutputRejected("다른 책임 시스템을 제안하려면 근거가 필요하다")
     for item in snapshot.knowledge:
-        if state["evidence"].get(item.id) != item:
-            raise OutputRejected("표준 요청에 허용되지 않은 지식이 포함됐다")
+        if scoped_knowledge.get(item.id) != item:
+            raise OutputRejected("표준 요청에 대상 문제의 지식이 아닌 근거가 포함됐다")
+    for fact in [*snapshot.confirmedFacts, *snapshot.assumptions]:
+        if not set(fact.knowledgeEvidenceIds) <= scoped_knowledge.keys():
+            raise OutputRejected("표준 요청의 사실에 다른 문제의 지식 근거가 포함됐다")
     validate_statements(
         state, snapshot.confirmedFacts, problem_ref=proposal.problemRef, confirmed=True
     )

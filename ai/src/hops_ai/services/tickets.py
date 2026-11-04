@@ -25,7 +25,7 @@ REGISTRY = ToolRegistry(
     ToolSpec(
         "create_ticket",
         "Spring에 티켓 생성 요청",
-        frozenset({"inquiryVersion", "problem", "proposal", "messageLinks"}),
+        frozenset({"inquiryVersion", "problem", "proposal", "messageLinks", "knowledgeScope"}),
     ),
     ToolSpec("get_ticket_creation_result", "실제 저장 결과 조회", frozenset({"problemRef"})),
     ToolSpec(
@@ -50,10 +50,14 @@ def creation_command(
     problem: ProblemProposal,
     proposal: TicketProposal,
     quotes: list[dict[str, str]],
+    *,
+    knowledge_ids: frozenset[str] = frozenset(),
 ) -> dict:
     """검증된 원문 인용의 구간만 연결한다. 전체 메시지를 공개하는 fallback은 없다."""
     from hops_ai.agents.inquiry.forms import FIELD_LABELS
 
+    if not {item.id for item in proposal.standardRequestSnapshot.knowledge} <= knowledge_ids:
+        raise OutputRejected("티켓 저장 요청에 대상 문제 밖의 지식이 포함됐다")
     ids = set(proposal.evidenceIds + proposal.standardRequestSnapshot.responsibilityEvidenceIds)
     facts = [*problem.facts, *problem.assumptions]
     for fact in facts:
@@ -99,6 +103,7 @@ def creation_command(
         "problem": problem.model_dump(mode="json"),
         "proposal": proposal.model_dump(mode="json"),
         "messageLinks": links,
+        "knowledgeScope": {"problemRef": problem.problemRef, "evidenceIds": sorted(knowledge_ids)},
     }
 
 

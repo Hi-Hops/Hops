@@ -19,11 +19,15 @@ Python은 `HOPS_AI_SPRING_BASE_URL`과 `SPRING_SERVICE_TOKEN`을 사용한다. `
 
 공통 prefix: `/internal/v2/runs/{runId}/ticket-creations`
 
-- `POST {prefix}`: `{inquiryVersion, problem: ProblemProposal, proposal: TicketProposal, messageLinks}`. 각 제안 필드는 [에이전트 계약](README.md)의 wire 정의를 따른다. 표준 요청의 사실·추정·미확인·상세가 원 문제와 같아야 한다. 서버 확인 없는 CONFIRMED 수용 조건·허위 출처·권한 밖 지식을 거부한다.
+- `POST {prefix}`: `{inquiryVersion, problem: ProblemProposal, proposal: TicketProposal, messageLinks, knowledgeScope}`. 각 제안 필드는 [에이전트 계약](README.md)의 wire 정의를 따른다. 표준 요청의 사실·추정·미확인·상세가 원 문제와 같아야 한다. 서버 확인 없는 CONFIRMED 수용 조건·허위 출처·권한 밖 지식을 거부한다.
 - `GET {prefix}/{problemRef}`: 기존 결과만 확인하며 생성을 시작하지 않는다. 종료/과거 실행도 현재 접근 권한이 유효하면 조회 가능하다.
 - `POST {prefix}/{problemRef}/retries`: `{inquiryVersion, expectedAttempt}`. 최초 보존한 전체 제안을 사용하고 새 내용을 받지 않는다.
 
 problemRef는 실행 입력의 기존 문제 UUID 또는 `new:[A-Za-z0-9_-]+`다(최대 100자). 신규 UUID는 Spring이 발급한다. `(runId, problemRef)`로 전달을 식별하며 같은 키의 다른 본문은 409 IDEMPOTENCY_KEY_REUSED다. 서버 발급 후 workItemId=problemId는 재실행에도 유지한다. 새 실행에서는 입력의 기존 문제 UUID를 사용하며 이전 실행의 new: 참조로 새 작업을 만들지 않는다.
+
+knowledgeScope는 `{problemRef, evidenceIds: UUID[]}`다. Python 런타임이 해당 문제의 기존 서버 표준 요청과 검증·병합된 KnowledgeResult(problemRef 일치)의 근거에서 조립한다. 모델이 이 필드를 생성하거나 다른 문제의 근거를 허용 목록에 추가하지 않는다. Ticket 모델에는 각 문제의 knowledge를 따로 제공하고 선택·인용·사실의 지식 참조를 같은 범위로 검증한다. 문제 연결이 없는 검색 결과는 Ticket 근거로 사용하지 않는다. 같은 근거가 여러 문제의 검색 결과에 실제로 연결된 경우에는 각각 사용할 수 있다.
+
+Spring은 서비스 인증 후 knowledgeScope의 problemRef·ID 유일성과 표준 요청의 근거 포함 여부를 대조하고, 기존 digest·현재 ACL·원문 검증도 유지한다. scope를 생략한 이전 클라이언트는 서버가 이미 보존한 해당 문제의 근거만 사용할 수 있으며 새 검색 근거는 거부한다. 이 범위는 인증된 AI 런타임이 전달하는 검색 연결이지, 모델 판단이나 Spring의 독립적인 관련성 검색 결과가 아니다. Spring을 먼저 배포하고 Python을 갱신한다.
 
 messageLinks는 이 요청이 출처로 사용한 현재 입력 메시지마다 `{messageId, revision, spans:[{start,end}]}`를 보낸다. spans는 Unicode 코드 포인트의 반열린 구간이며 정렬·비중복·실제 원문 길이 안이어야 한다. 생략하거나 메시지 전체를 서버가 임의 공개하지 않는다. Spring은 허용된 메시지·차수·구간만 문제별 연결에 추가하고 기존 연결·과거 차수를 보존한다. 담당자 조회는 기존 구간 투영 정책을 그대로 사용한다. 과거 표준 요청의 생략된 원문 출처는 기존 연결을 사용하며 새 구간을 만들지 않는다.
 

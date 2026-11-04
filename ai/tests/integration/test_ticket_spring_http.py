@@ -377,3 +377,35 @@ async def test_service_auth_failure_is_not_retried_or_reported_as_created(spring
     final, context = await run_ticket(spring, settings=settings)
     assert final.status == "FAILED" and final.error.code == "AUTH_CONTEXT_INVALID"
     assert spring.count() == 0 and context.budget.tool_calls_used == 1
+
+
+async def test_wrong_problem_knowledge_scope_is_rejected_by_real_spring(spring):
+    class WrongScope(httpx.AsyncBaseTransport):
+        def __init__(self):
+            self.statuses = []
+
+        async def handle_async_request(self, request):
+            assert request.method == "POST"
+            body = json.loads(request.content)
+            assert body["knowledgeScope"]["problemRef"] == body["problem"]["problemRef"]
+            body["knowledgeScope"]["problemRef"] = "new:another-problem"
+            altered = httpx.Request(
+                request.method,
+                request.url,
+                headers={k: v for k, v in request.headers.items() if k != "content-length"},
+                json=body,
+            )
+            async with httpx.AsyncHTTPTransport() as transport:
+                response = await transport.handle_async_request(altered)
+                await response.aread()
+            self.statuses.append(response.status_code)
+            assert response.json()["code"] == "INVALID_INPUT"
+            return response
+
+    transport = WrongScope()
+    final, _ = await run_ticket(spring, transport)
+    assert transport.statuses == [400]
+    assert spring.count() == 0
+    assert not any(
+        item.result and item.result.outcome == "STORED" for item in final.ticketCreationResults
+    )

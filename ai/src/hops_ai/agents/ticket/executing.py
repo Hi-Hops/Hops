@@ -21,6 +21,7 @@ class ExecutingTicketAgent:
 
     async def run(self, call: "RoleRequest", services: SharedServices):
         from hops_ai.supervisor.execution import RoleResponse
+        from hops_ai.supervisor.validation import get_problem_knowledge
 
         tools = services.ticket_tools
         if tools is None:
@@ -35,6 +36,7 @@ class ExecutingTicketAgent:
                 ),
                 p,
                 proposed.messageQuotes.get(p.problemRef, []),
+                knowledge_ids=frozenset(get_problem_knowledge(call.state, p.problemRef)),
             )
             for p in proposed.proposals
         ]
