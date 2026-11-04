@@ -11,6 +11,44 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class WorkRecordControllerTest extends TicketCommandFixture {
+    @Test void 사례입력은_해당문제의_허용_USER_구간만_불변으로_보존한다() throws Exception {
+        String prefix = "🔒 다른 문제 ";
+        String visible = "결재 문서 오류";
+        String original = prefix + visible + " 비공개 뒷부분";
+        int start = prefix.codePointCount(0, prefix.length());
+        var payload = mapper.createObjectNode();
+        var link = payload.putArray("problemLinks").addObject().put("problemId", problem.toString()).put("revision", 1);
+        link.putArray("spans").addObject().put("start", start).put("end", start + visible.length());
+        jdbc.update("UPDATE message SET sender_type='USER',content=?,payload=?::jsonb WHERE id=?", original, payload.toString(), message);
+        var pending = (tools.jackson.databind.node.ObjectNode) payload.deepCopy(); pending.put("pendingTarget", true);
+        jdbc.update("INSERT INTO message(id,inquiry_id,sequence_no,sender_type,content,message_status,payload) VALUES (?,?,2,'USER',?,'COMPLETED',?::jsonb)",
+                java.util.UUID.randomUUID(), inquiry, original, pending.toString());
+        var otherProblem = (tools.jackson.databind.node.ObjectNode) payload.deepCopy();
+        ((tools.jackson.databind.node.ObjectNode) otherProblem.path("problemLinks").get(0)).put("problemId", java.util.UUID.randomUUID().toString());
+        jdbc.update("INSERT INTO message(id,inquiry_id,sequence_no,sender_type,content,message_status,payload) VALUES (?,?,3,'USER',?,'COMPLETED',?::jsonb)",
+                java.util.UUID.randomUUID(), inquiry, original, otherProblem.toString());
+
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        var input = json(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE ticket_id=?", String.class, ticket));
+        assertThat(input.path("messages").size()).isEqualTo(1);
+        var source = input.path("messages").get(0);
+        assertThat(source.path("id").asString()).isEqualTo(message.toString());
+        assertThat(source.path("sender").asString()).isEqualTo("USER");
+        assertThat(source.path("content").asString()).isEqualTo(visible);
+        assertThat(source.path("revision").asInt()).isEqualTo(1);
+        assertThat(source.path("problemIds")).isEqualTo(mapper.valueToTree(List.of(problem)));
+        jdbc.update("UPDATE message SET content='변경된 원문',revision=2 WHERE id=?", message);
+        var frozen = json(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE ticket_id=?", String.class, ticket));
+        assertThat(frozen.path("messages")).isEqualTo(input.path("messages"));
+    }
+
+    @Test void USER_출처가_없으면_AI_메시지를_원문으로_대체하지_않는다() throws Exception {
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        var input = json(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE ticket_id=?", String.class, ticket));
+        assertThat(input.path("messages").isEmpty()).isTrue();
+        assertThat(input.path("workRecord").path("action").asString()).isEqualTo("실제 조치");
+    }
+
     @Test void 확인대기_중에는_진행과_실패기록을_거절한다() throws Exception {
         var path = "/tickets/" + ticket + "/work-records";
         result(command(staff, path, work("VERIFIED_RESOLUTION")));
