@@ -110,10 +110,11 @@ public class IdempotencyService {
             log.info("같은 요청 키 동시 접수: 먼저 저장된 결과를 반환");
             return findPrevious(request, requestHash).orElseThrow(() -> e);
         } catch (BusinessException e) {
-            if (isRecordedRejection(e.errorCode())) {
-                recordRejection(request, requestHash, e);
+            if (!isRecordedRejection(e.errorCode())) {
+                throw e;
             }
-            throw e;
+            // 같은 키의 다른 요청이 먼저 결과를 남겼으면 그 결과가 정본이다(다른 본문이면 409 IDEMPOTENCY_KEY_REUSED)
+            return recordRejection(request, requestHash, e).orElseThrow(() -> e);
         }
     }
 
@@ -162,8 +163,14 @@ public class IdempotencyService {
                 && status != HttpStatus.TOO_MANY_REQUESTS;
     }
 
-    // 업무 트랜잭션은 이미 롤백됐다(접수 기록 포함). 거절 결과만 새 트랜잭션으로 남긴다.
-    private void recordRejection(IdempotentRequest request, String requestHash, BusinessException rejection) {
+    /**
+     * 업무 트랜잭션은 이미 롤백됐다(접수 기록 포함). 거절 결과만 새 트랜잭션으로 남긴다.
+     *
+     * @return 비어 있으면 이 거절을 기록했다. 같은 키의 다른 요청이 먼저 기록했으면 그 기록의 결과
+     *         (거절·다른 본문이면 이 메서드가 그 오류를 던진다)
+     */
+    private Optional<CommandResult> recordRejection(IdempotentRequest request, String requestHash,
+            BusinessException rejection) {
         UUID operationId = UUID.randomUUID();
         ErrorResponse error = ErrorResponse.of(rejection.errorCode(), rejection.getMessage(),
                 RequestIdFilter.currentRequestId());
@@ -177,12 +184,13 @@ public class IdempotencyService {
                 idempotencyRecordRepository.saveAndFlush(record);
             });
             log.info("변경 요청 거절 기록 operationId={} code={}", operationId, rejection.errorCode().name());
+            return Optional.empty();
         } catch (DataIntegrityViolationException e) {
             if (!isDuplicateKey(e)) {
                 throw e;
             }
-            // 같은 키의 다른 요청이 먼저 결과를 남겼다. 그 결과가 정본이므로 이 거절은 기록하지 않는다.
-            log.info("같은 요청 키 동시 접수: 거절 기록 생략");
+            log.info("같은 요청 키 동시 접수: 거절 대신 먼저 저장된 결과를 반환");
+            return Optional.of(findPrevious(request, requestHash).orElseThrow(() -> e));
         }
     }
 

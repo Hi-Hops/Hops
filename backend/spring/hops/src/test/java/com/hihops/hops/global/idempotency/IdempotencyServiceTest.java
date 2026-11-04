@@ -3,6 +3,10 @@ package com.hihops.hops.global.idempotency;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -11,12 +15,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -47,6 +53,16 @@ class IdempotencyServiceTest {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    // 실제 시각을 그대로 돌려주되, 경합 테스트에서만 다음 시각 읽기 직전에 다른 작업을 끼워 넣는다
+    private static final HookClock CLOCK = new HookClock();
+
+    @TestBean
+    private Clock clock;
+
+    static Clock clock() {
+        return CLOCK;
+    }
 
     private final UUID departmentId = UUID.randomUUID();
     private final UUID memberId = UUID.randomUUID();
@@ -183,6 +199,25 @@ class IdempotencyServiceTest {
     }
 
     @Test
+    void 거절을_기록하려는_사이_같은_키의_다른_본문이_먼저_기록되면_IDEMPOTENCY_KEY_REUSED다() {
+        UUID requestId = UUID.randomUUID();
+        // 업무가 거절한 뒤 다음 시각 읽기는 거절 기록의 보존 기한이다. 그 직전에 같은 키·다른 본문의 기록을
+        // 다른 연결에서 먼저 commit해, 거절 기록이 중복 키로 실패하게 만든다
+        Runnable competitor = () -> runInOtherThread(() -> jdbc.update("INSERT INTO idempotency_key (actor_member_id, "
+                + "contract_version, http_method, request_path, idempotency_key, request_hash, operation_id, operation_state, "
+                + "expires_at) VALUES (?, ?, 'POST', ?, ?, ?, ?, 'PENDING', now() + interval '1 day')",
+                memberId, IdempotencyService.CONTRACT_VERSION, PATH, requestId.toString(), "f".repeat(64), UUID.randomUUID()));
+
+        assertErrorCode(() -> idempotencyService.execute(request(memberId, requestId, PATH, "버전이 맞지 않는 문의"),
+                operationId -> {
+                    CLOCK.beforeNextRead(competitor);
+                    throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
+                }), ErrorCode.IDEMPOTENCY_KEY_REUSED);
+        assertThat(jdbc.queryForList("SELECT request_hash FROM idempotency_key WHERE actor_member_id = ?", String.class,
+                memberId)).containsExactly("f".repeat(64));
+    }
+
+    @Test
     void 권한_제한_일시_오류는_기록하지_않아_같은_키로_다시_처리할_수_있다() {
         for (ErrorCode transientError : List.of(ErrorCode.ACCESS_DENIED, ErrorCode.TOO_MANY_REQUESTS,
                 ErrorCode.SERVICE_UNAVAILABLE)) {
@@ -291,6 +326,46 @@ class IdempotencyServiceTest {
     private static void assertErrorCode(Runnable call, ErrorCode expected) {
         assertThatThrownBy(call::run).isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.errorCode()).isEqualTo(expected));
+    }
+
+    private static void runInOtherThread(Runnable task) {
+        Thread thread = new Thread(task);
+        thread.start();
+        try {
+            thread.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** UTC 실제 시각. {@link #beforeNextRead}로 다음 instant() 직전에 한 번 실행할 작업을 건다. */
+    static final class HookClock extends Clock {
+
+        private final AtomicReference<Runnable> next = new AtomicReference<>();
+
+        void beforeNextRead(Runnable hook) {
+            next.set(hook);
+        }
+
+        @Override
+        public Instant instant() {
+            Runnable hook = next.getAndSet(null);
+            if (hook != null) {
+                hook.run();
+            }
+            return Instant.now();
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return Clock.system(zone);
+        }
     }
 
     private static void sleep(long millis) {
