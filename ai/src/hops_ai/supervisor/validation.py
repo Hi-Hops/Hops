@@ -125,7 +125,7 @@ def all_unfinished_ready_for_handoff(state: "SupervisorState") -> bool:
 
 
 def inquiry_has_nothing_left_to_do(state: "SupervisorState") -> bool:
-    """Inquiry가 이미 한 번 돌았고, 모든 대상 문제에 결과(안내·질문·티켓 등)가 준비됐는지.
+    """Inquiry가 돌았고, 모든 대상에 결과가 있거나 Ticket 전달 정보가 갖춰졌는지.
 
     이 상태에서 Inquiry를 다시 부르면 질문을 만들 문제가 없고, 이미 만든 질문과 다른 내용의 질문을
     같은 묶음에 다시 만들어 병합이 거부될 위험만 있다. 이 실행에서 Inquiry가 아직 돌지 않았다면
@@ -134,8 +134,34 @@ def inquiry_has_nothing_left_to_do(state: "SupervisorState") -> bool:
     """
     if not any(isinstance(result, InquiryResult) for result in state["roleResults"].values()):
         return False
+    from hops_ai.agents.inquiry.extraction import DETAIL_FIELDS
+    from hops_ai.agents.inquiry.forms import FIELD_LABELS, missing_fields
+    from hops_ai.agents.ticket.agent import TICKETABLE_TYPES
+
     progress = get_problem_progress(state)
-    return bool(progress) and all(item["outcome"] is not None for item in progress)
+    names_by_label = {label: name for name, label in FIELD_LABELS.items()}
+    for item in progress:
+        if item["outcome"] is not None:
+            continue
+        problem = state["problems"][item["problemRef"]]
+        # 분석이 끝난 조사·신청 등의 다음 단계는 Ticket이다. 같은 입력을 다시 추출해도
+        # 필요한 정보가 늘지 않는다. 미검색 사용법이나 시스템 미확인 문제는 제외하지 않는다.
+        if (
+            problem.processingType not in TICKETABLE_TYPES
+            or problem.reportedSystemCandidateId is None
+        ):
+            return False
+        missing = missing_fields(
+            problem.intent,
+            {name: getattr(problem.details, name) for name in DETAIL_FIELDS},
+            system_known=True,
+            unknown={
+                names_by_label[label] for label in problem.unknowns if label in names_by_label
+            },
+        )
+        if missing and item["remainingQuestions"] > 0:
+            return False
+    return bool(progress)
 
 
 class ProblemProgress(TypedDict):

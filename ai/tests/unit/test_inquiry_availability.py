@@ -200,6 +200,32 @@ def test_inquiry_is_not_hidden_in_a_run_where_it_has_not_run_yet() -> None:
     assert AgentRole.INQUIRY in roles_for(state)
 
 
+@pytest.mark.parametrize("missing", [False, True])
+def test_analyzed_investigation_only_keeps_inquiry_when_required_information_is_missing(missing):
+    details = make_details().model_copy(
+        update={
+            "taskOrScreen": "로그인 화면",
+            "expectedBehavior": "로그인 성공",
+            "actualBehavior": "인증 오류",
+            "occurredAt": None if missing else "오늘 오전 9시",
+        }
+    )
+    problem = make_problem("new:1").model_copy(update={"details": details})
+    state = with_inquiry_run(state_after(None, problem))
+    assert (AgentRole.INQUIRY in roles_for(state)) == missing
+    assert AgentRole.TICKET in roles_for(state)
+
+
+def test_ready_investigation_does_not_hide_inquiry_for_another_unfinished_problem():
+    ready = make_problem("new:1").model_copy(
+        update={"details": make_details().model_copy(update={"occurredAt": "오늘 오전 9시"})}
+    )
+    state = with_inquiry_run(
+        state_after(None, ready, how_to().model_copy(update={"problemRef": "new:2"}))
+    )
+    assert AgentRole.INQUIRY in roles_for(state)
+
+
 async def test_supervisor_after_a_guide_and_a_question_offers_no_inquiry() -> None:
     from tests.unit.test_composite_inquiry import _extracted, analyze
 
