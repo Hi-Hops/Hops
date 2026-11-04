@@ -3,11 +3,25 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from hops_ai.settings import RunMode, Settings
+from hops_ai.settings import KnowledgeSourceKind, RunMode, Settings
 
 
 def test_default_mode_never_enables_fake_business_execution(make_settings) -> None:
     assert make_settings().mode is RunMode.SCAFFOLD
+
+
+def test_knowledge_source_is_disconnected_by_default(make_settings) -> None:
+    assert make_settings().knowledge_source is KnowledgeSourceKind.NONE
+
+
+def test_knowledge_source_fixture_requires_explicit_opt_in(monkeypatch, make_settings) -> None:
+    monkeypatch.setenv("HOPS_AI_KNOWLEDGE_SOURCE", "fixture")
+    assert make_settings().knowledge_source is KnowledgeSourceKind.FIXTURE
+
+
+def test_unknown_knowledge_source_is_rejected(make_settings) -> None:
+    with pytest.raises(ValidationError):
+        make_settings(knowledge_source="pgvector")
 
 
 def test_environment_overrides_budget(monkeypatch, make_settings) -> None:
