@@ -19,7 +19,26 @@ class TicketRealtimeControllerTest extends TicketCommandFixture {
     @Autowired
     private RealtimeService realtime;
 
-    @AfterEach void 구독_정리() { realtime.disconnect(staff); realtime.disconnect(other); }
+    @AfterEach void 구독_정리() { realtime.disconnect(staff); realtime.disconnect(other); realtime.disconnect(requester); }
+
+    @Test void 문의와_티켓의_변경알림은_동시에_구독해도_서로_섞이지_않는다() throws Exception {
+        var inquiryStream = mvc.perform(as(requester, get("/api/v2/realtime/events").param("targetType", "INQUIRY")
+                .param("targetId", inquiry.toString()))).andExpect(request().asyncStarted()).andReturn();
+        var ticketStream = mvc.perform(as(staff, get("/api/v2/realtime/events").param("targetType", "TICKET")
+                .param("targetId", ticket.toString()))).andExpect(request().asyncStarted()).andReturn();
+        var messageRequest = mapper.createObjectNode().put("requestId", java.util.UUID.randomUUID().toString())
+                .put("expectedInquiryVersion", 1).put("content", "확인에 필요한 새 정보");
+        messageRequest.putArray("problemIds").add(problem.toString());
+        result(command(requester, "/inquiries/" + inquiry + "/messages", messageRequest));
+        assertThat(events(inquiryStream)).hasSize(1);
+        assertThat(events(inquiryStream).getFirst().path("requestId").asString()).isEqualTo(messageRequest.path("requestId").asString());
+        assertThat(inquiryStream.getResponse().getContentAsString()).contains("event:message.stored");
+        assertThat(events(ticketStream)).isEmpty();
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("PROGRESS")));
+        assertThat(events(ticketStream)).hasSize(1);
+        assertThat(ticketStream.getResponse().getContentAsString()).contains("event:state.changed");
+        assertThat(events(inquiryStream)).hasSize(1);
+    }
 
     @Test void 처리_저장_후_티켓과_시스템에_신호를_보내고_권한회수후에는_닫는다() throws Exception {
         var ticketStream = mvc.perform(as(staff, get("/api/v2/realtime/events").param("targetType", "TICKET")
