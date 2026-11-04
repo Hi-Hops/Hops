@@ -5,7 +5,12 @@
 교체). 모델은 Fake이지만 두 번째 응답을 첫 번째와 일부러 다르게 줘서 그 상황을 재현한다.
 """
 
-from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
+from hops_ai.agents.inquiry.extraction import (
+    ExtractedProblem,
+    InquiryExtraction,
+    QuotedValue,
+    UnknownClaim,
+)
 from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest
@@ -160,3 +165,105 @@ async def test_rerun_quote_that_adds_information_is_kept_next_to_the_earlier_fac
     texts = [fact.text for fact in problem.facts]
     assert f"하려던 업무·화면: {FIRST_QUOTE}" in texts
     assert f"하려던 업무·화면: {longer}" in texts
+
+
+# --- 사용자가 모른다고 한 항목은 이전 값이 비어 있어도 다시 묻지 않는다 ---
+
+
+def unknown_expected_claim(text: str) -> UnknownClaim:
+    return UnknownClaim(field="expectedBehavior", messageId=MESSAGE, quote=text)
+
+
+async def test_unknown_answer_is_kept_when_the_previous_proposal_has_a_null_field() -> None:
+    from hops_ai.agents.inquiry import ExtractionInquiryAgent
+    from hops_ai.supervisor.execution import RoleRequest
+    from tests.supervisor_fixtures import reserve
+    from tests.unit.test_composite_inquiry import problem
+    from tests.unit.test_knowledge_empty_handoff import empty_search
+    from tests.unit.test_per_problem_handoff import _request_with_text, _with_problems
+
+    request = _request_with_text(
+        "전자결재 도장 이미지 등록 방법을 알려주세요. 원하는 결과는 모르겠어요"
+    )
+    # 이전 제안은 expectedBehavior가 비어 있다. Knowledge가 근거를 찾지 못한 뒤의 재분석이다.
+    previous = problem("new:1", "도장 이미지 등록 방법 문의", taskOrScreen="도장 이미지 등록")
+    state = _with_problems(request, previous, roleResults=empty_search())
+    extraction = InquiryExtraction(
+        problems=[
+            ExtractedProblem(
+                summary="도장 이미지 등록 방법 문의",
+                intent="HOW_TO",
+                systemCode="ELECTRONIC_APPROVAL",
+                taskOrScreen=QuotedValue(messageId=MESSAGE, quote="도장 이미지 등록"),
+                currentWorkflow=None,
+                expectedBehavior=None,
+                actualBehavior=None,
+                occurredAt=None,
+                requestedAccess=None,
+                businessPurpose=None,
+                desiredChange=None,
+                unknownFields=[unknown_expected_claim("모르겠어요")],
+            )
+        ]
+    )
+    llm = FakeLLMClient(extraction)
+
+    result = await ExtractionInquiryAgent(guide_first=True).run(
+        RoleRequest("inv-i", reserve(state, AgentRole.INQUIRY, "inv-i")),
+        services_for(request, llm),
+    )
+
+    # 모른다고 한 항목은 다시 묻지 않고 미확인으로 보존한다.
+    assert result.questions == []
+    assert "기대한 동작" in result.problems[0].unknowns
+
+
+async def test_unknown_answer_is_kept_for_a_field_empty_in_the_servers_standard_request() -> None:
+    from hops_ai.agents.inquiry import ExtractionInquiryAgent
+    from hops_ai.supervisor.execution import RoleRequest
+    from tests.supervisor_fixtures import SYSTEM, make_details, reserve, running_state
+
+    fields = make_request().model_dump(mode="json")
+    fields["messages"][0]["content"] = (
+        "전자결재 첨부파일이 열리지 않아요. 원래 어떻게 되어야 하는지는 모르겠어요"
+    )
+    details = {**make_details().model_dump(mode="json"), "expectedBehavior": None}
+    fields["problems"][0]["standardRequest"] = {
+        "summary": "첨부파일 열람 실패",
+        "confirmedFacts": [],
+        "assumptions": [],
+        "unknowns": [],
+        "responsibleSystemCandidateId": SYSTEM,
+        "responsibilityEvidenceIds": [],
+        "details": details,
+        "knowledge": [],
+    }
+    request = AiRunRequest.model_validate(fields)
+    extraction = InquiryExtraction(
+        problems=[
+            ExtractedProblem(
+                summary="첨부파일 열람 실패",
+                intent="OBSERVED_SYMPTOM",
+                systemCode="ELECTRONIC_APPROVAL",
+                taskOrScreen=None,
+                currentWorkflow=None,
+                expectedBehavior=None,
+                actualBehavior=None,
+                occurredAt=None,
+                requestedAccess=None,
+                businessPurpose=None,
+                desiredChange=None,
+                unknownFields=[unknown_expected_claim("모르겠어요")],
+            )
+        ]
+    )
+    llm = FakeLLMClient(extraction)
+    state = reserve(running_state(request), AgentRole.INQUIRY, "inv-i")
+
+    result = await ExtractionInquiryAgent().run(
+        RoleRequest("inv-i", state), services_for(request, llm)
+    )
+
+    asked = {name for question in result.questions for name in question.requestedFields}
+    assert "expectedBehavior" not in asked
+    assert "기대한 동작" in result.problems[0].unknowns

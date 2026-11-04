@@ -274,16 +274,26 @@ def _known_values(
 ) -> dict[str, str | None]:
     """이전에 확보한 값 위에 이번 원문에서 확인한 값을 덮는다.
 
-    이전 값은 같은 실행에서 앞서 병합된 값이다. 이번 추출이 같은 필드를 놓쳐도 확보한 정보로 본다.
+    이전 값은 같은 실행에서 앞서 병합된 값과 서버가 보존한 표준 요청서의 값이다. 이번 추출이
+    같은 필드를 놓쳐도 확보한 정보로 본다. **실제 값이 있는 필드만** 담는다. 값이 비어 있는
+    필드까지 키로 넣으면 "이미 안다"로 취급돼, 사용자가 모른다고 한 항목이 모름으로 인정되지
+    않고 다시 질문된다(`declared_unknown`은 키 존재로 확보 여부를 본다).
     """
     known: dict[str, str | None] = {}
     if previous is not None:
-        known.update({name: getattr(previous.details, name) for name in DETAIL_FIELDS})
+        known.update(_filled(previous.details))
     if original is not None and original.standardRequest is not None:
-        previous = original.standardRequest.details
-        known.update({name: getattr(previous, name) for name in DETAIL_FIELDS})
+        known.update(_filled(original.standardRequest.details))
     known.update({name: quote for name, (_, quote) in grounded.items()})
     return known
+
+
+def _filled(details: RequestDetails) -> dict[str, str]:
+    """상세 값 중 비어 있지 않은 문자열만 필드 이름으로 모은다."""
+    values = {name: getattr(details, name) for name in DETAIL_FIELDS}
+    return {
+        name: value for name, value in values.items() if isinstance(value, str) and value.strip()
+    }
 
 
 def _kept_criteria(original: InputProblem | None) -> list:
