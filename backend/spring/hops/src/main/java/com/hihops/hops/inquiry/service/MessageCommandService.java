@@ -47,9 +47,11 @@ import tools.jackson.databind.json.JsonMapper;
  * 새 버전의 상담 실행을 접수한다(새 runId·answerMessageId, 불변 입력, currentRun 연결). 기존 티켓·질문 횟수는 유지한다.
  * 응답은 200 CommandReceipt·resource=INQUIRY이며 AI 답변 완료가 아니다. 같은 요청 키는 처음 결과를 돌려준다.
  *
- * <p>끝난 문의(RESOLVED·CLOSED)에 온 메시지는 보완 정보로 저장만 하고 재분석·재오픈·새 티켓을 시작하지 않는다 (#26).
+ * <p>끝난 문의(RESOLVED·CLOSED)는 재오픈하지 않고 같은 현상을 새 문의로 받는다 (PRD 3.4, TARGET_CONTRACT 4절).
+ * 해결 확인으로 상태가 바뀌어도 입력 버전은 그대로라 버전 검사만으로는 막히지 않으므로, 상태를 따로 보고 409 INVALID_STATE로 거절한다.
  *
- * <p>거절: 남의 문의·없는 문의 404, 버전이 다르면 409 INQUIRY_VERSION_CONFLICT, 이 문의의 문제가 아닌 problemIds는 400 INVALID_INPUT.
+ * <p>거절: 남의 문의·없는 문의 404, 버전이 다르면 409 INQUIRY_VERSION_CONFLICT, 끝난 문의는 409 INVALID_STATE,
+ * 이 문의의 문제가 아닌 problemIds는 400 INVALID_INPUT.
  * 업무 거절은 REJECTED로 기록돼 같은 키로 다시 보내도 같은 오류다.
  *
  * <p>이전 실행의 AI 서버 취소 전파는 AI 쪽 취소 API(#93)가 준비되면 commit 뒤 이벤트로 연결한다. 지금은 Spring에서만 대체한다.
@@ -87,6 +89,9 @@ public class MessageCommandService {
         if (inquiry.getVersion() != command.expectedInquiryVersion()) {
             throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
         }
+        if (isClosed(inquiry)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "종료된 문의입니다. 같은 현상은 새 문의로 접수해 주세요.");
+        }
         List<UUID> problemIds = command.problemIds().stream().distinct().toList();
         Set<UUID> known = inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiryId).stream()
                 .map(InquiryProblem::getId).collect(Collectors.toSet());
@@ -99,9 +104,6 @@ public class MessageCommandService {
         Message message = messageRepository.saveAndFlush(new Message(inquiry, sequenceNo, SenderType.USER,
                 command.content(), UserMessagePayload.json(jsonMapper, command.requestId(), null, problemIds, command.content()),
                 MessageStatus.COMPLETED));
-        if (isClosed(inquiry)) {
-            return inquiry.getId();
-        }
 
         Instant now = clock.instant();
         AgentRun previous = inquiry.getCurrentRun();
@@ -112,7 +114,7 @@ public class MessageCommandService {
         AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, message, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
         run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messageRepository.findAllCompletedInOrder(inquiryId),
-                inputProblemReader.read(inquiry), problemIds, systemQueryService.findSupportedSystems(), now));
+                inputProblemReader.read(inquiry, problemIds), problemIds, systemQueryService.findSupportedSystems(), now));
         inquiry.resumeAnalysis(run);
         eventPublisher.publishEvent(new AgentRunQueued(run.getId()));
         return inquiry.getId();

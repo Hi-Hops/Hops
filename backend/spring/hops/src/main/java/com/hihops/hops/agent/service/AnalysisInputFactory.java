@@ -10,7 +10,6 @@ import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.dto.AiRunRequest;
 import com.hihops.hops.agent.dto.AiRunRequest.AccessContext;
 import com.hihops.hops.agent.dto.AiRunRequest.InputMessage;
-import com.hihops.hops.agent.dto.AiRunRequest.InputProblem;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
@@ -41,17 +40,18 @@ public class AnalysisInputFactory {
     /**
      * @param run              저장해서 ID가 정해진 대기 실행
      * @param messages         AI에 보여 줄 저장된 메시지 (순번 순)
-     * @param problems         기존 문제 ({@link InputProblemReader}). 첫 분석이면 빈 목록
+     * @param problems         기존 문제와 티켓 생성 작업 ({@link InputProblemReader}). 첫 분석이면 {@link InputProblemReader.ProblemInputs#NONE}
      * @param targetProblemIds 사용자가 고른 대상 문제. 빈 목록이면 분석이 대상을 정한다
      * @param systems          지원 시스템 목록 (GET /systems와 같은 값)
      * @param now              접수 시각. expiresAt = now + deadline
      */
-    public String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, List<InputProblem> problems,
+    public String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, InputProblemReader.ProblemInputs problems,
             List<UUID> targetProblemIds, List<SupportedSystemResponse> systems, Instant now) {
         AccessContext access = accessOf(inquiry, systems);
         AiRunRequest request = new AiRunRequest(CONTRACT_VERSION, run.getId(), "INQUIRY_ANALYSIS", inquiry.getId(),
                 run.getInputVersion(), UUID.randomUUID(), List.copyOf(targetProblemIds),
-                messages.stream().map(this::input).toList(), problems, systems, access, List.of(), null,
+                messages.stream().map(this::input).toList(), problems.problems(), systems, access,
+                problems.existingWorkItems(), null,
                 AiRunRequest.time(now.plus(properties.deadline())), properties.limits());
         return jsonMapper.writeValueAsString(request);
     }

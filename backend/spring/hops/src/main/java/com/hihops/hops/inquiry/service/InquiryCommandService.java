@@ -12,6 +12,7 @@ import com.hihops.hops.agent.repository.AgentRunRepository;
 import com.hihops.hops.agent.service.AgentRunQueued;
 import com.hihops.hops.agent.service.AnalysisInputFactory;
 import com.hihops.hops.agent.service.AnalysisRunProperties;
+import com.hihops.hops.agent.service.InputProblemReader;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.global.idempotency.CommandResult;
@@ -93,7 +94,7 @@ public class InquiryCommandService {
         // runId는 저장할 때 정해지므로 빈 입력으로 먼저 저장하고, 같은 거래 안에서 입력을 고정한다
         AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, first, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
-        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, List.of(first), List.of(), List.of(),
+        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, List.of(first), InputProblemReader.ProblemInputs.NONE, List.of(),
                 systemQueryService.findSupportedSystems(), clock.instant()));
         inquiry.resumeAnalysis(run);
         eventPublisher.publishEvent(new AgentRunQueued(run.getId()));

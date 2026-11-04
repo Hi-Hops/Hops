@@ -22,11 +22,11 @@ import jakarta.validation.constraints.PositiveOrZero;
  * <p>AI 서버는 계약에 없는 필드를 거부한다(extra=forbid). 그래서 필드를 더하거나 빼지 않고, null 값도 키를 생략하지 않는다.
  * 시각은 UTC RFC 3339 Z 문자열이며 소수초는 최대 6자리다 ({@link #time}).
  *
- * <p>existingWorkItems·resolutionContext는 아직 투영하지 않아 빈 목록·null을 보낸다.
+ * <p>resolutionContext는 아직 투영하지 않아 null을 보낸다.
  */
 public record AiRunRequest(String contractVersion, UUID runId, String kind, UUID inquiryId, int inquiryVersion,
         UUID answerMessageId, List<UUID> problemIds, List<InputMessage> messages, List<InputProblem> problems,
-        List<SupportedSystemResponse> systems, AccessContext accessContext, List<Object> existingWorkItems,
+        List<SupportedSystemResponse> systems, AccessContext accessContext, List<ExistingWorkItem> existingWorkItems,
         @Nullable Object workRecord, String expiresAt, ExecutionLimits limits) {
 
     /** AI에 보여 줄 저장된 메시지. revision·content는 현재 저장값이다. */
@@ -48,6 +48,14 @@ public record AiRunRequest(String contractVersion, UUID runId, String kind, UUID
             List<EvidenceStatementResponse> assumptions, List<String> unknowns,
             @Nullable UUID responsibleSystemCandidateId, List<UUID> responsibilityEvidenceIds,
             RequestDetailsResponse details, List<KnowledgeEvidenceResponse> knowledge) {
+    }
+
+    /**
+     * 문제의 티켓 생성 작업 결과 (workItemId = problemId). 재분석해도 유지해야 할 서버 결과라 AI가 같은 문제의 티켓을 다시 만들지 않는다.
+     * ticketId는 STORED에만 있다.
+     */
+    public record ExistingWorkItem(UUID workItemId, UUID problemId, int inquiryVersion, String outcome,
+            @Nullable UUID ticketId) {
     }
 
     /** Spring이 만든 최소 권한. 모델이 넓히지 못한다. */

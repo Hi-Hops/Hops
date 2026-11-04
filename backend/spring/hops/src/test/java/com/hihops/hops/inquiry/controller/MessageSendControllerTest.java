@@ -91,6 +91,7 @@ class MessageSendControllerTest {
     void cleanup() {
         String mine = "SELECT id FROM inquiry WHERE requester_member_id IN (?, ?)";
         jdbc.update("UPDATE inquiry SET current_run_id = NULL WHERE requester_member_id IN (?, ?)", memberId, otherMemberId);
+        jdbc.update("DELETE FROM ticket WHERE inquiry_id IN (" + mine + ")", memberId, otherMemberId);
         jdbc.update("DELETE FROM standard_request WHERE inquiry_problem_id IN "
                 + "(SELECT id FROM inquiry_problem WHERE inquiry_id IN (" + mine + "))", memberId, otherMemberId);
         jdbc.update("DELETE FROM inquiry_problem WHERE inquiry_id IN (" + mine + ")", memberId, otherMemberId);
@@ -200,69 +201,66 @@ class MessageSendControllerTest {
     }
 
     @Test
-    void 끝난_문의의_메시지는_보완으로_저장만_하고_다시_분석하지_않는다() throws Exception {
+    void 끝난_문의는_재오픈하지_않고_새_문의로_안내하며_저장하지_않는다() throws Exception {
         String runId = currentRunId();
-        jdbc.update("UPDATE inquiry SET inquiry_status = 'RESOLVED' WHERE id = ?::uuid", inquiryId);
-
-        send(memberId, UUID.randomUUID(), 1, "참고로 다른 PC에서도 같았어요", List.of()).andExpect(status().isOk());
+        for (String closed : List.of("RESOLVED", "CLOSED")) {
+            jdbc.update("UPDATE inquiry SET inquiry_status = ? WHERE id = ?::uuid", closed, inquiryId);
+            // 해결 확인은 입력 버전을 올리지 않으므로 화면이 본 버전 그대로 보내도 상태로 거절해야 한다
+            send(memberId, UUID.randomUUID(), 1, "참고로 다른 PC에서도 같았어요", List.of())
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("INVALID_STATE"))
+                    .andExpect(jsonPath("$.message").value("종료된 문의입니다. 같은 현상은 새 문의로 접수해 주세요."));
+        }
 
         Map<String, Object> inquiry = jdbc.queryForMap("SELECT * FROM inquiry WHERE id = ?::uuid", inquiryId);
-        assertThat(inquiry.get("version")).isEqualTo(2);
-        assertThat(inquiry.get("inquiry_status")).isEqualTo("RESOLVED");
+        assertThat(inquiry.get("version")).isEqualTo(1);
         assertThat(inquiry.get("current_run_id").toString()).isEqualTo(runId);
-        assertThat(count("SELECT count(*) FROM message WHERE inquiry_id = ?::uuid")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM message WHERE inquiry_id = ?::uuid")).isEqualTo(1);
         assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(1);
     }
 
     @Test
-    void 기존_문제는_최신_적용_요청서로_AI_입력에_넣고_고른_문제를_메시지에_연결한다() throws Exception {
-        // 첫 분석이 문제 하나를 만들고 질문을 2번 했다 (요청서는 적용된 실행의 것만 쓴다)
-        String firstRunId = currentRunId();
+    void 기존_문제는_최신_적용_요청서로_AI_입력에_넣고_고른_문제만_답을_받은_것으로_본다() throws Exception {
+        // 첫 분석이 문제 두 개를 만들고 각각 질문했다 (요청서는 적용된 실행의 것만 쓴다)
+        String firstRunId = succeedFirstRun();
         String firstMessageId = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id = ?::uuid AND sequence_no = 1",
                 UUID.class, inquiryId).toString();
-        jdbc.update("UPDATE agent_run SET run_status = 'SUCCEEDED', started_at = now(), completed_at = now() "
-                + "WHERE id = ?::uuid", firstRunId);
-        UUID problemId = UUID.randomUUID();
-        jdbc.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status, clarify_count, agent_run_id) "
-                + "VALUES (?, ?::uuid, 1, '로그인 실패', 'CLARIFYING', 2, ?::uuid)", problemId, inquiryId, firstRunId);
-        // 첫 메시지 전체가 이 문제의 원문이다
+        UUID answered = insertProblem(1, "CLARIFYING", 2, null, firstRunId);
+        UUID waiting = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        // 첫 메시지 전체가 answered 문제의 원문이다
         jdbc.update("UPDATE message SET payload = jsonb_set(payload, '{problemLinks}', CAST(? AS jsonb)) WHERE id = ?::uuid",
-                "[{\"problemId\": \"" + problemId + "\", \"revision\": 1, \"spans\": [{\"start\": 0, \"end\": 9}]}]",
+                "[{\"problemId\": \"" + answered + "\", \"revision\": 1, \"spans\": [{\"start\": 0, \"end\": 9}]}]",
                 firstMessageId);
-        jdbc.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, work_type, "
-                + "reported_system_id, reported_feature_id, summary, confirmed_facts, missing_items, type_detail) "
-                + "VALUES (?, ?, 1, ?::uuid, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, ?, '로그인 실패 조사', CAST(? AS jsonb), "
-                + "CAST(? AS jsonb), CAST(? AS jsonb))",
-                UUID.randomUUID(), problemId, firstRunId, systemId, featureId,
-                "[{\"text\": \"로그인이 안 돼요\", \"sourceMessageIds\": [\"" + firstMessageId + "\"], \"knowledgeEvidenceIds\": []}]",
-                "[\"오류 문구\"]", "{\"actualBehavior\": \"로그인 실패\"}");
+        insertStandardRequest(answered, firstRunId, "로그인 실패 조사",
+                "[{\"text\": \"로그인이 안 돼요\", \"sourceMessageIds\": [\"" + firstMessageId + "\"], \"knowledgeEvidenceIds\": []}]");
+        insertStandardRequest(waiting, firstRunId, "비밀번호 변경 문의", "[]");
         jdbc.update("UPDATE inquiry SET inquiry_status = 'WAITING_USER' WHERE id = ?::uuid", inquiryId);
 
         String content = "오류 문구는 '계정 잠김'이에요";
-        send(memberId, UUID.randomUUID(), 1, content, List.of(problemId)).andExpect(status().isOk());
+        send(memberId, UUID.randomUUID(), 1, content, List.of(answered)).andExpect(status().isOk());
 
         JsonNode payload = jsonMapper.readTree(jdbc.queryForObject(
                 "SELECT payload FROM message WHERE inquiry_id = ?::uuid AND sequence_no = 2", String.class, inquiryId));
         JsonNode link = payload.path("problemLinks").get(0);
-        assertThat(link.path("problemId").asString()).isEqualTo(problemId.toString());
+        assertThat(link.path("problemId").asString()).isEqualTo(answered.toString());
         assertThat(link.path("spans").get(0).path("end").asInt()).isEqualTo(content.codePointCount(0, content.length()));
         assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id = ?::uuid", String.class, inquiryId))
                 .isEqualTo("IN_PROGRESS");
 
-        JsonNode input = jsonMapper.readTree(jdbc.queryForObject(
-                "SELECT input_snapshot FROM agent_run WHERE id = ?::uuid", String.class, currentRunId()));
-        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
-        assertThat(input.path("messages").get(0).path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
-        assertThat(input.path("messages").get(1).path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(answered.toString());
+        assertThat(input.path("messages").get(0).path("problemIds").get(0).asString()).isEqualTo(answered.toString());
+        assertThat(input.path("messages").get(1).path("problemIds").get(0).asString()).isEqualTo(answered.toString());
+        assertThat(input.path("problems").size()).isEqualTo(2);
+        assertThat(input.path("existingWorkItems").isEmpty()).isTrue();
         JsonNode problem = input.path("problems").get(0);
-        assertThat(input.path("problems").size()).isEqualTo(1);
-        assertThat(problem.path("id").asString()).isEqualTo(problemId.toString());
+        assertThat(problem.path("id").asString()).isEqualTo(answered.toString());
         assertThat(problem.path("summary").asString()).isEqualTo("로그인 실패 조사");
         assertThat(problem.path("intent").asString()).isEqualTo("OBSERVED_SYMPTOM");
         assertThat(problem.path("processingType").asString()).isEqualTo("INVESTIGATION");
         assertThat(problem.path("reportedSystemId").asString()).isEqualTo(systemId.toString());
         assertThat(problem.path("reportedFeatureId").asString()).isEqualTo(featureId.toString());
-        assertThat(problem.path("state").asString()).isEqualTo("ANALYZING"); // 답한 뒤라 응답 대기가 아니다
+        assertThat(problem.path("state").asString()).isEqualTo("ANALYZING"); // 이번 메시지로 답을 받았다
         assertThat(problem.path("questionCount").asInt()).isEqualTo(2);
         assertThat(problem.path("resolutionContext").isNull()).isTrue();
         JsonNode request = problem.path("standardRequest");
@@ -272,6 +270,87 @@ class MessageSendControllerTest {
         assertThat(request.path("unknowns").get(0).asString()).isEqualTo("오류 문구");
         assertThat(request.path("details").path("actualBehavior").asString()).isEqualTo("로그인 실패");
         assertThat(request.path("details").has("acceptanceCriteria")).isTrue();
+        // 고르지 않은 문제는 아직 답을 기다린다
+        JsonNode other = input.path("problems").get(1);
+        assertThat(other.path("id").asString()).isEqualTo(waiting.toString());
+        assertThat(other.path("state").asString()).isEqualTo("WAITING_USER");
+        assertThat(other.path("questionCount").asInt()).isEqualTo(1);
+    }
+
+    @Test
+    void 대상을_고르지_않으면_질문_중인_문제는_모두_답을_기다린다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID problemId = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        insertStandardRequest(problemId, firstRunId, "로그인 실패 조사", "[]");
+
+        send(memberId, UUID.randomUUID(), 1, "어제부터 그래요", List.of()).andExpect(status().isOk());
+
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").isEmpty()).isTrue();
+        assertThat(input.path("problems").get(0).path("state").asString()).isEqualTo("WAITING_USER");
+    }
+
+    @Test
+    void 기존_티켓_생성_결과를_작업_결과로_넣어_다시_만들지_않게_한다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID stored = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID notCreated = insertProblem(2, "TICKET_FAILED", 0, "NOT_CREATED", firstRunId);
+        UUID storedRequest = insertStandardRequest(stored, firstRunId, "로그인 실패 조사", "[]");
+        insertStandardRequest(notCreated, firstRunId, "권한 요청", "[]");
+        UUID ticketId = UUID.randomUUID();
+        jdbc.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, title, detail, "
+                + "work_type, ticket_status, responsible_system_id, assignee_member_id) "
+                + "VALUES (?, ?, ?::uuid, ?, ?, '티켓', '내용', 'INVESTIGATION', 'OPEN', ?, ?)",
+                ticketId, "TK-" + ticketId.toString().substring(0, 8), inquiryId, stored, storedRequest, systemId,
+                otherMemberId);
+
+        send(memberId, UUID.randomUUID(), 1, "다른 PC에서도 같아요", List.of()).andExpect(status().isOk());
+
+        JsonNode input = currentInput();
+        assertThat(input.path("problems").get(0).path("state").asString()).isEqualTo("IN_SERVICE");
+        assertThat(input.path("problems").get(1).path("state").asString()).isEqualTo("TICKET_PENDING");
+        JsonNode items = input.path("existingWorkItems");
+        assertThat(items.size()).isEqualTo(2);
+        assertThat(items.get(0).path("workItemId").asString()).isEqualTo(stored.toString());
+        assertThat(items.get(0).path("problemId").asString()).isEqualTo(stored.toString());
+        assertThat(items.get(0).path("inquiryVersion").asInt()).isEqualTo(1);
+        assertThat(items.get(0).path("outcome").asString()).isEqualTo("STORED");
+        assertThat(items.get(0).path("ticketId").asString()).isEqualTo(ticketId.toString());
+        // 미생성 확인은 진행 중과 구분하고 티켓 ID가 없다
+        assertThat(items.get(1).path("outcome").asString()).isEqualTo("NOT_CREATED");
+        assertThat(items.get(1).path("ticketId").isNull()).isTrue();
+    }
+
+    private String succeedFirstRun() {
+        String runId = currentRunId();
+        jdbc.update("UPDATE agent_run SET run_status = 'SUCCEEDED', started_at = now(), completed_at = now() "
+                + "WHERE id = ?::uuid", runId);
+        return runId;
+    }
+
+    private UUID insertProblem(int problemNo, String status, int clarifyCount, String creationOutcome, String runId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status, clarify_count, "
+                + "creation_outcome, creation_input_version, agent_run_id) VALUES (?, ?::uuid, ?, ?, ?, ?, ?, ?, ?::uuid)",
+                id, inquiryId, problemNo, "문제 " + problemNo, status, clarifyCount, creationOutcome,
+                creationOutcome == null ? null : 1, runId);
+        return id;
+    }
+
+    private UUID insertStandardRequest(UUID problemId, String runId, String summary, String confirmedFacts) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, work_type, "
+                + "reported_system_id, reported_feature_id, responsible_system_id, summary, confirmed_facts, missing_items, "
+                + "type_detail) VALUES (?, ?, 1, ?::uuid, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, ?, ?, ?, CAST(? AS jsonb), "
+                + "CAST(? AS jsonb), CAST(? AS jsonb))",
+                id, problemId, runId, systemId, featureId, systemId, summary, confirmedFacts, "[\"오류 문구\"]",
+                "{\"actualBehavior\": \"로그인 실패\"}");
+        return id;
+    }
+
+    private JsonNode currentInput() {
+        return jsonMapper.readTree(jdbc.queryForObject("SELECT input_snapshot FROM agent_run WHERE id = ?::uuid",
+                String.class, currentRunId()));
     }
 
     private ResultActions send(UUID actorId, UUID requestId, int expectedInquiryVersion, String content,
