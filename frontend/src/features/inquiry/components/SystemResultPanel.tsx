@@ -280,17 +280,31 @@ export function SystemConfirmations({ inquiry }: { inquiry: InquiryResult }) {
     </section>
   );
 }
-// 결과 패널은 답변 위치에 따라 다시 마운트되므로, 모달을 닫은 revision은 상위 화면이 보관한다.
+// 결과 패널은 답변 위치에 따라 다시 마운트되므로, 모달을 닫은 접수 결과 키는 상위 화면이 보관한다.
 export function SystemResultPanel({
   result,
-  dismissedRevision,
+  dismissedCreationKey,
   onDismiss,
 }: {
   result: InquiryResult;
-  dismissedRevision: number;
-  onDismiss: (revision: number) => void;
+  dismissedCreationKey: string;
+  onDismiss: (key: string) => void;
 }) {
   const hasResult = result.problems.some((p) => p.creationResult);
+  // 해결 응답·처리 기록도 resultRevision을 올리므로 접수 결과만 비교한다.
+  const creationKey = JSON.stringify([
+    result.id,
+    result.problems
+      .filter((p) => p.creationResult)
+      .map((p) => [
+        p.id,
+        p.creationResult?.workItemId,
+        p.creationResult?.outcome,
+        p.creationResult?.ticketId,
+        p.creationResult?.error?.code,
+      ])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  ]);
   const banner = bannerFor(result);
   return (
     <section className={styles.panel} id="problem-confirmations" aria-label="문제별 처리 결과">
@@ -303,12 +317,12 @@ export function SystemResultPanel({
       {result.pendingTargetMessageIds.map((id) => (
         <PendingTarget key={id} inquiry={result} messageId={id} />
       ))}
-      {hasResult && result.resultRevision > dismissedRevision && (
+      {hasResult && creationKey !== dismissedCreationKey && (
         <RouteModal
           title="티켓 접수 결과"
           description="서버에 저장된 문제별 접수·배정 결과예요. 해결 완료와는 구분해요."
           onClose={() => {
-            onDismiss(result.resultRevision);
+            onDismiss(creationKey);
           }}
           returnFocusId="chat-title"
         >

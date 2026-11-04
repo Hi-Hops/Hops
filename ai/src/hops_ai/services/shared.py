@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from hops_ai.harness.context import RunContext
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.base import GraphRetriever, VectorRetriever
+from hops_ai.services.tickets import TicketSession
 from hops_ai.services.tools.base import ToolGateway
 from hops_ai.services.tracing import RunTracing
 
@@ -24,3 +25,4 @@ class SharedServices:
     graph: GraphRetriever
     tools: ToolGateway
     tracing: RunTracing = field(default_factory=RunTracing)
+    ticket_tools: TicketSession | None = None

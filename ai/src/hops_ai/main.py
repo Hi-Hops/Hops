@@ -19,6 +19,7 @@ from hops_ai.services.runs.events import RunEventHub
 from hops_ai.services.runs.executor import RunExecutor, RunPipeline, server_ceilings
 from hops_ai.services.runs.maintenance import LedgerMaintenance
 from hops_ai.services.runs.supervisor import SupervisorPipeline
+from hops_ai.services.tickets import TicketHTTPClient
 from hops_ai.services.tracing import RunTracing
 from hops_ai.settings import RunMode, Settings
 
@@ -59,6 +60,7 @@ def create_app(
             OpenAIClient(key, resolved.supervisor_model),
             knowledge_source=knowledge_source_for(resolved),
             tracing=tracing,
+            ticket_client=TicketHTTPClient(resolved) if resolved.ticket_tools_enabled else None,
         )
     resolved_ledger = ledger
     if resolved.internal_api_enabled and resolved_ledger is None:

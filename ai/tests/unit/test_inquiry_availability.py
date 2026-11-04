@@ -11,7 +11,6 @@ import json
 import pytest
 
 from hops_ai.agents.inquiry.extraction import InquiryExtraction, QuotedValue
-from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import AiRunRequest
@@ -20,6 +19,7 @@ from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.policy import get_allowed_roles
 from hops_ai.supervisor.validation import get_handoff_readiness, get_problem_progress
+from tests.doubles.agents import runtime_registry_with_rule_ticket
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -44,7 +44,7 @@ COMPLETE = {"taskOrScreen": "결재선 변경", "expectedBehavior": "한꺼번�
 
 
 def roles_for(state) -> set[AgentRole]:
-    agents = build_runtime_registry(FixtureKnowledgeSource())
+    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
     selectable = selectable_roles(agents, implemented_roles(agents), state)
     return selectable & get_allowed_roles(RunKind(state["input"].kind))
 
@@ -118,7 +118,7 @@ async def test_supervisor_after_an_empty_search_no_longer_offers_inquiry_when_re
         decision("CALL_ROLE", AgentRole.TICKET),
         decision("PROPOSE_TICKETS"),
     )
-    agents = build_runtime_registry(FixtureKnowledgeSource())
+    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
     callable_roles = implemented_roles(agents)
     supervisor = Supervisor(
         agents, available_roles=lambda state: selectable_roles(agents, callable_roles, state)
@@ -197,6 +197,32 @@ def test_inquiry_is_not_hidden_in_a_run_where_it_has_not_run_yet() -> None:
     state = running_state(make_request(outcome="STORED"))
 
     assert [item["outcome"] for item in get_problem_progress(state)] == ["EXISTING_WORK"]
+    assert AgentRole.INQUIRY in roles_for(state)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_analyzed_investigation_only_keeps_inquiry_when_required_information_is_missing(missing):
+    details = make_details().model_copy(
+        update={
+            "taskOrScreen": "로그인 화면",
+            "expectedBehavior": "로그인 성공",
+            "actualBehavior": "인증 오류",
+            "occurredAt": None if missing else "오늘 오전 9시",
+        }
+    )
+    problem = make_problem("new:1").model_copy(update={"details": details})
+    state = with_inquiry_run(state_after(None, problem))
+    assert (AgentRole.INQUIRY in roles_for(state)) == missing
+    assert AgentRole.TICKET in roles_for(state)
+
+
+def test_ready_investigation_does_not_hide_inquiry_for_another_unfinished_problem():
+    ready = make_problem("new:1").model_copy(
+        update={"details": make_details().model_copy(update={"occurredAt": "오늘 오전 9시"})}
+    )
+    state = with_inquiry_run(
+        state_after(None, ready, how_to().model_copy(update={"problemRef": "new:2"}))
+    )
     assert AgentRole.INQUIRY in roles_for(state)
 
 
@@ -295,7 +321,7 @@ async def test_run_at_the_question_limit_ends_in_a_review_ticket() -> None:
         decision("CALL_ROLE", AgentRole.TICKET),
         decision("PROPOSE_TICKETS"),
     )
-    agents = build_runtime_registry(FixtureKnowledgeSource())
+    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
     roles = implemented_roles(agents)
     supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
 

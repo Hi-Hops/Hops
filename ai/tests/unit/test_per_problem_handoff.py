@@ -16,6 +16,7 @@ from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtractio
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.knowledge.agent import guidable_problem
 from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchResult
 from hops_ai.contracts.wire import AiRunRequest, GuideProposal
@@ -29,6 +30,7 @@ from hops_ai.supervisor.validation import problems_without_guide
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
+    SYSTEM,
     authorize,
     make_evidence,
     make_request,
@@ -203,6 +205,17 @@ async def test_a_staff_only_hit_ends_in_a_review_ticket_without_repeating_the_se
         extraction,
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        TicketDecisions(
+            decisions=[
+                TicketDecision(
+                    problemRef="new:1",
+                    title="도장 이미지 등록 검토",
+                    responsibleSystemCandidateId=SYSTEM,
+                    supports=[],
+                    knowledgeEvidenceIds=[],
+                )
+            ]
+        ),
         decision("PROPOSE_TICKETS"),
     )
     agents = build_runtime_registry(FixtureKnowledgeSource())

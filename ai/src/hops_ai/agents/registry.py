@@ -7,7 +7,7 @@ from hops_ai.agents.base import Agent
 from hops_ai.agents.curator import CuratorAgent, ModelCuratorAgent
 from hops_ai.agents.inquiry import ExtractionInquiryAgent, InquiryAgent
 from hops_ai.agents.knowledge import KnowledgeAgent, SearchKnowledgeAgent
-from hops_ai.agents.ticket import RuleTicketAgent, TicketAgent
+from hops_ai.agents.ticket import ModelTicketAgent, TicketAgent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
 
@@ -40,6 +40,6 @@ def build_runtime_registry(
     registry[AgentRole.INQUIRY] = ExtractionInquiryAgent(guide_first=knowledge_source is not None)
     if knowledge_source is not None:
         registry[AgentRole.KNOWLEDGE] = SearchKnowledgeAgent(knowledge_source)
-    registry[AgentRole.TICKET] = RuleTicketAgent()
+    registry[AgentRole.TICKET] = ModelTicketAgent()
     registry[AgentRole.CURATOR] = ModelCuratorAgent()
     return MappingProxyType(registry)

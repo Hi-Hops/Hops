@@ -13,6 +13,7 @@ from hops_ai.contracts.wire import (
     ProblemProposal,
     ProblemRef,
     QuestionProposal,
+    TicketExecution,
     TicketProposal,
     Version,
     WireModel,
@@ -84,6 +85,9 @@ class TicketResult(ContractModel):
 
     invocationId: WireText
     proposals: list[TicketProposal]
+    creationResults: list[TicketExecution] = Field(default_factory=list)
+    # 모델이 실제 원문에서 인용한 책임 근거. 생성 어댑터의 구간 조립에만 사용한다.
+    messageQuotes: dict[str, list[dict[str, str]]] = Field(default_factory=dict)
 
 
 class CuratorResult(ContractModel):

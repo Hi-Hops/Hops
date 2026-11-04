@@ -13,7 +13,6 @@ import pytest
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.knowledge.agent import guidable_problem
-from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult
 from hops_ai.contracts.wire import AiRunRequest, RequestDetails
@@ -21,6 +20,7 @@ from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.execution import execute_role
 from hops_ai.supervisor.graph import Supervisor
+from tests.doubles.agents import runtime_registry_with_rule_ticket
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import MESSAGE, make_details
 from tests.unit.test_knowledge_agent import RecordingSource
@@ -204,7 +204,7 @@ async def analyze(text: str, problems: list[ExtractedProblem], *script):
     llm = FakeLLMClient(
         decision("CALL_ROLE", AgentRole.INQUIRY), InquiryExtraction(problems=problems), *script
     )
-    agents = build_runtime_registry(FixtureKnowledgeSource())
+    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
     roles = implemented_roles(agents)
     supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
     return await supervisor.analyze(request, services_for(request, llm)), llm

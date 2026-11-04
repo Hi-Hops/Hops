@@ -11,11 +11,11 @@ from hops_ai.agents.inquiry.extraction import (
     QuotedValue,
     UnknownClaim,
 )
-from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.supervisor.graph import Supervisor
+from tests.doubles.agents import runtime_registry_with_rule_ticket
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import MESSAGE, make_request
 from tests.unit.test_knowledge_wiring import decision, services_for
@@ -74,7 +74,7 @@ def script(second: InquiryExtraction, *tail):
 
 async def analyze(llm: FakeLLMClient):
     request = request_with_text()
-    registry = build_runtime_registry(FixtureKnowledgeSource())
+    registry = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
     return await Supervisor(registry).analyze(request, services_for(request, llm))
 
 

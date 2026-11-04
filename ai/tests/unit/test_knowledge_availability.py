@@ -30,8 +30,6 @@ from tests.unit.test_knowledge_empty_handoff import (
 )
 from tests.unit.test_knowledge_wiring import decision, how_to_first_message
 
-ALL_THREE = {AgentRole.INQUIRY, AgentRole.KNOWLEDGE, AgentRole.TICKET}
-
 
 def registry():
     return build_runtime_registry(FixtureKnowledgeSource())
@@ -48,14 +46,14 @@ def test_no_problem_yet_means_nothing_to_search() -> None:
     state = running_state(how_to_first_message())
 
     assert guidable_problem(state) is None
-    assert roles_for(state) == {AgentRole.INQUIRY, AgentRole.TICKET}
+    assert roles_for(state) == {AgentRole.INQUIRY}
 
 
 def test_guidable_how_to_problem_makes_knowledge_selectable() -> None:
     state = state_after(None, how_to_problem())
 
     assert guidable_problem(state) is not None
-    assert roles_for(state) == ALL_THREE
+    assert roles_for(state) == {AgentRole.INQUIRY, AgentRole.KNOWLEDGE}
 
 
 @pytest.mark.parametrize(
@@ -70,7 +68,10 @@ def test_problem_that_cannot_be_guided_hides_knowledge(changes) -> None:
 
     assert guidable_problem(state) is None
     assert AgentRole.KNOWLEDGE not in roles_for(state)
-    assert {AgentRole.INQUIRY, AgentRole.TICKET} <= roles_for(state)
+    assert AgentRole.INQUIRY in roles_for(state)
+    assert (AgentRole.TICKET in roles_for(state)) == (
+        changes.get("processingType") == "INVESTIGATION"
+    )
 
 
 def test_problem_already_searched_is_not_searched_again_but_other_options_stay() -> None:
@@ -99,7 +100,10 @@ def test_knowledge_is_hidden_once_a_guide_exists() -> None:
 
 
 def test_roles_without_an_availability_check_are_never_removed_or_added() -> None:
-    agents = build_runtime_registry()  # Knowledge 연결 전
+    from hops_ai.agents.ticket.agent import RuleTicketAgent
+
+    agents = dict(build_runtime_registry())  # Knowledge 연결 전
+    agents[AgentRole.TICKET] = RuleTicketAgent()  # available_for가 없는 명시적 대역
     state = running_state(how_to_first_message())
 
     assert roles_for(state, agents) == {AgentRole.INQUIRY, AgentRole.TICKET}
@@ -123,7 +127,7 @@ async def test_first_decision_never_offers_knowledge_and_a_wrong_pick_is_rejecte
     result = await supervisor.analyze(request, services_for(request, llm))
 
     context = json.loads(llm.requests[0].messages[-1].content)
-    assert context["allowedRoles"] == ["INQUIRY", "TICKET"]
+    assert context["allowedRoles"] == ["INQUIRY"]
     # 검색 단계에 들어가기 전에 선택 자체가 거부되어 Knowledge가 호출되지 않는다.
     assert result.status == "FAILED"
     assert len(llm.requests) == 1

@@ -14,6 +14,7 @@ from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtractio
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.agents.ticket import RuleTicketAgent
+from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult, TicketResult
 from hops_ai.contracts.wire import AiRunRequest, ProblemProposal
@@ -242,6 +243,20 @@ def registry():
     return build_runtime_registry(FixtureKnowledgeSource())
 
 
+def ticket_decisions():
+    return TicketDecisions(
+        decisions=[
+            TicketDecision(
+                problemRef="new:1",
+                title="사용법 담당자 검토",
+                responsibleSystemCandidateId=SYSTEM,
+                supports=[],
+                knowledgeEvidenceIds=[],
+            )
+        ]
+    )
+
+
 async def test_supervisor_may_hand_the_unanswerable_how_to_to_staff() -> None:
     request = no_guide_request()
     llm = FakeLLMClient(
@@ -249,6 +264,7 @@ async def test_supervisor_may_hand_the_unanswerable_how_to_to_staff() -> None:
         how_to_extraction(),
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions(),
         decision("PROPOSE_TICKETS"),
     )
 
@@ -306,6 +322,7 @@ async def test_after_the_user_answers_the_form_is_complete_and_it_can_be_tickete
         decision("CALL_ROLE", AgentRole.INQUIRY),
         how_to_extraction(desired=desired),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions(),
         decision("PROPOSE_TICKETS"),
     )
 

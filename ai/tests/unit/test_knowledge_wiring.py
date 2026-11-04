@@ -200,12 +200,12 @@ async def test_pipeline_offers_knowledge_only_once_a_guidable_problem_exists() -
 
         assert result.status == "SUCCEEDED"
         # 문제가 아직 없는 첫 판단에서는 검색할 대상이 없어 Knowledge를 고를 수 없다.
-        assert seen[0] == ["INQUIRY", "TICKET"]
+        assert seen[0] == ["INQUIRY"]
         if source is None:
             assert all("KNOWLEDGE" not in roles for roles in seen)
         else:
             # Inquiry가 안내할 사용법 문제를 만든 뒤에는 선택지에 나타난다.
-            assert seen[1] == ["INQUIRY", "KNOWLEDGE", "TICKET"]
+            assert seen[1] == ["INQUIRY", "KNOWLEDGE"]
 
 
 @pytest.mark.parametrize("kind", list(KnowledgeSourceKind))

@@ -1,6 +1,6 @@
 # 에이전트 개발·통합 안내
 
-기준: [PRD 1.44](PRD.md) · 팀 합의 제품 방향 / 구현 및 실제 검증 별도. 현재 AI는 기술 하네스·실행 wire 검증·RunLedger와 명시 활성화한 서비스 인증/저장된 실행 조회, 파이프라인 주입 시 접수·백그라운드 실행을 제공한다. 실제 Supervisor·역할·모델·검색 파이프라인은 미연결이다. 실제 환경·설정·구현 범위는 [AI 실행 안내](../ai/README.md)를 따른다.
+기준: [PRD 1.44](PRD.md) · 팀 합의 제품 방향 / 구현 및 실제 검증 별도. 현재 AI는 기술 하네스·실행 wire 검증·RunLedger와 명시 활성화한 서비스 인증/저장된 실행 조회, 파이프라인 주입 시 접수·백그라운드 실행을 제공한다. Supervisor·Inquiry·Ticket 실행 및 Spring 티켓 도구 경로는 연결돼 있으며 Curator 모델·progress/result SSE도 연결돼 있다. Knowledge 실검색·전체 서비스 E2E는 별도다. 실제 환경·설정·구현 범위는 [AI 실행 안내](../ai/README.md)를 따른다.
 
 AI·검색·도구를 개발하거나 연결할 때는 [보안 개발 명세](SECURITY.md)의 요구사항과 공격 시나리오를 작업 범위에 맞게 확인한다.
 
@@ -11,6 +11,8 @@ MVP부터 모델 판단 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator
 Python은 제안과 근거를 반환하고, Spring이 인증·권한·저장·배정·완료·승인·공개를 확정한다. 조회 도구는 허용된 읽기 전용 Mock이다. 실행 코드는 모델의 선택을 허용 경로·시간·호출·토큰·재시도 범위로 제한한다. 실행 입출력은 공통·에이전트 계약을 따르며 모델·임베딩·예산의 구체 설정은 별도 선정한다.
 
 ## 2. 통합 경로
+
+HOPS 내부 티켓 생성·결과 조회는 [Ticket 도구 REST 계약](../contracts/agents/TICKET_TOOLS.md)의 별도 허용 경로다. Ticket이 Spring 도구로 생성·확인을 조율하되 업무 DB 직접 쓰기·외부 시스템 변경은 허용하지 않는다. Spring API와 Python 도구 연결의 구현 상태를 구분한다.
 
 새 작업은 루트 [AGENTS.md](../AGENTS.md)와 PRD를 읽은 뒤 이 문서에서 구현 범위를 확인한다. 이어서 [역할별 입출력](../contracts/agents/README.md#역할별-상세-책임), [서비스 실행 계약](../contracts/agents/README.md#hops-system-1-실행-계약안), [호출과 진행 예시](../contracts/agents/README.md#호출과-진행-예시)를 읽는다. 프론트·Spring과 맞출 필드·상태·전송은 [공통 계약](../specs/contracts/README.md), 실제 환경·실행은 [AI 실행 안내](../ai/README.md)를 확인한다.
 

@@ -19,6 +19,7 @@ from hops_ai.contracts.wire import (
     KnowledgeEvidence,
     ProblemProposal,
     RequestDetails,
+    TicketExecution,
     TicketProposal,
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
@@ -26,6 +27,7 @@ from hops_ai.supervisor.policy import validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
     ensure_active,
+    get_problem_knowledge,
     get_problem_message_ids,
     problems_without_guide,
     validate_details,
@@ -131,9 +133,12 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     if proposal.responsibleSystemCandidateId not in systems:
         raise OutputRejected("책임 시스템이 지원 시스템 목록에 없다")
     snapshot = proposal.standardRequestSnapshot
+    if len(snapshot.knowledge) > 5:
+        raise OutputRejected("표준 요청의 지식 근거는 최대 5건이다")
     if snapshot.responsibleSystemCandidateId != proposal.responsibleSystemCandidateId:
         raise OutputRejected("티켓과 표준 요청의 책임 시스템이 다르다")
-    known_ids = set(state["evidence"]) | get_problem_message_ids(state, proposal.problemRef)
+    scoped_knowledge = get_problem_knowledge(state, proposal.problemRef)
+    known_ids = set(scoped_knowledge) | get_problem_message_ids(state, proposal.problemRef)
     if not set(proposal.evidenceIds + snapshot.responsibilityEvidenceIds) <= known_ids:
         raise OutputRejected("티켓 책임 판단에 대상 문제에서 허용되지 않은 근거를 사용했다")
     if proposal.responsibleSystemCandidateId != problem.reportedSystemCandidateId and not (
@@ -141,8 +146,11 @@ def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
     ):
         raise OutputRejected("다른 책임 시스템을 제안하려면 근거가 필요하다")
     for item in snapshot.knowledge:
-        if state["evidence"].get(item.id) != item:
-            raise OutputRejected("표준 요청에 허용되지 않은 지식이 포함됐다")
+        if scoped_knowledge.get(item.id) != item:
+            raise OutputRejected("표준 요청에 대상 문제의 지식이 아닌 근거가 포함됐다")
+    for fact in [*snapshot.confirmedFacts, *snapshot.assumptions]:
+        if not set(fact.knowledgeEvidenceIds) <= scoped_knowledge.keys():
+            raise OutputRejected("표준 요청의 사실에 다른 문제의 지식 근거가 포함됐다")
     validate_statements(
         state, snapshot.confirmedFacts, problem_ref=proposal.problemRef, confirmed=True
     )
@@ -364,7 +372,12 @@ def merge_knowledge_result(
     return _complete_merge(candidate, result)
 
 
-def merge_ticket_result(state: SupervisorState, result: TicketResult) -> SupervisorState:
+def merge_ticket_result(
+    state: SupervisorState,
+    result: TicketResult,
+    *,
+    verified_results: tuple[TicketExecution, ...] = (),
+) -> SupervisorState:
     """문제별 티켓 제안을 검증하고 같은 문제의 최종 유효 제안을 보존한다.
 
     실제 저장·배정은 하지 않는다. STORED·PENDING·UNKNOWN 작업에는 새 제안을 금지하고
@@ -388,6 +401,13 @@ def merge_ticket_result(state: SupervisorState, result: TicketResult) -> Supervi
     if not _prepare_merge(state, AgentRole.TICKET, result):
         return state
     proposals = dict(state["ticketProposals"])
+    if (
+        not isinstance(verified_results, tuple)
+        or any(not isinstance(item, TicketExecution) for item in verified_results)
+        or list(verified_results) != result.creationResults
+    ):
+        raise OutputRejected("Spring 도구에서 검증하지 않은 티켓 생성 결과다")
+    creations = dict(state["ticketCreationResults"])
     problems = dict(state["problems"])
     seen: set[str] = set()
     for proposal in result.proposals:
@@ -402,7 +422,27 @@ def merge_ticket_result(state: SupervisorState, result: TicketResult) -> Supervi
             problems[proposal.problemRef] = problem.model_copy(
                 update={"processingType": proposal.processingType}
             )
-    candidate = {**state, "problems": problems, "ticketProposals": proposals}
+    if len({item.problemRef for item in verified_results}) != len(verified_results):
+        raise OutputRejected("티켓 생성 결과의 문제 참조가 중복됐다")
+    for outcome in verified_results:
+        if outcome.problemRef not in seen:
+            raise OutputRejected("제안하지 않은 문제의 티켓 생성 결과다")
+        remote = outcome.result
+        if remote is not None and (
+            remote.runId != state["input"].runId
+            or remote.inquiryVersion != state["input"].inquiryVersion
+            or remote.problemRef != outcome.problemRef
+        ):
+            raise OutputRejected("티켓 생성 결과가 실행과 다르다")
+        if outcome.problemRef in creations and creations[outcome.problemRef] != outcome:
+            raise OutputRejected("이미 확인한 티켓 생성 결과를 바꿀 수 없다")
+        creations[outcome.problemRef] = outcome.model_copy(deep=True)
+    candidate = {
+        **state,
+        "problems": problems,
+        "ticketProposals": proposals,
+        "ticketCreationResults": creations,
+    }
     validate_questions(candidate)
     return _complete_merge(candidate, result)
 

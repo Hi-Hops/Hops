@@ -34,7 +34,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
     chat.live?.text,
   );
   const loading = useRef(false);
-  const [dismissedRevision, setDismissedRevision] = useState(0);
+  const [dismissedCreationKey, setDismissedCreationKey] = useState('');
   async function older() {
     if (!chat.messages.hasNextPage || chat.messages.isFetching || loading.current) return;
     loading.current = true;
@@ -87,8 +87,8 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
     inquiry.problems.length > 0 ? (
       <SystemResultPanel
         result={inquiry}
-        dismissedRevision={dismissedRevision}
-        onDismiss={setDismissedRevision}
+        dismissedCreationKey={dismissedCreationKey}
+        onDismiss={setDismissedCreationKey}
       />
     ) : null;
   const steps = chat.live?.steps.length

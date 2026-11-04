@@ -134,6 +134,8 @@ def test_real_mode_builds_the_app_when_every_requirement_is_set() -> None:
         ai_service_token=base64.urlsafe_b64encode(bytes(range(32))).rstrip(b"=").decode(),
         runtime_dsn="postgresql://u:p@localhost/hops_ai_runtime",
         openai_api_key="sk-test",
+        spring_base_url="http://spring:8080",
+        spring_service_token="A" * 43,
     )
 
     app = create_app(settings)

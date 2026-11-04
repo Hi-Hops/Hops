@@ -6,6 +6,8 @@
 
 Spring의 PostgreSQL 업무 DB가 사용자·시스템 PRIMARY·문의·티켓·처리·확인·사례 승인·공개의 정본이다. Vector/Neo4j는 검색 파생 저장소이며 담당자/권한/해결 확정의 정본이 아니다. AI는 업무 원본에 직접 쓰지 않으며 같은 DB의 hops_knowledge 검색 schema와 별도 hops_ai_runtime RunLedger DB에 서비스 전용 권한으로 접근한다.
 
+Ticket 내부 REST의 `agent_ticket_request`(V23)는 실행별 임시 문제 참조·서버 문제 UUID·최초 전체 요청·시도 횟수를 보존하는 전달 journal이다. WorkItem 정본은 기존 inquiry_problem의 creation_* 필드이며 별도 WorkItem Entity를 만들지 않는다. API로 업무 적용한 표준 요청은 AI 실행 실패/취소 후에도 다음 입력에서 읽는다. 상세는 [Ticket 도구 계약](../contracts/agents/TICKET_TOOLS.md)을 따른다.
+
 ## 2. 고정 카탈로그
 
 세 시스템·기능10개·가상 사용자·현재 PRIMARY3개는 아래 catalogVersion=hops-demo-v1의 seed 작성 코드를 기준으로 한다. 부서는 소속이다. 시스템 UUID는 `uuid5(NAMESPACE_URL,"hops-system-1.example/"+SystemCode)`, 기능은 `uuid5(NAMESPACE_URL,"hops-system-1.feature/"+SystemCode+"/"+기능코드)`다. 데이터는 모두 가상이며 로그인 비밀값을 포함하지 않는다. 아래 코드는 계약 호출 예시용 seed의 식별·관계를 설명하며 실제 DB 적재나 공통 지식·평가 데이터 선정을 뜻하지 않는다. 데이터 제작 범위는 [데이터 구축 계획](knowledge/DATASETS.md)을 따른다. 직원용 API에는 담당 관계 전체를 노출하지 않고 해당 DTO로 투영한다.

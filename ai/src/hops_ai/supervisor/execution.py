@@ -16,7 +16,7 @@ from hops_ai.contracts.roles import (
     RoleResult,
     TicketResult,
 )
-from hops_ai.contracts.wire import KnowledgeEvidence
+from hops_ai.contracts.wire import KnowledgeEvidence, TicketExecution
 from hops_ai.harness.errors import ComponentNotReady, OutputRejected
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.merge import (
@@ -61,6 +61,7 @@ class RoleResponse:
     authorized_refs: tuple[AuthorizedKnowledgeRef, ...] = ()
     allowed_entity_ids: Mapping[str, set[str]] | None = None
     verified_evidence: tuple[KnowledgeEvidence, ...] = ()
+    verified_ticket_results: tuple[TicketExecution, ...] = ()
 
 
 async def execute_role(
@@ -121,11 +122,13 @@ async def execute_role(
         authorized_refs = response.authorized_refs
         allowed_entity_ids = response.allowed_entity_ids
         verified_evidence = response.verified_evidence
+        verified_tickets = response.verified_ticket_results
     else:
         result = response
         authorized_refs = ()
         allowed_entity_ids = None
         verified_evidence = ()
+        verified_tickets = ()
 
     expected_type = {
         AgentRole.INQUIRY: InquiryResult,
@@ -145,6 +148,8 @@ async def execute_role(
         raise OutputRejected("검증된 검색 근거 자료의 형식이 잘못됐다")
     if verified_evidence and role != AgentRole.KNOWLEDGE:
         raise OutputRejected("검증된 검색 근거는 Knowledge 결과에만 전달할 수 있다")
+    if verified_tickets and role != AgentRole.TICKET:
+        raise OutputRejected("티켓 도구 검증 결과는 Ticket 역할만 반환할 수 있다")
     if allowed_entity_ids is not None and role != AgentRole.CURATOR:
         raise OutputRejected("기존 관계 대상은 Curator 결과에만 전달할 수 있다")
 
@@ -162,7 +167,7 @@ async def execute_role(
             verified_evidence=verified_evidence,
         )
     if isinstance(result, TicketResult):
-        return merge_ticket_result(reserved, result)
+        return merge_ticket_result(reserved, result, verified_results=verified_tickets)
 
     # 재사용하지 않는 사례는 정상 결과다. 재사용 초안에는 어댑터 검증 자료가 필요하다.
     if result.proposal.reusable and allowed_entity_ids is None:

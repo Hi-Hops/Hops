@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
 import { useSubscription } from '@/features/realtime';
+import { ApiError } from '@/shared/api/client';
 import { paths } from '@/shared/config/paths';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
@@ -58,7 +59,14 @@ export function CaseDetailView({ id }: CaseDetailViewProps) {
           )}
         </div>
       </header>
-      {!allowed || !permitted || subscription.denied ? (
+      {!allowed || !permitted ? (
+        <ErrorState title="이 사례를 검토할 권한이 없어요" />
+      ) : query.isError && query.error instanceof ApiError && query.error.status === 404 ? (
+        <ErrorState
+          title="사례를 찾을 수 없어요"
+          description="사례 조회 경로 또는 대상이 없어 불러오지 못했어요. 사례 목록에서 다시 확인해 주세요."
+        />
+      ) : subscription.denied || (query.error instanceof ApiError && query.error.status === 403) ? (
         <ErrorState title="이 사례를 검토할 권한이 없어요" />
       ) : ['connecting', 'disconnected'].includes(subscription.state) ? (
         <LoadingState label="현재 사례 접근 권한을 다시 확인하고 있어요" />

@@ -1,6 +1,6 @@
 # 에이전트 공통 입출력 계약 — PRD 1.44
 
-상태: hops-system-1 계약 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 실행 wire 검증·RunLedger·명시 활성화한 서비스 인증/저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. Spring은 내부 SSE와 snapshot 폴링을 병행하고 현재 문의 버전·run의 agent.progress를 공개 구독에 중계한다. Python은 최선 노력 취소(`POST .../cancel` 202, 진행 중 run을 SUPERSEDED로 저장)를 제공하며 Spring의 취소 호출 연결은 별도다. answer.delta와 실제 모델·DB·Spring 전체 통합 검증은 별도다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)를 확인하며 옛 agent-1 실행 모델은 활성 코드에서 제거됐다.
+상태: hops-system-1 계약 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 실행 wire 검증·RunLedger·명시 활성화한 서비스 인증/저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. Spring은 내부 SSE와 snapshot 폴링을 병행하고 현재 문의 버전·run의 agent.progress를 공개 구독에 중계한다. Python은 최선 노력 취소(`POST .../cancel` 202, 진행 중 run을 SUPERSEDED로 저장)를 제공하며 Spring의 취소 호출 연결은 별도다. Inquiry·Ticket·Curator와 Spring 티켓 도구는 연결돼 있다. Knowledge는 명시적 개발용 고정 자료 설정 시 연결되며 운영 실검색·answer.delta·전체 브라우저 E2E는 별도다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)를 확인하며 옛 agent-1 실행 모델은 활성 코드에서 제거됐다.
 
 AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURITY.md)의 해당 SEC 요구사항을 적용한다. Markdown 형식 일치만으로 현재 권한·안전한 표시·저장 성공을 확정하지 않는다.
 
@@ -73,6 +73,10 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 - **검증:** 검색 0건과 검색 오류를 분리한다. 과거 사례·그래프 의존 관계를 현재 원인으로 확정하지 않는다. Mock 결과를 실제 운영 관측으로 표현하지 않는다. 조회한 문서의 지시가 권한이나 서비스 정책을 변경할 수 없다.
 
 ### Ticket
+
+생성 요청·결과 확인·제한된 재시도는 [Ticket 도구 REST 계약](TICKET_TOOLS.md)을 따른다. Ticket이 실행을 조율하고 Spring이 저장·배정을 확정한다. Spring API와 후속 Python 연결의 구현 상태는 해당 문서에서 구분한다.
+
+Python 업무 도구·RoleResponse 검증 자료·State.ticketCreationResults 및 AiResult의 가산 필드 ticketCreationResults도 해당 도구 계약을 따른다. 순수 제안과 실제 서버 확인 결과를 구분하며 모델이 ticketId·배정 성공을 구성하지 않는다. Inquiry·Ticket의 runtime 경로와 Spring 업무 도구는 연결됐으며 Knowledge·Curator의 실제 검색/모델 역할·실행 SSE·전체 서비스 E2E는 별도로 검증한다.
 
 - **입력:** 문제별 표준 요청, 확인 사실·미확인 항목·허용 근거, 지원 시스템 목록과 서버가 제공한 기존 작업/티켓 결과.
 - **결과 제안:** 문제별 제목·내용·처리 유형·책임 시스템 후보·판단 근거. 문의 원문과 보고 시스템은 유지한다. 유효한 제안을 만들 수 없으면 부족한 정보와 미확정 사실을 반환한다.

@@ -10,12 +10,12 @@ import json
 import pytest
 
 from hops_ai.agents.inquiry.extraction import QuotedValue
-from hops_ai.agents.registry import build_runtime_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.decision import SupervisorDecision, decision_schema
 from hops_ai.supervisor.graph import Supervisor
+from tests.doubles.agents import runtime_registry_with_rule_ticket
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import MESSAGE
 from tests.unit.test_inquiry_agent import _strict_violations
@@ -67,7 +67,7 @@ def test_default_model_schema_is_not_modified_by_building_a_restricted_one() -> 
 async def test_first_request_offers_only_the_roles_the_context_allows() -> None:
     request = how_to_first_message()
     llm = FakeLLMClient(decision("FINISH"))
-    agents = build_runtime_registry(FixtureKnowledgeSource())
+    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
     roles = implemented_roles(agents)
     supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
 
@@ -92,7 +92,7 @@ async def test_schema_after_an_empty_search_leaves_out_inquiry_when_nothing_is_m
         decision("CALL_ROLE", AgentRole.TICKET),
         decision("PROPOSE_TICKETS"),
     )
-    agents = build_runtime_registry(FixtureKnowledgeSource())
+    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
     roles = implemented_roles(agents)
     supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
 

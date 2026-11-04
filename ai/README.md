@@ -2,7 +2,7 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
 
-[PRD](../docs/PRD.md)에 맞춰 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 개발하기 위한 구조다. 현재 생존·준비 상태 조회와 기술 하네스를 제공하며, 별도 활성화 시 서비스 인증·실행 조회와 파이프라인 주입 시 접수·백그라운드 실행을 제공한다. Supervisor의 판단 검증·역할 호출·최종화 그래프는 구현했으며 실제 OpenAI·전문 역할·검색·서비스 파이프라인 연결은 구현 전이다.
+[PRD](../docs/PRD.md)의 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 위한 서버다. 서비스 인증·실행 조회·접수·백그라운드 실행과 Supervisor 그래프를 제공한다. real 모드에는 OpenAI 어댑터를 사용하는 Supervisor·Inquiry와 Spring 생성/조회 도구를 실행하는 Ticket이 연결돼 있다. Curator 모델·progress/result SSE·Python 실행 취소도 연결돼 있다. Knowledge는 명시적인 fixture 설정에서 개발용 고정 자료를 사용하며 운영 실검색·Spring 취소 전파는 별도다. 실제 모델 품질·전체 서비스 E2E 완료를 뜻하지 않는다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
@@ -13,10 +13,10 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 항목 | 상태 |
 |---|---|
 | FastAPI | `GET /healthz`는 프로세스 생존 200. `GET /readyz`는 실행 접수가 열려 있고 RunLedger 소유 세션이 응답할 때만 200, 그 외 503 |
-| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_runtime_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(규칙 기반 제안), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`일 때만 개발용 고정 자료로 실행하고 기본(`none`)은 연결 전 자리. 기본 `build_registry()`는 연결 전 자리 그대로 |
+| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_runtime_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`일 때만 개발용 고정 자료로 실행하고 기본(`none`)은 연결 전 자리. 기본 `build_registry()`는 연결 전 자리 그대로 |
 | OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j는 내부 인터페이스와 연결 자리만 존재하며 호출하면 미구현 오류 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
-| RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결, Supervisor 미연결 |
+| RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결. real 모드 Supervisor 파이프라인 사용 |
 | 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot·progress/result SSE 조회. 실행 접수와 취소는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 주입 시 취소는 항상 202 빈 본문(최선 노력) |
 | 업무 실행·SSE | 백그라운드 실행기와 `real` 모드 Supervisor 파이프라인 연결. 역할 실행 전 고정된 공개 진행 문구 발행, 최종 결과 저장 뒤 result 전달. 취소 요청 시 진행 중인 실행을 멈추고 `SUPERSEDED`로 저장(Spring의 취소 호출은 연결 전). answer.delta는 연결 전 |
 | Fake·Mock | 테스트 전용 LLM·도구 대역. 서버에 자동 연결하지 않음 |
@@ -134,7 +134,29 @@ curl -i http://127.0.0.1:8000/readyz
 
 `ai/.env`에 `HOPS_AI_MODE=real`, `HOPS_AI_INTERNAL_API_ENABLED=true`, `HOPS_AI_RUNTIME_DSN`, `AI_SERVICE_TOKEN`, `OPENAI_API_KEY`를 설정하면 Spring이 접수한 상담 실행(`POST /internal/v2/runs`)을 공통 Supervisor가 실제 모델로 처리한다. 모델은 `HOPS_AI_SUPERVISOR_MODEL`(기본 `gpt-6-luna`)이다. 같은 `AI_SERVICE_TOKEN` 값을 Spring 쪽에서도 읽으므로 `ai/.env` 한 곳에만 둔다(Compose가 Backend 컨테이너에도 전달한다).
 
-처리 흐름은 Supervisor 판단 → Inquiry(원문에서 사실 추출, 부족한 정보는 양식 규칙으로 질문) → 필요 시 Ticket(티켓 제안) → 최종 답변 조립이다. 정보가 부족하면 질문으로, 충분하면 티켓 제안으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge가 연결되기 전까지(`HOPS_AI_KNOWLEDGE_SOURCE=none`, 기본값) 안전한 실패로 끝난다. Knowledge를 켜는 방법과 흐름은 아래 [Knowledge 개발용 고정 자료](#knowledge-개발용-고정-자료)를 따른다. 티켓 제안은 제안일 뿐이며 저장·배정은 Spring이 하고, 현재 Spring은 AI 티켓 제안으로 티켓을 만들지 않는다.
+처리 흐름은 Supervisor 판단 → Inquiry(원문 추출·양식 규칙 질문) → 필요 시 Ticket(제안·Spring 생성 요청·저장 결과 확인) → 최종 답변 조립이다. 정보가 부족하면 질문으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge 기본 설정(none)에서는 안전한 실패로 끝나며, 개발용 고정 자료 연결은 아래 Knowledge 절을 따른다. Ticket은 등록된 업무 도구로 Spring REST를 호출하고 저장·배정 확정은 Spring이 한다. 최종 AI 결과 수신 경로가 같은 티켓을 다시 생성하지 않는다.
+
+real 모드의 기본 Ticket은 `ExecutingTicketAgent`다. 내부 `ModelTicketAgent`가 공용 LLM·동일 실행 예산으로 한 번의 구조화 출력을 요청하고(`ticket.proposal.v2`, 출력 상한 1,500토큰), 이후 생성·조회·제한 재시도는 코드로 수행해 추가 모델 호출을 하지 않는다. `RuleTicketAgent`는 기존 규칙 검사 용도로 남아 있으며 모델/서비스 실패 시 자동 대체하지 않는다. 기본 `build_runtime_registry()`의 순수 제안 구현과 제품 `SupervisorPipeline(ticket_client=...)`의 실행 구현을 구분한다.
+
+`HOPS_AI_TICKET_TOOLS_ENABLED=true`가 기본이다. real 모드에는 `HOPS_AI_SPRING_BASE_URL`(Compose 기본 http://backend:8080)과 Spring 내부 API의 `SPRING_SERVICE_TOKEN`도 필요하며 없으면 시작을 거부한다. 이 토큰은 Spring→AI의 `AI_SERVICE_TOKEN`과 다르다. Compose는 backend/.env의 방향별 값을 AI에도 전달하며 호스트 직접 실행은 해당 값을 프로세스 환경변수 또는 ai/.env에 설정한다. 명시적으로 false를 설정한 경우만 제안 전용 모드로 실행하고 저장 성공을 표시하지 않는다.
+
+기본 한도는 문제당 최초 포함 생성 3회, 조회 4회, 조회 간격 0.25초, HTTP 요청 5초다. `.env.example`의 `HOPS_AI_TICKET_*`로 더 작은 값을 선택할 수 있다. Spring의 생성 상한과 남은 실행 기한을 넘지 않으며 실제 HTTP 호출은 공통 toolCalls, 업무 재시도는 LLM과 같은 retries 예산을 소비한다. timeout/5xx/404는 미생성 증명이 아니므로 새 생성 없이 같은 작업만 조회한다. 재시도 응답 유실 후에는 이전 NOT_CREATED를 현재 사실로 재사용하지 않는다. 상세는 [Ticket 도구 계약](../contracts/agents/TICKET_TOOLS.md)을 따른다.
+
+모델은 대상 문제별 제목·책임 시스템 후보·원문 인용·관련 지식 ID만 제안한다. 코드는 Inquiry의 요약·확인 사실·추정·미확인 항목·상세를 그대로 복사하고, 지식의 원본·버전·적용 조건을 보존한다. 보고 시스템은 변경하지 않는다. 근거 없는 다른 책임 후보는 보고 시스템으로 되돌리며, 허위 인용·지원하지 않는 시스템·중복/누락 문제·허용되지 않은 근거는 `OutputRejected`로 거부한다. 원문 인용 일치는 의미적 타당성이나 실제 장애 원인의 증명이 아니므로 담당자 검토가 필요하다.
+
+기존 `STORED`·`PENDING`·`UNKNOWN`, 질문/안내 대기, 시스템 미확인·범위 밖 문제는 모델에 티켓 생성 대상으로 보내지 않는다. 서버가 `NOT_CREATED`로 확인한 문제만 재제안할 수 있다. 일부 문제가 이미 저장됐으면 해당 결과를 유지하고 남은 대상만 제안한다. 저장·배정·최신 버전·중복 생성의 최종 검증은 Spring이 담당한다. Knowledge 검색 자체는 별도 구현이며 Ticket은 State에 이미 검증되어 들어온 근거만 사용한다.
+
+Ticket의 합성 시나리오 v1은 `tests/unit/test_ticket_model.py`와 `test_ticket_agent.py`에서 확인한다. 아래 검사는 Fake LLM의 계약·실패·Supervisor 연결 검사이며 실제 모델 품질 평가, 실제 검색, Spring 업무 저장 또는 브라우저 E2E를 뜻하지 않는다.
+
+`test_ticket_tools.py`는 명시적인 HTTP 대역으로 전송·인증·응답 검증·한도를 검사한다. `tests/integration/test_ticket_spring_http.py`는 LLM만 대역으로 두고 제품 실행 코드와 실제 Spring TCP/HTTP·PostgreSQL을 연결한다. 전용 `hops_ticket_tools_test` DB와 `HOPS_TICKET_HTTP_TEST_ORIGIN/DSN/TOKEN/JWT_SECRET` 환경변수를 준비한 뒤 `uv run --no-sync pytest tests/integration/test_ticket_spring_http.py -q`로 실행한다. 미설정 시 이 외부 연동 검사는 skip하며 실제 모델 품질·로그인·브라우저 E2E는 포함하지 않는다.
+
+2026-11-04에는 격리된 로컬 Spring·AI·PostgreSQL·Redis에서 실제 `gpt-6-luna`를 사용한 API E2E도 수행했다. 가상 문의자의 로그인·문의 접수 → Spring 자동 전달 → Supervisor·Inquiry·Ticket의 OpenAI 호출 → Spring 티켓 생성·조회 → 최종 답변 저장 → 담당자 로그인·티켓 상세 조회를 확인했다. 모델 생성 5회(입력 8,977·출력 491토큰), 약 17.3초에 티켓 1건과 주담당자 배정이 확인됐고 동일 문의 재전송에도 중복되지 않았다. 이 단일 시나리오는 모델 품질 평가나 브라우저 E2E를 대신하지 않는다. 이 검증 당시에는 문제 저장 후 `GET /api/v2/inquiries/{id}`가 Problem 투영 미구현으로 500을 반환했다. 이후 아래 develop 갱신 검증에서는 200과 Problem 표시를 확인했다. 문의 대화 조회와 담당자 티켓 상세 조회는 정상 응답했다.
+
+```bash
+uv run --no-sync pytest tests/unit/test_ticket_model.py tests/unit/test_ticket_agent.py -q
+uv run --no-sync ruff check .
+uv run --no-sync ruff format --check .
+```
 
 AI 런타임 DB와 계정은 Compose가 만들어 주지 않는다. 이미 만들어진 볼륨에는 초기화 스크립트가 다시 실행되지 않으므로 [AI 런타임 DB 계정·권한 준비](db/README.md)의 로컬 Compose 절차대로 `hops_ai_runtime` DB, 마이그레이션 계정 `hops_ai_migrator`, 앱 계정 `hops_ai_app`을 만든다. 예전 안내대로 `hops` 소유로 만든 DB도 같은 문서의 절차로 데이터를 보존한 채 넘겨받는다.
 
@@ -219,6 +241,28 @@ uv run pytest tests/integration/test_run_ledger.py
 ```
 
 DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 호출·Spring 업무 저장이 연결됐다는 뜻은 아니다.
+
+### develop 갱신 후 실제 모델 추가 질문 검증
+
+`c9e432a` 기준 develop에 Ticket 변경을 복원한 뒤 가상 문의로 실제 `gpt-6-luna`와 Spring·AI·PostgreSQL·Redis를 연결했다. 첫 정보 부족 입력에서는 기대 동작·발생 시점을 질문했고 티켓은 없었다. 화면·동작만 답한 두 번째 실행은 Supervisor가 Inquiry를 4회 반복해 모델 호출 상한 8회에서 `BUDGET_EXCEEDED`로 종료됐다. 발생 시점까지 입력한 세 번째 새 실행에서는 `STORED` 티켓 1건·배정을 확인했고 문의 상세도 HTTP 200으로 Problem을 표시했다. 이 실패를 포함한 결과이므로 정상 멀티턴 통과로 보고하지 않는다. 별도의 최초 시도에서 Supervisor 응답 `INVALID_OUTPUT`도 1회 관측했으며 응답 원문을 수집하지 않아 세부 원인은 확정하지 않았다.
+
+질문 후 DB 문제 목록과 다음 실행의 `input.problems`가 비어 있어 질문 횟수·문제 식별자의 서버 누적은 확인되지 않았다. 대화 원문은 다음 입력에 포함되어 마지막 실행이 필요한 사실을 다시 추출했다. 보완 대상은 반복 역할 호출 제어와 문제·질문 상태 저장/재주입이며, 현재 테스트는 사용자 정정·복수 문제의 실제 모델 품질이나 브라우저 E2E를 포함하지 않는다. 갱신 후 Linux AI 회귀 검사는 822 passed, 외부 DB/HTTP 설정 미지정 23 skipped이며 Spring 이미지 빌드와 Ruff도 통과했다.
+
+### Ticket 멀티턴 재검증 (develop `7b8bf2e` 통합 기준)
+
+실제 OpenAI `gpt-6-luna`와 격리된 Spring·AI·PostgreSQL·Redis를 연결해 정보 부족 문의 → 기대/실제 동작 보충 → 발생 시점 보충의 세 입력을 검사했다. 최초 재현에서는 두 번째 입력 뒤 추가 질문이 남았는데 Supervisor가 Ticket을 선택하여 `INVALID_OUTPUT`으로 종료됐다. Ticket의 `available_for`를 실제 대상 문제 검사와 공유하여 제안할 문제가 없으면 역할 출력 스키마의 선택지에서 제외하도록 수정했다. 다른 독립 문제가 처리 가능하면 Ticket 선택은 유지한다.
+
+수정 후 세 실행 모두 성공했다. 첫 두 실행은 추가 질문과 티켓 0건, 마지막 실행은 질문 종료와 실제 `STORED` 티켓 1건·`AUTO` 배정을 확인했다. 문의 상세 및 실제 담당자 로그인 후 티켓 상세도 HTTP 200이며, 총 22개 검증 조건을 통과했다. 이는 실제 모델을 사용하는 API E2E이며 브라우저 UI 검증은 아니다.
+
+같은 기준의 회귀 검사는 Linux AI 995 passed, 23 skipped, 1 xfailed와 Spring 474개 통과다. 외부 환경 미지정으로 제외한 AI 검사 중 Ticket 실제 HTTP 8개는 별도 전용 DB·Spring에서 모두 통과했다. 예상 실패 1개는 기존 복수 가이드 계약 미정 시나리오다. Ruff check/format과 Spring 이미지 빌드도 통과했다.
+
+질문 단계의 `inquiry_problem`과 다음 입력의 기존 문제 목록은 여전히 비어 있었다. 대화 원문을 다시 추출해 이번 세 입력은 완료됐지만, 문제 ID와 질문 횟수를 서버에 누적하는 기능 및 재시작을 포함한 문제당 5회 상한 검증은 별도 미완료다. 위 과거 실패 기록을 현재 재검증 결과와 구분한다.
+
+### 브라우저 생성·표시 검증
+
+실제 OpenAI와 같은 로컬 서버를 연결한 live 프론트에서 문의자 로그인 → 문의 → 추가 질문 답변 → 접수 결과 모달·티켓 카드 → 새로고침 후 유지 → 담당자 로그인·업무 보드·티켓 상세를 직접 확인했다. 최초 검증에서는 티켓 저장 뒤에도 Inquiry를 반복 호출해 8회 모델 호출 상한에 걸리고 오류 안내가 함께 표시됐다. 분석을 마친 티켓 대상에 양식상 더 물을 내용이 없거나 질문 한도에 도달하면 Inquiry를 선택지에서 제외하도록 보완했다. 미확인 시스템·다른 미처리 문제·새 실행의 최초 분석은 차단하지 않는다.
+
+수정 후 새 가상 문의의 두 실행은 모두 `SUCCEEDED`, 티켓은 정확히 1건·`AUTO` 배정이며 최종 생성 안내와 담당자 상세가 오류 없이 표시됐다. Linux AI 회귀는 998 passed, 23 skipped, 1 xfailed다. 화면 검증은 이 정상 생성 경로에 한정하며 모든 화면·실패 경로·모델 품질 평가 완료를 의미하지 않는다. 질문 상태의 영속화는 위 미완료 범위 그대로다.
 
 ## 구현 경계와 다음 작업
 

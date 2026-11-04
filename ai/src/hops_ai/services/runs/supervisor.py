@@ -10,15 +10,18 @@ from collections.abc import Mapping
 
 from hops_ai.agents.base import Agent, PendingAgent
 from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.ticket.executing import ExecutingTicketAgent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
+from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.base import GraphRetriever, VectorRetriever
 from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
 from hops_ai.services.retrieval.neo4j import Neo4jRetriever
 from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
+from hops_ai.services.tickets import TICKET_TOOLS, TicketHTTPClient
 from hops_ai.services.tools.base import ToolGateway
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.services.tracing import RunTracing, TracedLLMClient
@@ -59,6 +62,7 @@ class SupervisorPipeline:
         tools: ToolGateway | None = None,
         knowledge_source: KnowledgeSource | None = None,
         tracing: RunTracing | None = None,
+        ticket_client: TicketHTTPClient | None = None,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
@@ -66,6 +70,9 @@ class SupervisorPipeline:
         knowledge_source는 기본 역할 조합(agents를 주지 않은 경우)에서만 Knowledge를 연결한다.
         """
         registry = dict(build_runtime_registry(knowledge_source) if agents is None else agents)
+        if ticket_client is not None:
+            registry[AgentRole.TICKET] = ExecutingTicketAgent()
+        self._ticket_client = ticket_client
         self._tracing = tracing or RunTracing()
         self._llm = TracedLLMClient(llm, self._tracing) if self._tracing.client else llm
         self._vector = vector or PgVectorRetriever()
@@ -78,6 +85,11 @@ class SupervisorPipeline:
         )
 
     async def run(self, request: AiRunRequest, context: RunContext) -> AiResult:
+        if self._ticket_client is not None:
+            context.tool_policy = ToolPolicy.of(
+                {**context.tool_policy.allowed_by_role, AgentRole.TICKET: TICKET_TOOLS}
+            )
+        ticket_tools = self._ticket_client.bind(request, context) if self._ticket_client else None
         with self._tracing.observe(
             "hops.ai.run",
             {"kind": request.kind, "messageCount": len(request.messages)},
@@ -91,6 +103,7 @@ class SupervisorPipeline:
                     graph=self._graph,
                     tools=self._tools,
                     tracing=self._tracing,
+                    ticket_tools=ticket_tools,
                 ),
             )
             if span is not None:
