@@ -13,7 +13,7 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 항목 | 상태 |
 |---|---|
 | FastAPI | `GET /healthz`는 프로세스 생존 200. `GET /readyz`는 실행 접수가 열려 있고 RunLedger 소유 세션이 응답할 때만 200, 그 외 503 |
-| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_runtime_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(규칙 기반 제안), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행하고 Knowledge는 연결 전 자리. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. 기본 `build_registry()`는 연결 전 자리 그대로 |
+| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_runtime_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(규칙 기반 제안), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`일 때만 개발용 고정 자료로 실행하고 기본(`none`)은 연결 전 자리. 기본 `build_registry()`는 연결 전 자리 그대로 |
 | OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j는 내부 인터페이스와 연결 자리만 존재하며 호출하면 미구현 오류 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결, Supervisor 미연결 |
@@ -134,7 +134,7 @@ curl -i http://127.0.0.1:8000/readyz
 
 `ai/.env`에 `HOPS_AI_MODE=real`, `HOPS_AI_INTERNAL_API_ENABLED=true`, `HOPS_AI_RUNTIME_DSN`, `AI_SERVICE_TOKEN`, `OPENAI_API_KEY`를 설정하면 Spring이 접수한 상담 실행(`POST /internal/v2/runs`)을 공통 Supervisor가 실제 모델로 처리한다. 모델은 `HOPS_AI_SUPERVISOR_MODEL`(기본 `gpt-6-luna`)이다. 같은 `AI_SERVICE_TOKEN` 값을 Spring 쪽에서도 읽으므로 `ai/.env` 한 곳에만 둔다(Compose가 Backend 컨테이너에도 전달한다).
 
-처리 흐름은 Supervisor 판단 → Inquiry(원문에서 사실 추출, 부족한 정보는 양식 규칙으로 질문) → 필요 시 Ticket(티켓 제안) → 최종 답변 조립이다. 정보가 부족하면 질문으로, 충분하면 티켓 제안으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge가 연결되기 전까지 안전한 실패로 끝난다. 티켓 제안은 제안일 뿐이며 저장·배정은 Spring이 하고, 현재 Spring은 AI 티켓 제안으로 티켓을 만들지 않는다.
+처리 흐름은 Supervisor 판단 → Inquiry(원문에서 사실 추출, 부족한 정보는 양식 규칙으로 질문) → 필요 시 Ticket(티켓 제안) → 최종 답변 조립이다. 정보가 부족하면 질문으로, 충분하면 티켓 제안으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge가 연결되기 전까지(`HOPS_AI_KNOWLEDGE_SOURCE=none`, 기본값) 안전한 실패로 끝난다. Knowledge를 켜는 방법과 흐름은 아래 [Knowledge 개발용 고정 자료](#knowledge-개발용-고정-자료)를 따른다. 티켓 제안은 제안일 뿐이며 저장·배정은 Spring이 하고, 현재 Spring은 AI 티켓 제안으로 티켓을 만들지 않는다.
 
 AI 런타임 DB와 계정은 Compose가 만들어 주지 않는다. 이미 만들어진 볼륨에는 초기화 스크립트가 다시 실행되지 않으므로 [AI 런타임 DB 계정·권한 준비](db/README.md)의 로컬 Compose 절차대로 `hops_ai_runtime` DB, 마이그레이션 계정 `hops_ai_migrator`, 앱 계정 `hops_ai_app`을 만든다. 예전 안내대로 `hops` 소유로 만든 DB도 같은 문서의 절차로 데이터를 보존한 채 넘겨받는다.
 
@@ -143,6 +143,16 @@ AI 런타임 DB와 계정은 Compose가 만들어 주지 않는다. 이미 만�
 ```bash
 python3 -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b'=').decode())"
 ```
+
+### Knowledge 개발용 고정 자료
+
+`ai/.env`에 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`를 추가하면 `real` 모드에서 Knowledge 역할이 켜진다(Compose도 같은 이름으로 AI 컨테이너에 전달한다). 기본값 `none`에서는 Knowledge가 연결 전 자리로 남고 Inquiry도 기존 양식 규칙을 그대로 쓴다. 설정을 바꾸면 AI를 다시 시작해야 한다.
+
+- 자료는 코드에 들어 있는 합성 가이드·점검 문서 몇 건이며 `origin=SYNTHETIC`으로 표시된다. 사용법 안내 흐름을 확인하는 용도이고, 검색 품질이나 운영 지식을 뜻하지 않는다. 실제 pgvector·Neo4j 검색과 Spring 권한 서버 연동은 이 설정에 포함되지 않는다.
+- 검색은 서버가 허용한 문서 범위와 문제의 보고 시스템으로 먼저 좁힌 뒤 키워드 일치 수로 순위를 매긴다. 질의는 그 문제 자신의 정보로 만든다. 문제가 하나뿐일 때는 요약, 확인한 상세 값, 최근 사용자 원문을 함께 쓰고, 문제가 여럿이면 다른 문제의 단어가 섞이지 않게 원문과 모델이 쓴 요약을 쓰지 않고 사용자 인용으로 검증된 상세 값만 쓴다. 직원 대상 가이드(`EMPLOYEE`)만 사용자 안내가 되며 담당자 전용 문서는 안내로 쓰지 않는다.
+- 사용법 문의는 시스템과 하려는 작업·화면만 확인되면 곧바로 가이드를 찾는다. 현재 진행 방식 같은 추가 정보를 먼저 묻지 않는다.
+- 검색 결과가 없거나(`EMPTY`), 결과는 있지만 직원 공개 가이드가 없어 안내를 만들지 못하면(담당자용 런북만 걸린 경우 등) 그 문제는 "안내 불가"다. 오류가 아니라 "찾지 못함"이며 **검색한 문제(`KnowledgeResult.problemRef`)에만** 적용된다. 이때 Supervisor는 하려는 결과(`expectedBehavior`) 등을 더 묻거나, 담당자 검토 티켓(`REVIEW_REQUIRED`) 제안으로 넘길 수 있다. 검색하지 않은 문제는 담당자 전달 대상이 아니다. 같은 문제를 같은 질의로 같은 실행에서 다시 검색하지 않고, 확인한 사실이 더해져 질의가 바뀌었을 때만 다시 검색할 수 있다. 검색 자체가 실패하면(`ERROR`) 티켓을 만들지 않고 `SEARCH_UNAVAILABLE`로 실행이 실패한다.
+- 한계: 공통 계약상 한 번의 실행에서 안내(`guide`)는 하나다. 사용법 문제가 둘 이상이면 첫 문제만 안내하고 나머지는 결과 없이 남아 실행이 실패할 수 있다(계약 확장 합의 후 후속). Spring이 AI의 문제·질문을 아직 저장하지 않아 사용자가 답할 때마다 질문 횟수(문제당 5회)가 이어서 누적되지 않는다. 안내 불가 뒤 질문과 티켓 중 무엇을 고르는지는 소수 표본의 실제 모델 시험으로 확인했을 뿐 안정성을 보증하지 않는다.
 
 ### Spring 전용 내부 조회 API
 
