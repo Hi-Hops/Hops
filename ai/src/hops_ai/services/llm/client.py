@@ -7,7 +7,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -25,6 +25,9 @@ class LLMRequest[T: BaseModel]:
     max_output_tokens: int
     prompt_version: str  # 결과 meta.promptVersion에 기록한다
     max_input_tokens: int | None = None
+    # 지정하면 구현체가 모델 출력 형식을 response_model의 기본 스키마 대신 이 스키마로 제한한다.
+    # 응답 해석과 검증은 그대로 response_model로 한다(예: 이번 호출에서 선택 가능한 값만 열거).
+    response_schema: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

@@ -170,3 +170,26 @@ async def test_missing_key_or_model_fails_without_any_request(key, model) -> Non
         await server.client(key, model).generate(make_request())
 
     assert server.requests == []
+
+
+async def test_response_schema_override_is_sent_and_parsing_still_uses_the_model() -> None:
+    server = Server(responses=json_response(completed()))
+    restricted = {
+        "type": "object",
+        "properties": {"text": {"type": "string", "enum": ["기간을 확인해 보세요."]}},
+        "required": ["text"],
+        "additionalProperties": False,
+    }
+    request = LLMRequest(
+        messages=[LLMMessage(role="user", content="질문")],
+        response_model=Reply,
+        max_output_tokens=300,
+        prompt_version="test.prompt.v1",
+        response_schema=restricted,
+    )
+
+    response = await server.client().generate(request)
+
+    [sent] = server.requests
+    assert json.loads(sent.content)["text"]["format"]["schema"] == restricted
+    assert response.parsed == Reply(text="기간을 확인해 보세요.")

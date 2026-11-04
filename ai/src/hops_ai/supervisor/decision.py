@@ -1,7 +1,8 @@
 """Supervisor의 다음 행동 제안과 실행 전 검증. 모델은 State를 직접 수정하지 않는다."""
 
 import json
-from typing import Literal
+from collections.abc import Sequence
+from typing import Any, Literal
 
 from pydantic import ValidationError, model_validator
 
@@ -44,6 +45,22 @@ class SupervisorDecision(ContractModel):
         if (self.nextAction == "CALL_ROLE") != (self.role is not None):
             raise ValueError("CALL_ROLE에만 전문 역할이 필요하다")
         return self
+
+
+def decision_schema(allowed_roles: Sequence[str]) -> dict[str, Any]:
+    """이번 판단에서 모델이 낼 수 있는 role만 열거한 출력 스키마.
+
+    허용되지 않은 역할은 출력 단계에서 고를 수 없다. 응답 해석은 기본 SupervisorDecision으로
+    하며, 선택 뒤의 정책·State 검사와 허용 역할 검사는 그대로 적용한다.
+    """
+    schema = SupervisorDecision.model_json_schema()
+    role: dict[str, Any] = {"type": "null"}
+    if allowed_roles:
+        role = {"anyOf": [{"type": "string", "enum": list(allowed_roles)}, {"type": "null"}]}
+    schema["properties"]["role"] = role
+    # 더 이상 참조하지 않는 역할 정의는 남기지 않는다.
+    schema.pop("$defs", None)
+    return schema
 
 
 def _ensure_decision_ready(state: SupervisorState) -> None:
@@ -256,7 +273,8 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v5",
+        prompt_version="supervisor.decision.v6",
+        response_schema=decision_schema(context["allowedRoles"]),
     )
     response = await services.llm.generate(request)
     # 지연된 응답은 취소·기한을 재검사한 뒤에만 사용한다.

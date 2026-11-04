@@ -127,4 +127,4 @@ async def test_prompt_tells_the_model_that_problems_come_from_inquiry() -> None:
 
     sent = llm.requests[0]
     assert "Inquiry가 문의를 분석해야 생긴다" in sent.messages[0].content
-    assert sent.prompt_version == "supervisor.decision.v5"
+    assert sent.prompt_version == "supervisor.decision.v6"
