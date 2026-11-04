@@ -92,6 +92,9 @@ async def check_runtime(conninfo: str) -> list[Check]:
             checks.append(Check(f"런타임 DB {privilege} 거부", not granted))
         schemas = await _creatable_schemas(conn)
         checks.append(Check("런타임 DB 스키마 생성 거부", not schemas, _names(schemas)))
+        # 앱 계정은 public만 사용한다. 다른 스키마의 USAGE도 함수 등 객체 접근 경로가 된다.
+        usable = await _usable_schemas(conn, allowed=["public"])
+        checks.append(Check("public 외 스키마 사용 거부", not usable, _names(usable)))
         # 원장 외 테이블·열·시퀀스에는 어떤 권한도 없어야 한다.
         others = await _privileged_relations(conn, exclude=[LEDGER_TABLE])
         checks.append(Check("원장 외 테이블·열·시퀀스 권한 없음", not others, _names(others)))
@@ -201,6 +204,20 @@ async def _creatable_schemas(conn: psycopg.AsyncConnection) -> list[str]:
                  AND has_schema_privilege(current_user, oid, 'CREATE')
                ORDER BY 1""",
             (list(SYSTEM_SCHEMAS),),
+        )
+    ).fetchall()
+    return [name for (name,) in rows]
+
+
+async def _usable_schemas(conn: psycopg.AsyncConnection, *, allowed: list[str]) -> list[str]:
+    rows = await (
+        await conn.execute(
+            """SELECT nspname FROM pg_namespace
+               WHERE nspname <> ALL(%s) AND nspname <> ALL(%s)
+                 AND nspname NOT LIKE 'pg_temp%%' AND nspname NOT LIKE 'pg_toast%%'
+                 AND has_schema_privilege(current_user, oid, 'USAGE')
+               ORDER BY 1""",
+            (list(SYSTEM_SCHEMAS), allowed),
         )
     ).fetchall()
     return [name for (name,) in rows]

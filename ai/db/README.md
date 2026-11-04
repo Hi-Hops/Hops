@@ -30,7 +30,7 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 | 5 | [03_app_privileges.sql](03_app_privileges.sql) | `hops_ai_migrator` | `hops_ai_runtime` |
 | 6 | 점검 명령 | `hops_ai_app` | `hops_ai_runtime` |
 
-- 3번은 예전 안내대로 `hops` 소유의 `hops_ai_runtime`이 이미 있을 때만 실행한다. 행 데이터와 인덱스는 그대로 두고 소유자만 `hops_ai_migrator`로 옮긴다.
+- 3번은 예전 안내대로 `hops` 소유의 `hops_ai_runtime`이 이미 있을 때만 실행한다. 행 데이터와 인덱스는 그대로 두고 소유자만 `hops_ai_migrator`로 옮긴다. PostgreSQL 15 이전에 만든 DB처럼 `public` 스키마 소유자가 관리자로 남아 있으면 스키마 소유권도 옮겨, 03이 기존 `public` CREATE 권한을 거둘 수 있게 한다.
 - 이미 테이블이 있으면 4번은 건너뛴다. 001만 적용된 DB는 실행기를 모두 멈춘 뒤 002를 한 번 적용한다.
 - 01·02·03은 여러 번 실행해도 된다.
 - 01은 같은 이름의 계정에 관리자 속성이 있거나, 앱 계정이 다른 역할에 속해 있으면 고치지 않고 멈춘다.
@@ -146,7 +146,7 @@ RDS 마스터 계정은 슈퍼유저가 아니다. PostgreSQL 16부터는 역할
 
 | 옵션 | 확인 |
 |---|---|
-| 없음 | 관리자 속성·역할 상속 없음, `ai_run_ledger` 허용/거부 권한(열 단위 포함), 런타임 DB의 원장 외 테이블·열·시퀀스 무권한, 모든 스키마 생성 거부, 실제 DELETE·테이블 생성 거부(트랜잭션 안에서 시도 후 되돌림), DB CREATE·TEMPORARY 거부, 세션 잠금 사용 가능. 데이터를 바꾸지 않는다 |
+| 없음 | 관리자 속성·역할 상속 없음, `ai_run_ledger` 허용/거부 권한(열 단위 포함), 런타임 DB의 원장 외 테이블·열·시퀀스 무권한, 모든 스키마 생성 거부, `public` 외 스키마 사용(USAGE) 거부, 실제 DELETE·테이블 생성 거부(트랜잭션 안에서 시도 후 되돌림), DB CREATE·TEMPORARY 거부, 세션 잠금 사용 가능. 데이터를 바꾸지 않는다 |
 | `--business-dbname hops` | 같은 계정으로 업무 DB의 테이블·열·시퀀스 권한과 스키마 생성 권한이 없고 `hops_knowledge` 권한도 없는지. 접속 자체가 거부되면 통과 |
 | `--write-check` | 점검용 run 한 건을 접수·시작·완료하고 새 세션에서 조회한다. 이 행은 남으며 24시간 뒤 일반 만료로 상세가 지워진다 |
 

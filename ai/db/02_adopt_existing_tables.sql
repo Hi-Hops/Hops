@@ -1,6 +1,8 @@
 -- 선택 단계. 예전 안내대로 관리자 계정(hops 등) 소유로 만든 hops_ai_runtime이 이미 있을 때만 실행한다.
 -- 01_roles_and_database.sql을 실행한 뒤, 관리자 계정으로 hops_ai_runtime에 접속해 실행한다.
 -- 행 데이터와 인덱스는 그대로 두고 테이블 소유자만 hops_ai_migrator로 옮긴다. 여러 번 실행해도 된다.
+-- PostgreSQL 15 이전에 만든 DB처럼 public 스키마 소유자가 관리자로 남아 있으면 그 소유권도 옮겨
+-- 03이 public 스키마의 기존 권한(PUBLIC·앱 계정 CREATE 등)을 거둘 수 있게 한다.
 \set ON_ERROR_STOP on
 
 SELECT current_database() = 'hops_ai_runtime' AS in_runtime_db
@@ -20,6 +22,12 @@ SELECT NOT pg_has_role(current_user, 'hops_ai_migrator',
 GRANT hops_ai_migrator TO CURRENT_USER;
 \endif
 
+SELECT 'ALTER SCHEMA public OWNER TO hops_ai_migrator'
+FROM pg_namespace
+WHERE nspname = 'public'
+  AND pg_get_userbyid(nspowner) NOT IN ('hops_ai_migrator', 'pg_database_owner')
+\gexec
+
 SELECT format('ALTER TABLE %I.%I OWNER TO hops_ai_migrator', schemaname, tablename)
 FROM pg_tables
 WHERE schemaname = 'public' AND tablename = 'ai_run_ledger' AND tableowner <> 'hops_ai_migrator'
@@ -29,4 +37,5 @@ WHERE schemaname = 'public' AND tablename = 'ai_run_ledger' AND tableowner <> 'h
 REVOKE hops_ai_migrator FROM CURRENT_USER;
 \endif
 
+SELECT 'public' AS schema, pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = 'public';
 SELECT tablename, tableowner FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
