@@ -157,7 +157,7 @@ async function openThreadKeys(github, repo, number) {
   return keys;
 }
 
-async function postReview({ github, context, core, review, appendix = '' }) {
+async function postReview({ github, context, core, review }) {
   if (!review?.trim()) {
     core.info('빈 리뷰는 게시하지 않습니다.');
     return;
@@ -177,7 +177,7 @@ async function postReview({ github, context, core, review, appendix = '' }) {
   const parsed = parseReview(review);
   if (!parsed) {
     const notice = review.trim().startsWith('{') ? '> 모델 출력이 리뷰 형식과 맞지 않아 원문을 표시합니다.\n\n' : '';
-    await github.rest.pulls.createReview({ ...target, body: limit(notice + review + appendix) + FOOTER });
+    await github.rest.pulls.createReview({ ...target, body: limit(notice + review) + FOOTER });
     return;
   }
 
@@ -191,7 +191,7 @@ async function postReview({ github, context, core, review, appendix = '' }) {
     a.priority - b.priority || (b.confidence ?? 0) - (a.confidence ?? 0));
   await writeJobSummary(core, parsed, findings, options);
 
-  // 스레드 조회가 실패해도 지적과 CI 결과는 게시한다. 이 경우 중복 게시를 막지 못할 수 있다.
+  // 스레드 조회가 실패해도 지적은 게시한다. 이 경우 중복 게시를 막지 못할 수 있다.
   let open = new Set();
   try {
     open = await openThreadKeys(github, repo, expected.number);
@@ -231,14 +231,13 @@ async function postReview({ github, context, core, review, appendix = '' }) {
   }
   // 이미 열린 스레드나 파일 단위 스레드로 알린 지적만 있으면 리뷰를 만들지 않는다.
   // 게시할 지적이 하나도 없으면 문제없음을 리뷰로 남긴다.
-  if (confident.length && !comments.length && !unplaced.length && parsed.complete !== false &&
-      !appendix.trim()) {
+  if (confident.length && !comments.length && !unplaced.length && parsed.complete !== false) {
     core.info(`새 줄 단위 스레드 없음. 파일 단위 스레드 ${fileThreads}개, 열린 스레드와 같은 지적 ${skipped}개 생략.`);
     return;
   }
   const hidden = findings.length - confident.length;
   const bodyFor = (threads, moved) =>
-    limit(renderReviewBody(parsed, { ...options, threads, skipped, unplaced: moved, hidden }) + appendix) + FOOTER;
+    limit(renderReviewBody(parsed, { ...options, threads, skipped, unplaced: moved, hidden })) + FOOTER;
   try {
     await github.rest.pulls.createReview({ ...target,
       comments: comments.map(({ finding, ...comment }) => comment),
@@ -254,5 +253,3 @@ module.exports = postReview;
 module.exports.parseReview = parseReview;
 module.exports.commentableLines = commentableLines;
 module.exports.findingKey = findingKey;
-// 워크플로가 appendix 지원 여부를 확인하는 데 사용한다.
-module.exports.renderReview = renderReviewBody;

@@ -11,7 +11,7 @@ const FILES = [
 ];
 
 function setup({ current = {}, review = '검토 결과', baseRef = 'develop', files = FILES, threads = [],
-  failReview = false, failFileComment = false, failThreads = false, appendix } = {}) {
+  failReview = false, failFileComment = false, failThreads = false } = {}) {
   const calls = [];
   const expected = { number: 42, head: { sha: 'abc' }, base: { ref: baseRef, sha: 'def' } };
   const context = { repo: { owner: 'example', repo: 'hops' }, payload: { pull_request: expected } };
@@ -50,7 +50,7 @@ function setup({ current = {}, review = '검토 결과', baseRef = 'develop', fi
   };
   const reviewCall = () => calls.find(call => call.type === 'review');
   return { calls, summaries, reviewCall,
-    run: () => postReview({ github, context, core, review, appendix }) };
+    run: () => postReview({ github, context, core, review }) };
 }
 
 function finding(overrides = {}) {
@@ -163,13 +163,12 @@ test('해결된 스레드의 지적이 다시 발견되면 새 스레드를 만�
   assert.equal(reviewCall().comments.length, 2);
 });
 
-test('스레드 조회가 실패해도 경고 후 지적과 CI 결과를 게시한다', async () => {
-  const { run, calls, reviewCall } = setup({ failThreads: true, review: structured(),
-    appendix: '\n\n**CI 실행 검증**\n- 실패' });
+test('스레드 조회가 실패해도 경고 후 지적을 게시한다', async () => {
+  const { run, calls, reviewCall } = setup({ failThreads: true, review: structured() });
   await run();
   assert.ok(calls.some(call => call.type === 'warning' && /스레드 조회에 실패/.test(call.message)));
   assert.equal(reviewCall().comments.length, 2);
-  assert.match(reviewCall().body, /새 스레드 2개[\s\S]*CI 실행 검증/);
+  assert.match(reviewCall().body, /새 스레드 2개/);
 });
 
 test('새로 알릴 내용이 없으면 리뷰를 만들지 않고 스레드를 resolve하지 않는다', async () => {
@@ -206,13 +205,6 @@ test('일부 파일을 읽지 못하면 지적이 없어도 미완료를 알린�
   await run();
   assert.match(reviewCall().body, /검토 미완료/);
   assert.match(reviewCall().body, /`ai\/src\/big\.py`/);
-});
-
-test('CI 실패 appendix가 있으면 지적이 없어도 리뷰 본문에 붙인다', async () => {
-  const { run, reviewCall } = setup({ appendix: '\n\n## CI 실행 검증\n- 실패',
-    review: structured({ findings: [], overall_correctness: 'correct' }) });
-  await run();
-  assert.match(reviewCall().body, /검토한 파일 2개[\s\S]*## CI 실행 검증/);
 });
 
 test('줄 단위 스레드 게시가 실패하면 경고하고 리뷰 본문에 지적을 남긴다', async () => {
@@ -259,9 +251,9 @@ test('빈 결과를 게시하지 않는다', async () => {
 });
 
 test('JSON이 아닌 출력은 리뷰 본문으로 게시하고 형식 오류를 안내한다', async () => {
-  const plain = setup({ review: '기존 Markdown 리뷰', appendix: '\n\nCI' });
+  const plain = setup({ review: '기존 Markdown 리뷰' });
   await plain.run();
-  assert.match(plain.reviewCall().body, /^기존 Markdown 리뷰\n\nCI/);
+  assert.match(plain.reviewCall().body, /^기존 Markdown 리뷰\n\n---/);
   const broken = setup({ review: '{"unexpected": true}' });
   await broken.run();
   assert.match(broken.reviewCall().body, /리뷰 형식과 맞지 않아[\s\S]*"unexpected"/);
@@ -280,8 +272,4 @@ test('긴 출력은 한도 이내로 제한하고 이모지 surrogate pair를 �
   assert.ok(reviewCall().body.isWellFormed());
   assert.ok(reviewCall().body.length < 65536);
   assert.match(reviewCall().body, /일부 결과가 생략/);
-});
-
-test('워크플로가 appendix 지원 여부를 확인할 수 있다', () => {
-  assert.equal(typeof postReview.renderReview, 'function');
 });
