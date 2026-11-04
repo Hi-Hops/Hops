@@ -164,6 +164,23 @@ def index_router(settings: Settings) -> APIRouter:
                 try:
                     await _apply(settings, payload, document)
                     snapshot = _snapshot(request, "SUCCEEDED")
+                except httpx.HTTPStatusError as error:
+                    # 명시적 4xx 거부는 저장 실패다. 408·5xx는 반영 여부를 확정하지 않는다.
+                    status = error.response.status_code
+                    rejected = 400 <= status < 500 and status != 408
+                    snapshot = _snapshot(
+                        request,
+                        "FAILED" if rejected else "UNKNOWN",
+                        AiError(
+                            code="INDEX_UNAVAILABLE",
+                            message=(
+                                "외부 서비스가 색인 요청을 거부했습니다"
+                                if rejected
+                                else "저장소 반영 결과를 확인할 수 없습니다"
+                            ),
+                            retryable=status == 429 if rejected else True,
+                        ),
+                    )
                 except (httpx.HTTPError, psycopg.Error):
                     snapshot = _snapshot(
                         request,

@@ -106,14 +106,17 @@ async def test_concurrent_replays_execute_once_and_conflicting_body_is_rejected(
         await cleanup(request)
 
 
-async def test_unknown_and_previously_running_jobs_are_never_executed_again(client, monkeypatch):
+@pytest.mark.parametrize("failure", [httpx.ConnectError, httpx.ReadTimeout])
+async def test_unknown_and_previously_running_jobs_are_never_executed_again(
+    client, monkeypatch, failure
+):
     request = request_body()
     count = 0
 
     async def apply(*_args):
         nonlocal count
         count += 1
-        raise httpx.ConnectError("synthetic unreachable store")
+        raise failure("synthetic unreachable store")
 
     monkeypatch.setattr(index_jobs, "_apply", apply)
     try:
@@ -132,6 +135,78 @@ async def test_unknown_and_previously_running_jobs_are_never_executed_again(clie
             "state"
         ] == "RUNNING"
         assert count == 1
+    finally:
+        await cleanup(request)
+
+
+@pytest.mark.parametrize("store", ["VECTOR", "NEO4J"])
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 422, 429])
+async def test_definite_http_rejection_is_failed_and_next_attempt_can_recover(
+    client, monkeypatch, store, status
+):
+    request = request_body(store)
+    calls = 0
+
+    async def apply(*_args):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            response = httpx.Response(
+                status,
+                request=httpx.Request("POST", "https://store.test/"),
+                text="synthetic-private-response",
+            )
+            response.raise_for_status()
+
+    headers = {}
+    if store == "VECTOR":
+        content = {key: request[key] for key in ("caseId", "caseVersion", "approvedCase")}
+        headers = {
+            "X-Hops-Document-Version": str(uuid4()),
+            "X-Hops-Document-Digest": sha256(canonical(content)),
+        }
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    try:
+        first = await client.post("/internal/v2/index-jobs", json=request, headers=headers)
+        assert first.status_code == 202
+        assert first.json()["state"] == "FAILED"
+        assert first.json()["error"]["retryable"] == (status == 429)
+        assert "synthetic-private-response" not in first.text
+        replay = await client.post("/internal/v2/index-jobs", json=request, headers=headers)
+        assert replay.json() == first.json()
+        assert calls == 1
+        recovered = await client.post(
+            "/internal/v2/index-jobs", json={**request, "attempt": 2}, headers=headers
+        )
+        assert recovered.json()["state"] == "SUCCEEDED"
+        assert recovered.json()["jobId"] == request["jobId"]
+        assert recovered.json()["contentDigest"] == request["contentDigest"]
+        assert calls == 2
+    finally:
+        await cleanup(request)
+
+
+@pytest.mark.parametrize("status", [408, 500, 502, 503, 504])
+async def test_ambiguous_http_response_stays_unknown_and_is_not_reexecuted(
+    client, monkeypatch, status
+):
+    request = request_body()
+    calls = 0
+
+    async def apply(*_args):
+        nonlocal calls
+        calls += 1
+        httpx.Response(
+            status, request=httpx.Request("POST", "https://store.test/")
+        ).raise_for_status()
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    try:
+        for _ in range(2):
+            response = await client.post("/internal/v2/index-jobs", json=request)
+            assert response.status_code == 202
+            assert response.json()["state"] == "UNKNOWN"
+        assert calls == 1
     finally:
         await cleanup(request)
 
