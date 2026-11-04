@@ -31,6 +31,7 @@ import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.itsystem.repository.ItSystemRepository;
 import com.hihops.hops.itsystem.service.SystemQueryService;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 import com.hihops.hops.user.domain.Member;
 import com.hihops.hops.user.repository.MemberRepository;
 
@@ -45,6 +46,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 같은 요청 키로 다시 오면 처음 결과를 돌려주고 새 실행을 만들지 않는다 ({@link IdempotencyService}).
  *
  * <p>AI 서버 전달은 commit 뒤 {@link AgentRunQueued} 이벤트를 받는 쪽이 맡는다. 이 서비스는 AI를 부르지 않는다.
+ * 첫 메시지 저장은 {@link MessageStoredEvent}로 문의 구독(SSE)에 commit 뒤 알린다.
  *
  * <p>reportedSystemId: 사용자가 고른 시스템은 첫 메시지 payload에만 남긴다. AiRunRequest에는 이 값을 담을 필드가 없고(InputProblem에만 있다),
  * 첫 분석에는 아직 문제가 없어 AI에 전달하지 않는다. 전달 방식은 계약 합의 뒤 정한다.
@@ -98,6 +100,8 @@ public class InquiryCommandService {
                 systemQueryService.findSupportedSystems(), clock.instant()));
         inquiry.resumeAnalysis(run);
         eventPublisher.publishEvent(new AgentRunQueued(run.getId()));
+        eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), first.getId(),
+                command.requestId()));
         return inquiry.getId();
     }
 

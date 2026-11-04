@@ -39,6 +39,7 @@ import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.MessageRevisionRepository;
 import com.hihops.hops.itsystem.service.SystemQueryService;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.json.JsonMapper;
@@ -62,6 +63,8 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>거절: 남의 문의·없는 문의 404, 버전이 다르면 409 INQUIRY_VERSION_CONFLICT, 끝난 문의는 409 INVALID_STATE,
  * 이 문의의 문제가 아닌 problemIds는 400 INVALID_INPUT.
  * 업무 거절은 REJECTED로 기록돼 같은 키로 다시 보내도 같은 오류다.
+ *
+ * <p>저장·정정한 메시지는 {@link MessageStoredEvent}로 문의 구독(SSE)에 commit 뒤 알린다.
  *
  * <p>이전 실행의 AI 서버 취소 전파는 AI 쪽 취소 API(#93)가 준비되면 commit 뒤 이벤트로 연결한다. 지금은 Spring에서만 대체한다.
  */
@@ -113,6 +116,8 @@ public class MessageCommandService {
                 command.content(), UserMessagePayload.json(jsonMapper, command.requestId(), null, problemIds, command.content()),
                 MessageStatus.COMPLETED));
         startAnalysis(inquiry, message, problemIds);
+        eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
+                command.requestId()));
         return inquiry.getId();
     }
 
@@ -137,6 +142,9 @@ public class MessageCommandService {
         List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
                 .problemIds(message.getRevision()).stream().filter(active::contains).toList();
         startAnalysis(inquiry, message, problemIds);
+        // 정정도 저장 알림이다. requestId는 이 정정 요청이다 (WIRE_CONTRACT 12.4 "저장 메시지·정정")
+        eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
+                command.requestId()));
         return inquiry.getId();
     }
 

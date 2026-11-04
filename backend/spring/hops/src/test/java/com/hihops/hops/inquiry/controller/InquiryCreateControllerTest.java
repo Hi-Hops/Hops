@@ -30,6 +30,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.hihops.hops.agent.service.AgentRunQueued;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -184,6 +185,13 @@ class InquiryCreateControllerTest {
         assertThat(system.path("features").get(0).path("id").asString()).isEqualTo(featureId.toString());
 
         assertThat(events.stream(AgentRunQueued.class)).containsExactly(new AgentRunQueued(runId));
+        // 첫 메시지 저장을 문의 구독에 알린다
+        assertThat(events.stream(MessageStoredEvent.class)).singleElement().satisfies(stored -> {
+            assertThat(stored.inquiryId()).isEqualTo(inquiryId);
+            assertThat(stored.inquiryVersion()).isEqualTo(1);
+            assertThat(stored.messageId()).isEqualTo(message.get("id"));
+            assertThat(stored.requestId()).isEqualTo(requestId);
+        });
     }
 
     @Test
