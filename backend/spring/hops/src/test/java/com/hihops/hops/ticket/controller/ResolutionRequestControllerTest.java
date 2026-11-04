@@ -96,9 +96,14 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         assertThat(detail().path("workRecords").size()).isEqualTo(3);
     }
 
-    @Test void GUIDE_미해결은_해당문제만_동일입력버전과_질문횟수로_재분석한다() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void GUIDE_미해결은_해당문제의_기존_분류와_버전과_질문횟수로_재분석한다(boolean hasStandardRequest) throws Exception {
         var guided = UUID.randomUUID(); var resolution = UUID.randomUUID();
         jdbc.update("INSERT INTO inquiry_problem(id,inquiry_id,problem_no,title,problem_status,clarify_count,confirm_requested_at) VALUES (?,?,2,'안내 문제','GUIDED',2,now())", guided, inquiry);
+        if (hasStandardRequest) {
+            jdbc.update("INSERT INTO standard_request(id,inquiry_problem_id,inquiry_version,agent_run_id,intent,work_type,reported_system_id,responsible_system_id,summary) VALUES (?,?,1,?,'HOW_TO','KNOWLEDGE_QA',?,?,'기존 안내 요청')", UUID.randomUUID(), guided, analysis, system, system);
+        }
         var request = new com.hihops.hops.ticket.dto.ResolutionRequestResponse(resolution, inquiry, guided, null,
                 "GUIDE", message, 1, 1, "PENDING", "안내 후 확인", "HOPS_USER", Instant.now(), null);
         jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(java.util.Map.of("resolutionRequest", request)), message);
@@ -112,5 +117,10 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         var snapshot = jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id=(SELECT current_run_id FROM inquiry WHERE id=?)", String.class, inquiry);
         assertThat(json(snapshot).path("problemIds").get(0).asString()).isEqualTo(guided.toString());
         assertThat(json(snapshot).path("answerMessageId").asString()).isNotBlank();
+        assertThat(json(snapshot).path("problems").get(0).path("intent").asString()).isEqualTo(hasStandardRequest ? "HOW_TO" : "UNKNOWN");
+        if (hasStandardRequest) {
+            assertThat(json(snapshot).path("problems").get(0).path("reportedSystemId").asString()).isEqualTo(system.toString());
+            assertThat(json(snapshot).path("problems").get(0).path("standardRequest").path("summary").asString()).isEqualTo("기존 안내 요청");
+        }
     }
 }

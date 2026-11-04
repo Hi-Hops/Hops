@@ -8,11 +8,14 @@ import org.springframework.stereotype.Component;
 
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.dto.AiRunRequest.InputProblem;
+import com.hihops.hops.agent.dto.AiRunRequest.StandardRequestBody;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.InquiryProblem;
 import com.hihops.hops.inquiry.repository.MessageRepository;
+import com.hihops.hops.inquiry.repository.StandardRequestRepository;
 import com.hihops.hops.itsystem.service.SystemQueryService;
 import com.hihops.hops.ticket.dto.ResolutionRequestResponse;
+import com.hihops.hops.ticket.service.TicketStandardRequestReader;
 
 import lombok.RequiredArgsConstructor;
 
@@ -23,6 +26,8 @@ public class GuideReanalysisInputFactory {
     private final AnalysisInputFactory analysisInputs;
     private final MessageRepository messages;
     private final SystemQueryService systems;
+    private final StandardRequestRepository standardRequests;
+    private final TicketStandardRequestReader standardReader;
 
     public String snapshot(AgentRun run, Inquiry inquiry, InquiryProblem problem,
             ResolutionRequestResponse response, Instant now) {
@@ -30,6 +35,18 @@ public class GuideReanalysisInputFactory {
                 "sourceVersion", response.sourceVersion(), "state", "UNRESOLVED");
         var target = new InputProblem(problem.getId(), problem.getTitle(), "UNKNOWN", "KNOWLEDGE_QA", null, null,
                 "ANALYZING", problem.getClarifyCount(), null, context);
+        var saved = standardRequests.findAppliedNewestFirst(List.of(problem.getId())).stream().findFirst();
+        if (saved.isPresent()) {
+            var standard = saved.get();
+            var visible = standardReader.read(standard, inquiry.getRequester());
+            var body = new StandardRequestBody(visible.summary(), visible.confirmedFacts(), visible.assumptions(),
+                    visible.unknowns(), visible.responsibleSystemCandidateId(), visible.responsibilityEvidenceIds(),
+                    visible.details(), visible.knowledge());
+            target = new InputProblem(problem.getId(), standard.getSummary(), standard.getIntent().name(),
+                    standard.getWorkType().name(), standard.getReportedSystem() == null ? null : standard.getReportedSystem().getId(),
+                    standard.getReportedFeature() == null ? null : standard.getReportedFeature().getId(),
+                    "ANALYZING", problem.getClarifyCount(), body, context);
+        }
         return analysisInputs.snapshot(run, inquiry, messages.findAllCompletedInOrder(inquiry.getId()),
                 new InputProblemReader.ProblemInputs(List.of(target), List.of()), List.of(problem.getId()),
                 systems.findSupportedSystems(), now);
