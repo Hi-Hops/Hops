@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
-import { useSubscription } from '@/features/realtime';
+import { reconnect, useSubscription } from '@/features/realtime';
 import { systemStatus } from '@/features/inquiry';
 import { ApiError } from '@/shared/api/client';
 import { displayDate } from '@/shared/lib/date';
@@ -202,6 +202,7 @@ function RequestContent({ ticket }: RequestContentProps) {
 type SystemTicketDetailProps = { id: string; onClose: () => void; returnFocusId?: string };
 export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketDetailProps) {
   const user = useSession((s) => s.user);
+  const token = useSession((s) => s.token);
   const location = useLocation();
   const navigationState: unknown = location.state;
   const [search] = useSearchParams();
@@ -242,7 +243,16 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
   const content =
     !allowed || subscription.denied ? (
       <ErrorState title="이 시스템 티켓을 볼 권한이 없어요" />
-    ) : !admin && ['connecting', 'disconnected'].includes(subscription.state) ? (
+    ) : !admin && subscription.state === 'disconnected' ? (
+      // 모달이 바깥을 가려 전역 재연결 안내를 누를 수 없으므로 상세 안에서 다시 연결한다.
+      <ErrorState
+        title="실시간 연결이 끊겼어요"
+        description="보호 내용을 가렸어요. 다시 연결하면 현재 권한과 저장 상태를 확인해요."
+        onRetry={() => {
+          reconnect(token);
+        }}
+      />
+    ) : !admin && subscription.state === 'connecting' ? (
       <LoadingState label="현재 권한과 저장 상태를 다시 확인하고 있어요" />
     ) : query.isPending ? (
       <LoadingState />

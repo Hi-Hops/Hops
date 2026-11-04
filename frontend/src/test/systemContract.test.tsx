@@ -313,6 +313,25 @@ describe('hops-system-1 시스템 단위 전환', () => {
     expect(await screen.findByText('이 시스템 티켓을 볼 권한이 없어요')).toBeVisible();
     expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
   });
+  it('모달인 담당 티켓 상세에서도 연결이 끊기면 상세 안에서 다시 연결한다', async () => {
+    await login(TEST_LOGINS.network);
+    const token = useSession.getState().token ?? '';
+    const page = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
+    const id = page.items[0]?.id ?? '';
+    vi.spyOn(realtime, 'subscribe').mockImplementation((_target, listener) => {
+      listener?.('disconnected');
+      return () => undefined;
+    });
+    const connect = vi.spyOn(realtime, 'connect').mockImplementation(() => undefined);
+    renderWithProviders(
+      <SystemTicketDetail id={id} onClose={vi.fn()} />,
+      `/tickets/${id}?view=list&systemId=${systems[0].id}`,
+    );
+    expect(await screen.findByText('실시간 연결이 끊겼어요')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(connect).toHaveBeenCalledWith(token);
+  });
   it('F003-CONTRACT-04 입력 UI에서 응답 유실 후 같은 요청을 확인하고 입력을 정리한다', async () => {
     await login(TEST_LOGINS.requester);
     const onStored = vi.fn();

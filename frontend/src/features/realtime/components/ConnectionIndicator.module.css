@@ -3,8 +3,6 @@
   flex: none;
   width: 6px;
   height: 6px;
-  padding: 0;
-  border: 0;
   border-radius: 50%;
 }
 .connected {
@@ -15,9 +13,4 @@
 }
 .disconnected {
   background: var(--color-danger);
-  cursor: pointer;
-}
-.disconnected:focus-visible {
-  outline: 2px solid var(--color-danger-border);
-  outline-offset: 2px;
 }
