@@ -279,6 +279,34 @@ class RunLedger:
                 after = owners[-1]["owner_id"]
         return recovered
 
+    async def ping(self) -> None:
+        """소유 세션이 살아 있어 접수·결과 저장을 받을 수 있는지 확인한다. 아니면 예외를 낸다."""
+        async with self._owner_mutex:
+            conn, _ = self._owner()
+            await conn.execute("SELECT 1")
+
+    async def expire_details(self, limit: int = 100) -> int:
+        """보존 기간(24시간)이 지난 최종 결과 상세를 오래된 순으로 최대 limit건 만료한다.
+
+        expire_detail과 같이 ID·digest 표식은 남긴다.
+        다른 인스턴스가 같은 행을 처리 중이면 건너뛴다.
+        """
+        if isinstance(limit, bool) or limit <= 0:
+            raise ValueError("만료 처리 건수는 1 이상이어야 합니다")
+        async with await psycopg.AsyncConnection.connect(self._conninfo) as conn:
+            cursor = await conn.execute(
+                """UPDATE ai_run_ledger
+                   SET status = 'UNKNOWN', result = NULL, finished_at = NULL,
+                       updated_at = CURRENT_TIMESTAMP
+                   WHERE run_id IN (
+                       SELECT run_id FROM ai_run_ledger
+                       WHERE finished_at <= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+                       ORDER BY finished_at LIMIT %s FOR UPDATE SKIP LOCKED
+                   )""",
+                (limit,),
+            )
+            return cursor.rowcount
+
     async def expire_detail(self, run_id: UUID) -> bool:
         """최종 결과를 최소 24시간 보존한 뒤 ID·digest 표식은 유지한다."""
         async with await psycopg.AsyncConnection.connect(self._conninfo) as conn:

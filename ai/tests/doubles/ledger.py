@@ -1,5 +1,6 @@
 """RunLedger와 같은 상태 전이 규칙을 메모리에서 흉내 내는 대역. DB에 연결하지 않는다."""
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -35,6 +36,9 @@ class MemoryLedger:
     finish_failures: int = 0
     finish_calls: int = 0
     opened: bool = False
+    # 준비 상태 확인용. 예외를 넣으면 소유 세션이 끊긴 것처럼 동작한다.
+    ping_failure: Exception | None = None
+    ping_delay: float = 0
 
     def _maybe_fail(self, name: str) -> None:
         remaining = getattr(self, name)
@@ -95,3 +99,17 @@ class MemoryLedger:
             return False
         row.status = "UNKNOWN"
         return True
+
+    async def ping(self) -> None:
+        if not self.opened:
+            raise InvalidRunTransition("유효한 실행 소유자 세션이 없습니다")
+        if self.ping_delay:
+            await asyncio.sleep(self.ping_delay)
+        if self.ping_failure is not None:
+            raise self.ping_failure
+
+    async def recover_abandoned(self) -> int:
+        return 0
+
+    async def expire_details(self, limit: int = 100) -> int:
+        return 0
