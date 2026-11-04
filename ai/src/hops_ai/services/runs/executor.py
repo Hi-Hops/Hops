@@ -28,6 +28,7 @@ from hops_ai.persistence.run_ledger import (
     RunLedger,
 )
 from hops_ai.services.runs.admission import ExecutionLimits, RunAdmissionService
+from hops_ai.services.runs.events import RunEventHub, RunEvents
 from hops_ai.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -165,8 +166,10 @@ class RunExecutor:
         clock: Clock | None = None,
         store_retry_delays: Sequence[float] = STORE_RETRY_DELAYS,
         cancel_grace_seconds: float = CANCEL_GRACE_SECONDS,
+        events: RunEventHub | None = None,
     ) -> None:
         self._ledger = ledger
+        self.events = events or RunEventHub()
         self._admission = admission
         self._pipeline = pipeline
         self._settings = settings
@@ -306,6 +309,7 @@ class RunExecutor:
 
     async def _execute(self, request: AiRunRequest) -> None:
         run_id = UUID(request.runId)
+        events = RunEvents(request.runId, self.events)
         try:
             try:
                 started = await self._store(lambda: self._ledger.start(run_id))
@@ -318,14 +322,17 @@ class RunExecutor:
                 logger.warning("접수한 실행을 시작 상태로 바꾸지 못했습니다")
                 return
             context = self._context(request)
+            context.events = events
             result = await self._run_pipeline(request, context)
-            # 이벤트 순번은 SSE(#92) 연결 시 발급한 값을 넘긴다. 지금은 발급하지 않는다.
-            last_seq = 0
+            event = context.events.prepare_result(result)
+            last_seq = event.seq
             payload = result.model_dump(mode="json")
             try:
                 await self._store(
                     lambda: self._ledger.finish(run_id, result.status, payload, last_seq)
                 )
+                # 저장이 성공하기 전에는 result 이벤트를 내보내지 않는다.
+                self.events.publish(event)
             except (RunConflict, InvalidRunTransition) as exc:
                 # 이미 다른 결과로 확정됐거나 소유권을 잃었다. 덮어쓰지 않는다.
                 logger.warning("실행 결과를 확정하지 못했습니다: %s", type(exc).__name__)
@@ -335,3 +342,5 @@ class RunExecutor:
         except asyncio.CancelledError:
             # 종료 중 취소는 결과를 만들지 않는다. 소유 세션이 닫히면 복구가 UNKNOWN으로 바꾼다.
             raise
+        finally:
+            events.closed = True

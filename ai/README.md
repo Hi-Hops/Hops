@@ -17,8 +17,8 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j는 내부 인터페이스와 연결 자리만 존재하며 호출하면 미구현 오류 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결, Supervisor 미연결 |
-| 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot 조회. 실행 접수는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 취소·SSE는 503 |
-| 업무 실행·SSE | 백그라운드 실행기(접수·상태 전이·안전한 실패 저장)와 `real` 모드의 Supervisor 파이프라인 연결. SSE·취소 전파는 연결 전 |
+| 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot·progress/result SSE 조회. 실행 접수는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 취소는 503 |
+| 업무 실행·SSE | 백그라운드 실행기와 `real` 모드 Supervisor 파이프라인 연결. 역할 실행 전 고정된 공개 진행 문구 발행, 최종 결과 저장 뒤 result 전달. 취소 전파·answer.delta는 연결 전 |
 | Fake·Mock | 테스트 전용 LLM·도구 대역. 서버에 자동 연결하지 않음 |
 
 단일 baseline, 독립 Diagnosis, Intake 명칭, 규칙 기반 Supervisor, 부서/CS 배정과 옛 `agent-1` 실행 모델은 활성 코드에서 분리했다. 기존 `/internal/mock/v1/runs` 접수·이벤트 경로는 제공하지 않는다. 예전 Fake 모드의 실행 명령이나 프론트 공용 `hops-mock-1` fixture로 이 서버를 호출하지 않는다.
@@ -70,7 +70,7 @@ Inquiry가 기존 확인 사실을 일부 빠뜨리기만 하면 기존 사실�
 - `get_problem_progress`는 별도 State 필드를 저장하지 않고 준비 상태를 계산한다. `validate_completion`은 모든 대상과 신규 문제에 질문·가이드·티켓 제안 또는 안내할 기존 결과·범위 안내·시스템 선택 대기가 있는지 검사한다. `allowedActions`, 종료 행동 검증, 최종화가 이 조건을 함께 사용한다. 검색 0건이나 자유 문구만으로 종료할 수 없고, 원인 미확인 항목이 남았다는 이유만으로 조사 티켓을 차단하지 않는다.
 - `compose_public_answer`는 검증된 질문·가이드 항목을 한 번씩 조립하고, 티켓 제안 준비와 서버가 제공한 기존 저장 결과를 구분해 답변을 만든다. 서로 다른 문제의 질문 본문이 완전히 같으면 문제 번호를 묶어 한 번 표시하고 문제별 질문 메타데이터는 유지한다. 질문과 가이드처럼 의미가 다른 결과는 같은 문구라고 임의로 합치지 않는다. 전송 DTO는 필수 본문 누락을 검사하며 다른 질문·가이드 안의 같은 부분 문자열을 중복 항목으로 세지 않는다. 이 검사는 사용자 답변의 적절성 판단이나 질문 횟수 집계와 구분한다. 새 티켓 저장·담당자 배정·해결을 추정하지 않는다. 질문 5회 소진 후 시스템이 미확인이면 추가 질문 대신 시스템 선택 안내를 구성한다. 최종 본문의 길이·참조 검증이 실패하면 자동 절단하지 않고 실패 처리한다. 질문·가이드 자체의 의미 정확성은 역할별 평가가 필요하다.
 
-이 내부 흐름은 명시적인 테스트 대역으로 검증한다. 실제 OpenAI·전문 역할·검색·Spring 권한·RunLedger 실행·HTTP 접수·취소·SSE는 아직 연결하지 않았으며 서버 준비 상태는 계속 503이다. 메모리 문맥의 중복 실행 차단은 영속 RunLedger 접수를 대신하지 않는다.
+이 내부 흐름은 명시적인 테스트 대역으로 검증한다. 서비스 실행은 아래 `real` 모드·RunLedger·HTTP 접수·진행 SSE 경로에서 연결하며 실제 모델·검색·Spring 권한·저장 전체 통합 검증은 별도다. 취소 전파는 미구현이고 서버 준비 상태는 계속 503이다. 메모리 문맥의 중복 실행 차단은 영속 RunLedger 접수를 대신하지 않는다.
 
 ## Supervisor 단독 실행과 의존성 주입
 
@@ -164,7 +164,7 @@ python3 -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token
 |---|---|
 | `GET /internal/v2/runs/{runId}` | Bearer 인증 후 저장된 snapshot 조회. 없는 실행은 404, DB/저장 형식 오류는 안전한 503 |
 | `POST /internal/v2/runs` | 파이프라인 미주입 시 503(접수 안 함). 주입 시 신규·재전송 202 `AiAccepted`, 다른 입력 409, 기한 지남 422, 서버 상한 초과 429 `BUDGET_EXCEEDED`, 동시 실행 초과 429 `RATE_LIMITED`+`Retry-After`, 저장소 오류 503 |
-| `GET /internal/v2/runs/{runId}/events` | 실행 이벤트 SSE 미준비 503 |
+| `GET /internal/v2/runs/{runId}/events` | 인증 후 progress/result SSE. 없는 실행 404, 연결 전 저장소 오류 503. 종료 실행은 저장된 result 한 건 후 종료 |
 | `POST /internal/v2/runs/{runId}/cancel` | 취소 전파 미구현 503 |
 
 `/internal` 아래 모든 경로는 요청 본문을 읽기 전에 서비스 인증을 수행한다. 아직 등록되지 않은 내부 경로도 인증 전에는 401을 반환한다. 인증 실패는 안전한 오류 본문의 401이며 중복 Authorization 헤더도 거부한다. 생존·준비 상태 경로는 인증하지 않는다. `readyz`는 내부 조회 활성화 여부와 관계없이 503이며, 현재 프로필은 운영 배포·실제 모델 실행을 뜻하지 않는다.
@@ -187,7 +187,13 @@ RunLedger는 Spring 업무 DB가 아닌 별도 `hops_ai_runtime` DB를 사용한
 
 `RunLedger.open()`은 인스턴스별 PostgreSQL 세션 잠금을 확보하고, 소유 세션이 사라진 미완료 run을 `UNKNOWN`으로 복구한다. 살아 있는 다른 인스턴스의 잠금은 건드리지 않는다. 접수·실행 변경은 잠금을 보유한 같은 DB 세션을 사용하므로 직접 연결 또는 세션 수명이 유지되는 연결 구성이 필요하다. 트랜잭션 단위 연결 풀은 사용할 수 없다. 네트워크 단절 시 PostgreSQL이 기존 세션 종료를 확인하기 전까지 복구가 지연될 수 있다. 스캔 중 종료된 다른 인스턴스는 다음 `recover_abandoned()` 호출에서 확인할 수 있으며 주기 실행은 아직 연결하지 않았다.
 
-테스트처럼 `create_app(..., ledger=ledger, pipeline=pipeline)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 백그라운드 실행기를 연결하며 종료 시 실행기·세션을 정리한다. pipeline 없이 내부 API만 활성화하면 저장된 실행 조회만 제공하고 새 접수는 503이다. 기본 골격 실행은 DB에 연결하지 않는다. 실제 모델·Supervisor·Spring 업무·실행 SSE 연결은 미완료다.
+테스트처럼 `create_app(..., ledger=ledger, pipeline=pipeline)`로 명시 주입하면 FastAPI 시작 시 ledger를 열고 복구한 뒤 백그라운드 실행기를 연결하며 종료 시 실행기·세션을 정리한다. pipeline 없이 내부 API만 활성화하면 저장된 실행 조회와 종료 결과 SSE를 제공하고 새 접수는 503이다. 기본 골격 실행은 DB에 연결하지 않는다. 실제 모델·Spring·DB 전체 통합 검증은 별도다.
+
+### 실행 진행 SSE
+
+내부 SSE의 `data`는 `AiEvent`이며 `event`는 progress/result, `id`는 실행 전체 `seq`다. Supervisor 판단·역할 실행 전에 서버가 정한 role/displaySummary를 발행한다. 모델의 요약·사고 과정·도구 원문을 진행 문구로 사용하지 않는다. 최종 result와 마지막 seq는 RunLedger 저장이 성공한 뒤에만 전달하며 종료 후 진행은 차단한다.
+
+진행은 프로세스 내 유실 허용 전달이며 replay하지 않는다. 실행당 구독 8개·전체 256개, 구독당 대기 이벤트 64개를 상한으로 두며 느린 구독은 종료한다. 15초 comment heartbeat 시 저장 상태도 확인하므로 다른 AI 프로세스에서 끝난 실행은 최종 snapshot으로 복구할 수 있다(프로세스 간 실시간 진행 전달은 제공하지 않는다). 연결 해제는 실행을 취소하지 않는다. Spring은 SSE 연결 직후부터 snapshot 폴링을 병행하고 연결 종료·누락 시 같은 실행을 조회한다. 새 실행이나 모델 호출을 자동 생성하지 않는다. answer.delta와 취소 API는 이번 구현 범위에 포함하지 않는다.
 
 PostgreSQL 통합 검사는 별도 테스트 전용 DB `hops_ai_runtime_test`가 준비된 경우에만 실행한다. 해당 DB에 위 SQL을 적용하며 테스트용 실행 기록을 추가한다. 기본 테스트에서는 접속 설정이 없으면 이 검사들을 건너뛴다.
 

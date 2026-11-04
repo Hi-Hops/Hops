@@ -7,6 +7,7 @@ from datetime import datetime
 from hops_ai.harness.budget import Clock, RunBudget
 from hops_ai.harness.errors import InputRejected, RunCancelled
 from hops_ai.harness.policy import ToolPolicy
+from hops_ai.services.runs.events import Role, RunEvents
 from hops_ai.settings import Settings
 
 
@@ -18,6 +19,7 @@ class RunContext:
     access_scope_ref: str
     budget: RunBudget
     tool_policy: ToolPolicy
+    events: RunEvents | None = field(default=None, repr=False)
     _cancelled: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
     _execution_claimed: bool = field(default=False, init=False, repr=False)
 
@@ -64,3 +66,8 @@ class RunContext:
         if self.is_cancelled:
             raise RunCancelled
         self.budget.check_deadline()
+
+    def report_progress(self, role: Role) -> None:
+        self.ensure_active()
+        if self.events is not None:
+            self.events.progress(role)
