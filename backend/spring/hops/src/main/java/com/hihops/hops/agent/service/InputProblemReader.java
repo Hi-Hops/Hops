@@ -16,6 +16,7 @@ import com.hihops.hops.agent.dto.AiRunRequest.StandardRequestBody;
 import com.hihops.hops.inquiry.domain.CreationOutcome;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.InquiryProblem;
+import com.hihops.hops.inquiry.domain.ProblemStateView;
 import com.hihops.hops.inquiry.domain.StandardRequest;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.StandardRequestRepository;
@@ -113,26 +114,8 @@ public class InputProblemReader {
                 outcome.name(), outcome == CreationOutcome.STORED ? ticket.get().getId() : null));
     }
 
+    // 이번 메시지가 고른 문제는 답을 받았고, 고르지 않은 질문 중 문제는 아직 답을 기다린다
     private static String stateOf(InquiryProblem problem, Optional<Ticket> ticket, boolean targeted) {
-        CreationOutcome outcome = problem.getCreationOutcome();
-        if (outcome == CreationOutcome.PENDING || outcome == CreationOutcome.NOT_CREATED
-                || outcome == CreationOutcome.UNKNOWN) {
-            return "TICKET_PENDING";
-        }
-        return switch (problem.getProblemStatus()) {
-            case CLARIFYING -> targeted ? "ANALYZING" : "WAITING_USER";
-            case SYSTEM_PENDING -> "WAITING_SYSTEM";
-            case GUIDED -> "WAITING_CONFIRMATION";
-            case RESOLVED_WITHOUT_TICKET -> "RESOLVED";
-            case TICKET_FAILED -> "TICKET_PENDING";
-            case OUT_OF_SCOPE -> "OUT_OF_SCOPE";
-            case TICKET_CREATED -> ticket
-                    .map(found -> switch (found.getTicketStatus()) {
-                        case OPEN, IN_PROGRESS -> "IN_SERVICE";
-                        case WAITING_CONFIRM -> "WAITING_CONFIRMATION";
-                        case RESOLVED -> "RESOLVED";
-                    })
-                    .orElseThrow(() -> new IllegalStateException("티켓이 생성된 문제에 티켓이 없다: " + problem.getId()));
-        };
+        return ProblemStateView.of(problem, ticket, !targeted);
     }
 }

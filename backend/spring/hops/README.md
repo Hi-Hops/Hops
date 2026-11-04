@@ -288,7 +288,7 @@ Swagger에서는 `POST /api/v2/auth/login` 응답의 `accessToken`을 따옴표 
 
 명령은 본문 requestId와 같은 Idempotency-Key를 보내며 CommandReceipt를 반환합니다. Controller는 입력·응답, Service는 현재 인가·멱등 업무, Repository는 문의→티켓 순서의 잠금을 담당합니다. 확인 요청 조회·원 기록 검증은 `ResolutionRequestReader`, 응답 저장은 `ResolutionRequestService`로 나눴습니다. 문의 입력 버전과 도메인 revision을 구분하고 다른 분석이 진행 중이면 티켓 확인만으로 문의를 완료하지 않습니다.
 
-AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다. `CurationInputFactory`와 `CurationResultHandler`가 CASE_DRAFT 입력·결과를 담당하며 원 조치·검증·원인·적용 버전과 제한 조건을 보존합니다. 외부 실패는 저장한 업무를 취소하지 않습니다. Python Curator 실행, 사례 조회·승인·색인, 문의 Problem/GUIDE 결과 투영과 실제 서비스·브라우저 전체 통합은 남아 있습니다. AI 연동 테스트는 가상 응답을 사용합니다.
+AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다. `CurationInputFactory`와 `CurationResultHandler`가 CASE_DRAFT 입력·결과를 담당하며 원 조치·검증·원인·적용 버전과 제한 조건을 보존합니다. 외부 실패는 저장한 업무를 취소하지 않습니다. 문의 Problem/GUIDE 결과 투영과 Python Curator는 develop 구현을 유지합니다. CASE_DRAFT 원문·출처 계약의 Spring 연결 조정과 실제 Curator 통합 검증, AI 문제·티켓·안내 저장, 사례 조회·승인·색인은 남아 있습니다. AI 연동 테스트는 가상 응답을 사용합니다.
 
 ## 문의 생성·조회 API
 
@@ -299,6 +299,7 @@ AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다
 | `POST /api/v2/inquiries` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, content, reportedSystemId}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(헤더·본문 키 불일치, `content` 규칙 위반은 `fieldErrors[{field: content, code: UserContent}]`, 없는 시스템), 409 `IDEMPOTENCY_KEY_REUSED` |
 | `POST /api/v2/inquiries/{inquiryId}/messages` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion, content, problemIds}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(`content` 규칙 위반, 이 문의의 문제가 아닌 `problemIds`), 404 `NOT_FOUND`, 409 `INQUIRY_VERSION_CONFLICT`, 409 `INVALID_STATE`(끝난 문의) |
 | `POST /api/v2/inquiries/{inquiryId}/messages/{messageId}/revisions` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion, expectedMessageRevision, content}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`, 404 `NOT_FOUND`(남의 문의·이 문의의 USER 메시지가 아님), 409 `INQUIRY_VERSION_CONFLICT`·`MESSAGE_REVISION_CONFLICT`·`INVALID_STATE`(끝난 문의) |
+| `POST /api/v2/inquiries/{inquiryId}/messages/{messageId}/problem-links` | 헤더 `Idempotency-Key`(= 본문 `requestId`), 본문 `{requestId, expectedInquiryVersion, problemIds}` | 200 `CommandReceipt` (SUCCEEDED, `resource={type: INQUIRY, id}`) | 400 `INVALID_INPUT`(빈 `problemIds`·이 문의의 문제가 아님), 404 `NOT_FOUND`, 409 `INQUIRY_VERSION_CONFLICT`·`INVALID_STATE`(대기 메시지가 아님·끝난 문의) |
 | `GET /api/v2/systems` | 없음 | 200 `SupportedSystem[]` (코드 순, 기능 포함. 주담당자는 넣지 않음) | |
 | `GET /api/v2/inquiries` | `page`(기본 0), `size`(기본 20, 1~100) | 200 `{items: InquirySummary[], page, size, totalElements}` (본인 문의, 최근 수정 순) | 400 `INVALID_INPUT`(범위 밖 값은 고치지 않음) |
 | `GET /api/v2/inquiries/{inquiryId}` | 없음 | 200 `InquiryResult` | 404 `NOT_FOUND`(남의 문의·삭제·없음을 구분하지 않음) |
@@ -315,10 +316,11 @@ AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다
 - **보고 시스템:** `reportedSystemId`는 첫 메시지 payload에만 저장하고 AI 입력에는 넣지 않습니다. AiRunRequest에 받을 필드가 없어 전달 방식을 정해야 합니다.
 - **실행 상태:** DB `CANCELLED`는 `SUPERSEDED`로 보냅니다. 실패 오류는 공개 코드(`AI_INVALID_OUTPUT`·`MODEL_UNAVAILABLE`·`SEARCH_UNAVAILABLE`·`SERVICE_UNAVAILABLE`·`AUTH_CONTEXT_CHANGED`·`AI_RUN_STATE_UNKNOWN`, 시간 초과는 `DEADLINE_EXCEEDED`)로 바꾸고 `requestId`에 실행을 접수한 명령 ID를 넣습니다.
 - **메시지 전송:** 문의 행을 잠그고 `expectedInquiryVersion`을 확인한 뒤 버전을 1 올려 USER 메시지를 저장합니다. 진행 중인 문의면 이전 활성 실행(QUEUED·RUNNING)을 대체(`SUPERSEDED`)하고 새 버전의 실행을 접수합니다. AI 입력에는 저장된 대화 전체, 기존 문제(`inquiry_problem` 상태·질문 수 + 문제별 최신 적용 실행의 `standard_request`), 티켓 생성 작업 결과(`existingWorkItems`)를 넣습니다. 질문 중(CLARIFYING)인 문제는 이번 메시지가 고른 문제만 `ANALYZING`, 나머지는 `WAITING_USER`입니다. 고른 `problemIds`는 메시지 전체 구간으로 연결합니다. 끝난 문의(RESOLVED·CLOSED)는 재오픈하지 않고 409 `INVALID_STATE`로 새 문의를 안내합니다. 이전 실행의 AI 서버 취소 전파는 아직 없습니다.
+- **보완 대상:** 티켓이 배정된 문제가 있는데 `problemIds=[]`로 보내면, 문제가 둘 이상이면 어느 티켓에도 붙이지 않고 `pendingTarget`으로 저장해 `pendingTargetMessageIds`에 올리고(배정된 문제가 하나뿐이면 그 문제의 보완), `problem-links`로 원문을 바꾸지 않고 대상을 확정합니다(입력 버전 +1, 이미 정한 메시지는 409). 대기 메시지는 대상이 정해질 때까지 AI 입력의 대화에서 빠지고 그 메시지로는 분석하지 않지만, 다른 메시지의 분석은 막지 않습니다. 대상이 모두 배정된 문제인 입력도 보완 정보라 자기 분석이 없습니다. 이런 입력이 진행 중이던 실행을 대체하면 그 실행의 대상을 새 실행으로 잇습니다. 해결됐거나(RESOLVED) 지원 범위 밖(OUT_OF_SCOPE)인 문제는 대상이 될 수 없습니다(400). 메시지 명령이 접수한 실행은 시작 메시지 `payload.runRequestIds`에 접수 명령을 남겨 실행 오류의 `requestId`로 씁니다.
 - **정정:** 바꾸기 전 원문을 `message_revision`에 보존하고 같은 메시지의 `content`를 바꿔 `revision`을 1 올립니다. ID·순번·처음 `requestId`는 그대로입니다. 그 뒤는 전송과 같이 문의 버전을 올리고 이전 실행을 대체해 새 실행을 접수하며, 대상 문제는 그 메시지에 연결된 문제입니다. 원문 전체에 걸린 문제 연결은 새 원문 전체로 잇고(일부 구간 연결은 잇지 않음), payload `revisionRequestIds`에 차수별 정정 요청 ID를 남겨 정정으로 시작한 실행의 오류 `requestId`로 씁니다.
 - **거절 기록:** 업무 규칙으로 거절한 변경 요청(409 버전 충돌·재분석 불가, 업무 검사 400)은 `REJECTED`로 기록합니다. 같은 키로 다시 보내면 다시 검사하지 않고 같은 오류를 돌려주고, `GET /operations/...`는 `state=REJECTED`와 `error`를 반환합니다. 입력 형식 400·401·403·429·5xx는 기록하지 않습니다.
 - **재분석:** 문의의 현재 실행이 `retryable=true`인 FAILED/TIMED_OUT일 때만 같은 문의 버전으로 새 runId·새 `answerMessageId`의 QUEUED 실행을 접수합니다. 실패한 실행은 그대로 두고 대화 입력은 재사용하며, 권한 문맥·시스템 목록·기한은 새로 만듭니다. 재분석 실행의 실패 오류 `requestId`는 그 재분석 요청 ID입니다.
-- **아직 남은 것:** 문의 상세의 `problems`(Problem) 형식은 AI 결과로 문제를 저장하는 기능과 함께 만듭니다. 지금은 문제가 있는 문의를 빈 목록으로 숨기지 않고 500으로 응답합니다.
+- **문의 상세의 `problems`:** 문제 번호 순으로 `Problem`을 돌려줍니다. 요약·의도·처리 유형·보고 시스템은 문제별 최신 적용(SUCCEEDED) 실행의 `standard_request`, 상태·질문 수는 `inquiry_problem`(DATA.md 11.2 변환), 안내는 최신 AI 메시지의 `payload.guide`와 그 실행 결과 중 지금 공개 가능한 직원용 근거, 티켓 생성 결과는 `creation_outcome`, 티켓은 티켓 화면과 같은 방식으로 읽습니다. 해결 확인 요청은 티켓이 있으면 티켓 이벤트, 없으면 안내 메시지의 `payload.resolutionRequest`(GUIDE)입니다. 질문 중인 문제는 질문을 했고 분석 중인 실행이 그 문제를 대상으로 삼지 않았으면 `WAITING_USER`(대상은 실행 입력의 `problemIds`), 시스템 확인 대기는 `reportedSystemId=null`입니다. 담당자 내부 표준 요청서는 담지 않습니다. 적용된 요청서가 없는 문제처럼 저장 규칙이 깨진 경우는 짐작하지 않고 500입니다.
 
 ## Spring SSE 공통 기반
 
