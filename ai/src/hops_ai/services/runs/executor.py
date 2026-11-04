@@ -186,6 +186,8 @@ class RunExecutor:
         # 진행 중인 run의 문맥과, 문맥이 만들어지기 전에 들어온 취소 요청.
         self._contexts: dict[UUID, RunContext] = {}
         self._cancel_requested: set[UUID] = set()
+        # 최종 결과 저장을 시작한 run. 이후 들어온 취소는 결과를 바꾸지 않는다.
+        self._finalizing: set[UUID] = set()
         # 동시 실행 수 확인과 접수가 경쟁하지 않도록 한 번에 하나씩 처리한다.
         self._submit_lock = asyncio.Lock()
 
@@ -220,9 +222,11 @@ class RunExecutor:
     def cancel(self, run_id: UUID) -> bool:
         """이 프로세스에서 진행 중인 run에 취소를 전달한다. 최선 노력이며 결과는 snapshot으로 본다.
 
-        없는 run·이미 끝난 run·다른 프로세스의 run에는 아무것도 하지 않고 False를 돌려준다.
+        최종 결과 저장을 시작하기 전에 받은 취소만 반영하며, 그 run은 SUPERSEDED로 저장된다.
+        없는 run·이미 끝난 run·저장을 시작한 run·다른 프로세스의 run에는 아무것도 하지 않고
+        False를 돌려준다.
         """
-        if run_id not in self._tasks:
+        if run_id not in self._tasks or run_id in self._finalizing:
             return False
         self._cancel_requested.add(run_id)
         if (context := self._contexts.get(run_id)) is not None:
@@ -233,6 +237,7 @@ class RunExecutor:
         self._tasks.pop(run_id, None)
         self._contexts.pop(run_id, None)
         self._cancel_requested.discard(run_id)
+        self._finalizing.discard(run_id)
 
     @property
     def stray_tasks(self) -> int:
@@ -355,8 +360,16 @@ class RunExecutor:
             return _timed_out(request)
         return _checked_result(request, task.result())
 
-    async def _finish(self, run_id: UUID, result: AiResult, events: RunEvents) -> None:
-        """최종 결과를 저장한 뒤에만 result 이벤트를 내보낸다."""
+    async def _finish(self, request: AiRunRequest, result: AiResult, events: RunEvents) -> None:
+        """최종 결과를 저장한 뒤에만 result 이벤트를 내보낸다.
+
+        취소 확인과 저장 시작 표시 사이에 대기가 없어, 저장 전에 받은 취소는 반드시 반영되고
+        저장을 시작한 뒤의 취소는 cancel()이 거절한다.
+        """
+        run_id = UUID(request.runId)
+        if run_id in self._cancel_requested and result.status != "SUPERSEDED":
+            result = _superseded(request)
+        self._finalizing.add(run_id)
         event = events.prepare_result(result)
         last_seq = event.seq
         payload = result.model_dump(mode="json")
@@ -377,7 +390,7 @@ class RunExecutor:
         try:
             if run_id in self._cancel_requested:
                 # 시작 전에 취소됐다. 파이프라인을 돌리지 않고 바로 대체됨으로 끝낸다.
-                await self._finish(run_id, _superseded(request), events)
+                await self._finish(request, _superseded(request), events)
                 return
             try:
                 started = await self._store(lambda: self._ledger.start(run_id))
@@ -396,7 +409,7 @@ class RunExecutor:
             if run_id in self._cancel_requested:
                 context.cancel()
             result = await self._run_pipeline(request, context)
-            await self._finish(run_id, result, events)
+            await self._finish(request, result, events)
         except asyncio.CancelledError:
             # 종료 중 취소는 결과를 만들지 않는다. 소유 세션이 닫히면 복구가 UNKNOWN으로 바꾼다.
             raise

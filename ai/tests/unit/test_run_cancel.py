@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 from hops_ai.harness.errors import RunCancelled
 from hops_ai.services.runs.events import RunEventHub
+from tests.doubles.ledger import MemoryLedger
 from tests.doubles.run_requests import succeeded
 from tests.unit.test_run_executor import eventually, finished, make_executor, request
 
@@ -239,3 +240,79 @@ async def test_supervisor_pipeline_stops_waiting_for_the_model_on_cancel() -> No
     # 하네스가 모델 호출 대기를 끊어 파이프라인이 스스로 끝났다(떼어 낸 작업 없음).
     assert llm.cancelled
     assert executor.stray_tasks == 0
+
+
+class GatedLedger(MemoryLedger):
+    """최종 결과 저장을 열어 줄 때까지 멈춘다. 저장 중 취소 경합을 재현한다."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.finishing = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def finish(self, run_id, status, result, last_seq):
+        self.finishing.set()
+        await self.release.wait()
+        await super().finish(run_id, status, result, last_seq)
+
+
+async def published_results(hub: RunEventHub, run_id: str, action) -> list[str]:
+    with hub.subscribe(run_id) as queue:
+        await action()
+        await eventually(lambda: not queue.empty())
+        events = []
+        while not queue.empty():
+            events.append(queue.get_nowait())
+    return [e.payload.status for e in events if e is not None and e.eventType == "result"]
+
+
+async def test_cancel_after_final_save_started_is_refused_and_result_stays_consistent() -> None:
+    class Quick:
+        async def run(self, req, context):
+            return succeeded(req)
+
+    ledger = GatedLedger()
+    executor, _ = make_executor(Quick(), ledger=ledger)
+    hub = executor.events
+    req = request()
+
+    async def submit_and_cancel_while_saving():
+        await executor.submit(req)
+        await asyncio.wait_for(ledger.finishing.wait(), 1)
+        # 저장을 시작한 뒤의 취소는 거절된다. 이미 확정 중인 결과를 바꾸지 않는다.
+        assert executor.cancel(UUID(req.runId)) is False
+        ledger.release.set()
+        await finished(ledger, req.runId)
+
+    statuses = await published_results(hub, req.runId, submit_and_cancel_while_saving)
+
+    snapshot = await ledger.get(UUID(req.runId))
+    assert snapshot.status == "SUCCEEDED"
+    assert statuses == ["SUCCEEDED"]
+
+
+async def test_cancel_received_before_final_save_is_always_superseded() -> None:
+    holder = {}
+
+    class CancelsItselfThenSucceeds:
+        """성공 결과를 돌려주기 직전에 취소가 들어온 상황."""
+
+        async def run(self, req, context):
+            assert holder["executor"].cancel(UUID(req.runId)) is True
+            return succeeded(req)
+
+    ledger = GatedLedger()
+    executor, _ = make_executor(CancelsItselfThenSucceeds(), ledger=ledger)
+    holder["executor"] = executor
+    req = request()
+
+    async def run_to_end():
+        await executor.submit(req)
+        await asyncio.wait_for(ledger.finishing.wait(), 1)
+        ledger.release.set()
+        await finished(ledger, req.runId)
+
+    statuses = await published_results(executor.events, req.runId, run_to_end)
+
+    assert_superseded((await ledger.get(UUID(req.runId))).result)
+    assert statuses == ["SUPERSEDED"]

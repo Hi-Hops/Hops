@@ -17,7 +17,7 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j는 내부 인터페이스와 연결 자리만 존재하며 호출하면 미구현 오류 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결, Supervisor 미연결 |
-| 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot·progress/result SSE 조회. 실행 접수는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 취소는 503 |
+| 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot·progress/result SSE 조회. 실행 접수와 취소는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 주입 시 취소는 항상 202 빈 본문(최선 노력) |
 | 업무 실행·SSE | 백그라운드 실행기와 `real` 모드 Supervisor 파이프라인 연결. 역할 실행 전 고정된 공개 진행 문구 발행, 최종 결과 저장 뒤 result 전달. 취소 요청 시 진행 중인 실행을 멈추고 `SUPERSEDED`로 저장(Spring의 취소 호출은 연결 전). answer.delta는 연결 전 |
 | Fake·Mock | 테스트 전용 LLM·도구 대역. 서버에 자동 연결하지 않음 |
 
@@ -191,7 +191,7 @@ RunLedger는 Spring 업무 DB가 아닌 별도 `hops_ai_runtime` DB를 사용한
 
 ### 실행 취소
 
-`POST /internal/v2/runs/{runId}/cancel`은 이 프로세스에서 진행 중인 run에 취소를 전달하는 최선 노력 요청이며 항상 202 빈 본문으로 응답한다. 실행기가 run별 `RunContext`를 보관하다가 `cancel()`을 호출하면 하네스가 모델·역할 대기를 즉시 끊고 `RunCancelled`가 되며, run은 `SUPERSEDED`(오류 코드 `SUPERSEDED`, 재시도 불가)로 저장된 뒤 result 이벤트가 나간다. 시작 전에 취소된 run은 파이프라인을 실행하지 않는다. 취소 뒤 파이프라인이 성공 결과를 돌려줘도 저장하지 않으며, 취소에 응답하지 않는 파이프라인은 유예 시간 뒤 run에서 떼어 내되 끝날 때까지 실행 슬롯을 차지한다. 이미 끝난 run, 없는 runId, 다른 프로세스에서 실행 중인 run에는 아무 일도 하지 않으므로 Spring은 snapshot으로 실제 상태를 확인한다. Spring이 새 입력으로 run을 대체할 때 이 경로를 호출하는 연결은 아직 없다.
+`POST /internal/v2/runs/{runId}/cancel`은 이 프로세스에서 진행 중인 run에 취소를 전달하는 최선 노력 요청이며 항상 202 빈 본문으로 응답한다. 실행기가 run별 `RunContext`를 보관하다가 `cancel()`을 호출하면 하네스가 모델·역할 대기를 즉시 끊고 `RunCancelled`가 되며, run은 `SUPERSEDED`(오류 코드 `SUPERSEDED`, 재시도 불가)로 저장된 뒤 result 이벤트가 나간다. 시작 전에 취소된 run은 파이프라인을 실행하지 않는다. 취소가 반영되는 시점은 최종 결과 저장을 시작하기 전까지이며, 그 전에 받은 취소는 파이프라인이 성공 결과를 돌려줘도 반드시 `SUPERSEDED`로 저장하고 저장을 시작한 뒤 받은 취소는 결과를 바꾸지 않는다(snapshot과 result 이벤트가 항상 일치). 또 취소에 응답하지 않는 파이프라인은 유예 시간 뒤 run에서 떼어 내되 끝날 때까지 실행 슬롯을 차지한다. 이미 끝난 run, 없는 runId, 다른 프로세스에서 실행 중인 run에는 아무 일도 하지 않으므로 Spring은 snapshot으로 실제 상태를 확인한다. Spring이 새 입력으로 run을 대체할 때 이 경로를 호출하는 연결은 아직 없다.
 
 PostgreSQL 통합 검사는 별도 테스트 전용 DB `hops_ai_runtime_test`가 준비된 경우에만 실행한다. 해당 DB에 위 SQL을 적용하며 테스트용 실행 기록을 추가한다. 기본 테스트에서는 접속 설정이 없으면 이 검사들을 건너뛴다.
 
