@@ -1,5 +1,6 @@
 """AI 서버 앱 조립. 실행 파이프라인이 주입된 경우에만 실행 접수를 연다."""
 
+from asyncio import to_thread
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -15,6 +16,7 @@ from hops_ai.services.llm.openai import OpenAIClient
 from hops_ai.services.runs.admission import RunAdmissionService
 from hops_ai.services.runs.executor import RunExecutor, RunPipeline, server_ceilings
 from hops_ai.services.runs.supervisor import SupervisorPipeline
+from hops_ai.services.tracing import RunTracing
 from hops_ai.settings import RunMode, Settings
 
 
@@ -26,6 +28,7 @@ def create_app(
     clock: Clock | None = None,
 ) -> FastAPI:
     resolved = settings or Settings()
+    tracing = RunTracing()
     if resolved.mode is RunMode.REAL and pipeline is None:
         # 실제 모델 실행은 내부 API·OpenAI 키·모델이 모두 있을 때만 연다.
         # 하나라도 없으면 Fake로 대체하지 않고 거부한다.
@@ -36,7 +39,20 @@ def create_app(
             or not resolved.supervisor_model.strip()
         ):
             raise ComponentNotReady("real runtime")
-        pipeline = SupervisorPipeline(OpenAIClient(key, resolved.supervisor_model))
+        if resolved.langfuse_public_key and resolved.langfuse_secret_key:
+            from langfuse import Langfuse
+            from opentelemetry.sdk.trace import TracerProvider
+
+            tracing = RunTracing(
+                Langfuse(
+                    public_key=resolved.langfuse_public_key.get_secret_value(),
+                    secret_key=resolved.langfuse_secret_key.get_secret_value(),
+                    base_url=resolved.langfuse_base_url or None,
+                    tracer_provider=TracerProvider(),
+                ),
+                capture_content=resolved.langfuse_capture_content,
+            )
+        pipeline = SupervisorPipeline(OpenAIClient(key, resolved.supervisor_model), tracing=tracing)
     resolved_ledger = ledger
     if resolved.internal_api_enabled and resolved_ledger is None:
         # 활성 프로필의 DSN과 서비스 토큰은 Settings에서 먼저 검증한다.
@@ -64,6 +80,8 @@ def create_app(
                 # 소유 세션을 닫기 전에 실행을 멈춘다. 남은 run은 다음 복구에서 UNKNOWN이 된다.
                 if executor is not None:
                     await executor.shutdown()
+                if tracing.client is not None:
+                    await to_thread(tracing.client.shutdown)
 
     app = FastAPI(title="Hops AI", description="PRD 기반 AI 서버 골격", lifespan=lifespan)
     app.state.settings = resolved

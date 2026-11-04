@@ -81,7 +81,17 @@ class Supervisor:
             roles = set(self._agents)
             if self._available_roles is not None:
                 roles &= self._available_roles(current)
-            decision = await decide_next_action(current, runtime.services, roles)
+            with runtime.services.tracing.observe(
+                "SUPERVISOR", {"registeredRoles": sorted(role.value for role in roles)}
+            ) as span:
+                decision = await decide_next_action(current, runtime.services, roles)
+                if span is not None:
+                    span.update(
+                        output={
+                            "nextAction": decision.nextAction,
+                            "role": decision.role.value if decision.role else None,
+                        }
+                    )
             current = runtime.sync_state(current)
             current = {**current, "nextAction": decision.nextAction}
             # 모델의 공개 요약도 검증되지 않은 문구다. 최종 답변은 최종화 단계에서
@@ -95,7 +105,44 @@ class Supervisor:
             if decision is None or decision.role is None:
                 raise OutputRejected("호출할 역할이 없다")
             current = runtime.sync_state(data["state"])
-            merged = await execute_role(current, decision.role, runtime.services, self._agents)
+            with runtime.services.tracing.observe(
+                decision.role.value,
+                {
+                    "targetProblemCount": len(request.problemIds),
+                    "messageCount": len(request.messages),
+                },
+            ) as span:
+                merged = await execute_role(current, decision.role, runtime.services, self._agents)
+                if span is not None:
+                    output = {
+                        "problemIntents": [item.intent for item in merged["problems"].values()],
+                        "questionCount": len(merged["questions"]),
+                        "ticketProposalCount": len(merged["ticketProposals"]),
+                    }
+                    if (
+                        runtime.services.tracing.capture_content
+                        and decision.role == AgentRole.INQUIRY
+                    ):
+                        output["questions"] = [
+                            item.text
+                            for key, item in merged["questions"].items()
+                            if key not in current["questions"]
+                        ]
+                        output["factsByProblem"] = {}
+                        for ref, problem in merged["problems"].items():
+                            previous = current["problems"].get(ref)
+                            prior_facts = previous.facts if previous is not None else []
+                            preserved = []
+                            added = []
+                            for fact in problem.facts:
+                                destination = preserved if fact in prior_facts else added
+                                destination.append(fact.model_dump(mode="json"))
+                            if preserved or added:
+                                output["factsByProblem"][ref] = {
+                                    "preservedFacts": preserved,
+                                    "addedFacts": added,
+                                }
+                    span.update(output=output)
             current = runtime.sync_state(merged)
             return _GraphState(state=current, decision=None)
 

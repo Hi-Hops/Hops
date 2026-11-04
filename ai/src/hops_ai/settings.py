@@ -43,6 +43,7 @@ class Settings(BaseSettings):
         default=None, validation_alias="LANGFUSE_SECRET_KEY"
     )
     langfuse_base_url: str | None = Field(default=None, validation_alias="LANGFUSE_BASE_URL")
+    langfuse_capture_content: bool = False
     ai_port: int | None = Field(default=None, validation_alias="AI_PORT")
     # 초기 기술 기본값이며 실제 모델·비용 측정 후 검토한다.
     run_deadline_seconds: int = Field(default=60, gt=0)

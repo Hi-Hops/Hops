@@ -20,6 +20,7 @@ from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.base import ToolGateway
 from hops_ai.services.tools.disabled import DisabledToolGateway
+from hops_ai.services.tracing import RunTracing, TracedLLMClient
 from hops_ai.supervisor.graph import Supervisor
 
 
@@ -37,13 +38,15 @@ class SupervisorPipeline:
         vector: VectorRetriever | None = None,
         graph: GraphRetriever | None = None,
         tools: ToolGateway | None = None,
+        tracing: RunTracing | None = None,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
         검색·도구를 주지 않으면 연결 전 자리(ComponentNotReady)와 거부 게이트웨이를 쓴다.
         """
         registry = dict(build_runtime_registry() if agents is None else agents)
-        self._llm = llm
+        self._tracing = tracing or RunTracing()
+        self._llm = TracedLLMClient(llm, self._tracing) if self._tracing.client else llm
         self._vector = vector or PgVectorRetriever()
         self._graph = graph or Neo4jRetriever()
         self._tools = tools or DisabledToolGateway()
@@ -51,13 +54,29 @@ class SupervisorPipeline:
         self._supervisor = Supervisor(registry, available_roles=lambda _state: set(callable_roles))
 
     async def run(self, request: AiRunRequest, context: RunContext) -> AiResult:
-        return await self._supervisor.analyze(
-            request,
-            SharedServices(
-                runtime=context,
-                llm=self._llm,
-                vector=self._vector,
-                graph=self._graph,
-                tools=self._tools,
-            ),
-        )
+        with self._tracing.observe(
+            "hops.ai.run",
+            {"kind": request.kind, "messageCount": len(request.messages)},
+        ) as span:
+            result = await self._supervisor.analyze(
+                request,
+                SharedServices(
+                    runtime=context,
+                    llm=self._llm,
+                    vector=self._vector,
+                    graph=self._graph,
+                    tools=self._tools,
+                    tracing=self._tracing,
+                ),
+            )
+            if span is not None:
+                output = {
+                    "status": result.status,
+                    "questionCount": len(result.questions),
+                    "ticketProposalCount": len(result.ticketProposals),
+                    "errorCode": result.error.code if result.error else None,
+                }
+                if self._tracing.capture_content:
+                    output["answer"] = result.answer
+                span.update(output=output)
+            return result
