@@ -39,6 +39,7 @@ import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.global.exception.GlobalExceptionHandler;
 import com.hihops.hops.realtime.controller.RealtimeController;
+import com.hihops.hops.realtime.dto.MessageStoredEvent;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
 
@@ -85,6 +86,58 @@ class RealtimeServiceTest {
         assertThat(json.get("target").get("departmentId")).isNull();
         assertThat(json.get("inquiryVersion").isNull()).isTrue();
         service.shutdown();
+    }
+
+    @Test
+    void 메시지_저장은_그_문의의_구독에만_보내고_본문_없이_ID만_싣는다() throws Exception {
+        UUID inquiryId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        MvcResult result = connectInquiry(inquiryId);
+
+        service.messageStored(MessageStoredEvent.of(UUID.randomUUID(), 1, UUID.randomUUID(), null));
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("message.stored");
+        MessageStoredEvent event = MessageStoredEvent.of(inquiryId, 2, messageId, requestId);
+        service.messageStored(event);
+
+        String wire = result.getResponse().getContentAsString();
+        assertThat(wire).contains("event:message.stored").contains("id:" + event.eventId());
+        String data = wire.lines().filter(line -> line.startsWith("data:"))
+                .findFirst().orElseThrow().substring(5).trim();
+        var json = new tools.jackson.databind.ObjectMapper().readTree(data);
+        assertThat(json.get("eventId").asString()).isEqualTo(event.eventId().toString());
+        assertThat(json.get("inquiryId").asString()).isEqualTo(inquiryId.toString());
+        assertThat(json.get("inquiryVersion").asInt()).isEqualTo(2);
+        assertThat(json.get("messageId").asString()).isEqualTo(messageId.toString());
+        assertThat(json.get("requestId").asString()).isEqualTo(requestId.toString());
+        service.shutdown();
+    }
+
+    @Test
+    void AI_답변_저장은_requestId를_null로_보낸다() throws Exception {
+        UUID inquiryId = UUID.randomUUID();
+        MvcResult result = connectInquiry(inquiryId);
+
+        service.messageStored(MessageStoredEvent.of(inquiryId, 1, UUID.randomUUID(), null));
+
+        String data = result.getResponse().getContentAsString().lines().filter(line -> line.startsWith("data:"))
+                .findFirst().orElseThrow().substring(5).trim();
+        var json = new tools.jackson.databind.ObjectMapper().readTree(data);
+        assertThat(json.has("requestId")).isTrue(); // 계약상 null도 키를 생략하지 않는다
+        assertThat(json.get("requestId").isNull()).isTrue();
+        service.shutdown();
+    }
+
+    @Test
+    void 문의_권한이_사라지면_메시지_저장을_보내지_않고_종료한다() throws Exception {
+        UUID inquiryId = UUID.randomUUID();
+        MvcResult result = connectInquiry(inquiryId);
+        doThrow(new BusinessException(ErrorCode.NOT_FOUND)).when(authorization).check(any(), any());
+
+        service.messageStored(MessageStoredEvent.of(inquiryId, 2, UUID.randomUUID(), UUID.randomUUID()));
+
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("message.stored");
+        assertThat(result.getAsyncResult()).isNull();
     }
 
     @Test
@@ -246,6 +299,11 @@ class RealtimeServiceTest {
             request.header("Last-Event-ID", cursor);
         }
         return mvc.perform(request).andExpect(status().isOk()).andExpect(request().asyncStarted()).andReturn();
+    }
+
+    private MvcResult connectInquiry(UUID inquiryId) throws Exception {
+        return mvc.perform(get("/realtime/events").param("targetType", "INQUIRY").param("targetId", inquiryId.toString()))
+                .andExpect(status().isOk()).andExpect(request().asyncStarted()).andReturn();
     }
 
     private StateChangedEvent event(UUID department) {

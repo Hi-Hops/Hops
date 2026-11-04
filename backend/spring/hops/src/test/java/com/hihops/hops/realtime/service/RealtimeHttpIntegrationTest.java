@@ -74,6 +74,12 @@ class RealtimeHttpIntegrationTest {
     @AfterEach
     void cleanup() {
         realtime.shutdown();
+        String mine = "SELECT id FROM inquiry WHERE requester_member_id = ?";
+        jdbc.update("UPDATE inquiry SET current_run_id = NULL WHERE requester_member_id = ?", memberId);
+        jdbc.update("DELETE FROM agent_run WHERE inquiry_id IN (" + mine + ")", memberId);
+        jdbc.update("DELETE FROM message WHERE inquiry_id IN (" + mine + ")", memberId);
+        jdbc.update("DELETE FROM inquiry WHERE requester_member_id = ?", memberId);
+        jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id = ?", memberId);
         jdbc.update("DELETE FROM member_role WHERE member_id = ?", memberId);
         jdbc.update("DELETE FROM member WHERE id = ?", memberId);
         jdbc.update("DELETE FROM department WHERE id IN (?, ?)", departmentId, otherDepartmentId);
@@ -144,6 +150,68 @@ class RealtimeHttpIntegrationTest {
         String token = token(30);
         jdbc.update("INSERT INTO member_role (member_id, role) VALUES (?, 'BIZ_ADMIN')", memberId);
         assertContextChanged(token);
+    }
+
+    @Test
+    void 문의자는_자기_문의를_구독해_메시지_저장_알림을_받고_없는_문의는_404다() throws Exception {
+        String token = token(30);
+        UUID inquiryId = createInquiry(token);
+
+        HttpResponse<String> missing = client.send(inquiryRequest(UUID.randomUUID(), token),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(missing.statusCode()).isEqualTo(404);
+        assertThat(missing.body()).contains("NOT_FOUND");
+
+        HttpResponse<InputStream> response = client.send(inquiryRequest(inquiryId, token),
+                HttpResponse.BodyHandlers.ofInputStream());
+        assertThat(response.statusCode()).isEqualTo(200);
+        try (InputStream stream = response.body()) {
+            assertThat(block(stream)).isEqualTo(":connected\n\n");
+            UUID requestId = UUID.randomUUID();
+            HttpResponse<String> sent = client.send(post("/api/v2/inquiries/" + inquiryId + "/messages", token, requestId,
+                    "{\"requestId\":\"" + requestId + "\",\"expectedInquiryVersion\":1,\"content\":\"어제부터 그래요\","
+                            + "\"problemIds\":[]}"), HttpResponse.BodyHandlers.ofString());
+            assertThat(sent.statusCode()).isEqualTo(200);
+
+            // heartbeat 사이에 commit 뒤 알림이 온다
+            String wire = "";
+            for (int i = 0; i < 50 && !wire.contains("event:message.stored"); i++) {
+                wire = block(stream);
+            }
+            assertThat(wire).contains("event:message.stored");
+            String data = wire.lines().filter(line -> line.startsWith("data:")).findFirst().orElseThrow().substring(5);
+            var json = new tools.jackson.databind.ObjectMapper().readTree(data);
+            UUID messageId = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id = ? AND sequence_no = 2",
+                    UUID.class, inquiryId);
+            assertThat(json.get("inquiryId").asString()).isEqualTo(inquiryId.toString());
+            assertThat(json.get("messageId").asString()).isEqualTo(messageId.toString());
+            assertThat(json.get("requestId").asString()).isEqualTo(requestId.toString());
+            assertThat(json.get("inquiryVersion").asInt()).isEqualTo(2);
+        }
+    }
+
+    private UUID createInquiry(String token) throws Exception {
+        UUID requestId = UUID.randomUUID();
+        HttpResponse<String> created = client.send(post("/api/v2/inquiries", token, requestId,
+                "{\"requestId\":\"" + requestId + "\",\"content\":\"로그인이 안 돼요\",\"reportedSystemId\":null}"),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(created.statusCode()).isEqualTo(200);
+        return UUID.fromString(new tools.jackson.databind.ObjectMapper().readTree(created.body())
+                .path("resource").path("id").asString());
+    }
+
+    private HttpRequest inquiryRequest(UUID inquiryId, String token) {
+        return HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                        + "/api/v2/realtime/events?targetType=INQUIRY&targetId=" + inquiryId))
+                .timeout(Duration.ofSeconds(5)).header("Accept", "text/event-stream")
+                .header("Authorization", "Bearer " + token).GET().build();
+    }
+
+    private HttpRequest post(String path, String token, UUID requestId, String body) {
+        return HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .timeout(Duration.ofSeconds(5)).header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token).header("Idempotency-Key", requestId.toString())
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build();
     }
 
     private void assertContextChanged(String token) throws Exception {

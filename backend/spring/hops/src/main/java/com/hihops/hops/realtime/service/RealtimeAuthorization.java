@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.hihops.hops.department.repository.DepartmentRepository;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.ticket.service.TicketService;
 import com.hihops.hops.user.domain.Member;
@@ -22,11 +23,14 @@ public class RealtimeAuthorization {
     private final MemberRepository members;
     private final DepartmentRepository departments;
     private final TicketService tickets;
+    private final InquiryRepository inquiries;
 
-    public RealtimeAuthorization(MemberRepository members, DepartmentRepository departments, TicketService tickets) {
+    public RealtimeAuthorization(MemberRepository members, DepartmentRepository departments, TicketService tickets,
+            InquiryRepository inquiries) {
         this.members = members;
         this.departments = departments;
         this.tickets = tickets;
+        this.inquiries = inquiries;
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +68,13 @@ public class RealtimeAuthorization {
                 || !new HashSet<>(Role.contractRoles(member.getRoles()).stream().map(Role::name).toList())
                         .equals(new HashSet<>(jwt.getClaimAsStringList("roles")))) {
             throw new BusinessException(ErrorCode.AUTH_CONTEXT_CHANGED);
+        }
+        // 문의는 문의자 본인만 구독한다 (WIRE_CONTRACT 12.4). 남의 문의·삭제된 문의·없는 문의는 REST와 같은 404다.
+        if (target.type() == RealtimeTarget.Type.INQUIRY) {
+            if (inquiries.findByIdAndRequester_IdAndDeletedAtIsNull(target.id(), memberId).isEmpty()) {
+                throw new BusinessException(ErrorCode.NOT_FOUND);
+            }
+            return;
         }
         // 해당 도메인의 소유권 조회가 구현되기 전에는 ID만으로 연결을 허용하지 않는다.
         if (target.type() != RealtimeTarget.Type.DEPARTMENT_TICKETS) {
