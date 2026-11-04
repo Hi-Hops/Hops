@@ -158,8 +158,127 @@ class InquiryControllerTest {
     }
 
     @Test
-    void 문제가_있는_문의는_빈_목록으로_숨기지_않고_실패한다() throws Exception {
-        insertProblem(NEW_INQUIRY_ID, 1, "CLARIFYING", false);
+    void 문제별_결과를_최신_적용_요청서와_상태로_돌려주고_내부_요청서는_숨긴다() throws Exception {
+        UUID runId = insertRun(NEW_INQUIRY_ID);
+        UUID problem = problem(NEW_INQUIRY_ID, 1, "CLARIFYING", 2, null, null);
+        insertRequest(problem, runId, "오래된 요약", SYSTEM_ID, 1);
+        insertRequest(problem, runId, "결재 문서 조회 오류 조사", SYSTEM_ID, 2); // 같은 문제의 더 새 버전이 현재 값이다
+        insertRequest(problem, insertRun(NEW_INQUIRY_ID, "FAILED"), "적용 안 된 요약", SYSTEM_ID, 3);
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problems.length()").value(1))
+                .andExpect(jsonPath("$.problems[0].id").value(problem.toString()))
+                .andExpect(jsonPath("$.problems[0].inquiryId").value(NEW_INQUIRY_ID.toString()))
+                .andExpect(jsonPath("$.problems[0].summary").value("결재 문서 조회 오류 조사"))
+                .andExpect(jsonPath("$.problems[0].intent").value("OBSERVED_SYMPTOM"))
+                .andExpect(jsonPath("$.problems[0].processingType").value("INVESTIGATION"))
+                .andExpect(jsonPath("$.problems[0].reportedSystemId").value(SYSTEM_ID.toString()))
+                .andExpect(jsonPath("$.problems[0].reportedFeatureId").hasJsonPath())
+                // 질문을 했고 분석 중인 실행이 없으니 문의자의 답을 기다린다
+                .andExpect(jsonPath("$.problems[0].state").value("WAITING_USER"))
+                .andExpect(jsonPath("$.problems[0].questionCount").value(2))
+                .andExpect(jsonPath("$.problems[0].guide").isEmpty())
+                .andExpect(jsonPath("$.problems[0].creationResult").isEmpty())
+                .andExpect(jsonPath("$.problems[0].ticket").isEmpty())
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest").hasJsonPath())
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest").isEmpty())
+                // 담당자 내부 표준 요청서(확인 사실·추정·출처)는 문의자에게 보내지 않는다
+                .andExpect(jsonPath("$.problems[0].standardRequest").doesNotExist())
+                .andExpect(jsonPath("$.problems[0].confirmedFacts").doesNotExist());
+    }
+
+    @Test
+    void 분석_중이면_질문_중인_문제는_분석_중이고_시스템_확인_대기는_보고_시스템을_숨긴다() throws Exception {
+        UUID runId = insertRun(NEW_INQUIRY_ID);
+        UUID clarifying = problem(NEW_INQUIRY_ID, 1, "CLARIFYING", 1, null, null);
+        UUID systemPending = problem(NEW_INQUIRY_ID, 2, "SYSTEM_PENDING", 5, null, null);
+        insertRequest(clarifying, runId, "로그인 실패", SYSTEM_ID, 1);
+        insertRequest(systemPending, runId, "파일 공유 오류", SYSTEM_ID, 1);
+        UUID trigger = insertMessage(NEW_INQUIRY_ID, 1, "USER", "답했어요", "{\"requestId\": \"" + REQUEST_ID + "\"}",
+                "COMPLETED");
+        UUID queued = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, trigger_message_id, task, run_status, input_version, "
+                + "input_snapshot, model_version, prompt_version, schema_version) VALUES (?, ?, ?, 'INQUIRY_ANALYSIS', "
+                + "'QUEUED', 1, ?::jsonb, 'pending', 'pending', 'hops-system-1')",
+                queued, NEW_INQUIRY_ID, trigger, "{\"answerMessageId\": \"" + UUID.randomUUID() + "\"}");
+        jdbcTemplate.update("UPDATE inquiry SET current_run_id = ? WHERE id = ?", queued, NEW_INQUIRY_ID);
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problems[0].state").value("ANALYZING"))
+                .andExpect(jsonPath("$.problems[1].state").value("WAITING_SYSTEM"))
+                .andExpect(jsonPath("$.problems[1].reportedSystemId").isEmpty())
+                .andExpect(jsonPath("$.problems[1].questionCount").value(5));
+    }
+
+    @Test
+    void 티켓_생성_결과와_티켓_요약을_돌려주고_미생성은_진행과_구분한다() throws Exception {
+        UUID runId = insertRun(NEW_INQUIRY_ID);
+        UUID stored = problem(NEW_INQUIRY_ID, 1, "TICKET_CREATED", 0, "STORED", null);
+        UUID notCreated = problem(NEW_INQUIRY_ID, 2, "TICKET_FAILED", 0, "NOT_CREATED", "SERVICE_UNAVAILABLE");
+        UUID request = insertRequest(stored, runId, "결재 문서 조회 오류 조사", SYSTEM_ID, 1);
+        insertRequest(notCreated, runId, "권한 요청", SYSTEM_ID, 1);
+        UUID ticketId = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, "
+                + "title, detail, work_type, ticket_status, responsible_system_id, assignee_member_id) "
+                + "VALUES (?, 'TK-9101', ?, ?, ?, '결재 문서 조회 오류', '내용', 'INVESTIGATION', 'OPEN', ?, ?)",
+                ticketId, NEW_INQUIRY_ID, stored, request, SYSTEM_ID, OTHER_MEMBER_ID);
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problems[0].state").value("IN_SERVICE"))
+                .andExpect(jsonPath("$.problems[0].creationResult.workItemId").value(stored.toString()))
+                .andExpect(jsonPath("$.problems[0].creationResult.problemId").value(stored.toString()))
+                .andExpect(jsonPath("$.problems[0].creationResult.inquiryVersion").value(1))
+                .andExpect(jsonPath("$.problems[0].creationResult.outcome").value("STORED"))
+                .andExpect(jsonPath("$.problems[0].creationResult.ticketId").value(ticketId.toString()))
+                .andExpect(jsonPath("$.problems[0].creationResult.error").isEmpty())
+                .andExpect(jsonPath("$.problems[0].creationResult.updatedAt").isString())
+                .andExpect(jsonPath("$.problems[0].ticket.id").value(ticketId.toString()))
+                .andExpect(jsonPath("$.problems[0].ticket.workItemId").value(stored.toString()))
+                .andExpect(jsonPath("$.problems[0].ticket.ticketNumber").value("TK-9101"))
+                .andExpect(jsonPath("$.problems[0].ticket.reportedSystem.id").value(SYSTEM_ID.toString()))
+                .andExpect(jsonPath("$.problems[0].ticket.responsibleSystem.name").value("전자결재"))
+                .andExpect(jsonPath("$.problems[0].ticket.assignee.id").value(OTHER_MEMBER_ID.toString()))
+                .andExpect(jsonPath("$.problems[0].ticket.state").value("WAITING"))
+                .andExpect(jsonPath("$.problems[0].activeResolutionRequest").isEmpty())
+                // 미생성 확인은 TICKET_PENDING이고 작업 결과로 구분한다
+                .andExpect(jsonPath("$.problems[1].state").value("TICKET_PENDING"))
+                .andExpect(jsonPath("$.problems[1].creationResult.outcome").value("NOT_CREATED"))
+                .andExpect(jsonPath("$.problems[1].creationResult.ticketId").isEmpty())
+                .andExpect(jsonPath("$.problems[1].creationResult.error.code").value("SERVICE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.problems[1].ticket").isEmpty());
+    }
+
+    @Test
+    void 안내는_최신_안내_메시지와_지금_공개_가능한_근거만_돌려준다() throws Exception {
+        UUID runId = insertRun(NEW_INQUIRY_ID);
+        UUID guided = problem(NEW_INQUIRY_ID, 1, "GUIDED", 0, null, null);
+        insertRequest(guided, runId, "작성 기간 설정 안내", SYSTEM_ID, 1);
+        UUID evidenceId = UUID.randomUUID();
+        // 실행 결과의 근거가 가리키는 지식 문서가 없으면(승인·공개 확인 불가) 근거로 내보내지 않는다
+        jdbcTemplate.update("UPDATE agent_run SET result = ?::jsonb WHERE id = ?", "{\"evidence\": [{\"id\": \""
+                + evidenceId + "\", \"documentId\": \"" + UUID.randomUUID() + "\", \"documentVersion\": 1, "
+                + "\"kind\": \"GUIDE\", \"title\": \"가이드\", \"excerpt\": \"작성 기간\", \"systemId\": \""
+                + SYSTEM_ID + "\", \"appliesToSystemVersion\": null, \"applicability\": \"공통\", "
+                + "\"accessScope\": \"EMPLOYEE\", \"origin\": \"SYNTHETIC\"}]}", runId);
+        String guide = "{\"answerRunId\": \"" + runId + "\", \"guide\": {\"problemId\": \"" + guided
+                + "\", \"text\": \"작성 기간을 확인해 보세요\", \"evidenceIds\": [\"" + evidenceId + "\"]}}";
+        insertMessage(NEW_INQUIRY_ID, 1, "AI", "예전 안내", guide, "COMPLETED");
+        UUID latest = insertMessage(NEW_INQUIRY_ID, 2, "AI", "작성 기간을 확인해 보세요", guide, "COMPLETED");
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problems[0].state").value("WAITING_CONFIRMATION"))
+                .andExpect(jsonPath("$.problems[0].guide.messageId").value(latest.toString()))
+                .andExpect(jsonPath("$.problems[0].guide.evidence").isArray())
+                .andExpect(jsonPath("$.problems[0].guide.evidence").isEmpty());
+    }
+
+    @Test
+    void 적용된_요청서가_없는_문제는_짐작해_채우지_않고_실패한다() throws Exception {
+        problem(NEW_INQUIRY_ID, 1, "CLARIFYING", 1, null, null);
 
         mockMvc.perform(asMember(get("/api/v2/inquiries/" + NEW_INQUIRY_ID)))
                 .andExpect(status().isInternalServerError())
@@ -255,11 +374,35 @@ class InquiryControllerTest {
     }
 
     private UUID insertRun(UUID inquiryId) {
+        return insertRun(inquiryId, "SUCCEEDED");
+    }
+
+    private UUID insertRun(UUID inquiryId, String status) {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, "
                 + "model_version, prompt_version, schema_version, started_at, completed_at) "
-                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now(), now())",
-                id, inquiryId);
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', ?, 1, '{}', 'gpt-test', 'prompt-v1', 'schema-v1', now(), now())",
+                id, inquiryId, status);
+        return id;
+    }
+
+    private UUID problem(UUID inquiryId, int problemNo, String status, int clarifyCount, String creationOutcome,
+            String ticketErrorCode) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status, clarify_count, "
+                + "creation_outcome, creation_input_version, ticket_error_code) VALUES (?, ?, ?, '문제', ?, ?, ?, ?, ?)",
+                id, inquiryId, problemNo, status, clarifyCount, creationOutcome, creationOutcome == null ? null : 1,
+                ticketErrorCode);
+        return id;
+    }
+
+    private UUID insertRequest(UUID problemId, UUID runId, String summary, UUID reportedSystemId, int inquiryVersion) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, "
+                + "work_type, reported_system_id, responsible_system_id, summary, confirmed_facts) "
+                + "VALUES (?, ?, ?, ?, 'OBSERVED_SYMPTOM', 'INVESTIGATION', ?, ?, ?, '[{\"text\": \"내부 사실\", "
+                + "\"sourceMessageIds\": [], \"knowledgeEvidenceIds\": []}]')",
+                id, problemId, inquiryVersion, runId, reportedSystemId, reportedSystemId, summary);
         return id;
     }
 
