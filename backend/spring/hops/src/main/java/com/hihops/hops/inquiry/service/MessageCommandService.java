@@ -32,6 +32,7 @@ import com.hihops.hops.inquiry.domain.MessagePayload;
 import com.hihops.hops.inquiry.domain.MessageRevision;
 import com.hihops.hops.inquiry.domain.MessageStatus;
 import com.hihops.hops.inquiry.domain.SenderType;
+import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
@@ -40,6 +41,7 @@ import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.MessageRevisionRepository;
 import com.hihops.hops.itsystem.service.SystemQueryService;
 import com.hihops.hops.realtime.dto.MessageStoredEvent;
+import com.hihops.hops.ticket.repository.TicketRepository;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.json.JsonMapper;
@@ -64,7 +66,13 @@ import tools.jackson.databind.json.JsonMapper;
  * 이 문의의 문제가 아닌 problemIds는 400 INVALID_INPUT.
  * 업무 거절은 REJECTED로 기록돼 같은 키로 다시 보내도 같은 오류다.
  *
- * <p>저장·정정한 메시지는 {@link MessageStoredEvent}로 문의 구독(SSE)에 commit 뒤 알린다.
+ * <p>보완 대상 (WIRE_CONTRACT 12.6, TARGET_CONTRACT 4절): 티켓이 배정된 문제가 있는데 대상을 고르지 않은 메시지는, 문제가 둘 이상이면
+ * 어느 티켓에도 자동으로 붙이지 않고 pendingTarget으로 저장해 대상 선택을 기다린다(배정된 문제가 하나뿐이면 그 문제의 보완이다).
+ * {@link #linkProblems}(problem-links)가 원문을 바꾸지 않고 대상을 확정하며 입력 버전을 1 올린다.
+ * 새 실행은 대기 메시지가 남아 있거나 대상이 모두 이미 배정된 문제면 시작하지 않는다(보완 정보로 저장만, 자동 새 티켓·재배정 없음).
+ * 그래도 입력 버전은 올라가므로 진행 중이던 이전 실행은 대체한다.
+ *
+ * <p>저장·정정·대상 확정한 메시지는 {@link MessageStoredEvent}로 문의 구독(SSE)에 commit 뒤 알린다.
  *
  * <p>이전 실행의 AI 서버 취소 전파는 AI 쪽 취소 API(#93)가 준비되면 commit 뒤 이벤트로 연결한다. 지금은 Spring에서만 대체한다.
  */
@@ -77,6 +85,7 @@ public class MessageCommandService {
     private final InquiryProblemRepository inquiryProblemRepository;
     private final MessageRepository messageRepository;
     private final MessageRevisionRepository messageRevisionRepository;
+    private final TicketRepository ticketRepository;
     private final AgentRunRepository agentRunRepository;
     private final SystemQueryService systemQueryService;
     private final InputProblemReader inputProblemReader;
@@ -103,19 +112,39 @@ public class MessageCommandService {
                 reviseMessage(request.actorId(), inquiryId, messageId, command)));
     }
 
+    /** 트랜잭션 밖(Controller)에서 부른다. */
+    public CommandResult linkProblems(IdempotentRequest request, UUID inquiryId, UUID messageId,
+            MessageProblemLinkCommand command) {
+        inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        return idempotencyService.execute(request, operationId -> new ResourceRef(ResourceType.INQUIRY,
+                confirmTargets(request.actorId(), inquiryId, messageId, command)));
+    }
+
     private UUID sendMessage(UUID requesterId, UUID inquiryId, MessageSendCommand command) {
         Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
         List<UUID> problemIds = command.problemIds().stream().distinct().toList();
-        if (!activeProblemIds(inquiryId).containsAll(problemIds)) {
+        ProblemScope scope = scopeOf(inquiryId);
+        if (!scope.active().containsAll(problemIds)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "선택한 문제를 찾을 수 없습니다.");
+        }
+        // 대상을 고르지 않았는데 배정된 문제가 있으면: 문제가 하나뿐이면 그 문제의 보완, 둘 이상이면 대상 선택을 기다린다
+        boolean pending = false;
+        if (problemIds.isEmpty() && !scope.assigned().isEmpty()) {
+            if (scope.active().size() == 1) {
+                problemIds = List.copyOf(scope.active());
+            } else {
+                pending = true;
+            }
         }
 
         inquiry.recordInput();
         int sequenceNo = Math.incrementExact(messageRepository.findLastSequenceNo(inquiryId));
         Message message = messageRepository.saveAndFlush(new Message(inquiry, sequenceNo, SenderType.USER,
-                command.content(), UserMessagePayload.json(jsonMapper, command.requestId(), null, problemIds, command.content()),
+                command.content(),
+                UserMessagePayload.json(jsonMapper, command.requestId(), null, problemIds, command.content(), pending),
                 MessageStatus.COMPLETED));
-        startAnalysis(inquiry, message, problemIds);
+        continueAnalysis(inquiry, message, problemIds, scope);
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
         return inquiry.getId();
@@ -123,10 +152,7 @@ public class MessageCommandService {
 
     private UUID reviseMessage(UUID requesterId, UUID inquiryId, UUID messageId, MessageReviseCommand command) {
         Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
-        Message message = messageRepository.findById(messageId)
-                .filter(found -> found.getInquiry().getId().equals(inquiryId) && !found.isDeleted()
-                        && found.getSenderType() == SenderType.USER && found.getMessageStatus() == MessageStatus.COMPLETED)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        Message message = userMessage(inquiryId, messageId);
         if (message.getRevision() != command.expectedMessageRevision()) {
             throw new BusinessException(ErrorCode.MESSAGE_REVISION_CONFLICT);
         }
@@ -137,20 +163,79 @@ public class MessageCommandService {
         message.revise(command.content(), UserMessagePayload.revised(jsonMapper, message.getPayload(), previousRevision,
                 previousContent, Math.incrementExact(previousRevision), command.content(), command.requestId()));
         inquiry.recordInput();
-        // 그 사이 삭제된 문제는 대상에서 뺀다
-        Set<UUID> active = activeProblemIds(inquiryId);
+        // 그 사이 삭제된 문제는 대상에서 뺀다. 대기 중인 메시지를 정정하면 계속 대상 선택을 기다린다
+        ProblemScope scope = scopeOf(inquiryId);
         List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
-                .problemIds(message.getRevision()).stream().filter(active::contains).toList();
-        startAnalysis(inquiry, message, problemIds);
+                .problemIds(message.getRevision()).stream().filter(scope.active()::contains).toList();
+        continueAnalysis(inquiry, message, problemIds, scope);
         // 정정도 저장 알림이다. requestId는 이 정정 요청이다 (WIRE_CONTRACT 12.4 "저장 메시지·정정")
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
         return inquiry.getId();
     }
 
-    private Set<UUID> activeProblemIds(UUID inquiryId) {
-        return inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiryId).stream()
+    private UUID confirmTargets(UUID requesterId, UUID inquiryId, UUID messageId, MessageProblemLinkCommand command) {
+        Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
+        Message message = userMessage(inquiryId, messageId);
+        if (!jsonMapper.readValue(message.getPayload(), MessagePayload.class).isPendingTarget()) {
+            // 이미 연결된 메시지를 임의로 다시 잇지 않는다 (WIRE_CONTRACT 12.6)
+            throw new BusinessException(ErrorCode.INVALID_STATE, "이미 보완 대상이 정해진 메시지입니다.");
+        }
+        List<UUID> problemIds = command.problemIds().stream().distinct().toList();
+        ProblemScope scope = scopeOf(inquiryId);
+        if (!scope.active().containsAll(problemIds)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "선택한 문제를 찾을 수 없습니다.");
+        }
+
+        message.confirmTargets(UserMessagePayload.confirmed(jsonMapper, message.getPayload(), message.getRevision(),
+                message.getContent(), problemIds, command.requestId()));
+        inquiry.recordInput();
+        continueAnalysis(inquiry, message, problemIds, scope);
+        // 원문은 그대로지만 문제 연결이 바뀌었으므로 다시 조회하게 알린다
+        eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
+                command.requestId()));
+        return inquiry.getId();
+    }
+
+    private Message userMessage(UUID inquiryId, UUID messageId) {
+        return messageRepository.findById(messageId)
+                .filter(found -> found.getInquiry().getId().equals(inquiryId) && !found.isDeleted()
+                        && found.getSenderType() == SenderType.USER && found.getMessageStatus() == MessageStatus.COMPLETED)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+    }
+
+    /** 이 문의의 삭제되지 않은 문제와, 그중 티켓이 배정된 문제. */
+    private record ProblemScope(Set<UUID> active, Set<UUID> assigned) {
+    }
+
+    private ProblemScope scopeOf(UUID inquiryId) {
+        Set<UUID> active = inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(inquiryId).stream()
                 .map(InquiryProblem::getId).collect(Collectors.toSet());
+        Set<UUID> assigned = active.stream()
+                .filter(problemId -> ticketRepository.findByInquiryProblem_Id(problemId).filter(t -> !t.isDeleted())
+                        .isPresent())
+                .collect(Collectors.toSet());
+        return new ProblemScope(active, assigned);
+    }
+
+    /**
+     * 입력이 바뀐 뒤 분석을 이어 갈지 정한다. 진행 중인 이전 실행은 언제나 대체한다(입력 버전이 바뀌었다).
+     * 대기 메시지가 남아 있으면 대상이 정해지기 전 정보가 섞이지 않게, 대상이 모두 배정된 문제면 보완 정보일 뿐이라 새 실행을 만들지 않는다.
+     */
+    private void continueAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, ProblemScope scope) {
+        Instant now = clock.instant();
+        AgentRun previous = inquiry.getCurrentRun();
+        if (previous != null
+                && (previous.getRunStatus() == RunStatus.QUEUED || previous.getRunStatus() == RunStatus.RUNNING)) {
+            previous.finish(RunStatus.CANCELLED, now);
+        }
+        messageRepository.flush(); // 방금 바꾼 대기 표시를 아래 조회가 보게 한다
+        boolean waitingTarget = !messageRepository.findPendingTargetIds(inquiry.getId()).isEmpty();
+        boolean supplementOnly = !problemIds.isEmpty() && scope.assigned().containsAll(problemIds);
+        if (waitingTarget || supplementOnly) {
+            return;
+        }
+        startAnalysis(inquiry, trigger, problemIds, now);
     }
 
     // 문의 행을 잠그고, 화면이 본 버전이며 아직 끝나지 않은 문의인지 확인한다
@@ -167,14 +252,8 @@ public class MessageCommandService {
         return inquiry;
     }
 
-    // 새 입력 버전의 실행을 접수한다: 이전 활성 실행 대체 → 새 실행·불변 입력 → currentRun 연결 → commit 뒤 전달
-    private void startAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds) {
-        Instant now = clock.instant();
-        AgentRun previous = inquiry.getCurrentRun();
-        if (previous != null
-                && (previous.getRunStatus() == RunStatus.QUEUED || previous.getRunStatus() == RunStatus.RUNNING)) {
-            previous.finish(RunStatus.CANCELLED, now);
-        }
+    // 새 입력 버전의 실행을 접수한다: 새 실행·불변 입력 → currentRun 연결 → commit 뒤 전달
+    private void startAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, Instant now) {
         AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, trigger, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
         run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messageRepository.findAllCompletedInOrder(inquiry.getId()),

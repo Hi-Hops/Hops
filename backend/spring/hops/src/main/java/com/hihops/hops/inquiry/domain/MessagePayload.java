@@ -15,9 +15,20 @@ import org.jspecify.annotations.Nullable;
  * @param requestId          사용자 메시지를 처음 만든 변경 요청의 ID. 정정해도 바뀌지 않는다. AI 메시지는 null
  * @param problemLinks       서버가 확인한 이 메시지와 문제의 연결. 원문 차수(revision)마다 따로 둔다
  * @param revisionRequestIds 정정한 차수 → 그 정정 요청의 ID. 정정으로 시작한 실행의 오류에 접수 명령 ID를 넣는 데 쓴다
+ * @param pendingTarget      보완 대상을 아직 정하지 못한 메시지인지 (없으면 false)
+ * @param targetConfirmation 보완 대상을 확정한 problem-links 요청과 그때의 원문 차수
  */
 public record MessagePayload(@Nullable UUID requestId, @Nullable List<ProblemLink> problemLinks,
-        @Nullable Map<String, UUID> revisionRequestIds) {
+        @Nullable Map<String, UUID> revisionRequestIds, @Nullable Boolean pendingTarget,
+        @Nullable TargetConfirmation targetConfirmation) {
+
+    /** 보완 대상 확정 요청. 그 차수에서 시작한 실행은 이 요청이 접수한 것이다(대기 중에는 실행을 시작하지 않는다). */
+    public record TargetConfirmation(UUID requestId, int revision) {
+    }
+
+    public boolean isPendingTarget() {
+        return Boolean.TRUE.equals(pendingTarget);
+    }
 
     /**
      * 메시지가 이어진 문제. 원문 구간(spans)은 담당자 화면에서 쓰므로 여기서는 문제 ID와 차수만 읽는다.

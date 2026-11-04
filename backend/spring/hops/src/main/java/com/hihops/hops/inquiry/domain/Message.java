@@ -81,7 +81,15 @@ public class Message extends BaseEntity {
         this.payload = payload;
     }
 
-    public Inquiry getInquiry() {
+    /** 대기 메시지의 보완 대상을 확정해 payload(문제 연결)만 바꾼다. 원문·차수는 그대로다. */
+    public void confirmTargets(String payload) {
+        if (senderType != SenderType.USER) {
+            throw new IllegalStateException("사용자 메시지만 보완 대상을 정할 수 있다");
+        }
+        this.payload = payload;
+    }
+
+        public Inquiry getInquiry() {
         return inquiry;
     }
 

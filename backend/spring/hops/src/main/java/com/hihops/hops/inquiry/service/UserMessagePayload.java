@@ -23,6 +23,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>revisionRequestIds는 정정한 차수마다 그 정정 요청 ID를 남긴다(처음 원문은 requestId). 정정으로 시작한 실행의 오류에
  * 접수 명령 ID를 넣는 데 쓴다 (WIRE_CONTRACT 12.8 끝).
+ *
+ * <p>pendingTarget은 배정된 문제가 있는데 대상을 고르지 않아 어느 문제의 보완인지 정하지 못한 메시지다 (WIRE_CONTRACT 12.6).
+ * problem-links로 대상을 정하면 false가 되고 targetConfirmation에 그 요청 ID와 원문 차수를 남긴다.
  */
 final class UserMessagePayload {
 
@@ -31,6 +34,11 @@ final class UserMessagePayload {
 
     static String json(JsonMapper jsonMapper, UUID requestId, @Nullable UUID reportedSystemId, List<UUID> problemIds,
             String content) {
+        return json(jsonMapper, requestId, reportedSystemId, problemIds, content, false);
+    }
+
+    static String json(JsonMapper jsonMapper, UUID requestId, @Nullable UUID reportedSystemId, List<UUID> problemIds,
+            String content, boolean pendingTarget) {
         List<Map<String, Integer>> wholeMessage = List.of(Map.of("start", 0, "end", content.codePointCount(0, content.length())));
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contractVersion", IdempotencyService.CONTRACT_VERSION);
@@ -41,7 +49,7 @@ final class UserMessagePayload {
                 .toList());
         payload.put("questionBundles", List.of());
         payload.put("guide", null);
-        payload.put("pendingTarget", false);
+        payload.put("pendingTarget", pendingTarget);
         payload.put("reportedSystemId", reportedSystemId);
         payload.put("revisionRequestIds", Map.of());
         return jsonMapper.writeValueAsString(payload);
@@ -78,6 +86,25 @@ final class UserMessagePayload {
         ObjectNode requestIds = node.path("revisionRequestIds").isObject() ? (ObjectNode) node.get("revisionRequestIds")
                 : node.putObject("revisionRequestIds");
         requestIds.put(Integer.toString(revision), revisionRequestId.toString());
+        return jsonMapper.writeValueAsString(node);
+    }
+
+    /**
+     * 대기 메시지의 보완 대상을 확정한 payload. 원문은 바꾸지 않고 현재 차수의 원문 전체를 고른 문제에 잇는다.
+     * pendingTarget을 풀고 targetConfirmation에 확정 요청 ID와 차수를 남긴다(그 확정으로 시작한 실행의 오류 requestId).
+     */
+    static String confirmed(JsonMapper jsonMapper, String payload, int revision, String content, List<UUID> problemIds,
+            UUID confirmationRequestId) {
+        ObjectNode node = (ObjectNode) jsonMapper.readTree(payload);
+        ArrayNode links = node.path("problemLinks").isArray() ? (ArrayNode) node.get("problemLinks")
+                : node.putArray("problemLinks");
+        int length = content.codePointCount(0, content.length());
+        for (UUID problemId : problemIds) {
+            ObjectNode link = links.addObject().put("problemId", problemId.toString()).put("revision", revision);
+            link.putArray("spans").addObject().put("start", 0).put("end", length);
+        }
+        node.put("pendingTarget", false);
+        node.putObject("targetConfirmation").put("requestId", confirmationRequestId.toString()).put("revision", revision);
         return jsonMapper.writeValueAsString(node);
     }
 

@@ -24,7 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>상태: DB CANCELLED는 SUPERSEDED로 보낸다. 오류는 FAILED·TIMED_OUT에만 붙이고, 내부 오류 코드는 공개 코드로 바꾼다.
  * 원래 오류 문구·AI 응답 본문은 내보내지 않는다. 오류의 requestId는 이 실행을 접수한 공개 명령 ID다:
- * 재시도로 만든 실행은 그 재시도 요청, 정정으로 시작한 실행은 그 정정 요청, 그 밖에는 시작 메시지를 만든 요청이다.
+ * 재시도로 만든 실행은 그 재시도 요청, 보완 대상 확정으로 시작한 실행은 그 확정 요청, 정정으로 시작한 실행은 그 정정 요청,
+ * 그 밖에는 시작 메시지를 만든 요청이다.
  *
  * <p>트랜잭션 안에서 부른다(시작 메시지를 지연 로딩한다).
  */
@@ -92,7 +93,12 @@ public class RunSummaryReader {
             return retry.get();
         }
         MessagePayload payload = jsonMapper.readValue(run.getTriggerMessage().getPayload(), MessagePayload.class);
-        UUID revisionRequestId = payload.revisionRequestId(triggerRevision(run, input));
+        int revision = triggerRevision(run, input);
+        // 대기 메시지는 대상을 확정하기 전에 실행을 시작하지 않으므로, 확정한 차수의 실행은 그 확정 요청이 접수했다
+        if (payload.targetConfirmation() != null && payload.targetConfirmation().revision() == revision) {
+            return payload.targetConfirmation().requestId();
+        }
+        UUID revisionRequestId = payload.revisionRequestId(revision);
         if (revisionRequestId != null) {
             return revisionRequestId;
         }

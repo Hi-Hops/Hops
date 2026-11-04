@@ -19,6 +19,7 @@ import com.hihops.hops.global.idempotency.ResourceType;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.InquiryStatus;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
+import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.itsystem.service.SystemQueryService;
 
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,7 @@ import lombok.RequiredArgsConstructor;
  * 응답은 200 CommandReceipt·resource=RUN(새 실행)이다. 같은 요청 키는 처음 결과를 돌려주고 새 실행을 만들지 않는다.
  *
  * <p>거절: 남의 실행·없는 실행은 404, 문의 버전이 다르면 409 INQUIRY_VERSION_CONFLICT,
- * 현재 실행이 아니거나 재분석할 수 없는 실패·끝난 문의면 409 RUN_NOT_RETRYABLE이다.
+ * 현재 실행이 아니거나 재분석할 수 없는 실패·끝난 문의, 보완 대상을 기다리는 메시지가 있는 문의면 409 RUN_NOT_RETRYABLE이다.
  * 같은 문의의 변경 명령은 문의 행 잠금으로 하나씩 처리하므로, 두 재분석이 동시에 와도 새 실행은 하나다.
  */
 @Service
@@ -43,6 +44,7 @@ public class RunCommandService {
     private final RunSummaryReader runSummaryReader;
     private final AgentRunRepository agentRunRepository;
     private final InquiryRepository inquiryRepository;
+    private final MessageRepository messageRepository;
     private final SystemQueryService systemQueryService;
     private final AnalysisInputFactory analysisInputFactory;
     private final AnalysisRunProperties runProperties;
@@ -68,7 +70,9 @@ public class RunCommandService {
         }
         boolean current = inquiry.getCurrentRun() != null && inquiry.getCurrentRun().getId().equals(runId);
         boolean open = inquiry.getInquiryStatus() != InquiryStatus.RESOLVED && inquiry.getInquiryStatus() != InquiryStatus.CLOSED;
-        if (!current || !open || !runSummaryReader.isRetryable(failed)) {
+        // 대상이 정해지지 않은 보완 메시지가 있으면 그 정보가 섞이지 않게 대상 선택을 먼저 받는다
+        boolean waitingTarget = !messageRepository.findPendingTargetIds(inquiry.getId()).isEmpty();
+        if (!current || !open || waitingTarget || !runSummaryReader.isRetryable(failed)) {
             throw new BusinessException(ErrorCode.RUN_NOT_RETRYABLE);
         }
 
