@@ -1,0 +1,16 @@
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.connected {
+  background: var(--color-success);
+}
+.connecting {
+  background: var(--color-attention-dot);
+}
+.disconnected {
+  background: var(--color-danger);
+}

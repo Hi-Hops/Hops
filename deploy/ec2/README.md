@@ -28,6 +28,8 @@ HTTP는 인증서 갱신 경로를 제외하고 HTTPS로 전환한다. HTTPS의 
 
 배포는 DB 마이그레이션을 실행하거나 되돌리지 않는다. EC2의 `/var/lib/hops-deploy/spring-migrations.tree`, `ai-migrations.tree`에 검증된 Git tree ID가 있어야 하며, 배포 대상 커밋의 해당 디렉터리 tree가 다르면 컨테이너를 변경하기 전에 실패한다. 새 마이그레이션은 DB 백업·호환성·기존 앱과의 순서·앱 계정 권한을 검토한 뒤 별도 절차로 적용하고 실제 결과를 확인한 후에만 기준을 갱신한다. 마이그레이션만 포함된 변경도 이 확인 전에는 자동 배포되지 않는다.
 
+AI 런타임 DB의 계정·소유자·권한 SQL은 배포 기준에 포함되지 않도록 `ai/migrations` 밖의 [`ai/db`](../../ai/db/README.md)에 두며, RDS 적용 절차와 점검 명령도 그 문서에 있다.
+
 첫 기준 설정 전, 기존 DB의 Flyway 이력과 AI 실행 기록 스키마를 실제로 확인하고 현재 실행 이미지와 적용된 마이그레이션에 해당하는 커밋을 식별해야 한다. 예를 들어 EC2의 Git 체크아웃에서 확인한 커밋을 `VERIFIED_COMMIT`에 입력한 다음 아래를 실행한다. 이 파일들은 **관리자의 검증 기록**이며, 파일을 쓰는 행위 자체가 DB 검증을 뜻하지 않는다.
 
 ```bash
@@ -39,6 +41,17 @@ git -C ~/Hops rev-parse "$VERIFIED_COMMIT:ai/migrations" | sudo tee /var/lib/hop
 ```
 
 기준 파일 갱신은 배포를 허용하는 보안상 중요한 작업이다. 실패한 마이그레이션을 성공한 것으로 기록하거나 임의의 최신 tree로 덮어쓰지 않는다. 동시 수동 변경은 배포 잠금 정책을 우회할 수 있으므로 팀이 운영 절차를 합의한다.
+
+### 새 Spring 마이그레이션 적용
+
+EC2의 Spring 컨테이너는 Flyway를 실행하지 않는다(`SPRING_FLYWAY_ENABLED=false`). 새 `V*.sql`이 develop에 병합되면 배포는 tree 불일치로 멈추고, 배포 담당자가 아래 순서로 적용한 뒤에만 다시 진행된다.
+
+1. DB를 백업하고, 새 마이그레이션이 현재 실행 중인 이미지와 함께 동작하는지(컬럼 삭제·이름 변경 여부) 확인한다.
+2. Flyway CLI는 앱과 같은 버전을 쓴다. 앱 버전은 `backend/spring/hops`에서 `./gradlew dependencyInsight --dependency org.flywaydb:flyway-core --configuration runtimeClasspath`로 확인한다(현재 12.4.0).
+3. 대상 위치는 `db/migration`만 지정한다. `db/seed`는 로컬 가상 데이터라 개발 서버 DB에 넣지 않는다.
+4. 앱이 쓰는 DB 계정으로 적용한다. 다른 계정으로 적용했다면 새 테이블·시퀀스의 소유자와 앱 계정 권한을 확인하고 필요한 권한을 부여한다.
+5. `flyway_schema_history`에서 새 버전이 `success`인지 확인한 뒤, 적용한 커밋으로 위 명령을 실행해 `spring-migrations.tree`를 갱신한다.
+6. 실패했던 이전 배포 run이 아니라 **기준을 갱신한 커밋의 배포 run(보통 최신 develop)** 을 다시 실행한다. 다른 커밋의 run은 tree가 달라 다시 실패한다.
 
 ## AWS 일회성 준비
 

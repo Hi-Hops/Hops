@@ -136,15 +136,9 @@ curl -i http://127.0.0.1:8000/readyz
 
 처리 흐름은 Supervisor 판단 → Inquiry(원문에서 사실 추출, 부족한 정보는 양식 규칙으로 질문) → 필요 시 Ticket(티켓 제안) → 최종 답변 조립이다. 정보가 부족하면 질문으로, 충분하면 티켓 제안으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge가 연결되기 전까지 안전한 실패로 끝난다. 티켓 제안은 제안일 뿐이며 저장·배정은 Spring이 하고, 현재 Spring은 AI 티켓 제안으로 티켓을 만들지 않는다.
 
-AI 런타임 DB는 Compose가 만들어 주지 않는다. Compose의 PostgreSQL이 이미 만들어진 볼륨에는 초기화 스크립트가 다시 실행되지 않으므로 아래처럼 직접 만든다(계정은 Backend와 같은 `POSTGRES_USER`를 쓰는 로컬 개발용 예시이며, 운영·공용 환경은 최소 권한 계정을 별도로 준비한다).
+AI 런타임 DB와 계정은 Compose가 만들어 주지 않는다. 이미 만들어진 볼륨에는 초기화 스크립트가 다시 실행되지 않으므로 [AI 런타임 DB 계정·권한 준비](db/README.md)의 로컬 Compose 절차대로 `hops_ai_runtime` DB, 마이그레이션 계정 `hops_ai_migrator`, 앱 계정 `hops_ai_app`을 만든다. 예전 안내대로 `hops` 소유로 만든 DB도 같은 문서의 절차로 데이터를 보존한 채 넘겨받는다.
 
-```bash
-docker compose exec postgres psql -U hops -d hops -c "CREATE DATABASE hops_ai_runtime OWNER hops;"
-docker compose exec -T postgres psql -U hops -d hops_ai_runtime < ai/migrations/001_run_ledger.sql
-docker compose exec -T postgres psql -U hops -d hops_ai_runtime < ai/migrations/002_run_owner.sql
-```
-
-`HOPS_AI_RUNTIME_DSN`은 Compose 안에서 `postgresql://hops:<POSTGRES_PASSWORD>@postgres:5432/hops_ai_runtime` 형식이다. 토큰은 32바이트 난수를 base64url로 만든다.
+`HOPS_AI_RUNTIME_DSN`은 Compose 안에서 `postgresql://hops_ai_app:<앱 계정 비밀번호>@postgres:5432/hops_ai_runtime` 형식이다. AI 앱에 관리자 계정(`hops`)을 쓰지 않는다. 설정 후 `docker compose exec ai python -m hops_ai.persistence.check_runtime_db --business-dbname hops`로 권한을 점검한다. 토큰은 32바이트 난수를 base64url로 만든다.
 
 ```bash
 python3 -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b'=').decode())"
@@ -179,7 +173,7 @@ uv run ruff format --check .
 
 ### RunLedger 개발과 PostgreSQL 통합 검사
 
-RunLedger는 Spring 업무 DB가 아닌 별도 `hops_ai_runtime` DB를 사용한다. DB와 최소 권한의 AI 계정은 환경 담당자가 준비한다. 앱 시작 시 DB 생성이나 마이그레이션은 자동 실행하지 않는다. DB 연결 문자열은 호출자가 `RunLedger`에 주입하며 비밀값을 저장소·로그에 남기지 않는다.
+RunLedger는 Spring 업무 DB가 아닌 별도 `hops_ai_runtime` DB를 사용한다. DB와 최소 권한의 AI 계정은 환경 담당자가 [db/README.md](db/README.md)의 SQL과 절차로 준비한다. 앱 시작 시 DB 생성이나 마이그레이션은 자동 실행하지 않는다. DB 연결 문자열은 호출자가 `RunLedger`에 주입하며 비밀값을 저장소·로그에 남기지 않는다.
 
 대상 DB를 확인한 뒤 [001](migrations/001_run_ledger.sql), [002](migrations/002_run_owner.sql)를 순서대로 적용한다. 이미 001이 적용된 DB는 실행기를 모두 중지한 뒤 002를 한 번 적용한다. 이전 소유자를 확인할 수 없는 미완료 실행은 002에서 `UNKNOWN`으로 보존한다. 운영 DB에 임의로 적용하지 않는다.
 

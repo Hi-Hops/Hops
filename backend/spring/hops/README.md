@@ -188,6 +188,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 | `SPRING_DATASOURCE_PASSWORD` | DB 비밀번호 |
 
 - 테이블 생성·변경은 **Flyway**로 관리합니다. `src/main/resources/db/migration`에 `V1__설명.sql`처럼 버전 붙은 SQL을 추가하면 서버 시작 시 아직 적용하지 않은 것만 실행합니다. 이미 적용된 파일은 고치지 않고 새 버전 파일을 추가합니다.
+- EC2 개발 서버는 Flyway를 실행하지 않습니다(`SPRING_FLYWAY_ENABLED=false`). 새 `V*.sql`은 배포 담당자가 따로 적용해야 배포가 진행되므로 PR 본문에 알리고, 절차는 [EC2 배포 문서의 마이그레이션 경계](../../../deploy/ec2/README.md#마이그레이션-경계)를 따릅니다.
 - 로컬 개발용 가상 데이터는 `db/seed`에 둡니다. `db` 프로필은 `db/migration`과 `db/seed`를 함께 실행하고, 테스트는 `db/migration`만 사용합니다. Flyway와 함께 쓰지 않도록 `data.sql`은 사용하지 않습니다.
 - `ddl-auto=validate`로 Entity와 DB 구조가 맞는지만 검사하고 자동 DDL 변경은 하지 않습니다. SQL 초기화도 비활성화합니다.
 - `open-in-view=false`로 요청 렌더링 단계의 지연 로딩을 사용하지 않습니다.
@@ -319,6 +320,7 @@ AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다
 - **보완 대상:** 티켓이 배정된 문제가 있는데 `problemIds=[]`로 보내면, 문제가 둘 이상이면 어느 티켓에도 붙이지 않고 `pendingTarget`으로 저장해 `pendingTargetMessageIds`에 올리고(배정된 문제가 하나뿐이면 그 문제의 보완), `problem-links`로 원문을 바꾸지 않고 대상을 확정합니다(입력 버전 +1, 이미 정한 메시지는 409). 대기 메시지는 대상이 정해질 때까지 AI 입력의 대화에서 빠지고 그 메시지로는 분석하지 않지만, 다른 메시지의 분석은 막지 않습니다. 대상이 모두 배정된 문제인 입력도 보완 정보라 자기 분석이 없습니다. 이런 입력이 진행 중이던 실행을 대체하면 그 실행의 대상을 새 실행으로 잇습니다. 해결됐거나(RESOLVED) 지원 범위 밖(OUT_OF_SCOPE)인 문제는 대상이 될 수 없습니다(400). 메시지 명령이 접수한 실행은 시작 메시지 `payload.runRequestIds`에 접수 명령을 남겨 실행 오류의 `requestId`로 씁니다.
 - **정정:** 바꾸기 전 원문을 `message_revision`에 보존하고 같은 메시지의 `content`를 바꿔 `revision`을 1 올립니다. ID·순번·처음 `requestId`는 그대로입니다. 그 뒤는 전송과 같이 문의 버전을 올리고 이전 실행을 대체해 새 실행을 접수하며, 대상 문제는 그 메시지에 연결된 문제입니다. 원문 전체에 걸린 문제 연결은 새 원문 전체로 잇고(일부 구간 연결은 잇지 않음), payload `revisionRequestIds`에 차수별 정정 요청 ID를 남겨 정정으로 시작한 실행의 오류 `requestId`로 씁니다.
 - **거절 기록:** 업무 규칙으로 거절한 변경 요청(409 버전 충돌·재분석 불가, 업무 검사 400)은 `REJECTED`로 기록합니다. 같은 키로 다시 보내면 다시 검사하지 않고 같은 오류를 돌려주고, `GET /operations/...`는 `state=REJECTED`와 `error`를 반환합니다. 입력 형식 400·401·403·429·5xx는 기록하지 않습니다.
+- **만료 기록 정리:** 보존 기간(24시간)이 지난 중복 요청 방지 기록은 `IdempotencyTombstoneScheduler`가 1시간마다 응답(`response_status`·`response_body`)을 비우고 `tombstoned_at`을 남깁니다. 행과 키·해시·작업·업무 대상은 지우지 않아 같은 키로 다시 와도 410이고 업무는 다시 실행되지 않습니다. 접수 중(PENDING)인 기록은 건드리지 않습니다. 설정은 `hops.idempotency.tombstone.enabled`(기본 true, 테스트 프로필은 false)·`initial-delay`·`interval`입니다.
 - **재분석:** 문의의 현재 실행이 `retryable=true`인 FAILED/TIMED_OUT일 때만 같은 문의 버전으로 새 runId·새 `answerMessageId`의 QUEUED 실행을 접수합니다. 실패한 실행은 그대로 두고 대화 입력은 재사용하며, 권한 문맥·시스템 목록·기한은 새로 만듭니다. 재분석 실행의 실패 오류 `requestId`는 그 재분석 요청 ID입니다.
 - **문의 상세의 `problems`:** 문제 번호 순으로 `Problem`을 돌려줍니다. 요약·의도·처리 유형·보고 시스템은 문제별 최신 적용(SUCCEEDED) 실행의 `standard_request`, 상태·질문 수는 `inquiry_problem`(DATA.md 11.2 변환), 안내는 최신 AI 메시지의 `payload.guide`와 그 실행 결과 중 지금 공개 가능한 직원용 근거, 티켓 생성 결과는 `creation_outcome`, 티켓은 티켓 화면과 같은 방식으로 읽습니다. 해결 확인 요청은 티켓이 있으면 티켓 이벤트, 없으면 안내 메시지의 `payload.resolutionRequest`(GUIDE)입니다. 질문 중인 문제는 질문을 했고 분석 중인 실행이 그 문제를 대상으로 삼지 않았으면 `WAITING_USER`(대상은 실행 입력의 `problemIds`), 시스템 확인 대기는 `reportedSystemId=null`입니다. 담당자 내부 표준 요청서는 담지 않습니다. 적용된 요청서가 없는 문제처럼 저장 규칙이 깨진 경우는 짐작하지 않고 500입니다.
 
