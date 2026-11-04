@@ -139,11 +139,35 @@ async def test_draft_passes_the_supervisor_merge_validation() -> None:
     ],
 )
 async def test_source_not_found_in_a_user_message_is_dropped(source) -> None:
-    response, _ = await run_agent(case_request(), draft(sources=[source]))
+    valid = SourceQuote(messageId=MESSAGE, quote="첨부파일이 열리지 않아요")
+    other = SourceQuote(messageId=AI_MESSAGE, quote="어떤 첨부파일이")
+
+    response, _ = await run_agent(case_request(), draft(sources=[source, other, valid]))
 
     proposal = response.result.proposal
-    assert proposal.sourceMessageIds == []
-    assert proposal.entityLinks[0].evidenceIds == []
+    assert proposal.sourceMessageIds == [MESSAGE]
+    assert proposal.entityLinks[0].evidenceIds == [MESSAGE]
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        [],
+        [SourceQuote(messageId=MESSAGE, quote="첨부파일이 삭제된 것 같아요")],
+        [SourceQuote(messageId=AI_MESSAGE, quote="어떤 첨부파일이 열리지 않나요?")],
+    ],
+)
+async def test_reusable_draft_without_a_grounded_source_is_an_output_error(sources) -> None:
+    request = case_request()
+    services, _ = services_for(request, draft(sources=sources))
+
+    with pytest.raises(OutputRejected):
+        await execute_role(
+            running_state(request),
+            AgentRole.CURATOR,
+            services,
+            {AgentRole.CURATOR: ModelCuratorAgent()},
+        )
 
 
 async def test_repeated_sources_are_kept_once_in_order() -> None:

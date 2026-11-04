@@ -128,6 +128,9 @@ def _assemble(draft: CaseDraft, record: WorkRecordContext, request: AiRunRequest
     except ValueError:
         raise OutputRejected("사례 제한 조건이 허용 길이를 넘었다") from None
     source_ids = ground_sources(draft.sources, request.messages)
+    if not source_ids:
+        # 재사용 사례는 원문 출처를 담아야 한다. 확인되는 인용이 없으면 출력 오류다.
+        raise OutputRejected("재사용 사례의 출처가 원문에서 확인되지 않는다")
     try:
         return CaseProposal(
             reusable=True,
