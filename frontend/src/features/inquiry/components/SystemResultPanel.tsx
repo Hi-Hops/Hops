@@ -272,8 +272,16 @@ export function SystemConfirmations({ inquiry }: { inquiry: InquiryResult }) {
     </section>
   );
 }
-export function SystemResultPanel({ result }: { result: InquiryResult }) {
-  const [dismissed, setDismissed] = useState(0);
+// 결과 패널은 답변 위치에 따라 다시 마운트되므로, 모달을 닫은 revision은 상위 화면이 보관한다.
+export function SystemResultPanel({
+  result,
+  dismissedRevision,
+  onDismiss,
+}: {
+  result: InquiryResult;
+  dismissedRevision: number;
+  onDismiss: (revision: number) => void;
+}) {
   const hasResult = result.problems.some((p) => p.creationResult);
   const banner = bannerFor(result);
   return (
@@ -287,12 +295,12 @@ export function SystemResultPanel({ result }: { result: InquiryResult }) {
       {result.pendingTargetMessageIds.map((id) => (
         <PendingTarget key={id} inquiry={result} messageId={id} />
       ))}
-      {hasResult && result.resultRevision > dismissed && (
+      {hasResult && result.resultRevision > dismissedRevision && (
         <RouteModal
           title="티켓 접수 결과"
           description="서버에 저장된 문제별 접수·배정 결과예요. 해결 완료와는 구분해요."
           onClose={() => {
-            setDismissed(result.resultRevision);
+            onDismiss(result.resultRevision);
           }}
           returnFocusId="chat-title"
         >

@@ -1,4 +1,4 @@
-import { Fragment, useRef } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useSession } from '@/features/auth';
 import {
@@ -33,6 +33,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
     chat.live?.text,
   );
   const loading = useRef(false);
+  const [dismissedRevision, setDismissedRevision] = useState(0);
   async function older() {
     if (!chat.messages.hasNextPage || chat.messages.isFetching || loading.current) return;
     loading.current = true;
@@ -79,7 +80,14 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
     : [...chat.items]
         .reverse()
         .find((m) => m.sender === 'AI' && m.problemIds.some((id) => problemIds.has(id)))?.id;
-  const results = inquiry.problems.length > 0 ? <SystemResultPanel result={inquiry} /> : null;
+  const results =
+    inquiry.problems.length > 0 ? (
+      <SystemResultPanel
+        result={inquiry}
+        dismissedRevision={dismissedRevision}
+        onDismiss={setDismissedRevision}
+      />
+    ) : null;
   const steps = chat.live?.steps.length
     ? chat.live.steps
     : [{ stepNo: 0, text: '문의 내용을 확인하고 있어요' }];
