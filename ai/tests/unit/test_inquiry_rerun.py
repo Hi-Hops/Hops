@@ -121,7 +121,9 @@ def test_extraction_prompt_places_the_how_to_goal_in_expected_behavior() -> None
     from hops_ai.agents.inquiry.extraction import PROMPT_VERSION, SYSTEM_PROMPT
 
     assert "expectedBehavior에" in SYSTEM_PROMPT and "HOW_TO" in SYSTEM_PROMPT
-    assert PROMPT_VERSION == "inquiry-extraction-v4"
+    # 문제를 나눌 때 각 요약에 다른 문제의 내용을 넣지 않는다.
+    assert "각 summary에 다른 문제의 내용을 넣지 않는다" in SYSTEM_PROMPT
+    assert PROMPT_VERSION == "inquiry-extraction-v5"
 
 
 async def test_rerun_quote_that_only_shortens_an_earlier_one_adds_no_duplicate_fact() -> None:
