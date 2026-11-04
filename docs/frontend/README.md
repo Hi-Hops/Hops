@@ -58,7 +58,7 @@ PRD 1.44의 구체 계약은 [공통 계약](../../specs/contracts/README.md)·[
 
 `connected`는 스트림 연결과 현재 권한·최신 REST 조회 복구가 모두 완료된 상태다. 스트림이 정상이어도 초기 REST 조회가 실패하면 `connecting`을 유지해 보호 내용을 가린다. 이때 스트림은 이벤트를 계속 수신하며 조회 화면에서 실패를 안내한다. 수동 재연결 후 REST 복구까지 성공하면 `connected`로 전환한다. `resync.required` 이후 필수 REST 복구 실패는 연결을 중단하고 사용자의 재시도를 기다린다.
 
-연결 상태는 본문을 밀어내는 패널 대신 헤더의 `Hops` 옆 점으로 표시한다. `connected`는 초록, `connecting`은 회색, `disconnected`는 빨강이며 빨간 점을 누르면 수동 재연결한다. 구독이 없는 `idle`은 표시하지 않는다.
+연결 상태는 본문을 밀어내는 패널 대신 채팅의 가장 최근 `Hops` 라벨 옆 작은 점으로 표시한다. 분석 중에는 진행 표시의 `Hops` 라벨에 둔다. `connected`는 초록, `connecting`은 회색, `disconnected`는 빨강이며 빨간 점을 누르면 수동 재연결한다. 구독이 없는 `idle`은 표시하지 않는다.
 
 ## ERD 대조 후 프론트 구현 범위
 

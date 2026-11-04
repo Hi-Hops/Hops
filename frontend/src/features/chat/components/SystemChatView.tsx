@@ -1,6 +1,7 @@
 import { Fragment, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useSession } from '@/features/auth';
+import { ConnectionIndicator } from '@/features/realtime';
 import {
   SystemCommandButton,
   SystemResultPanel,
@@ -68,6 +69,8 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
   if (!inquiry) return null;
   const closed = ['RESOLVED', 'CLOSED'].includes(inquiry.status);
   const title = inquiryTitle(inquiry, chat.items.find((m) => m.sender === 'USER')?.content);
+  // 연결 상태 점은 가장 최근 Hops 라벨 하나에만 둔다. 분석 중에는 진행 표시의 라벨에 둔다.
+  const lastAiId = chat.items.filter((m) => m.sender === 'AI').at(-1)?.id;
   const meta = [
     ...resultMetaParts(inquiry),
     `${isToday(inquiry.createdAt) ? '오늘 ' : ''}${displayChatTime(inquiry.createdAt)} 시작`,
@@ -153,6 +156,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                   </span>
                 )}
                 <strong>{message.sender === 'USER' ? userName : 'Hops'}</strong>
+                {!chat.active && message.id === lastAiId && <ConnectionIndicator />}
                 <time dateTime={message.createdAt}>{displayChatTime(message.createdAt)}</time>
               </div>
               <div className={message.sender === 'USER' ? styles.userBubble : styles.aiBubble}>
@@ -172,6 +176,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                 H
               </span>
               <strong>Hops</strong>
+              <ConnectionIndicator />
               <span>{chat.run?.status === 'QUEUED' ? '분석 대기' : '분석 중'}</span>
             </div>
             <ProgressSteps key={chat.run?.id} steps={steps} />
