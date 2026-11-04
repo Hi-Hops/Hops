@@ -5,7 +5,7 @@ import { useConnection } from '../model/connectionStore';
 
 afterEach(() => {
   act(() => {
-    useConnection.getState().setState('disconnected');
+    useConnection.getState().setState('idle');
   });
 });
 
@@ -23,7 +23,7 @@ describe('실시간 연결 표시', () => {
   ] as const)('%s 상태를 버튼 없이 알린다', (state, label) => {
     useConnection.getState().setState(state);
     render(<ConnectionIndicator />);
-    expect(screen.getByRole('status', { name: label })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: label })).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

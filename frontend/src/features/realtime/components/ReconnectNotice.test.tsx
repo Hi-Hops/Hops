@@ -9,7 +9,7 @@ import { useConnection } from '../model/connectionStore';
 afterEach(() => {
   vi.restoreAllMocks();
   act(() => {
-    useConnection.getState().setState('disconnected');
+    useConnection.getState().setState('idle');
   });
 });
 
@@ -28,5 +28,11 @@ describe('실시간 재연결 안내', () => {
     expect(screen.getByRole('status')).toHaveTextContent('실시간 연결이 끊겼어요');
     await userEvent.setup().click(screen.getByRole('button', { name: '다시 연결' }));
     expect(connect).toHaveBeenCalledWith('token-1');
+  });
+
+  it('좁은 화면의 짧은 문구도 스크린리더에서 숨기지 않는다', () => {
+    useConnection.getState().setState('disconnected');
+    render(<ReconnectNotice />);
+    expect(screen.getByText('연결 끊김')).not.toHaveAttribute('aria-hidden');
   });
 });

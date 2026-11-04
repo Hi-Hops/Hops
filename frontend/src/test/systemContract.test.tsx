@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { login, useSession } from '@/features/auth';
 import { SystemMessageComposer, SystemChatView } from '@/features/chat';
 import { SystemTicketBoard, SystemTicketDetail } from '@/features/ticket';
+import { useConnection } from '@/features/realtime';
 import { apiRequest } from '@/shared/api/client';
 import { savedResource, sendSystemCommand, systemGet } from '@/shared/api/systemCommands';
 import { systemMockBackend } from '@/shared/api/systemMockBackend';
@@ -331,6 +332,25 @@ describe('hops-system-1 시스템 단위 전환', () => {
     expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: '다시 시도' }));
     expect(connect).toHaveBeenCalledWith(token);
+  });
+  it('관리자 티켓 상세는 내용을 유지하고 보드 연결이 끊기면 모달 안에서 다시 연결한다', async () => {
+    await login(TEST_LOGINS.admin);
+    const token = useSession.getState().token ?? '';
+    const page = await systemGet('/tickets?scope=ADMIN', readTickets);
+    const id = page.items[0]?.id ?? '';
+    const connect = vi.spyOn(realtime, 'connect').mockImplementation(() => undefined);
+    renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
+    expect(await screen.findByRole('heading', { name: '업무 메타데이터' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '다시 연결' })).not.toBeInTheDocument();
+    act(() => {
+      useConnection.getState().setState('disconnected');
+    });
+    await userEvent.setup().click(screen.getByRole('button', { name: '다시 연결' }));
+    expect(connect).toHaveBeenCalledWith(token);
+    expect(screen.getByRole('heading', { name: '업무 메타데이터' })).toBeVisible();
+    act(() => {
+      useConnection.getState().setState('idle');
+    });
   });
   it('F003-CONTRACT-04 입력 UI에서 응답 유실 후 같은 요청을 확인하고 입력을 정리한다', async () => {
     await login(TEST_LOGINS.requester);

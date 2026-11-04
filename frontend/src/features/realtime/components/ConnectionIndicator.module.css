@@ -9,7 +9,7 @@
   background: var(--color-success);
 }
 .connecting {
-  background: var(--color-border-strong);
+  background: var(--color-attention-dot);
 }
 .disconnected {
   background: var(--color-danger);

@@ -18,6 +18,20 @@
   font-size: var(--font-size-sm);
   white-space: nowrap;
 }
+/* 모달 본문 위쪽에 두는 작은 안내. 모달 밖 전역 안내를 누를 수 없을 때 쓴다. */
+.inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: var(--space-3) var(--space-4) 0;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
 .short {
   display: none;
 }

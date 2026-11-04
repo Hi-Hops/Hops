@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
-import { reconnect, useSubscription } from '@/features/realtime';
+import { ReconnectNotice, reconnect, useSubscription } from '@/features/realtime';
 import { systemStatus } from '@/features/inquiry';
 import { ApiError } from '@/shared/api/client';
 import { displayDate } from '@/shared/lib/date';
@@ -429,6 +429,10 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
       padded={false}
       footer={null}
     >
+      {/* 모달이 바깥의 전역 안내를 막는다. 보드 구독이 끊겨도 상세 안에서 알리고 다시 연결한다. */}
+      {allowed && !subscription.denied && !(!admin && subscription.state === 'disconnected') && (
+        <ReconnectNotice inline />
+      )}
       {content}
     </RouteModal>
   );

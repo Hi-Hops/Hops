@@ -7,7 +7,7 @@ const labels = {
   disconnected: '실시간 연결 끊김',
 } as const;
 
-// 상태만 표시한다. 수동 재연결은 클릭 영역이 충분한 ReconnectNotice가 맡는다.
+// 상태만 표시한다. 끊김 알림(live region)과 수동 재연결은 ReconnectNotice가 맡는다.
 export function ConnectionIndicator() {
   const state = useConnection((connection) => connection.state);
   // 구독 대상이 없는 화면은 SSE를 열지 않으므로 표시하지 않는다.
@@ -15,7 +15,7 @@ export function ConnectionIndicator() {
   return (
     <span
       className={`${styles.dot} ${styles[state]}`}
-      role="status"
+      role="img"
       aria-label={labels[state]}
       title={labels[state]}
     />
