@@ -172,4 +172,12 @@ public class StandardRequest extends CreatedOnlyEntity {
     public String getRelatedKnowledge() {
         return relatedKnowledge;
     }
+
+    public void recordAnalysis(String facts, String assumptions, String unknowns, String details, String knowledge) {
+        this.confirmedFacts = facts;
+        this.assumptions = assumptions;
+        this.missingItems = unknowns;
+        this.typeDetail = details;
+        this.relatedKnowledge = knowledge;
+    }
 }

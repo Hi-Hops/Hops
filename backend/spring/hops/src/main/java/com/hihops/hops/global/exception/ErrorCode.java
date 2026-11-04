@@ -41,6 +41,8 @@ public enum ErrorCode {
     RUN_NOT_RETRYABLE(HttpStatus.CONFLICT, "지금은 다시 분석할 수 없습니다. 최신 상태를 확인해 주세요.", false),
     // 대상의 현재 상태에서 허용하지 않는 조작. 최신 상태를 다시 읽고 허용된 조작만 제공한다 (WIRE_CONTRACT 12.3)
     INVALID_STATE(HttpStatus.CONFLICT, "현재 상태에서는 요청을 처리할 수 없습니다.", false),
+    TICKET_REVISION_CONFLICT(HttpStatus.CONFLICT, "티켓이 변경되었습니다. 최신 내용을 확인해 주세요.", false),
+    RESOLUTION_REVISION_CONFLICT(HttpStatus.CONFLICT, "이미 응답했거나 확인 요청이 변경되었습니다.", false),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 본문 형식입니다.", false),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", true),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.", false),

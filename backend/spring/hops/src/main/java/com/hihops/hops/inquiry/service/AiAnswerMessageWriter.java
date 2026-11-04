@@ -44,7 +44,7 @@ public class AiAnswerMessageWriter {
         return sequenceNo;
     }
 
-    // DATA.md 11.3의 모든 키를 둔다. 문제 연결·질문 묶음·가이드는 문제 분리를 구현할 때 채운다.
+    // DATA.md 11.3의 모든 키를 둔다. 안내·대상 연결·해결 확인은 결과 처리기가 같은 거래에서 채운다.
     private String payload(UUID runId) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("contractVersion", IdempotencyService.CONTRACT_VERSION);
