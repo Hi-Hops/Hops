@@ -130,7 +130,7 @@ afterEach(() => {
   vi.mocked(useSystemChat).mockReset();
 });
 
-it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨도 닫은 revision의 접수 결과 모달은 다시 열지 않는다', async () => {
+it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨도 닫은 접수 결과의 접수 결과 모달은 다시 열지 않는다', async () => {
   vi.mocked(useSystemChat).mockReturnValue(chatState(1, false));
   const view = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
   await userEvent.click(await screen.findByRole('button', { name: '닫기' }));
@@ -145,6 +145,20 @@ it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨�
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
   vi.mocked(useSystemChat).mockReturnValue(chatState(2, false));
+  view.rerender(<SystemChatView inquiryId={inquiryId} />);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+  if (!problem.ticket) throw new Error('가상 티켓 없음');
+  for (const state of ['IN_PROGRESS', 'WAITING_CONFIRMATION', 'RESOLVED'] as const) {
+    const changed = { ...problem, ticket: { ...problem.ticket, state, ticketRevision: 5 } };
+    vi.mocked(useSystemChat).mockReturnValue(chatState(5, false, [changed]));
+    view.rerender(<SystemChatView inquiryId={inquiryId} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  }
+
+  // 이후 다른 문제의 새 접수 결과가 생기면 다시 안내한다.
+  const another = { ...problem, id: crypto.randomUUID() };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(3, false, [problem, another]));
   view.rerender(<SystemChatView inquiryId={inquiryId} />);
   expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
 });
