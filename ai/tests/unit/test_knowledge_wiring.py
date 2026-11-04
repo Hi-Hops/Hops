@@ -91,15 +91,19 @@ def test_runtime_registry_connects_knowledge_only_when_a_source_is_given() -> No
     connected = build_runtime_registry(FixtureKnowledgeSource())
 
     assert isinstance(disconnected[AgentRole.KNOWLEDGE], PendingAgent)
-    assert implemented_roles(disconnected) == {AgentRole.INQUIRY, AgentRole.TICKET}
+    assert implemented_roles(disconnected) == {
+        AgentRole.INQUIRY,
+        AgentRole.TICKET,
+        AgentRole.CURATOR,
+    }
     assert isinstance(connected[AgentRole.KNOWLEDGE], SearchKnowledgeAgent)
     assert isinstance(connected[AgentRole.INQUIRY], ExtractionInquiryAgent)
     assert implemented_roles(connected) == {
         AgentRole.INQUIRY,
         AgentRole.KNOWLEDGE,
         AgentRole.TICKET,
+        AgentRole.CURATOR,
     }
-    assert isinstance(connected[AgentRole.CURATOR], PendingAgent)
 
 
 # --- 사용법 문의 전체 경로(Supervisor 대본) ---

@@ -81,7 +81,18 @@ public class Message extends BaseEntity {
         this.payload = payload;
     }
 
-    public Inquiry getInquiry() {
+    /**
+     * 서버가 관리하는 payload(문제 연결·보완 대상·실행 접수 기록)만 바꾼다. 원문·차수는 그대로다.
+     * 사용자 메시지의 원문을 바꾸는 정정은 {@link #revise}를 쓴다.
+     */
+    public void updatePayload(String payload) {
+        if (senderType != SenderType.USER) {
+            throw new IllegalStateException("사용자 메시지의 payload만 바꿀 수 있다");
+        }
+        this.payload = payload;
+    }
+
+        public Inquiry getInquiry() {
         return inquiry;
     }
 

@@ -55,6 +55,7 @@ public class InquiryQueryService {
     private final MessageRepository messageRepository;
     private final MessageRevisionRepository messageRevisionRepository;
     private final RunSummaryReader runSummaryReader;
+    private final ProblemProjector problemProjector;
     private final JsonMapper jsonMapper;
 
     /** 내 문의 목록 한 페이지. page·size 범위는 컨트롤러에서 검사한다. */
@@ -69,18 +70,11 @@ public class InquiryQueryService {
         return PageResponse.of(inquiries, inquiry -> InquirySummaryResponse.of(inquiry, counts.get(inquiry.getId())));
     }
 
-    /**
-     * 내 문의 상세.
-     *
-     * @throws IllegalStateException 문제가 있는 문의. 그 형식(Problem)은 아직 만들지 않아, 빈 목록으로 숨기지 않고 실패시킨다(#26)
-     */
+    /** 내 문의 상세. 문제별 결과는 {@link ProblemProjector}가 모은다. */
     @Transactional(readOnly = true)
     public InquiryResultResponse findMyInquiry(UUID requesterId, UUID inquiryId) {
         Inquiry inquiry = myInquiry(requesterId, inquiryId);
-        if (inquiryProblemRepository.existsByInquiry_IdAndDeletedAtIsNull(inquiryId)) {
-            throw new IllegalStateException("문제가 있는 문의의 상세 조회는 아직 만들지 않았다: " + inquiryId);
-        }
-        return InquiryResultResponse.withoutProblems(inquiry,
+        return InquiryResultResponse.of(inquiry, problemProjector.project(inquiry),
                 inquiry.getCurrentRun() == null ? null : runSummaryReader.read(inquiry.getCurrentRun()),
                 messageRepository.findPendingTargetIds(inquiryId));
     }

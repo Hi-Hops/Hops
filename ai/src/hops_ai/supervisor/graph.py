@@ -79,6 +79,7 @@ class Supervisor:
             nonlocal current
             current = runtime.sync_state(data["state"])
             roles = set(self._agents)
+            services.runtime.report_progress("SUPERVISOR")
             if self._available_roles is not None:
                 roles &= self._available_roles(current)
             with runtime.services.tracing.observe(
@@ -105,6 +106,7 @@ class Supervisor:
             if decision is None or decision.role is None:
                 raise OutputRejected("호출할 역할이 없다")
             current = runtime.sync_state(data["state"])
+            services.runtime.report_progress(decision.role.value)
             with runtime.services.tracing.observe(
                 decision.role.value,
                 {

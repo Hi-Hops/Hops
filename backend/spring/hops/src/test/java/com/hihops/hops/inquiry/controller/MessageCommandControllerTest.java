@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -316,7 +317,8 @@ class MessageCommandControllerTest {
                 ticketId, "TK-" + ticketId.toString().substring(0, 8), inquiryId, stored, storedRequest, systemId,
                 otherMemberId);
 
-        send(memberId, UUID.randomUUID(), 1, "다른 PC에서도 같아요", List.of()).andExpect(status().isOk());
+        // 미배정 문제를 골라야 분석한다(배정된 문제가 있는데 대상을 고르지 않으면 대기다)
+        send(memberId, UUID.randomUUID(), 1, "다른 PC에서도 같아요", List.of(notCreated)).andExpect(status().isOk());
 
         JsonNode input = currentInput();
         assertThat(input.path("problems").get(0).path("state").asString()).isEqualTo("IN_SERVICE");
@@ -479,6 +481,303 @@ class MessageCommandControllerTest {
         mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId + "/messages")))
                 .andExpect(jsonPath("$.items[1].problemIds.length()").value(1))
                 .andExpect(jsonPath("$.items[1].problemIds[0]").value(linked.toString()));
+    }
+
+    @Test
+    void 배정된_문제가_여럿인데_대상을_고르지_않으면_대기로_두고_대상을_정하면_분석을_이어간다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+
+        send(memberId, UUID.randomUUID(), 1, "참고로 다른 PC에서도 같아요", List.of()).andExpect(status().isOk());
+        String pendingId = messageIdAt(2);
+        JsonNode payload = payloadOf(pendingId);
+        assertThat(payload.path("pendingTarget").asBoolean()).isTrue();
+        assertThat(payload.path("problemLinks").isEmpty()).isTrue();
+        // 어느 티켓에도 자동으로 붙이지 않고 분석도 시작하지 않는다
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(1);
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(jsonPath("$.inquiryVersion").value(2))
+                .andExpect(jsonPath("$.pendingTargetMessageIds.length()").value(1))
+                .andExpect(jsonPath("$.pendingTargetMessageIds[0]").value(pendingId));
+
+        // 대기는 그 메시지만 분석에서 뺀다. 다른 메시지는 평소대로 분석하고, 대기 메시지는 AI 입력 대화에 넣지 않는다
+        send(memberId, UUID.randomUUID(), 2, "비밀번호는 어제 바꿨어요", List.of(open)).andExpect(status().isOk());
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(2);
+        assertThat(currentInput().path("messages").findValuesAsString("id")).doesNotContain(pendingId)
+                .contains(messageIdAt(3));
+
+        UUID linkRequestId = UUID.randomUUID();
+        link(memberId, pendingId, linkRequestId, 3, List.of(open)).andExpect(status().isOk());
+        payload = payloadOf(pendingId);
+        assertThat(payload.path("pendingTarget").asBoolean(true)).isFalse();
+        JsonNode linked = payload.path("problemLinks").get(0);
+        assertThat(linked.path("problemId").asString()).isEqualTo(open.toString());
+        assertThat(linked.path("revision").asInt()).isEqualTo(1);
+        assertThat(linked.path("spans").get(0).path("end").asInt()).isEqualTo("참고로 다른 PC에서도 같아요".length());
+        assertThat(jdbc.queryForObject("SELECT content FROM message WHERE id = ?::uuid", String.class, pendingId))
+                .isEqualTo("참고로 다른 PC에서도 같아요"); // 원문은 바꾸지 않는다
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(jsonPath("$.inquiryVersion").value(4))
+                .andExpect(jsonPath("$.pendingTargetMessageIds").isEmpty());
+
+        // 대기가 풀렸고 대상에 미배정 문제가 있으니 그 메시지로 분석을 이어간다
+        String nextRunId = currentRunId();
+        assertThat(nextRunId).isNotEqualTo(firstRunId);
+        Map<String, Object> next = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", nextRunId);
+        assertThat(next.get("trigger_message_id").toString()).isEqualTo(pendingId);
+        assertThat(next.get("input_version")).isEqualTo(4);
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").size()).isEqualTo(1);
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(open.toString());
+        assertThat(input.path("messages").findValuesAsString("id")).contains(pendingId); // 대상을 정해 이제 분석에 넣는다
+        // 확정으로 접수한 실행은 시작 메시지에 그 확정 요청을 기록한다
+        assertThat(payloadOf(pendingId).path("runRequestIds").path(nextRunId).asString()).isEqualTo(linkRequestId.toString());
+        assertThat(events.stream(MessageStoredEvent.class).filter(stored -> stored.inquiryVersion() == 4))
+                .singleElement().satisfies(stored -> assertThat(stored.requestId()).isEqualTo(linkRequestId));
+        // 대상 확정으로 시작한 실행의 오류 requestId는 그 확정 요청이다
+        jdbc.update("UPDATE agent_run SET run_status = 'FAILED', error_code = 'MODEL_UNAVAILABLE', completed_at = now() "
+                + "WHERE id = ?::uuid", nextRunId);
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + nextRunId)))
+                .andExpect(jsonPath("$.error.requestId").value(linkRequestId.toString()));
+
+        // 이미 대상을 정한 메시지는 다시 잇지 않는다
+        link(memberId, pendingId, UUID.randomUUID(), 4, List.of(assigned))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
+    @Test
+    void 대상이_모두_배정된_문제면_보완으로_저장만_하고_배정된_문제가_하나면_그_문제의_보완이다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+
+        send(memberId, UUID.randomUUID(), 1, "다른 PC에서도 같아요", List.of(assigned)).andExpect(status().isOk());
+        send(memberId, UUID.randomUUID(), 2, "어제부터 그랬어요", List.of()).andExpect(status().isOk());
+
+        // 배정된 티켓에는 보완만 잇고 새 분석·티켓을 만들지 않는다
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(1);
+        for (int sequence : List.of(2, 3)) {
+            JsonNode payload = payloadOf(messageIdAt(sequence));
+            assertThat(payload.path("pendingTarget").asBoolean(true)).isFalse();
+            assertThat(payload.path("problemLinks").get(0).path("problemId").asString()).isEqualTo(assigned.toString());
+        }
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(jsonPath("$.inquiryVersion").value(3))
+                .andExpect(jsonPath("$.pendingTargetMessageIds").isEmpty());
+    }
+
+    @Test
+    void 보완_대상_확정은_대기_메시지와_이_문의의_문제만_받는다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+        send(memberId, UUID.randomUUID(), 1, "참고로요", List.of()).andExpect(status().isOk());
+        String pendingId = messageIdAt(2);
+
+        link(memberId, pendingId, UUID.randomUUID(), 2, List.of())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("problemIds"));
+        link(memberId, pendingId, UUID.randomUUID(), 2, List.of(UUID.randomUUID()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        link(memberId, pendingId, UUID.randomUUID(), 1, List.of(open))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INQUIRY_VERSION_CONFLICT"));
+        // 대기가 아닌 메시지(처음 메시지)는 409, 남의 문의·없는 메시지는 404
+        link(memberId, firstMessageId(), UUID.randomUUID(), 2, List.of(open))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+        link(memberId, UUID.randomUUID().toString(), UUID.randomUUID(), 2, List.of(open)).andExpect(status().isNotFound());
+        link(otherMemberId, pendingId, UUID.randomUUID(), 2, List.of(open)).andExpect(status().isNotFound());
+
+        assertThat(payloadOf(pendingId).path("pendingTarget").asBoolean()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id = ?::uuid", Integer.class, inquiryId))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void 해결된_문제와_지원_범위_밖_문제는_보완_대상이_될_수_없다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        UUID resolved = insertProblem(3, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID outOfScope = insertProblem(4, "OUT_OF_SCOPE", 0, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertTicket(resolved, insertStandardRequest(resolved, firstRunId, "권한 요청", "[]"), "RESOLVED");
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+        insertStandardRequest(outOfScope, firstRunId, "개인 PC 수리", "[]");
+        send(memberId, UUID.randomUUID(), 1, "참고로요", List.of()).andExpect(status().isOk());
+        String pendingId = messageIdAt(2);
+
+        // 완료한 티켓을 다시 열지 않고, 범위 밖 문제로 새 분석을 시작하지 않는다
+        for (UUID closed : List.of(resolved, outOfScope)) {
+            link(memberId, pendingId, UUID.randomUUID(), 2, List.of(closed))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+            send(memberId, UUID.randomUUID(), 2, "이 문제도요", List.of(closed))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        }
+
+        assertThat(payloadOf(pendingId).path("pendingTarget").asBoolean()).isTrue();
+        assertThat(payloadOf(pendingId).path("problemLinks").isEmpty()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id = ?::uuid", Integer.class, inquiryId))
+                .isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM message WHERE inquiry_id = ?::uuid")).isEqualTo(2);
+    }
+
+    @Test
+    void 보완_전용_메시지가_진행_중인_다른_문제의_분석을_잃지_않고_이어_간다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+        send(memberId, UUID.randomUUID(), 1, "비밀번호는 어제 바꿨어요", List.of(open)).andExpect(status().isOk());
+        String openRunId = currentRunId(); // B(open)를 분석 중이다
+
+        // A(배정) 보완만 보내도 입력 버전이 바뀌어 B의 실행은 대체되므로, B의 분석을 새 실행으로 잇는다
+        send(memberId, UUID.randomUUID(), 2, "다른 PC에서도 같아요", List.of(assigned)).andExpect(status().isOk());
+
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, openRunId))
+                .isEqualTo("CANCELLED");
+        String resumedId = currentRunId();
+        assertThat(resumedId).isNotEqualTo(openRunId);
+        Map<String, Object> resumed = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", resumedId);
+        assertThat(resumed.get("run_status")).isEqualTo("QUEUED");
+        assertThat(resumed.get("input_version")).isEqualTo(3);
+        assertThat(resumed.get("trigger_message_id").toString()).isEqualTo(messageIdAt(3));
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").size()).isEqualTo(1);
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(open.toString());
+        // 보완 메시지는 A에만 이어진다
+        assertThat(payloadOf(messageIdAt(3)).path("problemLinks").get(0).path("problemId").asString())
+                .isEqualTo(assigned.toString());
+    }
+
+    @Test
+    void 대기_메시지가_멈춘_분석은_바로_잇고_실행마다_접수한_명령을_오류_requestId로_쓴다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID open = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(open, firstRunId, "비밀번호 문의", "[]");
+        send(memberId, UUID.randomUUID(), 1, "비밀번호는 어제 바꿨어요", List.of(open)).andExpect(status().isOk());
+        String openRunId = currentRunId();
+
+        // 대상 없는 보완은 대기이고 자기 분석은 없지만, 대체한 B의 분석은 그 메시지를 시작점으로 바로 잇는다
+        UUID pendingRequestId = UUID.randomUUID();
+        send(memberId, pendingRequestId, 2, "참고로요", List.of()).andExpect(status().isOk());
+        String pendingId = messageIdAt(3);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, openRunId))
+                .isEqualTo("CANCELLED");
+        String resumedId = currentRunId();
+        assertThat(resumedId).isNotEqualTo(openRunId);
+        assertThat(jdbc.queryForObject("SELECT trigger_message_id FROM agent_run WHERE id = ?::uuid", UUID.class, resumedId)
+                .toString()).isEqualTo(pendingId);
+        assertThat(currentInput().path("problemIds").get(0).asString()).isEqualTo(open.toString());
+        assertThat(currentInput().path("messages").findValuesAsString("id")).doesNotContain(pendingId);
+
+        // A(배정)로 확정하면 자기 분석은 없지만 진행 중이던 B의 분석을 다시 잇는다
+        UUID linkRequestId = UUID.randomUUID();
+        link(memberId, pendingId, linkRequestId, 3, List.of(assigned)).andExpect(status().isOk());
+        String afterLinkId = currentRunId();
+        assertThat(afterLinkId).isNotEqualTo(resumedId);
+        Map<String, Object> afterLink = jdbc.queryForMap("SELECT * FROM agent_run WHERE id = ?::uuid", afterLinkId);
+        assertThat(afterLink.get("run_status")).isEqualTo("QUEUED");
+        assertThat(afterLink.get("input_version")).isEqualTo(4);
+        assertThat(afterLink.get("trigger_message_id").toString()).isEqualTo(pendingId);
+        assertThat(currentInput().path("problemIds").get(0).asString()).isEqualTo(open.toString());
+
+        // 같은 메시지·차수에서 시작한 두 실행이라도 각자 접수한 명령을 오류 requestId로 돌려준다
+        jdbc.update("UPDATE agent_run SET run_status = 'FAILED', error_code = 'MODEL_UNAVAILABLE', completed_at = now() "
+                + "WHERE id IN (?::uuid, ?::uuid)", resumedId, afterLinkId);
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + resumedId)))
+                .andExpect(jsonPath("$.error.requestId").value(pendingRequestId.toString()));
+        mockMvc.perform(as(memberId, get("/api/v2/runs/" + afterLinkId)))
+                .andExpect(jsonPath("$.error.requestId").value(linkRequestId.toString()));
+    }
+
+    @Test
+    void 대기_중_다른_메시지로_지정한_문제도_대상을_확정한_뒤_분석에_남는다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
+        UUID b = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        UUID c = insertProblem(3, "CLARIFYING", 1, null, firstRunId);
+        insertTicket(assigned, insertStandardRequest(assigned, firstRunId, "로그인 실패 조사", "[]"));
+        insertStandardRequest(b, firstRunId, "비밀번호 문의", "[]");
+        insertStandardRequest(c, firstRunId, "결재선 문의", "[]");
+        send(memberId, UUID.randomUUID(), 1, "비밀번호는 어제 바꿨어요", List.of(b)).andExpect(status().isOk());
+        send(memberId, UUID.randomUUID(), 2, "참고로요", List.of()).andExpect(status().isOk()); // 대기
+        String pendingId = messageIdAt(3);
+
+        // 대기 중에도 C를 지정한 메시지는 바로 분석하고, 멈춘 B의 분석도 함께 잇는다
+        send(memberId, UUID.randomUUID(), 3, "결재선은 팀장님까지예요", List.of(c)).andExpect(status().isOk());
+        assertThat(problemIdsOf(currentInput())).containsExactlyInAnyOrder(b.toString(), c.toString());
+
+        link(memberId, pendingId, UUID.randomUUID(), 4, List.of(assigned)).andExpect(status().isOk());
+        assertThat(problemIdsOf(currentInput())).containsExactlyInAnyOrder(b.toString(), c.toString());
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id = ?::uuid", String.class, currentRunId()))
+                .isEqualTo("QUEUED");
+    }
+
+    private static List<String> problemIdsOf(JsonNode input) {
+        List<String> ids = new ArrayList<>();
+        input.path("problemIds").forEach(id -> ids.add(id.asString()));
+        return ids;
+    }
+
+    private ResultActions link(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,
+            List<UUID> problemIds) throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("requestId", requestId);
+        body.put("expectedInquiryVersion", expectedInquiryVersion);
+        body.put("problemIds", problemIds);
+        return mockMvc.perform(as(actorId, post("/api/v2/inquiries/" + inquiryId + "/messages/" + messageId + "/problem-links"))
+                .header("Idempotency-Key", requestId.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonMapper.writeValueAsString(body)));
+    }
+
+    private ResultActions retry(String runId, int expectedInquiryVersion) throws Exception {
+        UUID requestId = UUID.randomUUID();
+        return mockMvc.perform(as(memberId, post("/api/v2/runs/" + runId + "/retries"))
+                .header("Idempotency-Key", requestId.toString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonMapper.writeValueAsString(Map.of("requestId", requestId,
+                        "expectedInquiryVersion", expectedInquiryVersion))));
+    }
+
+    private void insertTicket(UUID problemId, UUID standardRequestId) {
+        insertTicket(problemId, standardRequestId, "OPEN");
+    }
+
+    private void insertTicket(UUID problemId, UUID standardRequestId, String status) {
+        UUID ticketId = UUID.randomUUID();
+        // 해결된 티켓은 해결 시각이 있어야 한다 (ck_ticket_resolved)
+        jdbc.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, title, detail, "
+                + "work_type, ticket_status, responsible_system_id, assignee_member_id, resolved_at) "
+                + "VALUES (?, ?, ?::uuid, ?, ?, '티켓', '내용', 'INVESTIGATION', ?, ?, ?, "
+                + ("RESOLVED".equals(status) ? "now()" : "NULL") + ")",
+                ticketId, "TK-" + ticketId.toString().substring(0, 8), inquiryId, problemId, standardRequestId, status,
+                systemId, otherMemberId);
+    }
+
+    private String messageIdAt(int sequenceNo) {
+        return jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id = ?::uuid AND sequence_no = ?", UUID.class,
+                inquiryId, sequenceNo).toString();
+    }
+
+    private JsonNode payloadOf(String messageId) {
+        return jsonMapper.readTree(jdbc.queryForObject("SELECT payload FROM message WHERE id = ?::uuid", String.class,
+                messageId));
     }
 
     private ResultActions revise(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,

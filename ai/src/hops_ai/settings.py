@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     max_tool_calls: int = Field(default=10, gt=0)
     # 한 인스턴스가 동시에 실행하는 run 수. 넘으면 429와 Retry-After로 응답한다.
     max_concurrent_runs: int = Field(default=4, gt=0)
+    # RunLedger 주기 작업 간격. 중단된 다른 인스턴스의 run 복구와 보존 기간이 지난 결과 상세 만료.
+    ledger_recovery_interval_seconds: float = Field(default=60, gt=0)
+    ledger_expiry_interval_seconds: float = Field(default=3600, gt=0)
 
     @model_validator(mode="after")
     def _call_timeout_fits_in_deadline(self) -> "Settings":

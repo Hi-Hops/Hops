@@ -12,6 +12,18 @@ public class AgentDispatchConfig {
 
     /** AgentRunDispatcher가 이름으로 주입받는다. Boot의 기본 applicationTaskExecutor와 섞이지 않게 한다. */
     public static final String AGENT_DISPATCH_EXECUTOR = "agentDispatchExecutor";
+    public static final String AGENT_STREAM_EXECUTOR = "agentStreamExecutor";
+
+    @Bean(AGENT_STREAM_EXECUTOR)
+    ThreadPoolTaskExecutor agentStreamExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(0);
+        executor.setThreadNamePrefix("agent-stream-");
+        executor.setDaemon(true);
+        return executor;
+    }
 
     @Bean(AGENT_DISPATCH_EXECUTOR)
     ThreadPoolTaskExecutor agentDispatchExecutor() {

@@ -40,6 +40,7 @@ import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.global.exception.GlobalExceptionHandler;
 import com.hihops.hops.realtime.controller.RealtimeController;
 import com.hihops.hops.realtime.dto.MessageStoredEvent;
+import com.hihops.hops.realtime.dto.AgentProgressEvent;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.realtime.dto.StateChangedEvent;
 
@@ -290,6 +291,25 @@ class RealtimeServiceTest {
     @Configuration
     @EnableTransactionManagement
     static class TransactionEvents {
+    }
+
+    @Test
+    void 진행은_대상_문의에만_보내고_전송_전_권한을_재검사한다() throws Exception {
+        UUID inquiryId = UUID.randomUUID();
+        MvcResult result = connectInquiry(inquiryId);
+        service.agentProgress(new AgentProgressEvent(UUID.randomUUID(), UUID.randomUUID(), 1,
+                UUID.randomUUID(), 1, "INQUIRY", "다른 문의"));
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("agent.progress");
+        UUID eventId = UUID.randomUUID();
+        service.agentProgress(new AgentProgressEvent(eventId, inquiryId, 1,
+                UUID.randomUUID(), 2, "INQUIRY", "문의 확인 중"));
+        String wire = result.getResponse().getContentAsString();
+        assertThat(wire).contains("event:agent.progress", "id:" + eventId, "\"stepNo\":2");
+        doThrow(new BusinessException(ErrorCode.ACCESS_DENIED)).when(authorization).check(any(), any());
+        service.agentProgress(new AgentProgressEvent(UUID.randomUUID(), inquiryId, 1,
+                UUID.randomUUID(), 3, "KNOWLEDGE", "회수 뒤 전달 금지"));
+        assertThat(result.getResponse().getContentAsString()).doesNotContain("회수 뒤 전달 금지");
+        service.shutdown();
     }
 
     private MvcResult connect(String cursor) throws Exception {

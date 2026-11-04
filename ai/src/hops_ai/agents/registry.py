@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 
 from hops_ai.agents.base import Agent
-from hops_ai.agents.curator import CuratorAgent
+from hops_ai.agents.curator import CuratorAgent, ModelCuratorAgent
 from hops_ai.agents.inquiry import ExtractionInquiryAgent, InquiryAgent
 from hops_ai.agents.knowledge import KnowledgeAgent, SearchKnowledgeAgent
 from hops_ai.agents.ticket import RuleTicketAgent, TicketAgent
@@ -41,4 +41,5 @@ def build_runtime_registry(
     if knowledge_source is not None:
         registry[AgentRole.KNOWLEDGE] = SearchKnowledgeAgent(knowledge_source)
     registry[AgentRole.TICKET] = RuleTicketAgent()
+    registry[AgentRole.CURATOR] = ModelCuratorAgent()
     return MappingProxyType(registry)

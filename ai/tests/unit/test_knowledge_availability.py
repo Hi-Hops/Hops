@@ -19,6 +19,7 @@ from hops_ai.contracts.wire import GuideProposal
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.graph import Supervisor
+from hops_ai.supervisor.policy import get_allowed_roles
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import make_evidence, make_request, running_state
 from tests.unit.test_knowledge_empty_handoff import (
@@ -36,9 +37,11 @@ def registry():
     return build_runtime_registry(FixtureKnowledgeSource())
 
 
-def roles_for(state) -> set[AgentRole]:
-    agents = registry()
-    return selectable_roles(agents, implemented_roles(agents), state)
+def roles_for(state, agents=None) -> set[AgentRole]:
+    """Supervisor가 실제로 보는 선택지: 선택 가능한 역할과 실행 종류별 허용 역할의 교집합."""
+    agents = registry() if agents is None else agents
+    selectable = selectable_roles(agents, implemented_roles(agents), state)
+    return selectable & get_allowed_roles(RunKind(state["input"].kind))
 
 
 def test_no_problem_yet_means_nothing_to_search() -> None:
@@ -89,10 +92,7 @@ def test_roles_without_an_availability_check_are_never_removed_or_added() -> Non
     agents = build_runtime_registry()  # Knowledge 연결 전
     state = running_state(how_to_first_message())
 
-    assert selectable_roles(agents, implemented_roles(agents), state) == {
-        AgentRole.INQUIRY,
-        AgentRole.TICKET,
-    }
+    assert roles_for(state, agents) == {AgentRole.INQUIRY, AgentRole.TICKET}
 
 
 def test_case_draft_runs_are_not_served_by_this_knowledge_agent() -> None:
