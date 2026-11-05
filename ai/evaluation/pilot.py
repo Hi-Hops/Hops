@@ -147,6 +147,8 @@ async def run_pilot(
     report = summarize(trace, cap)
     if timed_out:
         report["timedOut"] = timeout_seconds
+        # 시간 초과로 취소된 진행 중 호출은 끝난 턴의 기록에 없다. 시도 수의 정본은 callCap.used다.
+        report["totals"]["modelCallsInFlight"] = cap.used - report["totals"]["modelCalls"]
     return report
 
 
@@ -297,6 +299,18 @@ def run_metadata(model: str, directory: Path = SCENARIO_DIR) -> dict[str, Any]:
     }
 
 
+def exit_code(report: dict[str, Any]) -> int:
+    """안전 위반, 전체 호출 상한 도달, 건너뜀, 시간 초과 중 하나라도 있으면 0이 아니다."""
+    totals = report["totals"]
+    incomplete = (
+        totals["safetyViolations"]
+        or report["totalCallCap"]["exceeded"]
+        or totals["skipped"]
+        or totals["scenariosTimedOut"]
+    )
+    return 1 if incomplete else 0
+
+
 def finish_run_info(run_info: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
     """실행 전에 만든 조건 기록에 종료 시각을 더한다. 시작 시각은 바꾸지 않는다."""
     finished = (now or datetime.now(UTC)).isoformat(timespec="seconds")
@@ -375,9 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     print(text)
     if args.out:
         args.out.write_text(text + "\n", encoding="utf-8")
-    totals = report["totals"]
-    failed = totals["safetyViolations"] or report["totalCallCap"]["exceeded"] or totals["skipped"]
-    return 1 if failed else 0
+    return exit_code(report)
 
 
 if __name__ == "__main__":

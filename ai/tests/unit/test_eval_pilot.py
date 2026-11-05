@@ -9,6 +9,7 @@ from evaluation.harness.budget import CallCap, CallCapExceeded
 from evaluation.harness.scenario import parse_scenario
 from evaluation.pilot import (
     FaultyKnowledgeSource,
+    exit_code,
     finish_run_info,
     main,
     run_batch,
@@ -183,6 +184,8 @@ async def test_scenario_timeout_keeps_finished_turns_and_marks_the_scenario() ->
     assert report["timedOut"] == 0.05
     assert report["turns"] == []
     assert report["callCap"]["used"] == 1  # 진행 중이던 호출도 상한에는 계산돼 있다
+    assert report["totals"]["modelCalls"] == 0
+    assert report["totals"]["modelCallsInFlight"] == report["callCap"]["used"]
 
 
 async def test_batch_reports_progress_through_callbacks_and_continues_after_a_timeout() -> None:
@@ -265,3 +268,20 @@ def test_final_run_info_keeps_the_start_time_and_adds_the_finish_time() -> None:
     assert final["startedAt"] == "2026-11-05T03:00:00+00:00"
     assert final["finishedAt"] == "2026-11-05T03:05:00+00:00"
     assert started == {"startedAt": "2026-11-05T03:00:00+00:00", "model": "m"}  # 원본은 그대로
+
+
+async def test_exit_code_is_nonzero_when_a_scenario_timed_out() -> None:
+    clean = await run_batch(
+        three_scenarios()[:1], llm=two_turn_llm(), agents_for=lambda _: AGENTS, max_calls=30
+    )
+    timed_out = await run_batch(
+        three_scenarios()[:1],
+        llm=SlowLLM(),
+        agents_for=lambda _: AGENTS,
+        max_calls=30,
+        scenario_timeout=0.05,
+    )
+
+    assert exit_code(clean) == 0
+    assert timed_out["totals"]["scenariosTimedOut"] and not timed_out["totalCallCap"]["exceeded"]
+    assert exit_code(timed_out) == 1  # 시간 초과만 있어도 성공으로 끝나지 않는다
