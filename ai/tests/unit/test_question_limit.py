@@ -6,8 +6,9 @@ from hops_ai.agents.inquiry.forms import MAX_QUESTIONS_PER_PROBLEM
 from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import QuestionProposal
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.progress import get_problem_progress
 from hops_ai.supervisor.decision import _decision_context
-from hops_ai.supervisor.validation import get_problem_progress, validate_questions
+from hops_ai.supervisor.validation import validate_questions
 from tests.supervisor_fixtures import PROBLEM, make_request, running_state
 
 

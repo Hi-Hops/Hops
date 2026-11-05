@@ -9,11 +9,11 @@ import json
 
 import pytest
 
+from hops_ai.agents.inquiry.readiness import get_handoff_readiness
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import RequestDetails
 from hops_ai.supervisor.decision import _decision_context
 from hops_ai.supervisor.graph import Supervisor
-from hops_ai.supervisor.validation import get_handoff_readiness
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import make_details
 from tests.unit.test_knowledge_empty_handoff import (

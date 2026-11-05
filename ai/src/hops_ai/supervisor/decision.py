@@ -6,24 +6,20 @@ from typing import Any, Literal
 
 from pydantic import ValidationError, model_validator
 
+from hops_ai.agents.inquiry.readiness import get_handoff_readiness
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import CuratorResult, InquiryResult, KnowledgeResult, TicketResult
 from hops_ai.contracts.types import QUESTION_LIMIT, ContractModel
 from hops_ai.contracts.wire import WireText
 from hops_ai.harness.errors import BudgetExceeded, OutputRejected
+from hops_ai.rules.progress import get_problem_progress
+from hops_ai.rules.proposals import validate_guide, validate_ticket
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
-from hops_ai.supervisor.merge import validate_guide, validate_ticket
 from hops_ai.supervisor.policy import get_allowed_roles, validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
-from hops_ai.supervisor.validation import (
-    ensure_active,
-    get_handoff_readiness,
-    get_problem_progress,
-    validate_completion,
-    validate_questions,
-)
+from hops_ai.supervisor.validation import ensure_active, validate_completion, validate_questions
 
 
 class SupervisorDecision(ContractModel):

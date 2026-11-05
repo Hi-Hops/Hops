@@ -1,16 +1,12 @@
 """순수 모델 제안과 Spring 업무 실행을 분리한다. 모델은 저장 결과를 만들지 않는다."""
 
-from typing import TYPE_CHECKING
-
 from hops_ai.agents.ticket.model import ModelTicketAgent
 from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.harness.errors import ComponentNotReady, OutputRejected
+from hops_ai.rules.progress import get_problem_knowledge
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tickets import creation_command
-
-if TYPE_CHECKING:
-    from hops_ai.supervisor.execution import RoleRequest
-    from hops_ai.supervisor.state import SupervisorState
 
 
 class ExecutingTicketAgent:
@@ -20,12 +16,10 @@ class ExecutingTicketAgent:
         # 상태가 없는 제안 역할이므로 한 번만 만들어 선택지 계산과 실행에서 함께 쓴다.
         self._proposer = ModelTicketAgent()
 
-    def available_for(self, state: "SupervisorState") -> bool:
+    def available_for(self, state: SupervisorState) -> bool:
         return self._proposer.available_for(state)
 
-    async def run(self, call: "RoleRequest", services: SharedServices):
-        from hops_ai.supervisor.execution import RoleResponse
-        from hops_ai.supervisor.validation import get_problem_knowledge
+    async def run(self, call: RoleRequest, services: SharedServices):
 
         tools = services.ticket_tools
         if tools is None:

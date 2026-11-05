@@ -11,14 +11,15 @@ import json
 import pytest
 
 from hops_ai.agents.inquiry.extraction import InquiryExtraction, QuotedValue
+from hops_ai.agents.inquiry.readiness import get_handoff_readiness
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import AiRunRequest
+from hops_ai.rules.progress import get_problem_progress
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.policy import get_allowed_roles
-from hops_ai.supervisor.validation import get_handoff_readiness, get_problem_progress
 from tests.doubles.agents import runtime_registry, ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (

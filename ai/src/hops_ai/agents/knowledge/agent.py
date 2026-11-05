@@ -17,14 +17,15 @@
 Supervisor 병합 단계가 현재 접근 범위와 다시 대조한다.
 """
 
-from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult
+from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
     KnowledgeHit,
@@ -32,11 +33,6 @@ from hops_ai.services.retrieval.knowledge_source import (
     KnowledgeSource,
 )
 from hops_ai.services.shared import SharedServices
-
-if TYPE_CHECKING:
-    # supervisor 패키지가 registry를 통해 이 모듈을 다시 불러오므로 타입 검사 때만 가져온다.
-    from hops_ai.supervisor.execution import RoleRequest, RoleResponse
-    from hops_ai.supervisor.state import SupervisorState
 
 # 질의에 쓰는 최근 사용자 메시지 수. 오래된 대화가 최신 질문을 가리지 않게 한다.
 MAX_QUERY_MESSAGES = 5
@@ -48,15 +44,13 @@ class SearchKnowledgeAgent:
     def __init__(self, source: KnowledgeSource) -> None:
         self._source = source
 
-    def available_for(self, state: "SupervisorState") -> bool:
+    def available_for(self, state: SupervisorState) -> bool:
         """지금 호출해도 성립하는지. 안내할 사용법 문제가 없으면 검색할 대상이 없다."""
         return (
             state["input"].kind == RunKind.INQUIRY_ANALYSIS and guidable_problem(state) is not None
         )
 
-    async def run(self, call: "RoleRequest", services: SharedServices) -> "RoleResponse":
-        # supervisor 패키지는 이 모듈을 불러오는 registry를 거쳐 초기화되므로 호출 시점에 가져온다.
-        from hops_ai.supervisor.execution import RoleResponse
+    async def run(self, call: RoleRequest, services: SharedServices) -> RoleResponse:
 
         services.runtime.ensure_active()
         state = call.state
@@ -92,7 +86,7 @@ class SearchKnowledgeAgent:
         )
 
 
-def guidable_problem(state: "SupervisorState") -> ProblemProposal | None:
+def guidable_problem(state: SupervisorState) -> ProblemProposal | None:
     """안내를 만들 수 있는 문제 하나를 고른다. 없으면 None이다.
 
     이미 안내가 있거나, 처리 결과가 준비되지 않은 사용법 문제 중 보고 시스템이 정해졌고
@@ -101,7 +95,6 @@ def guidable_problem(state: "SupervisorState") -> ProblemProposal | None:
     (확인한 사실이 더해진 뒤 등) 다시 검색할 수 있다. 사용자의 새 메시지는 새 실행이다.
     Supervisor가 이 역할을 고를 수 있는지 판단하는 데도 쓴다.
     """
-    from hops_ai.supervisor.validation import get_problem_progress, searched_queries
 
     if state["guide"] is not None:
         return None
@@ -120,7 +113,7 @@ def guidable_problem(state: "SupervisorState") -> ProblemProposal | None:
     return None
 
 
-def _guide_target(state: "SupervisorState") -> ProblemProposal:
+def _guide_target(state: SupervisorState) -> ProblemProposal:
     """안내할 문제를 고른다. 상태에는 안내가 하나뿐이므로 이미 있으면 거부한다."""
     if state["guide"] is not None:
         raise OutputRejected("이미 안내가 준비되어 더 만들 수 없다")
@@ -131,7 +124,7 @@ def _guide_target(state: "SupervisorState") -> ProblemProposal:
     return target
 
 
-def _build_query(state: "SupervisorState", target: ProblemProposal) -> KnowledgeQuery:
+def _build_query(state: SupervisorState, target: ProblemProposal) -> KnowledgeQuery:
     request = state["input"]
     access = request.accessContext
     # 그 문제 자신의 정보: 확인한 상세 값(사용자 인용으로 검증됨)과 요약. 새 사실이 더해지면
@@ -166,7 +159,7 @@ def _detail_values(problem: ProblemProposal) -> list[str]:
     ]
 
 
-def _messages_are_shared(state: "SupervisorState", target: ProblemProposal) -> bool:
+def _messages_are_shared(state: SupervisorState, target: ProblemProposal) -> bool:
     """새 문제가 다른 문제와 같은 원문을 나눠 쓰는지. 그러면 원문 전체는 이 문제의 질의가 아니다.
 
     서버가 연결한 기존 문제의 메시지는 그 문제 것이다. 새 문제가 둘 이상이면 어느 문장이 어느
@@ -175,8 +168,7 @@ def _messages_are_shared(state: "SupervisorState", target: ProblemProposal) -> b
     return target.problemRef.startswith("new:") and len(state["problems"]) > 1
 
 
-def _recent_user_messages(state: "SupervisorState", target: ProblemProposal) -> list[str]:
-    from hops_ai.supervisor.validation import get_problem_message_ids
+def _recent_user_messages(state: SupervisorState, target: ProblemProposal) -> list[str]:
 
     request = state["input"]
     message_ids = get_problem_message_ids(state, target.problemRef)

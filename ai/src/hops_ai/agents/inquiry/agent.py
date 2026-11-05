@@ -9,7 +9,6 @@
 """
 
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING
 
 from hops_ai.agents.inquiry.extraction import (
     DETAIL_FIELDS,
@@ -24,8 +23,13 @@ from hops_ai.agents.inquiry.extraction import (
     ground_unknown,
 )
 from hops_ai.agents.inquiry.forms import FIELD_LABELS, plan_next
+from hops_ai.agents.inquiry.readiness import (
+    all_unfinished_ready_for_handoff,
+    inquiry_has_nothing_left_to_do,
+)
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult
+from hops_ai.contracts.state import RoleRequest, SupervisorState
 from hops_ai.contracts.wire import (
     EvidenceStatement,
     InputProblem,
@@ -36,13 +40,9 @@ from hops_ai.contracts.wire import (
     RequestDetails,
 )
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.progress import problems_without_guide
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
-
-if TYPE_CHECKING:
-    # supervisor 패키지가 registry를 통해 이 모듈을 다시 불러오므로 타입 검사 때만 가져온다.
-    from hops_ai.supervisor.execution import RoleRequest
-    from hops_ai.supervisor.state import SupervisorState
 
 # 의도에서 규칙으로 정하는 처리 유형. 모델이 정하지 않으며 새 장애(INCIDENT)는 확정하지 않는다.
 PROCESSING_TYPES: Mapping[str, ProcessingType] = {
@@ -67,7 +67,7 @@ class ExtractionInquiryAgent:
         """
         self._guide_first = guide_first
 
-    def available_for(self, state: "SupervisorState") -> bool:
+    def available_for(self, state: SupervisorState) -> bool:
         """지금 호출해도 할 일이 있는지.
 
         - Knowledge가 근거를 찾지 못했고 남은 사용법 문제가 모두 담당자 전달 정보를 갖췄다면,
@@ -78,10 +78,6 @@ class ExtractionInquiryAgent:
           다시 추출하지 않고 Ticket으로 전달한다. 다른 미처리 문제가 있으면 호출을 유지한다.
         사용자가 새 메시지로 답한 다음 실행은 새 State라서 다시 호출할 수 있다.
         """
-        from hops_ai.supervisor.validation import (
-            all_unfinished_ready_for_handoff,
-            inquiry_has_nothing_left_to_do,
-        )
 
         if state["input"].kind != "INQUIRY_ANALYSIS":
             return True
@@ -89,9 +85,7 @@ class ExtractionInquiryAgent:
             all_unfinished_ready_for_handoff(state) or inquiry_has_nothing_left_to_do(state)
         )
 
-    async def run(self, call: "RoleRequest", services: SharedServices) -> InquiryResult:
-        # supervisor 패키지는 이 모듈을 불러오는 registry를 거쳐 초기화되므로 호출 시점에 가져온다.
-        from hops_ai.supervisor.validation import problems_without_guide
+    async def run(self, call: RoleRequest, services: SharedServices) -> InquiryResult:
 
         services.runtime.ensure_active()
         request = call.state["input"]
@@ -134,7 +128,7 @@ class ExtractionInquiryAgent:
         )
 
     @staticmethod
-    async def _extract(call: "RoleRequest", services: SharedServices) -> InquiryExtraction:
+    async def _extract(call: RoleRequest, services: SharedServices) -> InquiryExtraction:
         request = call.state["input"]
         response = await services.llm.generate(
             LLMRequest(

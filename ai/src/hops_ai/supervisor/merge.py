@@ -15,27 +15,25 @@ from hops_ai.contracts.roles import (
     TicketResult,
 )
 from hops_ai.contracts.wire import (
-    GuideProposal,
     KnowledgeEvidence,
     ProblemProposal,
     RequestDetails,
     TicketExecution,
-    TicketProposal,
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.rules.progress import (
+    validate_evidence_scope,
+)
+from hops_ai.rules.proposals import (
+    validate_details,
+    validate_guide,
+    validate_problem_ref,
+    validate_statements,
+    validate_ticket,
+)
 from hops_ai.supervisor.policy import validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
-from hops_ai.supervisor.validation import (
-    ensure_active,
-    get_problem_knowledge,
-    get_problem_message_ids,
-    problems_without_guide,
-    validate_details,
-    validate_evidence_scope,
-    validate_problem_ref,
-    validate_questions,
-    validate_statements,
-)
+from hops_ai.supervisor.validation import ensure_active, validate_questions
 
 
 def _prepare_merge(state: SupervisorState, role: AgentRole, result: RoleResult) -> bool:
@@ -62,104 +60,6 @@ def _complete_merge(state: SupervisorState, result: RoleResult) -> SupervisorSta
         "pendingCalls": state["pendingCalls"] - {result.invocationId},
         "roleResults": {**state["roleResults"], result.invocationId: result.model_copy(deep=True)},
     }
-
-
-def validate_guide(state: SupervisorState, guide: GuideProposal) -> None:
-    """안내 대상과 실제 직원 공개 가이드 근거를 확인한다."""
-    validate_problem_ref(state, guide.problemRef)
-    if not guide.evidenceIds or len(guide.evidenceIds) != len(set(guide.evidenceIds)):
-        raise OutputRejected("안내에는 중복 없는 근거가 필요하다")
-    items = []
-    for evidence_id in guide.evidenceIds:
-        item = state["evidence"].get(evidence_id)
-        if item is None or item.accessScope != "EMPLOYEE":
-            raise OutputRejected("안내에 허용된 직원 공개 근거가 없다")
-        validate_evidence_scope(state["input"], item)
-        items.append(item)
-    if not any(item.kind == "GUIDE" for item in items):
-        raise OutputRejected("직원 안내에는 가이드 근거가 필요하다")
-    if guide.problemRef in state["ticketProposals"]:
-        raise OutputRejected("같은 문제에 안내 확인과 티켓을 동시에 제안할 수 없다")
-
-
-def _is_review_handoff(
-    state: SupervisorState, problem: ProblemProposal, proposal: TicketProposal
-) -> bool:
-    """안내할 가이드를 찾지 못한 사용법 문제를 담당자 검토 티켓으로 넘기는 경우인지.
-
-    사용법(KNOWLEDGE_QA)은 안내로 끝나는 처리 유형이라 티켓 유형이 없다. Knowledge가 그 문제를
-    오류 없이 검색했지만 안내를 만들지 못했을 때에 한해 REVIEW_REQUIRED 티켓을 허용한다.
-    검색하지 않은 문제나 다른 문제의 결과로는 허용하지 않으며 다른 유형 불일치는 계속 거부한다.
-    """
-    return (
-        problem.processingType == "KNOWLEDGE_QA"
-        and proposal.processingType == "REVIEW_REQUIRED"
-        and problem.problemRef in problems_without_guide(state)
-    )
-
-
-def validate_ticket(state: SupervisorState, proposal: TicketProposal) -> None:
-    """티켓 대상·보고/책임 시스템·기존 저장 결과·표준 요청의 출처를 대조한다.
-
-    서버가 확인한 보고 시스템은 고정한다. 내부 상태가 달라졌어도 그 값을
-    책임 시스템의 무근거 변경에 이용할 수 없으며, 정정은 다음 서버 입력으로 받는다.
-    """
-    validate_problem_ref(state, proposal.problemRef)
-    problem = state["problems"][proposal.problemRef]
-    if proposal.processingType != problem.processingType and not _is_review_handoff(
-        state, problem, proposal
-    ):
-        raise OutputRejected("티켓과 문제의 처리 유형이 다르다")
-    original = next(
-        (item for item in state["input"].problems if item.id == proposal.problemRef), None
-    )
-    if (
-        original is not None
-        and original.reportedSystemId is not None
-        and problem.reportedSystemCandidateId != original.reportedSystemId
-    ):
-        raise OutputRejected("서버가 확인한 보고 시스템이 변경됐다")
-    if original is not None and original.state in ("RESOLVED", "OUT_OF_SCOPE"):
-        raise OutputRejected("종료된 문제에 새 티켓을 제안할 수 없다")
-    for ids in (proposal.evidenceIds, proposal.standardRequestSnapshot.responsibilityEvidenceIds):
-        if len(ids) != len(set(ids)):
-            raise OutputRejected("티켓 근거 ID가 중복됐다")
-    if problem.reportedSystemCandidateId is None or problem.intent == "OUT_OF_SCOPE":
-        raise OutputRejected("보고 시스템 미확인 또는 범위 밖 문제에는 티켓을 제안할 수 없다")
-    for work in state["input"].existingWorkItems:
-        if work.problemId == proposal.problemRef and work.outcome != "NOT_CREATED":
-            raise OutputRejected("이미 저장됐거나 저장 확인 중인 문제에 새 티켓을 제안할 수 없다")
-    systems = {system.id for system in state["input"].systems}
-    if proposal.responsibleSystemCandidateId not in systems:
-        raise OutputRejected("책임 시스템이 지원 시스템 목록에 없다")
-    snapshot = proposal.standardRequestSnapshot
-    if len(snapshot.knowledge) > 5:
-        raise OutputRejected("표준 요청의 지식 근거는 최대 5건이다")
-    if snapshot.responsibleSystemCandidateId != proposal.responsibleSystemCandidateId:
-        raise OutputRejected("티켓과 표준 요청의 책임 시스템이 다르다")
-    scoped_knowledge = get_problem_knowledge(state, proposal.problemRef)
-    known_ids = set(scoped_knowledge) | get_problem_message_ids(state, proposal.problemRef)
-    if not set(proposal.evidenceIds + snapshot.responsibilityEvidenceIds) <= known_ids:
-        raise OutputRejected("티켓 책임 판단에 대상 문제에서 허용되지 않은 근거를 사용했다")
-    if proposal.responsibleSystemCandidateId != problem.reportedSystemCandidateId and not (
-        proposal.evidenceIds or snapshot.responsibilityEvidenceIds
-    ):
-        raise OutputRejected("다른 책임 시스템을 제안하려면 근거가 필요하다")
-    for item in snapshot.knowledge:
-        if scoped_knowledge.get(item.id) != item:
-            raise OutputRejected("표준 요청에 대상 문제의 지식이 아닌 근거가 포함됐다")
-    for fact in [*snapshot.confirmedFacts, *snapshot.assumptions]:
-        if not set(fact.knowledgeEvidenceIds) <= scoped_knowledge.keys():
-            raise OutputRejected("표준 요청의 사실에 다른 문제의 지식 근거가 포함됐다")
-    validate_statements(
-        state, snapshot.confirmedFacts, problem_ref=proposal.problemRef, confirmed=True
-    )
-    validate_statements(
-        state, snapshot.assumptions, problem_ref=proposal.problemRef, confirmed=False
-    )
-    validate_details(state, proposal.problemRef, snapshot.details)
-    if state["guide"] is not None and state["guide"].problemRef == proposal.problemRef:
-        raise OutputRejected("같은 문제에 안내 확인과 티켓을 동시에 제안할 수 없다")
 
 
 def _preserve_inquiry_problem(

@@ -21,12 +21,13 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchResult
 from hops_ai.contracts.wire import AiRunRequest, GuideProposal
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.progress import problems_without_guide
+from hops_ai.rules.proposals import validate_ticket
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.execution import RoleRequest, execute_role
 from hops_ai.supervisor.graph import Supervisor
-from hops_ai.supervisor.merge import merge_knowledge_result, validate_ticket
-from hops_ai.supervisor.validation import problems_without_guide
+from hops_ai.supervisor.merge import merge_knowledge_result
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,

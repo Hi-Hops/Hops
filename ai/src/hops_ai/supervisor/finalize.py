@@ -3,17 +3,15 @@
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import AiResult
 from hops_ai.harness.errors import OutputRejected
-from hops_ai.supervisor.merge import validate_guide, validate_ticket
-from hops_ai.supervisor.state import SupervisorState, transition_phase
-from hops_ai.supervisor.validation import (
-    ensure_active,
-    get_problem_progress,
-    validate_completion,
+from hops_ai.rules.progress import get_problem_progress, validate_evidence_scope
+from hops_ai.rules.proposals import (
     validate_details,
-    validate_evidence_scope,
-    validate_questions,
+    validate_guide,
     validate_statements,
+    validate_ticket,
 )
+from hops_ai.supervisor.state import SupervisorState, transition_phase
+from hops_ai.supervisor.validation import ensure_active, validate_completion, validate_questions
 
 
 def compose_public_answer(state: SupervisorState) -> str:

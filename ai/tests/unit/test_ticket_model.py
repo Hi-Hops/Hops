@@ -391,7 +391,7 @@ async def test_shared_evidence_is_allowed_only_when_linked_to_both_problems():
 
 
 def test_ticket_merge_rejects_evidence_linked_only_to_another_problem():
-    from hops_ai.supervisor.merge import validate_ticket
+    from hops_ai.rules.proposals import validate_ticket
     from tests.supervisor_fixtures import make_ticket
 
     state, _, _ = setup_call(evidence=[make_evidence()])

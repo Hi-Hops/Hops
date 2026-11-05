@@ -29,8 +29,9 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 src/hops_ai/
 ├── api/routes/health.py       생존·준비 상태
 ├── api/routes/runs.py         서비스 인증된 내부 실행 접수·snapshot 조회
-├── contracts/                내부 자료형과 Spring↔AI 실행 wire DTO
-├── supervisor/               역할 정책·State·판단 검증·역할 실행·병합·실행 제한·LangGraph 최종화
+├── contracts/                내부 자료형(State·역할 호출 입출력 포함)과 Spring↔AI 실행 wire DTO
+├── supervisor/               역할 정책·State 전이·판단 검증·역할 실행·병합·실행 제한·LangGraph 최종화
+├── rules/                    에이전트와 Supervisor가 함께 쓰는 문제 진행 상태 계산·제안 검증(supervisor·agents를 불러오지 않음)
 ├── persistence/run_ledger.py AI 실행 ID·입력 digest·상태·결과 보존
 ├── agents/
 │   ├── inquiry/              대화·질문·독립 문제·표준 요청
@@ -61,13 +62,15 @@ Inquiry가 기존 확인 사실을 일부 빠뜨리기만 하면 기존 사실�
 
 확인 사실·추정·티켓 책임 근거의 메시지 ID는 `get_problem_message_ids`로 대상 문제의 `InputMessage.problemIds`와 대조한다. 입력에서 생략된 과거 출처는 해당 문제의 기존 표준 요청만 참조하며, 현재 메시지가 있으면 현재 연결을 우선한다. 신규 `new:` 문제는 복합 문의 분리를 위해 미연결 원문과 이번 실행 대상 문제의 원문을 사용할 수 있지만 참고용 비대상 문제나 다른 문제의 과거 출처는 복사하지 않는다. 원문의 내용상 관련성 판단은 Inquiry, 실제 문제·메시지 연결과 저장 확정은 Spring이 담당한다.
 
+의존 방향은 `contracts` ← `rules` ← `agents` ← `supervisor`다. `agents`·`rules`·`contracts`는 `supervisor`를 불러오지 않으며 `tests/unit/test_import_layers.py`가 이를 검사한다.
+
 실행 흐름은 `decision.py` → `execution.py` → `runtime.py` → `graph.py` 순서로 확인한다.
 
 - `SupervisorDecision`은 다음 행동·전문 역할·공개 요약을 담는다. `decide_next_action`은 최소 실행 문맥으로 LLM을 호출하고 `validate_supervisor_decision`이 실행 종류별 역할과 준비된 제안을 검사한다. `problemProgress`에는 대상별 결과 준비 여부·남은 질문 횟수·미확인 개수·값이 있는 상세 필드명만 투영하며 담당자 지식과 상세 분석 원문은 넣지 않는다. 모델의 `publicSummary`는 최종 답변 본문으로 사용하지 않는다.
 - `execute_role`은 호출 ID를 발급하고 독립적인 `RoleRequest` 스냅샷을 전달한다. 역할은 그 ID를 결과에 유지하며 모델이 호출 ID를 생성하지 않는다. 반환 결과의 종류·ID를 검사한 뒤 기존 역할별 merge 함수로 병합한다. Knowledge의 `RoleResponse.authorized_refs`는 허용 문서 참조, `verified_evidence`는 같은 어댑터가 검증한 원본 `KnowledgeEvidence` 객체의 tuple이다. 둘 다 모델 JSON에서 만들지 않으며 FOUND 결과는 검증 객체와 모든 필드가 일치해야 한다. 문서 참조만 전달하면 거부한다. 검색 본문을 모델에 전달하기 전 현재 Spring 권한과 원문·청크 digest 확인은 검색 어댑터가 수행한다. 문서 전체 digest를 발췌문 해시와 직접 비교하지 않는다. Curator의 기존 엔티티 목록도 신뢰된 어댑터가 제공한다.
 - `SupervisorRuntime`은 요청의 ID·누적 한도를 공통 실행기에 연결하고 사용량을 State에 복사하는 어댑터다. `RunBudget`이 호출·보고 토큰·도구·전체 재시도 사용량을 소유하고, `call_with_retry`만 모델 재시도 루프를 구현한다. `RunExecution`은 전체 그래프 대기·취소·종료 정리를 관리하며 `BudgetedLLMClient`와 `BudgetedToolGateway`가 실제 호출에 제한을 적용한다. 이미 감싼 LLM이나 재사용한 `RunContext`는 거부한다. 도구는 기본 거부 정책과 `GuardedToolGateway`의 등록·인자 검사를 통과해야 한다. 정확한 입력 토큰 사전 계산과 실패한 원격 호출의 미보고 과금 확인은 공급자 어댑터의 후속 작업이며 이 수치는 금액 예산 보장이 아니다.
 - `Supervisor.analyze`는 판단 → 필요한 역할 호출·병합 → 재판단 → 최종화의 LangGraph를 실행한다. 역할을 고정 순서로 모두 호출하지 않는다. `ASK_USER`는 현재 run을 끝내며 사용자 답변은 Spring이 새 run으로 전달한다. 실패 결과는 새 제안을 비우고 안전한 오류만 반환한다.
-- `get_problem_progress`는 별도 State 필드를 저장하지 않고 준비 상태를 계산한다. `validate_completion`은 모든 대상과 신규 문제에 질문·가이드·티켓 제안 또는 안내할 기존 결과·범위 안내·시스템 선택 대기가 있는지 검사한다. `allowedActions`, 종료 행동 검증, 최종화가 이 조건을 함께 사용한다. 검색 0건이나 자유 문구만으로 종료할 수 없고, 원인 미확인 항목이 남았다는 이유만으로 조사 티켓을 차단하지 않는다.
+- `get_problem_progress`(`rules/progress.py`)는 별도 State 필드를 저장하지 않고 준비 상태를 계산한다. `validate_completion`은 모든 대상과 신규 문제에 질문·가이드·티켓 제안 또는 안내할 기존 결과·범위 안내·시스템 선택 대기가 있는지 검사한다. `allowedActions`, 종료 행동 검증, 최종화가 이 조건을 함께 사용한다. 검색 0건이나 자유 문구만으로 종료할 수 없고, 원인 미확인 항목이 남았다는 이유만으로 조사 티켓을 차단하지 않는다.
 - `compose_public_answer`는 검증된 질문·가이드 항목을 한 번씩 조립하고, 티켓 제안 준비와 서버가 제공한 기존 저장 결과를 구분해 답변을 만든다. 서로 다른 문제의 질문 본문이 완전히 같으면 문제 번호를 묶어 한 번 표시하고 문제별 질문 메타데이터는 유지한다. 질문과 가이드처럼 의미가 다른 결과는 같은 문구라고 임의로 합치지 않는다. 전송 DTO는 필수 본문 누락을 검사하며 다른 질문·가이드 안의 같은 부분 문자열을 중복 항목으로 세지 않는다. 이 검사는 사용자 답변의 적절성 판단이나 질문 횟수 집계와 구분한다. 새 티켓 저장·담당자 배정·해결을 추정하지 않는다. 질문 5회 소진 후 시스템이 미확인이면 추가 질문 대신 시스템 선택 안내를 구성한다. 최종 본문의 길이·참조 검증이 실패하면 자동 절단하지 않고 실패 처리한다. 질문·가이드 자체의 의미 정확성은 역할별 평가가 필요하다.
 
 이 내부 흐름은 명시적인 테스트 대역으로 검증한다. 서비스 실행은 아래 `real` 모드·RunLedger·HTTP 접수·진행 SSE 경로에서 연결하며 실제 모델·검색·Spring 권한·저장 전체 통합 검증은 별도다. 취소는 아래 `cancel` 경로로 전파한다. 서버 준비 상태는 아래 `readyz` 기준을 따른다. 메모리 문맥의 중복 실행 차단은 영속 RunLedger 접수를 대신하지 않는다.

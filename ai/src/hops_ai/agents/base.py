@@ -1,14 +1,12 @@
 """Supervisor가 호출하는 전문 역할의 입력·반환 타입과 미구현 기본 동작."""
 
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.roles import RoleResult
+from hops_ai.contracts.state import RoleRequest, RoleResponse
 from hops_ai.harness.errors import ComponentNotReady
-
-if TYPE_CHECKING:
-    from hops_ai.contracts.roles import RoleResult
-    from hops_ai.services.shared import SharedServices
-    from hops_ai.supervisor.execution import RoleRequest, RoleResponse
+from hops_ai.services.shared import SharedServices
 
 
 class Agent(Protocol):
@@ -17,8 +15,8 @@ class Agent(Protocol):
     role: AgentRole
 
     async def run(
-        self, request: "RoleRequest", services: "SharedServices"
-    ) -> "RoleResult | RoleResponse": ...
+        self, request: RoleRequest, services: SharedServices
+    ) -> RoleResult | RoleResponse: ...
 
 
 class PendingAgent:
@@ -28,8 +26,8 @@ class PendingAgent:
         self.role = role
 
     async def run(
-        self, request: "RoleRequest", services: "SharedServices"
-    ) -> "RoleResult | RoleResponse":
+        self, request: RoleRequest, services: SharedServices
+    ) -> RoleResult | RoleResponse:
         raise ComponentNotReady(self.role.value)
 
 

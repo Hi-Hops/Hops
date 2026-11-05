@@ -2,7 +2,6 @@
 
 from collections.abc import Mapping
 from copy import deepcopy
-from dataclasses import dataclass
 from uuid import uuid4
 
 from hops_ai.agents.base import Agent
@@ -13,10 +12,10 @@ from hops_ai.contracts.roles import (
     CuratorResult,
     InquiryResult,
     KnowledgeResult,
-    RoleResult,
     TicketResult,
 )
-from hops_ai.contracts.wire import KnowledgeEvidence, TicketExecution
+from hops_ai.contracts.state import RoleRequest, RoleResponse
+from hops_ai.contracts.wire import KnowledgeEvidence
 from hops_ai.harness.errors import ComponentNotReady, OutputRejected
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.merge import (
@@ -28,40 +27,6 @@ from hops_ai.supervisor.merge import (
 from hops_ai.supervisor.policy import validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import ensure_active
-
-
-@dataclass(frozen=True)
-class RoleRequest:
-    """전문 역할에 전달하는 실행기 발급 호출 ID와 독립적인 작업 스냅샷.
-
-    역할은 invocation_id를 결과의 invocationId로 그대로 돌려준다. 이 ID를 모델에게
-    새로 만들게 하지 않는다. state는 깊게 복사한 값이므로 내부 목록을 수정하더라도
-    Supervisor가 보유한 입력·제안·사용량에는 영향을 주지 않는다.
-    """
-
-    invocation_id: str
-    state: SupervisorState
-
-
-@dataclass(frozen=True)
-class RoleResponse:
-    """신뢰된 역할 어댑터가 결과와 함께 제공하는 검증 자료.
-
-    result만 모델의 구조화 출력에서 구성한다. Knowledge 어댑터는 현재 Spring
-    권한과 원문·청크 digest를 확인한 뒤 authorized_refs와 verified_evidence를
-    채운다. 후자는 모델이 다시 작성한 발췌문이 아니라 검증을 마친 원본 근거다.
-    병합 검사는 모델이 반환한 근거가 이 객체와 전체 필드에서 일치하는지 대조한다.
-    문서 전체 digest를 짧은 발췌문의 해시와 직접 비교하지 않는다.
-    allowed_entity_ids는 Curator 어댑터가 검증한 기존 관계 대상이다.
-    모델 JSON에서 이러한 검증 자료를 받아 채우면 안 된다.
-    단순한 Inquiry·Ticket 결과에는 이 봉투 없이 해당 Result를 바로 반환해도 된다.
-    """
-
-    result: RoleResult
-    authorized_refs: tuple[AuthorizedKnowledgeRef, ...] = ()
-    allowed_entity_ids: Mapping[str, set[str]] | None = None
-    verified_evidence: tuple[KnowledgeEvidence, ...] = ()
-    verified_ticket_results: tuple[TicketExecution, ...] = ()
 
 
 async def execute_role(
