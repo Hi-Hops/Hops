@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hihops.hops.global.dto.PageResponse;
 import com.hihops.hops.global.idempotency.CommandReceipt;
 import com.hihops.hops.global.idempotency.IdempotentRequest;
+import com.hihops.hops.knowledge.dto.CaseApproveCommand;
 import com.hihops.hops.knowledge.dto.CaseEditCommand;
 import com.hihops.hops.knowledge.dto.CaseDetailRequest;
 import com.hihops.hops.knowledge.dto.CaseDetailResponse;
@@ -54,6 +55,14 @@ public class CaseController {
             @RequestHeader(value = IdempotentRequest.HEADER, required = false) String key,
             @Valid @RequestBody CaseEditCommand body, HttpServletRequest http) {
         return commands.edit(jwt, IdempotentRequest.of(jwt, http, key, body.requestId(), body), caseId, body)
+                .toResponseEntity();
+    }
+
+    @PostMapping("/{caseId}/approvals")
+    public ResponseEntity<CommandReceipt> approve(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID caseId,
+            @RequestHeader(value = IdempotentRequest.HEADER, required = false) String key,
+            @Valid @RequestBody CaseApproveCommand body, HttpServletRequest http) {
+        return commands.approve(jwt, IdempotentRequest.of(jwt, http, key, body.requestId(), body), caseId, body)
                 .toResponseEntity();
     }
 }

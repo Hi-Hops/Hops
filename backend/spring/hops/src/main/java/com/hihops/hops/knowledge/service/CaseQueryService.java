@@ -23,7 +23,9 @@ import com.hihops.hops.knowledge.dto.CaseDetailResponse;
 import com.hihops.hops.knowledge.dto.CaseListRequest;
 import com.hihops.hops.knowledge.dto.CaseSummaryResponse;
 import com.hihops.hops.knowledge.dto.CaseVersionResponse;
+import com.hihops.hops.knowledge.dto.IndexResultResponse;
 import com.hihops.hops.knowledge.dto.PublicationResponse;
+import com.hihops.hops.knowledge.repository.KnowledgeDocumentVersionRepository;
 import com.hihops.hops.knowledge.repository.ResolvedCaseRepository;
 import com.hihops.hops.ticket.dto.TicketScope;
 import com.hihops.hops.ticket.service.TicketAuthorization;
@@ -50,6 +52,7 @@ public class CaseQueryService {
     private final TicketAuthorization authorization;
     private final ItSystemQueryRepository systems;
     private final ResolvedCaseRepository cases;
+    private final KnowledgeDocumentVersionRepository documentVersions;
     private final TicketProgressReader progress;
     private final TicketStoredData data;
 
@@ -79,10 +82,35 @@ public class CaseQueryService {
                     UserSummaryResponse.from(resolved.getApprovedBy()), resolved.getApprovedAt());
         }
         boolean searchable = searchable(resolved);
-        // 반영 시도(IndexResult)는 승인 거래가 저장하는 source_metadata.indexRequests에서 읽는다. 승인 API 전에는 없다.
-        return new CaseDetailResponse(version(resolved), approval, List.of(),
+        return new CaseDetailResponse(version(resolved), approval, indexes(resolved),
                 new PublicationResponse(resolved.getId(), resolved.getVersionNo(), searchable ? "SEARCHABLE" : "PRIVATE",
                         searchable));
+    }
+
+    /**
+     * 승인 거래가 source_metadata.indexRequests에 저장한 저장소별 요청을 읽어 반영 시도로 보여 준다.
+     * 상태는 resolved_case의 두 상태 컬럼이 정본이다. 초안이거나 저장한 요청이 없으면 빈 목록이다.
+     */
+    private List<IndexResultResponse> indexes(ResolvedCase resolved) {
+        if (resolved.getCaseStatus() != CaseStatus.APPROVED) return List.of();
+        var stored = documentVersions.findCaseVersion(resolved.getId().toString(), resolved.getVersionNo());
+        if (stored.isEmpty()) return List.of();
+        JsonNode requests = data.parse(stored.get().getSourceMetadata()).path("indexRequests");
+        if (!requests.isObject()) throw unavailable();
+        List<IndexResultResponse> result = new ArrayList<>();
+        for (String store : CaseApprovalWriter.STORES) {
+            JsonNode request = requests.path(store);
+            if (!request.isObject() || !resolved.getId().toString().equals(request.path("caseId").asString(""))
+                    || request.path("caseVersion").asInt(-1) != resolved.getVersionNo()
+                    || !request.path("attempt").isInt() || !request.path("jobId").isString()) {
+                throw unavailable();
+            }
+            IndexStatus state = "VECTOR".equals(store) ? resolved.getVectorStatus() : resolved.getGraphStatus();
+            result.add(new IndexResultResponse(UUID.fromString(request.path("jobId").asString()), resolved.getId(),
+                    resolved.getVersionNo(), store, state.name(), request.path("attempt").asInt(), null,
+                    resolved.getUpdatedAt()));
+        }
+        return List.copyOf(result);
     }
 
     private CaseSummaryResponse summary(ResolvedCase resolved) {
@@ -129,14 +157,14 @@ public class CaseQueryService {
         return List.copyOf(result);
     }
 
-    private static String accessScope(ResolvedCase resolved) {
+    static String accessScope(ResolvedCase resolved) {
         return switch (resolved.getAccessLevel()) {
             case EMPLOYEE -> "EMPLOYEE";
             case STAFF -> "SYSTEM_STAFF";
         };
     }
 
-    private static String origin(ResolvedCase resolved) {
+    static String origin(ResolvedCase resolved) {
         return switch (resolved.getOriginType()) {
             case SYNTHETIC -> "SYNTHETIC";
             case DEMO_VERIFIED -> "DEMO_VERIFIED";
