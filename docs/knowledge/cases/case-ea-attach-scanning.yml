@@ -1,0 +1,69 @@
+# 시드 해결 사례 카드. 형식과 규칙은 docs/knowledge/DATA_FORMAT.md "시드 해결 사례 카드"를 따른다.
+caseKey: case-ea-attach-scanning
+caseVersion: 1
+seedNo: 2
+system: ELECTRONIC_APPROVAL
+feature: ATTACHMENT_VIEW
+occurredAt: "2026-09-16T14:20:00+09:00"
+requester: requester2
+assignee: ea_owner
+inquiryTitle: 방금 올린 전자결재 첨부 파일이 열리지 않음
+
+dialogue:
+  - sender: USER
+    text: "방금 결재 문서에 파일을 올렸는데 첨부 파일이 안 열려요."
+  - sender: AI
+    text: "첨부 파일이 열리지 않아 곤란하시겠어요. 몇 가지만 확인할게요. 열리지 않는 파일의 형식이 무엇인가요? 그리고 파일을 올린 지 얼마나 되었나요?"
+  - sender: USER
+    text: "PDF 파일이에요. 올리자마자 바로 열어 보려고 했어요."
+  - sender: AI
+    text: "알려 주셔서 감사합니다. 확인된 내용을 정리해 전자결재 담당자에게 접수했습니다. 담당자가 확인한 뒤 결과를 이 대화로 알려 드리겠습니다."
+
+request:
+  intent: OBSERVED_SYMPTOM
+  workType: INVESTIGATION
+  summary: "방금 전자결재 문서에 올린 PDF 첨부 파일이 열리지 않는다."
+  facts:
+    - text: "열리지 않는 파일은 PDF이다."
+      messages: [3]
+    - text: "파일을 올린 직후에 열어 보려고 했다."
+      messages: [3]
+  missing:
+    - "화면에 표시된 문구"
+  details:
+    taskOrScreen: "전자결재 문서 상세의 첨부 파일 영역에서 방금 올린 PDF를 열려 함"
+    expectedBehavior: "[열기]로 PDF 미리보기가 열림"
+    actualBehavior: "첨부 파일이 열리지 않음"
+    occurredAt: null
+
+ticket:
+  title: "전자결재 문서에 방금 올린 PDF 첨부가 열리지 않음"
+  detail: "문의자가 전자결재 문서에 PDF를 올린 직후 첨부 파일을 열려 했으나 열리지 않는다. 화면에 표시된 문구는 확인하지 못했다."
+
+workLogs:
+  - type: PROGRESS
+    action: "첨부 파일의 형식(pdf, 미리보기 지원 형식)과 업로드 시각을 확인했다. 업로드한 지 10분이 지나지 않았다."
+    confirmedCause: null
+    verification: null
+  - type: RESOLVED
+    action: "문의자에게 보안 검사가 끝날 때까지(최대 10분) 기다린 뒤 다시 열어 보도록 안내했다."
+    confirmedCause: "업로드 직후 첨부 파일이 보안 검사 중이어서 열기와 내려받기가 되지 않는 상태였다."
+    verification: "업로드 약 10분 뒤 문의자가 [열기]로 PDF 미리보기가 열리는 것을 확인했다."
+
+case:
+  title: "전자결재 첨부가 안 열림 - 업로드 직후 보안 검사 중"
+  problemStatement: "전자결재 문서에 방금 올린 첨부 파일이 열리지 않는다."
+  preconditions: "첨부 파일 형식이 미리보기 지원 형식(pdf, png, jpg, txt)이다."
+  applicability: "첨부 파일을 올린 지 10분 이내이고 보안 검사 중인 경우에 한한다. 10분이 지나도 열리지 않으면 형식, 열람 권한, 저장소 오류를 따로 확인하며 이 사례를 적용하지 않는다."
+  limitations:
+    - "보안 검사는 최대 10분이 걸린다."
+    - "검사가 끝난 뒤에도 열리지 않으면 이 사례를 적용하지 않는다."
+  sourceMessages: [1, 3]
+
+relation:
+  symptom: sym-ea-attach-not-open
+  cause: cause-ea-attach-scanning
+  checks: [check-ea-upload-time]
+
+basis:
+  - runbook-ea-attachment-open-failure

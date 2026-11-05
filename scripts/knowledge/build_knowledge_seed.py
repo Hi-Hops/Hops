@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import difflib
-import json
 import sys
 from pathlib import Path
 
@@ -28,6 +27,7 @@ from corpus import (
     load_corpus,
     validate_corpus,
 )
+from sqlutil import sql_json, sql_string
 
 DEFAULT_OUTPUT = (
     REPO_ROOT / "backend" / "spring" / "hops" / "src" / "main" / "resources" / "db" / "seed" / "R__seed_dev_knowledge.sql"
@@ -53,14 +53,6 @@ HEADER = """\
 --
 -- 문서 본문(content)은 front matter를 뺀 Markdown이고, content_digest는 그 UTF-8 바이트의 SHA-256이다.
 """
-
-
-def sql_string(value: str) -> str:
-    return "'" + value.replace("'", "''") + "'"
-
-
-def sql_json(value: object) -> str:
-    return sql_string(json.dumps(value, ensure_ascii=False, sort_keys=True)) + "::jsonb"
 
 
 def render_document(doc: Document) -> str:

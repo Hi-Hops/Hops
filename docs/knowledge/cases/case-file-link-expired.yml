@@ -1,0 +1,69 @@
+# 시드 해결 사례 카드. 형식과 규칙은 docs/knowledge/DATA_FORMAT.md "시드 해결 사례 카드"를 따른다.
+caseKey: case-file-link-expired
+caseVersion: 1
+seedNo: 6
+system: FILE_SHARING
+feature: FILE_SHARE
+occurredAt: "2026-09-25T13:05:00+09:00"
+requester: requester3
+assignee: file_owner
+inquiryTitle: 받은 파일 공유 링크가 열리지 않음
+
+dialogue:
+  - sender: USER
+    text: "며칠 전에 받은 파일 공유 링크를 열었더니 열리지 않아요."
+  - sender: AI
+    text: "링크가 열리지 않아 불편하시겠어요. 화면에 어떤 문구가 표시되나요? 그리고 링크를 받은 게 언제쯤인가요?"
+  - sender: USER
+    text: "'공유 링크가 만료되었습니다'라고 나와요. 링크는 열흘쯤 전에 받았어요."
+  - sender: AI
+    text: "알려 주셔서 감사합니다. 확인된 내용을 정리해 파일 공유 담당자에게 접수했습니다. 담당자가 확인한 뒤 결과를 이 대화로 알려 드리겠습니다."
+
+request:
+  intent: OBSERVED_SYMPTOM
+  workType: INVESTIGATION
+  summary: "열흘쯤 전에 받은 파일 공유 링크가 열리지 않고 '공유 링크가 만료되었습니다'가 표시된다."
+  facts:
+    - text: "표시된 문구는 '공유 링크가 만료되었습니다'이다."
+      messages: [3]
+    - text: "링크는 열흘쯤 전에 받았다."
+      messages: [3]
+  missing: []
+  details:
+    taskOrScreen: "받은 공유 링크로 파일을 열려 함"
+    expectedBehavior: "파일이 열림"
+    actualBehavior: "'공유 링크가 만료되었습니다'가 표시됨"
+    occurredAt: null
+
+ticket:
+  title: "받은 공유 링크가 만료되었다고 표시됨"
+  detail: "문의자가 열흘쯤 전에 받은 공유 링크를 열었더니 공유 링크가 만료되었다는 문구가 나온다."
+
+workLogs:
+  - type: PROGRESS
+    action: "해당 공유의 설정을 확인했다. 링크의 만료일이 지난 상태이며 만료일은 기본값(7일)으로 지정되어 있었다."
+    confirmedCause: null
+    verification: null
+  - type: RESOLVED
+    action: "공유한 사람에게 새 링크를 만들어 전달해 달라고 요청했고, 새 링크는 필요한 기간에 맞춰 만료일(최대 30일)을 지정해 만들었다."
+    confirmedCause: "공유 링크의 만료일(기본 7일)이 지나 링크가 만료되었다."
+    verification: "새 링크로 문의자가 파일을 열 수 있었다."
+
+case:
+  title: "받은 공유 링크가 안 열림 - 링크 만료일(기본 7일) 경과"
+  problemStatement: "받은 파일 공유 링크가 열리지 않고 공유 링크가 만료되었다는 문구가 표시된다."
+  preconditions: "공유 링크의 만료일이 기본값(7일)으로 지정되어 있다."
+  applicability: "'공유 링크가 만료되었습니다'가 표시되고 링크를 받은 시점이 만료일을 지난 경우에 한한다. '이 폴더에 접근할 권한이 없습니다'나 '파일을 찾을 수 없습니다'가 표시되면 적용하지 않는다."
+  limitations:
+    - "만료일은 최대 30일까지 지정할 수 있다."
+    - "새 링크는 공유한 사람이 만든다."
+  sourceMessages: [1, 3]
+
+relation:
+  symptom: sym-file-not-open
+  cause: cause-file-link-expired
+  checks: [check-file-error-message, check-file-link-received]
+
+basis:
+  - runbook-file-open-denied
+  - guide-file-share-link

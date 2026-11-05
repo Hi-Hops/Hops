@@ -1,0 +1,69 @@
+# 시드 해결 사례 카드. 형식과 규칙은 docs/knowledge/DATA_FORMAT.md "시드 해결 사례 카드"를 따른다.
+caseKey: case-login-cookie-block
+caseVersion: 1
+seedNo: 3
+system: COMMON_LOGIN
+feature: LOGIN_SSO
+occurredAt: "2026-09-18T09:30:00+09:00"
+requester: requester3
+assignee: login_owner
+inquiryTitle: 사내 포털 로그인 후 다시 로그인 화면으로 돌아옴
+
+dialogue:
+  - sender: USER
+    text: "사내 포털에 로그인하면 다시 로그인 화면으로 돌아와요. 계속 반복돼요."
+  - sender: AI
+    text: "로그인이 반복되면 업무가 어려우시겠어요. 확인할게요. 브라우저에서 쿠키를 차단하는 설정을 해 두셨나요? 그리고 다른 브라우저나 시크릿 창에서 로그인하면 어떤가요?"
+  - sender: USER
+    text: "쿠키 설정은 잘 모르겠어요. 크롬에서만 그렇고 엣지에서는 로그인이 잘 돼요."
+  - sender: AI
+    text: "알려 주셔서 감사합니다. 확인된 내용을 정리해 공통 로그인 담당자에게 접수했습니다. 담당자가 확인한 뒤 결과를 이 대화로 알려 드리겠습니다."
+
+request:
+  intent: OBSERVED_SYMPTOM
+  workType: INVESTIGATION
+  summary: "사내 포털에 로그인해도 다시 로그인 화면으로 돌아온다. 크롬에서만 반복되고 엣지에서는 정상이다."
+  facts:
+    - text: "크롬에서만 로그인 후 로그인 화면이 반복된다."
+      messages: [3]
+    - text: "엣지에서는 로그인이 정상이다."
+      messages: [3]
+  missing:
+    - "브라우저의 쿠키 차단 설정 여부"
+  details:
+    taskOrScreen: "사내 포털 로그인 화면에서 로그인함"
+    expectedBehavior: "로그인 뒤 대상 시스템 화면이 열림"
+    actualBehavior: "다시 로그인 화면으로 돌아옴"
+    occurredAt: null
+
+ticket:
+  title: "포털 로그인 후 로그인 화면 반복(크롬에서만)"
+  detail: "문의자가 사내 포털에 로그인한 뒤 다시 로그인 화면으로 돌아온다. 크롬에서만 반복되고 엣지에서는 정상이다. 쿠키 설정은 문의자가 모른다."
+
+workLogs:
+  - type: PROGRESS
+    action: "문의자 단말의 날짜·시간이 맞는 것을 확인했고, 크롬에서만 반복되는 점을 근거로 브라우저 설정을 확인하기로 했다."
+    confirmedCause: null
+    verification: null
+  - type: RESOLVED
+    action: "문의자에게 크롬에서 포털 도메인의 쿠키를 허용하도록 안내했다."
+    confirmedCause: "문의자 크롬의 쿠키 차단 설정 때문에 SSO 세션이 저장되지 않았다."
+    verification: "쿠키를 허용한 뒤 크롬에서 로그인하자 대상 시스템 화면이 유지되고 로그인 화면으로 돌아오지 않았다."
+
+case:
+  title: "포털 로그인 후 로그인 화면 반복 - 브라우저의 쿠키 차단"
+  problemStatement: "사내 포털에 로그인해도 다시 로그인 화면으로 돌아온다. 특정 브라우저에서만 반복된다."
+  preconditions: "인증 실패나 계정 잠금, 세션 만료가 아니라 로그인에는 성공한다."
+  applicability: "특정 브라우저에서만 로그인 후 로그인 화면이 반복되고 다른 브라우저에서는 정상이며 단말 시각이 맞는 경우에 한한다. 모든 브라우저에서 반복되거나 특정 연동 시스템에서만 반복되면 적용하지 않는다."
+  limitations:
+    - "다른 브라우저에서도 같은 증상이면 쿠키 차단이 원인이 아니다."
+    - "단말 시각이 서버와 5분 넘게 어긋난 경우는 다른 원인이다."
+  sourceMessages: [1, 3]
+
+relation:
+  symptom: sym-login-loop
+  cause: cause-login-cookie-blocked
+  checks: [check-login-browser-cookie, check-login-browser-other]
+
+basis:
+  - runbook-login-sso-loop

@@ -155,6 +155,31 @@ checks:                                    # 이 문서가 정의하는 확인 �
 - 승인 사례는 `caseId + caseVersion`으로 고정하고 승인 후 수정하지 않는다. 바꾸려면 버전을 올린다.
 - 검색 공개 조건(문의자 확인, 주담당자 승인, Vector·Neo4j 양쪽 반영)은 [데이터 구축 계획](DATASETS.md)을 따른다.
 
+### 시드 해결 사례 카드 (`docs/knowledge/cases/*.yml`)
+
+위 JSON은 사례 하나가 담아야 할 내용의 예시이고, 저장소에 두는 시드 사례는 **YAML 카드**(파일명=`caseKey`)로 쓴다. 카드 한 장에서 스크립트가 과거 처리 이력 체인과 사례를 만든다([정본 7.3절](VIRTUAL_COMPANY.md#73-사례를-db에-넣는-데-필요한-이력-체인)). 사례 목록과 근거 위치는 [정본 7.2절](VIRTUAL_COMPANY.md#72-사례-6건)을 따른다.
+
+| 필드 | 설명 |
+|---|---|
+| `caseKey`, `caseVersion`, `seedNo` | 식별자. 시드 사례의 `caseVersion`은 1이다. `seedNo`(1~99)는 문의·티켓·사례 번호(`SEED-Q-001` 등)를 정하므로 바꾸지 않는다. |
+| `system`, `feature` | 시스템 코드와 그 시스템의 기능 코드 |
+| `occurredAt` | 문의가 시작된 가상의 시각(시간대 포함). 이력의 모든 시각이 여기서 정해진다. |
+| `requester`, `assignee` | 문의자 계정(`requester1`~`4`)과 처리한 담당자. 담당자는 그 시스템의 주담당자여야 한다. |
+| `dialogue` | 대화 4개: 문의자(첫 문장), AI(확인 질문), 문의자(답), AI(접수 안내). AI 메시지에는 원인을 쓰지 않는다. |
+| `request` | 표준 요청서: `intent`, `workType`, `summary`, 확인된 사실(`facts`: 문장과 출처 메시지 번호 1 또는 3), 받지 못한 정보(`missing`), 유형별 상세(`details`) |
+| `ticket` | 티켓 제목과 내용 |
+| `workLogs` | 처리 기록 2개: 진행(`PROGRESS`)과 해결(`RESOLVED`). 해결 기록에는 조치, 확인된 원인, 검증 결과가 모두 있어야 한다. |
+| `case` | 사례의 제목, 증상(`problemStatement`), 전제, 적용 조건(`applicability`), 한계 목록(`limitations`), 출처 메시지 번호(`sourceMessages`) |
+| `relation` | 증상·원인·확인 항목 ID. 코퍼스 런북·정책의 선언에 있고 [정본 6.1절](VIRTUAL_COMPANY.md#61-관계-카탈로그-증상원인확인-항목)의 사례 연결과 같아야 한다. |
+| `basis` | 근거 문서 키. 정본 7.2절의 근거 위치와 같아야 한다. |
+
+- 사례의 원인·조치·검증은 해결 기록에서 가져온다(사례 컬럼은 해결 기록의 값을 그대로 쓴다). 원인과 조치는 [정본 5절](VIRTUAL_COMPANY.md#5-시스템기능-명세)의 동작을 벗어나지 않는다.
+- 카드는 모든 사례를 `STAFF` 공개, `SYNTHETIC`, 승인(`APPROVED`)으로 만들고 Vector·Neo4j 반영 상태는 `PENDING`으로 둔다. 색인하지 않은 것을 `SUCCEEDED`로 적지 않는다.
+- 사례의 지식 문서(CASE) 스냅샷은 실제 승인 거래와 같은 형식이다. 본문은 제목, 증상, 조치, 검증, 적용 조건, 한계를 잇고, `content_digest`는 승인 스냅샷 전체의 digest이며, `source_metadata.indexRequests`에 저장소별 반영 요청(전달 전, `attempt` 1, 고정 `jobId`)을 보존한다. 담당자가 기존 색인 API로 확인·재시도할 수 있다.
+- 해결 확인은 가상 설정이라 확인 요청과 응답의 `confirmationOrigin`이 `SYNTHETIC_PRESET`이다.
+- 이력 번호와 ID는 `caseKey`에서 정해지는 고정값이다(`uuid5(NAMESPACE_URL, "hops-seed-case.example/" + caseKey + "/" + 역할)`). 사례의 지식 문서 ID는 사례 ID와 같다.
+- 자동 검사: 필수 필드와 값, 대화 순서, 해결 기록의 검증 결과, 담당자가 주담당자인지, 증상·원인·확인 항목과 근거 문서가 코퍼스에 있는지, 문의자에게 나가는 AI 메시지의 금지어, 정본 7.2·6.1절과의 일치. 내용 검수를 대신하지 않는다.
+
 ### 지식 선순환 검증 묶음
 
 문서만 늘리지 않고 한 묶음으로 만든다: 첫 문의 A → 검수한 사례 A → 표현이 다른 후속 문의 B → 같은 증상·다른 원인의 방해 문의 C. 초안·승인·반영 상태가 다른 자료도 포함한다. B와 C의 정답과 미래 처리 기록은 평가 파일에만 둔다. 이 묶음의 평가 방식은 [평가](EVALUATION.md)에서 다룬다.
