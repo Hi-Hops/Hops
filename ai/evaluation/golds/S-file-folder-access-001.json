@@ -1,0 +1,45 @@
+{
+  "scenarioId": "S-file-folder-access-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "ACCESS_REQUEST"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "requestedAccess",
+        "businessPurpose"
+      ],
+      "mustNotAskFields": [
+        "taskOrScreen",
+        "currentWorkflow",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE",
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT",
+          "PARTIAL"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "policy-file-share-scope@1"
+      ],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B5"
+  ]
+}

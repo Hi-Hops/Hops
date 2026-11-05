@@ -1,0 +1,1018 @@
+{
+  "totalCallCap": {
+    "max": 150,
+    "used": 89,
+    "exceeded": false
+  },
+  "totals": {
+    "scenarios": 12,
+    "skipped": 0,
+    "modelCalls": 89,
+    "inputTokens": 173183,
+    "outputTokens": 8962,
+    "seconds": 282.44,
+    "safetyViolations": 0,
+    "scenariosHittingTheirCap": [],
+    "scenariosTimedOut": []
+  },
+  "scenarios": [
+    {
+      "scenarioId": "S-ambiguous-first-001",
+      "callCap": {
+        "max": 30,
+        "used": 14,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 3,
+        "modelCalls": 14,
+        "inputTokens": 29462,
+        "outputTokens": 1910,
+        "seconds": 48.86
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5368,
+          "outputTokens": 211,
+          "seconds": 9.6,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "system",
+                "taskOrScreen",
+                "expectedBehavior"
+              ],
+              "text": "처리에 필요한 내용을 알려 주시겠어요?\n1. 어느 시스템에 대한 문의인가요? (전자결재 / 공통 로그인 / 파일 공유)\n2. 어떤 업무를 하려고 하셨거나 어느 화면을 사용 중이셨나요?\n3. 원래 어떻게 동작하길 기대하셨나요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": null,
+              "details": {
+                "actualBehavior": "화면이 안 열려요."
+              },
+              "facts": [
+                "실제 동작: 화면이 안 열려요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "처리에 필요한 내용을 알려 주시겠어요?\n1. 어느 시스템에 대한 문의인가요? (전자결재 / 공통 로그인 / 파일 공유)\n2. 어떤 업무를 하려고 하셨거나 어느 화면을 사용 중이셨나요?\n3. 원래 어떻게 동작하길 기대하셨나요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "사용 중인 시스템은(는) 잘 모르겠어요. 업무 화면을 열려고 했는데 열리지 않았어요. 화면이 열려야 해요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 6393,
+          "outputTokens": 336,
+          "seconds": 8.95,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "6af0fc06-fdbf-5594-b226-c217f9241456",
+              "fields": [
+                "occurredAt"
+              ],
+              "text": "언제부터, 또는 언제 그런 일이 있었나요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "6af0fc06-fdbf-5594-b226-c217f9241456",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": null,
+              "details": {
+                "taskOrScreen": "업무 화면을 열려고 했는데",
+                "expectedBehavior": "화면이 열려야 해요.",
+                "actualBehavior": "열리지 않았어요."
+              },
+              "facts": [
+                "실제 동작: 화면이 안 열려요.",
+                "하려던 업무·화면: 업무 화면을 열려고 했는데",
+                "기대한 동작: 화면이 열려야 해요.",
+                "실제 동작: 열리지 않았어요."
+              ],
+              "unknowns": [
+                "보고 시스템"
+              ]
+            }
+          ],
+          "answer": "언제부터, 또는 언제 그런 일이 있었나요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "오늘 아침부터요."
+        },
+        {
+          "turn": 3,
+          "status": "FAILED",
+          "modelCalls": 8,
+          "inputTokens": 17701,
+          "outputTokens": 1363,
+          "seconds": 30.31,
+          "roles": [
+            "INQUIRY",
+            "INQUIRY",
+            "INQUIRY",
+            "INQUIRY"
+          ],
+          "questions": [],
+          "problems": [],
+          "answer": null,
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": {
+            "code": "BUDGET_EXCEEDED",
+            "message": "실행 예산을 초과했다",
+            "retryable": false
+          },
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-composite-search-permission-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 1,
+        "modelCalls": 8,
+        "inputTokens": 15781,
+        "outputTokens": 1192,
+        "seconds": 26.79
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "FAILED",
+          "modelCalls": 8,
+          "inputTokens": 15781,
+          "outputTokens": 1192,
+          "seconds": 26.79,
+          "roles": [
+            "INQUIRY",
+            "KNOWLEDGE:FOUND",
+            "INQUIRY",
+            "INQUIRY",
+            "INQUIRY:FAILED"
+          ],
+          "questions": [],
+          "problems": [],
+          "answer": null,
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": {
+            "code": "BUDGET_EXCEEDED",
+            "message": "실행 예산을 초과했다",
+            "retryable": false
+          },
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-ea-approvalline-howto-001",
+      "callCap": {
+        "max": 30,
+        "used": 6,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 1,
+        "modelCalls": 6,
+        "inputTokens": 10875,
+        "outputTokens": 436,
+        "seconds": 19.23
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 6,
+          "inputTokens": 10875,
+          "outputTokens": 436,
+          "seconds": 19.23,
+          "roles": [
+            "INQUIRY",
+            "KNOWLEDGE:EMPTY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "HOW_TO",
+              "processingType": "REVIEW_REQUIRED",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 이미 상신한 문서의 결재선을 바꾸고 싶은데",
+                "expectedBehavior": "결재선을 바꾸고 싶은데"
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 이미 상신한 문서의 결재선을 바꾸고 싶은데",
+                "기대한 동작: 결재선을 바꾸고 싶은데"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-ea-notify-improvement-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15557,
+        "outputTokens": 743,
+        "seconds": 24.27
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5375,
+          "outputTokens": 262,
+          "seconds": 9.0,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "currentWorkflow"
+              ],
+              "text": "지금은 이 일을 어떻게 진행하고 계신가요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "FEATURE_REQUEST",
+              "processingType": "CHANGE_REQUEST",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 내 결재 차례가 오면",
+                "desiredChange": "내 결재 차례가 오면 알려주면 좋겠어요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 내 결재 차례가 오면",
+                "바라는 변경: 내 결재 차례가 오면 알려주면 좋겠어요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "지금은 이 일을 어떻게 진행하고 계신가요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "알림이 없어서 결재함에 자주 들어가 확인해요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 10182,
+          "outputTokens": 481,
+          "seconds": 15.27,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "42a4445f-2de2-5fe5-a6f4-8ae3bc908258",
+              "intent": "FEATURE_REQUEST",
+              "processingType": "CHANGE_REQUEST",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 내 결재 차례가 오면",
+                "actualBehavior": "알림이 없어서",
+                "currentWorkflow": "결재함에 자주 들어가 확인해요.",
+                "desiredChange": "내 결재 차례가 오면 알려주면 좋겠어요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 내 결재 차례가 오면",
+                "바라는 변경: 내 결재 차례가 오면 알려주면 좋겠어요.",
+                "현재 진행 방식: 결재함에 자주 들어가 확인해요.",
+                "실제 동작: 알림이 없어서"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-ea-search-howto-001",
+      "callCap": {
+        "max": 30,
+        "used": 4,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 1,
+        "modelCalls": 4,
+        "inputTokens": 7470,
+        "outputTokens": 276,
+        "seconds": 13.52
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 4,
+          "inputTokens": 7470,
+          "outputTokens": 276,
+          "seconds": 13.52,
+          "roles": [
+            "INQUIRY",
+            "KNOWLEDGE:FOUND"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "HOW_TO",
+              "processingType": "KNOWLEDGE_QA",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 지난 문서를 찾는 방법",
+                "expectedBehavior": "지난 문서를 찾는 방법"
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 지난 문서를 찾는 방법",
+                "기대한 동작: 지난 문서를 찾는 방법"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "전자결재에서 문서를 찾는 방법입니다.\n1. 전자결재 메뉴에서 '문서 조회'를 선택합니다.\n2. 문서 상태와 조회 기간을 지정합니다. 조회 기간에 문서 작성일이 포함되어야 목록에 표시됩니다.\n3. 제목이나 작성자를 입력해 목록을 좁힙니다.\n본인이 열람할 수 있는 문서만 표시됩니다.\n\n참고 자료: 전자결재 문서 조회 방법",
+          "guide": "전자결재에서 문서를 찾는 방법입니다.\n1. 전자결재 메뉴에서 '문서 조회'를 선택합니다.\n2. 문서 상태와 조회 기간을 지정합니다. 조회 기간에 문서 작성일이 포함되어야 목록에 표시됩니다.\n3. 제목이나 작성자를 입력해 목록을 좁힙니다.\n본인이 열람할 수 있는 문서만 표시됩니다.\n\n참고 자료: 전자결재 문서 조회 방법",
+          "ticketProposals": 0,
+          "evidenceCount": 1,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-ea-search-period-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15785,
+        "outputTokens": 793,
+        "seconds": 25.18
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5407,
+          "outputTokens": 291,
+          "seconds": 9.82,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "expectedBehavior"
+              ],
+              "text": "원래 어떻게 동작하길 기대하셨나요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "지난달에 상신한 문서가 문서함에 안 보여요",
+                "actualBehavior": "문서함에 안 보여요",
+                "occurredAt": "지난달에 상신한 문서"
+              },
+              "facts": [
+                "하려던 업무·화면: 지난달에 상신한 문서가 문서함에 안 보여요",
+                "실제 동작: 문서함에 안 보여요",
+                "발생 시점: 지난달에 상신한 문서"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "원래 어떻게 동작하길 기대하셨나요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "지난달에 상신한 문서가 목록에 보여야 해요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 10378,
+          "outputTokens": 502,
+          "seconds": 15.35,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "e960e87e-60c9-5cdf-9c04-6c4cf381ce9c",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 지난달에 상신한 문서가 문서함에 안 보여요.",
+                "expectedBehavior": "지난달에 상신한 문서가 목록에 보여야 해요.",
+                "actualBehavior": "지난달에 상신한 문서가 문서함에 안 보여요.",
+                "occurredAt": "지난달에 상신한 문서"
+              },
+              "facts": [
+                "하려던 업무·화면: 지난달에 상신한 문서가 문서함에 안 보여요",
+                "실제 동작: 문서함에 안 보여요",
+                "발생 시점: 지난달에 상신한 문서",
+                "하려던 업무·화면: 전자결재에서 지난달에 상신한 문서가 문서함에 안 보여요.",
+                "기대한 동작: 지난달에 상신한 문서가 목록에 보여야 해요.",
+                "실제 동작: 지난달에 상신한 문서가 문서함에 안 보여요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-ea-search-time-unknown-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15639,
+        "outputTokens": 770,
+        "seconds": 23.97
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5395,
+          "outputTokens": 265,
+          "seconds": 8.78,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "expectedBehavior",
+                "occurredAt"
+              ],
+              "text": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 문서가 목록에 안 보여요.",
+                "actualBehavior": "문서가 목록에 안 보여요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 문서가 목록에 안 보여요.",
+                "실제 동작: 문서가 목록에 안 보여요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "제가 올린 문서가 목록에 보여야 해요. 발생 시점은(는) 잘 모르겠어요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 10244,
+          "outputTokens": 505,
+          "seconds": 15.2,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "36fef382-d252-51e4-92c6-1a681e530cb1",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 문서가 목록에 안 보여요.",
+                "expectedBehavior": "제가 올린 문서가 목록에 보여야 해요.",
+                "actualBehavior": "전자결재에서 문서가 목록에 안 보여요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 문서가 목록에 안 보여요.",
+                "실제 동작: 문서가 목록에 안 보여요.",
+                "기대한 동작: 제가 올린 문서가 목록에 보여야 해요.",
+                "실제 동작: 전자결재에서 문서가 목록에 안 보여요."
+              ],
+              "unknowns": [
+                "발생 시점"
+              ]
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-login-loop-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15708,
+        "outputTokens": 749,
+        "seconds": 25.36
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5389,
+          "outputTokens": 256,
+          "seconds": 9.46,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "expectedBehavior",
+                "occurredAt"
+              ],
+              "text": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에 로그인했는데",
+                "actualBehavior": "계속 다시 로그인 화면으로 돌아가요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에 로그인했는데",
+                "실제 동작: 계속 다시 로그인 화면으로 돌아가요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "로그인하면 전자결재 화면이 열려야 해요. 오늘 오전부터요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 10319,
+          "outputTokens": 493,
+          "seconds": 15.9,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "8d9fdf3f-87e3-52b6-816f-e5ee9219b976",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에 로그인했는데 계속 다시 로그인 화면으로 돌아가요.",
+                "expectedBehavior": "로그인하면 전자결재 화면이 열려야 해요.",
+                "actualBehavior": "계속 다시 로그인 화면으로 돌아가요.",
+                "occurredAt": "오늘 오전부터요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에 로그인했는데",
+                "실제 동작: 계속 다시 로그인 화면으로 돌아가요.",
+                "하려던 업무·화면: 전자결재에 로그인했는데 계속 다시 로그인 화면으로 돌아가요.",
+                "기대한 동작: 로그인하면 전자결재 화면이 열려야 해요.",
+                "발생 시점: 오늘 오전부터요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-login-permission-purpose-unknown-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15430,
+        "outputTokens": 689,
+        "seconds": 24.95
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5360,
+          "outputTokens": 241,
+          "seconds": 9.86,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "businessPurpose"
+              ],
+              "text": "그 권한이 필요한 업무 목적은 무엇인가요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "ACCESS_REQUEST",
+              "processingType": "SERVICE_REQUEST",
+              "reportedSystem": "COMMON_LOGIN",
+              "details": {
+                "taskOrScreen": "공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "requestedAccess": "다른 시스템 이용 권한"
+              },
+              "facts": [
+                "하려던 업무·화면: 공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "필요한 기능·권한: 다른 시스템 이용 권한"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "그 권한이 필요한 업무 목적은 무엇인가요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "업무 목적은(는) 잘 모르겠어요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 10070,
+          "outputTokens": 448,
+          "seconds": 15.09,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "6d01c4e8-b198-53a0-a7d2-72dce5f377a8",
+              "intent": "ACCESS_REQUEST",
+              "processingType": "SERVICE_REQUEST",
+              "reportedSystem": "COMMON_LOGIN",
+              "details": {
+                "taskOrScreen": "공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "requestedAccess": "다른 시스템 이용 권한을 신청하고 싶어요."
+              },
+              "facts": [
+                "하려던 업무·화면: 공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "필요한 기능·권한: 다른 시스템 이용 권한",
+                "필요한 기능·권한: 다른 시스템 이용 권한을 신청하고 싶어요."
+              ],
+              "unknowns": [
+                "업무 목적"
+              ]
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-login-system-permission-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15365,
+        "outputTokens": 733,
+        "seconds": 24.64
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5366,
+          "outputTokens": 247,
+          "seconds": 9.47,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "businessPurpose"
+              ],
+              "text": "그 권한이 필요한 업무 목적은 무엇인가요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "ACCESS_REQUEST",
+              "processingType": "SERVICE_REQUEST",
+              "reportedSystem": "COMMON_LOGIN",
+              "details": {
+                "taskOrScreen": "공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "requestedAccess": "다른 시스템 이용 권한"
+              },
+              "facts": [
+                "하려던 업무·화면: 공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "필요한 기능·권한: 다른 시스템 이용 권한"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "그 권한이 필요한 업무 목적은 무엇인가요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "마케팅 자료가 올라오는 공유 폴더를 확인해야 해요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 9999,
+          "outputTokens": 486,
+          "seconds": 15.18,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "ebec7542-188e-57b5-97f5-af211cf64e99",
+              "intent": "ACCESS_REQUEST",
+              "processingType": "SERVICE_REQUEST",
+              "reportedSystem": "COMMON_LOGIN",
+              "details": {
+                "taskOrScreen": "공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "requestedAccess": "다른 시스템 이용 권한",
+                "businessPurpose": "마케팅 자료가 올라오는 공유 폴더를 확인해야 해요."
+              },
+              "facts": [
+                "하려던 업무·화면: 공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+                "필요한 기능·권한: 다른 시스템 이용 권한",
+                "업무 목적: 마케팅 자료가 올라오는 공유 폴더를 확인해야 해요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-retrieval-fault-001",
+      "callCap": {
+        "max": 30,
+        "used": 3,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 1,
+        "modelCalls": 3,
+        "inputTokens": 5341,
+        "outputTokens": 254,
+        "seconds": 8.4
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "FAILED",
+          "modelCalls": 3,
+          "inputTokens": 5341,
+          "outputTokens": 254,
+          "seconds": 8.4,
+          "roles": [
+            "INQUIRY",
+            "KNOWLEDGE:ERROR"
+          ],
+          "questions": [],
+          "problems": [],
+          "answer": null,
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": {
+            "code": "SEARCH_UNAVAILABLE",
+            "message": "검색 서비스를 사용할 수 없다",
+            "retryable": true
+          },
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-system-correction-001",
+      "callCap": {
+        "max": 30,
+        "used": 6,
+        "exceeded": false
+      },
+      "totals": {
+        "turns": 1,
+        "modelCalls": 6,
+        "inputTokens": 10770,
+        "outputTokens": 417,
+        "seconds": 17.27
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 6,
+          "inputTokens": 10770,
+          "outputTokens": 417,
+          "seconds": 17.27,
+          "roles": [
+            "INQUIRY",
+            "KNOWLEDGE:EMPTY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "HOW_TO",
+              "processingType": "REVIEW_REQUIRED",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 지운 파일을 되돌리는 방법이 있나요?",
+                "expectedBehavior": "지운 파일을 되돌리는"
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 지운 파일을 되돌리는 방법이 있나요?",
+                "기대한 동작: 지운 파일을 되돌리는"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    }
+  ],
+  "model": "gpt-6-luna"
+}

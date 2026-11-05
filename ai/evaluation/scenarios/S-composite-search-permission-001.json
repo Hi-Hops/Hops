@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-composite-search-permission-001",
+  "caseFamily": "composite-search-permission",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재에서 지난 문서를 조회하는 방법이랑, 공통 로그인에서 파일 공유 읽기 권한을 신청하는 방법을 같이 알려주세요.",
+  "userKnowledge": {
+    "taskOrScreen": "문서함에서 지난 문서를 기간으로 찾고 싶어요.",
+    "requestedAccess": "파일 공유 읽기 권한이요.",
+    "businessPurpose": "공유 폴더의 자료를 확인해야 해요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

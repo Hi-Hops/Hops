@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-file-sharelink-howto-001",
+  "caseFamily": "file-sharelink-howto",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에서 동료에게 파일을 링크로 공유하는 방법을 알려주세요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "taskOrScreen": "공유 폴더의 파일 하나를 링크로 보내고 싶어요.",
+    "currentWorkflow": "지금은 메신저로 파일을 직접 보내고 있어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

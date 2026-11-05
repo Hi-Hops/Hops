@@ -1,0 +1,50 @@
+{
+  "scenarioId": "S-guide-unresolved-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "taskOrScreen"
+      ],
+      "mustNotAskFields": [
+        "occurredAt",
+        "actualBehavior",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-file-share-link@1"
+      ],
+      "forbiddenEvidence": [],
+      "afterFollowUp": {
+        "allowedFinalActions": [
+          "ANSWER_GUIDE",
+          "PROPOSE_TICKET"
+        ],
+        "mustNotRepeatEvidence": [
+          "guide-file-share-link@1"
+        ]
+      }
+    }
+  ],
+  "behaviorProperties": [
+    "B2"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "scenarioId": "S-out-of-scope-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "OUT_OF_SCOPE"
+      ],
+      "reportedSystemCode": null,
+      "responsibleSystemCodes": [],
+      "requiredFields": [],
+      "mustNotAskFields": [
+        "system",
+        "taskOrScreen",
+        "currentWorkflow",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "NOTICE_OUT_OF_SCOPE"
+      ],
+      "assessment": null,
+      "relevantEvidence": [],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": []
+}

@@ -1,0 +1,22 @@
+{
+  "scenarioId": "S-ea-search-time-unknown-001",
+  "caseFamily": "ea-search-time-unknown",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재에서 문서가 목록에 안 보여요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "문서함 > 전체 문서에서 문서를 찾으려고 했어요.",
+    "expectedBehavior": "제가 올린 문서가 목록에 보여야 해요.",
+    "actualBehavior": "조회해도 그 문서가 안 나와요.",
+    "occurredAt": null
+  },
+  "unknownFields": [
+    "occurredAt"
+  ],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

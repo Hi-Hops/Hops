@@ -1,0 +1,20 @@
+{
+  "scenarioId": "S-ea-notify-improvement-001",
+  "caseFamily": "ea-notify-improvement",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "currentWorkflow": "알림이 없어서 결재함에 자주 들어가 확인해요.",
+    "desiredChange": null
+  },
+  "unknownFields": [
+    "desiredChange"
+  ],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

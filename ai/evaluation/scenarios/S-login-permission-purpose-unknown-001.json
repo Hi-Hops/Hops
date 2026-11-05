@@ -1,0 +1,20 @@
+{
+  "scenarioId": "S-login-permission-purpose-unknown-001",
+  "caseFamily": "login-permission-purpose-unknown",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "공통 로그인 포털에서 다른 시스템 이용 권한을 신청하고 싶어요.",
+  "userKnowledge": {
+    "systemCode": "COMMON_LOGIN",
+    "requestedAccess": "파일 공유 시스템 쓰기 권한이요.",
+    "businessPurpose": null
+  },
+  "unknownFields": [
+    "businessPurpose"
+  ],
+  "revealRule": "ASKED_FIELD_ONLY"
+}
