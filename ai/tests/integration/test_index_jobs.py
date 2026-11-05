@@ -133,9 +133,116 @@ async def test_unknown_and_previously_running_jobs_are_never_executed_again(
             )
         assert (await client.post("/internal/v2/index-jobs", json=request)).json()[
             "state"
-        ] == "RUNNING"
+        ] == "UNKNOWN"
         assert count == 1
     finally:
+        await cleanup(request)
+
+
+async def test_new_app_recovers_orphan_running_on_get_and_replay_without_execution(monkeypatch):
+    request = request_body()
+    snapshot = {
+        **{key: value for key, value in request.items() if key != "approvedCase"},
+        "state": "RUNNING",
+        "error": None,
+        "updatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    }
+    #  이전 프로세스가 결과 저장 전에 종료되어 실행 연결의 잠금이 없는 원장 행이다.
+    async with await psycopg.AsyncConnection.connect(DSN, autocommit=True) as connection:
+        await connection.execute(
+            "INSERT INTO ai_index_job(job_id,attempt,request,snapshot) VALUES (%s,1,%s,%s)",
+            (request["jobId"], Jsonb(request), Jsonb(snapshot)),
+        )
+
+    async def forbidden(*_args):
+        pytest.fail("고아 RUNNING은 저장소를 다시 실행하면 안 됩니다")
+
+    monkeypatch.setattr(index_jobs, "_apply", forbidden)
+    app = FastAPI()
+    app.add_middleware(ServiceAuthMiddleware, token=SecretStr(TOKEN))
+    install_error_handlers(app)
+    app.include_router(
+        index_jobs.index_router(Settings(_env_file=None, runtime_dsn=SecretStr(DSN)))
+    )
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://new-process",
+            headers={"Authorization": "Bearer " + TOKEN},
+        ) as client:
+            found, simultaneous = await asyncio.gather(
+                client.get(f"/internal/v2/index-jobs/{request['jobId']}?attempt=1"),
+                client.post("/internal/v2/index-jobs", json=request),
+            )
+            assert found.status_code == 200
+            assert found.json()["state"] == "UNKNOWN"
+            assert simultaneous.json() == found.json()
+            responses = await asyncio.gather(
+                *(client.post("/internal/v2/index-jobs", json=request) for _ in range(3))
+            )
+            assert all(response.json() == found.json() for response in responses)
+            again = await client.get(f"/internal/v2/index-jobs/{request['jobId']}?attempt=1")
+            assert again.json() == found.json()
+    finally:
+        await cleanup(request)
+
+
+async def test_live_running_owner_is_not_recovered_or_executed_twice(client, monkeypatch):
+    request = request_body()
+    started, finish = asyncio.Event(), asyncio.Event()
+    calls = 0
+
+    async def apply(*_args):
+        nonlocal calls
+        calls += 1
+        started.set()
+        await finish.wait()
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    running = asyncio.create_task(client.post("/internal/v2/index-jobs", json=request))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=5)
+        found = await client.get(f"/internal/v2/index-jobs/{request['jobId']}?attempt=1")
+        assert found.json()["state"] == "RUNNING"
+        replay = await client.post("/internal/v2/index-jobs", json=request)
+        assert replay.json()["state"] == "RUNNING"
+        assert calls == 1
+        finish.set()
+        assert (await asyncio.wait_for(running, timeout=5)).json()["state"] == "SUCCEEDED"
+    finally:
+        finish.set()
+        await running
+        await cleanup(request)
+
+
+async def test_lost_execution_connection_leaves_unknown_without_adapter_reexecution(
+    client, monkeypatch
+):
+    request = request_body()
+    started = asyncio.Event()
+    calls = 0
+
+    async def apply(*_args):
+        nonlocal calls
+        calls += 1
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    running = asyncio.create_task(client.post("/internal/v2/index-jobs", json=request))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=5)
+        running.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await running
+        found = await client.get(f"/internal/v2/index-jobs/{request['jobId']}?attempt=1")
+        assert found.json()["state"] == "UNKNOWN"
+        replay = await client.post("/internal/v2/index-jobs", json=request)
+        assert replay.json() == found.json()
+        assert calls == 1
+    finally:
+        running.cancel()
+        await asyncio.gather(running, return_exceptions=True)
         await cleanup(request)
 
 

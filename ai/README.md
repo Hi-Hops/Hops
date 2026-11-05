@@ -281,6 +281,9 @@ DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 
 Vector는 Spring 전용 `X-Hops-Document-Version`·`X-Hops-Document-Digest` 헤더의 원본 참조와 대조한다.
 같은 `(jobId, attempt)`와 같은 본문은 기존 결과를 반환하고 다른 본문은409다.
 RUNNING을 원장에 먼저 commit하여 응답 유실·프로세스 종료 뒤 같은 작업을 새로 실행하지 않는다.
+실행 연결은 작업별 PostgreSQL 세션 잠금을 결과 저장까지 유지한다. 조회·재접수 시 실행 주체가
+사라진 RUNNING은 UNKNOWN으로 회수하며, 살아 있는 실행은 RUNNING을 유지한다.
+이 연결도 RunLedger와 같이 직접 연결 또는 세션 수명이 유지되는 풀을 사용해야 한다.
 원장 상세와 키를 삭제·자동 재시도하지 않으며, 미확인 결과는 새 작업으로 간주하지 않는다.
 외부 서비스의 명시적 4xx 거부(408 제외)는 FAILED로 보존해 설정 수정 후 Spring의 수동 새 시도를 허용한다.
 408·5xx·연결 오류·시간 초과는 UNKNOWN으로 보존하며 같은 시도를 다시 실행하지 않는다.

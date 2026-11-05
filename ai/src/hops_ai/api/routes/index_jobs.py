@@ -76,6 +76,55 @@ def _snapshot(request: IndexRequest, state: str, error: AiError | None = None) -
     }
 
 
+def _execution_key(key: tuple[UUID, int]) -> str:
+    return f"hops-index:{key[0]}:{key[1]}"
+
+
+async def _try_execution_lock(connection, key: tuple[UUID, int]) -> bool:
+    row = await (
+        await connection.execute(
+            "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))", (_execution_key(key),)
+        )
+    ).fetchone()
+    return row[0]
+
+
+async def _current_snapshot(connection, key: tuple[UUID, int]) -> dict | None:
+    # 짧은 행 잠금 안에서 회수 여부를 결정한다. 실제 저장소 호출 중에는 행 잠금을 유지하지 않는다.
+    async with connection.transaction():
+        row = await (
+            await connection.execute(
+                "SELECT snapshot FROM ai_index_job WHERE job_id=%s AND attempt=%s FOR UPDATE", key
+            )
+        ).fetchone()
+        if row is None:
+            return None
+        snapshot = row[0]
+        if snapshot["state"] != "RUNNING" or not await _try_execution_lock(connection, key):
+            return snapshot
+        try:
+            # 실행 연결의 세션 잠금을 얻을 수 있다면 소유 프로세스가 사라진 작업이다.
+            snapshot = {
+                **snapshot,
+                "state": "UNKNOWN",
+                "error": AiError(
+                    code="INDEX_UNAVAILABLE",
+                    message="종료된 실행의 저장소 반영 결과를 확인할 수 없습니다",
+                    retryable=False,
+                ).model_dump(mode="json"),
+                "updatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            }
+            await connection.execute(
+                "UPDATE ai_index_job SET snapshot=%s WHERE job_id=%s AND attempt=%s",
+                (Jsonb(snapshot), *key),
+            )
+            return snapshot
+        finally:
+            await connection.execute(
+                "SELECT pg_advisory_unlock(hashtextextended(%s, 0))", (_execution_key(key),)
+            )
+
+
 async def _apply(settings: Settings, request: dict, document: ApprovedDocumentVersion | None):
     if request["store"] == "NEO4J":
         async with httpx.AsyncClient(
@@ -149,7 +198,12 @@ def index_router(settings: Settings) -> APIRouter:
                 if stored[:2] != (payload, document_id):
                     raise _fault(409, "CONFLICT", "같은 색인 작업에 다른 요청이 저장돼 있습니다")
                 if stored[2]["state"] != "PENDING":
-                    return stored[2]
+                    return await _current_snapshot(connection, key)
+
+                # RUNNING commit 전에 연결 수명과 같은 세션 잠금을 확보한다.
+                # 결과 저장·연결 종료까지 유지하므로 다른 프로세스는 생존 실행을 회수하지 않는다.
+                if not await _try_execution_lock(connection, key):
+                    return await _current_snapshot(connection, key)
 
                 # RUNNING을 먼저 commit해 프로세스 종료 후 같은 키의 재실행을 막는다.
                 claimed = await (
@@ -160,7 +214,7 @@ def index_router(settings: Settings) -> APIRouter:
                     )
                 ).fetchone()
                 if claimed is None:
-                    return (await (await connection.execute(read, key)).fetchone())[2]
+                    return await _current_snapshot(connection, key)
                 try:
                     await _apply(settings, payload, document)
                     snapshot = _snapshot(request, "SUCCEEDED")
@@ -232,17 +286,12 @@ def index_router(settings: Settings) -> APIRouter:
     @router.get("/{job_id}")
     async def get(job_id: UUID, attempt: Annotated[int, Query(gt=0)]) -> dict:
         try:
-            async with await psycopg.AsyncConnection.connect(dsn) as connection:
-                row = await (
-                    await connection.execute(
-                        "SELECT snapshot FROM ai_index_job WHERE job_id = %s AND attempt = %s",
-                        (job_id, attempt),
-                    )
-                ).fetchone()
+            async with await psycopg.AsyncConnection.connect(dsn, autocommit=True) as connection:
+                snapshot = await _current_snapshot(connection, (job_id, attempt))
         except psycopg.Error:
             raise _fault(503, "INDEX_UNAVAILABLE", "색인 작업 원장에 접근할 수 없습니다") from None
-        if row is None:
+        if snapshot is None:
             raise _fault(404, "NOT_FOUND", "색인 작업을 찾을 수 없습니다")
-        return row[0]
+        return snapshot
 
     return router
