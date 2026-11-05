@@ -1,0 +1,42 @@
+{
+  "scenarioId": "S-system-correction-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior"
+      ],
+      "mustNotAskFields": [
+        "system",
+        "occurredAt",
+        "actualBehavior",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "NO_MATCH",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B6"
+  ]
+}

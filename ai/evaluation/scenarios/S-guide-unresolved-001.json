@@ -1,0 +1,21 @@
+{
+  "scenarioId": "S-guide-unresolved-001",
+  "caseFamily": "guide-unresolved",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에서 링크로 공유하는 방법을 알려주세요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "taskOrScreen": "공유 폴더의 파일을 링크로 보내려고 해요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "followUp": {
+    "text": "안내대로 해 봤는데 만료일이 설정되지 않아요. 해결되지 않았어요.",
+    "resolution": "UNRESOLVED"
+  }
+}

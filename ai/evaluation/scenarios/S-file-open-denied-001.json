@@ -1,0 +1,20 @@
+{
+  "scenarioId": "S-file-open-denied-001",
+  "caseFamily": "file-open-denied",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에서 공유받은 파일이 열리지 않아요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "taskOrScreen": "동료가 보낸 링크로 파일을 열려고 했어요.",
+    "expectedBehavior": "파일 내용이 열려야 해요.",
+    "actualBehavior": "접근할 수 없다는 안내가 나와요.",
+    "occurredAt": "오늘 처음 열어 봤어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

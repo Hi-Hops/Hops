@@ -1,0 +1,20 @@
+{
+  "scenarioId": "S-login-loop-001",
+  "caseFamily": "login-loop",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재에 로그인했는데 계속 다시 로그인 화면으로 돌아가요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "사내 포털에서 로그인한 뒤 전자결재 화면으로 들어가려고 했어요.",
+    "expectedBehavior": "로그인하면 전자결재 화면이 열려야 해요.",
+    "actualBehavior": "로그인해도 다시 로그인 화면이 나와요.",
+    "occurredAt": "오늘 오전부터요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

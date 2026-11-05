@@ -1,0 +1,14 @@
+{
+  "scenarioId": "S-out-of-scope-001",
+  "caseFamily": "out-of-scope",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "휴가 신청은 어디서 하나요?",
+  "userKnowledge": {},
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

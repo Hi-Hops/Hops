@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-ea-bulk-download-001",
+  "caseFamily": "ea-bulk-download",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "currentWorkflow": "지금은 첨부 파일을 하나씩 내려받고 있어요.",
+    "desiredChange": "문서의 첨부 파일을 한 번에 내려받는 버튼이 있으면 좋겠어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

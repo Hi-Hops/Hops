@@ -1,0 +1,41 @@
+{
+  "scenarioId": "S-ea-approvalline-howto-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior"
+      ],
+      "mustNotAskFields": [
+        "occurredAt",
+        "actualBehavior",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "NO_MATCH",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B3"
+  ]
+}

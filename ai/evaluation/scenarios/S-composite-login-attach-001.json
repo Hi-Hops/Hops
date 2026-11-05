@@ -1,0 +1,20 @@
+{
+  "scenarioId": "S-composite-login-attach-001",
+  "caseFamily": "composite-login-attach",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재에서 로그인이 계속 반복되고, 문서 첨부 파일도 열리지 않아요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "로그인한 뒤 전자결재 문서의 첨부 파일을 열려고 했어요.",
+    "expectedBehavior": "로그인하면 바로 화면이 열리고 첨부 파일도 열려야 해요.",
+    "actualBehavior": "로그인 화면이 계속 나오고 첨부 파일은 열리지 않아요.",
+    "occurredAt": "오늘 오전부터요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

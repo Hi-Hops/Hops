@@ -1,0 +1,22 @@
+{
+  "scenarioId": "S-ambiguous-first-001",
+  "caseFamily": "ambiguous-first",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "화면이 안 열려요.",
+  "userKnowledge": {
+    "systemCode": null,
+    "taskOrScreen": "업무 화면을 열려고 했는데 열리지 않았어요.",
+    "expectedBehavior": "화면이 열려야 해요.",
+    "actualBehavior": "아무 반응이 없어요.",
+    "occurredAt": "오늘 아침부터요."
+  },
+  "unknownFields": [
+    "systemCode"
+  ],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

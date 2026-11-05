@@ -23,10 +23,30 @@ KNOWLEDGE_FIELDS = (
     "businessPurpose",
     "desiredChange",
 )
+# 안내를 받은 뒤 사용자가 보내는 해결 응답의 종류. 재생기 지원은 멀티턴 작업(#189)에서 한다.
+FOLLOW_UP_RESOLUTIONS = ("UNRESOLVED",)
+# 환경에 주입하는 결함. 재생기는 역할을 만들지 않으므로 호출자가 이 값을 보고 역할을 구성한다.
+FAULTS = ("RETRIEVAL_ERROR",)
 
 
 class ScenarioFormatError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class Correction:
+    """AI의 `after_turn`번째 질문에 대한 응답 끝에 덧붙는, 규칙으로 정해진 정정 문장."""
+
+    after_turn: int
+    text: str
+
+
+@dataclass(frozen=True)
+class FollowUp:
+    """AI가 질문 없이 안내로 끝난 뒤 사용자가 보내는 응답. 재생기 지원은 #189에서 한다."""
+
+    text: str
+    resolution: str
 
 
 @dataclass(frozen=True)
@@ -42,6 +62,35 @@ class Scenario:
     unknown_fields: tuple[str, ...]
     reveal_rule: str
     actor_role: str = "EMPLOYEE"
+    corrections: tuple[Correction, ...] = ()
+    follow_up: FollowUp | None = None
+    faults: tuple[str, ...] = ()
+
+
+def _parse_corrections(raw: Any) -> tuple[Correction, ...]:
+    corrections = []
+    for item in raw:
+        after_turn, text = item.get("afterTurn"), str(item.get("text", "")).strip()
+        if not isinstance(after_turn, int) or isinstance(after_turn, bool) or after_turn < 1:
+            raise ScenarioFormatError("corrections.afterTurn은 1 이상의 정수여야 한다")
+        if not text:
+            raise ScenarioFormatError("corrections.text가 비어 있다")
+        corrections.append(Correction(after_turn, text))
+    turns = [item.after_turn for item in corrections]
+    if len(turns) != len(set(turns)):
+        raise ScenarioFormatError("같은 turn에 정정이 둘 이상 있다")
+    return tuple(corrections)
+
+
+def _parse_follow_up(raw: Any) -> FollowUp | None:
+    if raw is None:
+        return None
+    text, resolution = str(raw.get("text", "")).strip(), raw.get("resolution")
+    if not text:
+        raise ScenarioFormatError("followUp.text가 비어 있다")
+    if resolution not in FOLLOW_UP_RESOLUTIONS:
+        raise ScenarioFormatError(f"followUp.resolution은 {FOLLOW_UP_RESOLUTIONS} 중 하나여야 한다")
+    return FollowUp(text, resolution)
 
 
 def parse_scenario(data: Mapping[str, Any]) -> Scenario:
@@ -76,6 +125,10 @@ def parse_scenario(data: Mapping[str, Any]) -> Scenario:
     overlap = [name for name in unknown_fields if knowledge.get(name)]
     if overlap:
         raise ScenarioFormatError(f"아는 사실과 모르는 필드가 겹친다: {overlap}")
+    faults = tuple(data.get("faults", []))
+    bad_faults = [name for name in faults if name not in FAULTS]
+    if bad_faults:
+        raise ScenarioFormatError(f"알 수 없는 faults: {bad_faults}")
     return Scenario(
         scenario_id=str(data["scenarioId"]),
         case_family=str(data["caseFamily"]),
@@ -86,6 +139,9 @@ def parse_scenario(data: Mapping[str, Any]) -> Scenario:
         unknown_fields=unknown_fields,
         reveal_rule=str(data["revealRule"]),
         actor_role=str(data.get("actor", {}).get("role", "EMPLOYEE")),
+        corrections=_parse_corrections(data.get("corrections", [])),
+        follow_up=_parse_follow_up(data.get("followUp")),
+        faults=faults,
     )
 
 

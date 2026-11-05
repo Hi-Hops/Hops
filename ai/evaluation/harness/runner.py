@@ -76,7 +76,7 @@ async def run_scenario(
                 )
             )
             break
-        reply = reply_to(scenario, result.questions)
+        reply = reply_to(scenario, result.questions, turn=len(turns) + 1)
         next_request, ref_map = stub.advance(result, reply.text)
         turns.append(
             TurnTrace(

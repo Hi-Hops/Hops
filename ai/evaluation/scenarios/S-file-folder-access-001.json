@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-file-folder-access-001",
+  "caseFamily": "file-folder-access",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에서 다른 팀 폴더에 접근하려면 어떻게 해야 하나요?",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "requestedAccess": "다른 팀 공유 폴더 읽기 권한이요.",
+    "businessPurpose": "협업 자료를 확인해야 해요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

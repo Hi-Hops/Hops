@@ -1,0 +1,37 @@
+{
+  "scenarioId": "S-ea-notify-improvement-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "IMPROVEMENT_REQUEST",
+        "FEATURE_REQUEST"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL"
+      ],
+      "requiredFields": [
+        "currentWorkflow",
+        "desiredChange"
+      ],
+      "mustNotAskFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt",
+        "requestedAccess",
+        "businessPurpose"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": null,
+      "relevantEvidence": [],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B5"
+  ]
+}

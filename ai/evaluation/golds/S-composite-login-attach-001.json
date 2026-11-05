@@ -1,0 +1,86 @@
+{
+  "scenarioId": "S-composite-login-attach-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL",
+        "COMMON_LOGIN"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-login-sso-use@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-login-sso-loop@1"
+      ]
+    },
+    {
+      "problemKey": "p2",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-ea-attachment-open@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-ea-attachment-open-failure@1"
+      ]
+    }
+  ],
+  "behaviorProperties": [
+    "B4",
+    "B5"
+  ]
+}

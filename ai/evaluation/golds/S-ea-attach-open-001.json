@@ -1,0 +1,48 @@
+{
+  "scenarioId": "S-ea-attach-open-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-ea-attachment-open@1",
+        "policy-ea-attachment-limit@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-ea-attachment-open-failure@1",
+        "runbook-file-open-denied@1"
+      ]
+    }
+  ],
+  "behaviorProperties": [
+    "B5"
+  ]
+}

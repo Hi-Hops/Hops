@@ -14,6 +14,7 @@ from hops_ai.contracts.wire import QuestionProposal
 
 # 질문 필드 이름. 시스템은 RequestDetails 필드가 아니라 별도 질문 필드다.
 SYSTEM_FIELD = "system"
+SYSTEM_CODE_FIELD = "systemCode"
 
 _FIELD_PHRASES = {
     SYSTEM_FIELD: "사용 중인 시스템",
@@ -37,7 +38,8 @@ class UserReply:
 
 def _answer(scenario: Scenario, name: str) -> str | None:
     """필드에 대한 답. 모르거나 아는 값이 없으면 None이다."""
-    if name in scenario.unknown_fields:
+    # 시스템 질문(`system`)의 모름 선언은 시나리오에서 `systemCode`로 쓴다.
+    if (SYSTEM_CODE_FIELD if name == SYSTEM_FIELD else name) in scenario.unknown_fields:
         return None
     if name == SYSTEM_FIELD:
         code = scenario.user_knowledge.get("systemCode")
@@ -47,8 +49,11 @@ def _answer(scenario: Scenario, name: str) -> str | None:
     return value.strip() if value and value.strip() else None
 
 
-def reply_to(scenario: Scenario, questions: Sequence[QuestionProposal]) -> UserReply:
-    """질문한 필드에만 답하는 사용자 응답을 만든다."""
+def reply_to(scenario: Scenario, questions: Sequence[QuestionProposal], turn: int = 1) -> UserReply:
+    """질문한 필드에만 답하는 사용자 응답을 만든다.
+
+    `turn`은 AI가 질문을 한 횟수(1부터)다. 시나리오에 이 turn의 정정이 있으면 응답 끝에 붙인다.
+    """
     if scenario.reveal_rule != "ASKED_FIELD_ONLY":
         raise ValueError(f"지원하지 않는 revealRule: {scenario.reveal_rule}")
     sentences: list[str] = []
@@ -68,4 +73,5 @@ def reply_to(scenario: Scenario, questions: Sequence[QuestionProposal]) -> UserR
                 sentences.append(answer if answer.endswith((".", "요", "다")) else f"{answer}.")
     if not sentences:
         sentences.append("잘 모르겠어요.")
+    sentences.extend(item.text for item in scenario.corrections if item.after_turn == turn)
     return UserReply(text=" ".join(sentences), unknown=tuple(unknown))

@@ -1,0 +1,47 @@
+{
+  "scenarioId": "S-file-open-denied-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-file-open-download@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-file-open-denied@1",
+        "runbook-ea-attachment-open-failure@1"
+      ]
+    }
+  ],
+  "behaviorProperties": [
+    "B5"
+  ]
+}

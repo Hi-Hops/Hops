@@ -1,0 +1,46 @@
+{
+  "scenarioId": "S-login-system-permission-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "ACCESS_REQUEST"
+      ],
+      "reportedSystemCode": "COMMON_LOGIN",
+      "responsibleSystemCodes": [
+        "COMMON_LOGIN"
+      ],
+      "requiredFields": [
+        "requestedAccess",
+        "businessPurpose"
+      ],
+      "mustNotAskFields": [
+        "taskOrScreen",
+        "currentWorkflow",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE",
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT",
+          "PARTIAL"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-login-permission-request@1",
+        "policy-login-permission-approval@1"
+      ],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B5"
+  ]
+}
