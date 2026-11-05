@@ -36,12 +36,11 @@ uv run pytest tests/unit/test_eval_*.py
 uv run python -m evaluation.harness.validate
 ```
 
-실제 모델 호출은 사용자가 모델·호출 상한·비용을 승인한 뒤 직접 실행한다. 진행 상황은 stderr에 나오고 `--out`에는 시나리오가 끝날 때마다 저장된다. 시나리오당 시간 제한 기본값은 240초다.
+두 번째 명령은 시나리오·정답 파일을 검사한다(모델을 부르지 않는다). 통과해도 내용이 사실에 맞는다는 뜻은 아니며 사람이 검수한다.
+
+**아래 `evaluation.pilot` 명령은 실제 모델을 호출하며 비용이 든다.** 실제 모델 호출은 사용자가 모델·호출 상한·비용을 승인한 뒤 직접 실행한다. 진행 상황은 stderr에 나오고 `--out`에는 시나리오가 끝날 때마다 저장된다. 시나리오당 시간 제한 기본값은 240초다.
 
 ```bash
 OPENAI_API_KEY=... uv run python -m evaluation.pilot --split DEV --max-calls 150 --out /tmp/baseline-dev.json
 OPENAI_API_KEY=... uv run python -m evaluation.pilot system-correction ea-notify-improvement --max-calls 40
 ```
-
-
-두 번째 명령은 시나리오·정답 파일을 검사한다(모델을 부르지 않는다). 통과해도 내용이 사실에 맞는다는 뜻은 아니며 사람이 검수한다.

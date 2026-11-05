@@ -139,6 +139,8 @@ async def test_batch_applies_the_per_scenario_cap() -> None:
 
     assert len(llm.requests) == 2
     assert report["totals"]["scenariosHittingTheirCap"] == ["S-batch-0-001"]
+    assert not report["totalCallCap"]["exceeded"]  # 전체 상한에는 여유가 있다
+    assert exit_code(report) == 1  # 시나리오별 상한에 걸린 실행도 성공으로 끝나지 않는다
 
 
 def test_select_scenarios_picks_the_dev_split_and_refuses_test_without_a_flag() -> None:

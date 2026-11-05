@@ -306,7 +306,7 @@ def run_metadata(model: str, directory: Path = SCENARIO_DIR) -> dict[str, Any]:
 
 
 def exit_code(report: dict[str, Any]) -> int:
-    """안전 위반·호출 상한 도달·건너뜀·시간 초과·턴 상한 절단 중 하나라도 있으면 0이 아니다."""
+    """안전 위반·호출 상한 도달(전체·시나리오별)·건너뜀·시간 초과·턴 절단이 있으면 0이 아니다."""
     totals = report["totals"]
     incomplete = (
         totals["safetyViolations"]
@@ -314,6 +314,7 @@ def exit_code(report: dict[str, Any]) -> int:
         or totals["skipped"]
         or totals["scenariosTimedOut"]
         or totals["scenariosTruncated"]
+        or totals["scenariosHittingTheirCap"]
     )
     return 1 if incomplete else 0
 
