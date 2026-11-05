@@ -17,7 +17,11 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
             + "AND v.source_metadata ->> 'caseVersion' = CAST(:caseVersion AS text)", nativeQuery = true)
     Optional<KnowledgeDocumentVersion> findCaseVersion(String caseId, int caseVersion);
 
-    /** 캐시된 Entity의 과거 승인·ACL 대신 현재 DB 조건으로 공개 가능 여부를 확인한다. */
+    /**
+     * 캐시된 Entity의 과거 승인·ACL 대신 현재 DB 조건으로 공개 가능 여부를 확인한다.
+     *
+     * @param requireIndexed CASE에 Vector·Neo4j 반영 SUCCEEDED를 요구할지. 설정은 {@code KnowledgeVisibilityPolicy}가 정한다
+     */
     @Query(value = """
             SELECT EXISTS (
               SELECT 1 FROM knowledge_document_version v
@@ -37,10 +41,10 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
                 AND c.deleted_at IS NULL AND c.case_status='APPROVED'
                 AND c.it_system_id=d.it_system_id AND c.access_level=d.access_level
                 AND c.approved_by_member_id IS NOT NULL AND c.approved_at IS NOT NULL
-                AND c.vector_status='SUCCEEDED' AND c.graph_status='SUCCEEDED'
+                AND (NOT :requireIndexed OR (c.vector_status='SUCCEEDED' AND c.graph_status='SUCCEEDED'))
                 AND t.deleted_at IS NULL AND t.ticket_status='RESOLVED' AND t.resolved_at IS NOT NULL
                 AND t.responsible_system_id=c.it_system_id
                 AND w.log_type IN ('RESOLVED','IMPLEMENTED'))))
             """, nativeQuery = true)
-    boolean isCurrentlyVisible(UUID versionId, UUID memberId);
+    boolean isCurrentlyVisible(UUID versionId, UUID memberId, boolean requireIndexed);
 }

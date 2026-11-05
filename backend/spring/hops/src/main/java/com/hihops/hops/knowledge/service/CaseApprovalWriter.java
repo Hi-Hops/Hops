@@ -1,11 +1,8 @@
 package com.hihops.hops.knowledge.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.UUID;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -28,7 +25,6 @@ import com.hihops.hops.user.domain.Member;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -73,11 +69,9 @@ class CaseApprovalWriter {
         document.approve(resolved.getOriginType() == CaseOrigin.SYNTHETIC);
         documents.save(document);
 
-        ObjectNode digestSubject = mapper.createObjectNode();
-        digestSubject.put("caseId", caseId.toString()).put("caseVersion", resolved.getVersionNo());
-        digestSubject.set("approvedCase", approvedCase);
         KnowledgeDocumentVersion version = new KnowledgeDocumentVersion(document, resolved.getVersionNo(),
-                content(approvedCase), sha256(canonical(digestSubject)), metadata.toString());
+                content(approvedCase), CanonicalJson.caseSnapshotDigest(mapper, caseId.toString(), resolved.getVersionNo(), approvedCase),
+                metadata.toString());
         version.approve();
         versions.save(version);
         // 승인 거래가 commit된 뒤에만 저장한 요청을 AI에 전달한다. 거래가 취소되면 전달도 없다.
@@ -148,32 +142,11 @@ class CaseApprovalWriter {
         return text.toString().strip();
     }
 
-    /** 키 오름차순·공백 없는 JSON. Unicode는 escape하지 않고 배열 순서를 유지한다. */
     private String canonical(JsonNode node) {
-        return mapper.writeValueAsString(sorted(node));
-    }
-
-    private JsonNode sorted(JsonNode node) {
-        if (node.isObject()) {
-            ObjectNode result = mapper.createObjectNode();
-            node.propertyNames().stream().sorted(Comparator.naturalOrder())
-                    .forEach(name -> result.set(name, sorted(node.get(name))));
-            return result;
-        }
-        if (node.isArray()) {
-            ArrayNode result = mapper.createArrayNode();
-            node.forEach(item -> result.add(sorted(item)));
-            return result;
-        }
-        return node;
+        return CanonicalJson.canonical(mapper, node);
     }
 
     private static String sha256(String text) {
-        try {
-            return java.util.HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256은 모든 JDK가 제공한다", e);
-        }
+        return CanonicalJson.sha256(text);
     }
 }

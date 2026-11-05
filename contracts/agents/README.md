@@ -76,6 +76,8 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 
 생성 요청·결과 확인·제한된 재시도는 [Ticket 도구 REST 계약](TICKET_TOOLS.md)을 따른다. Ticket이 실행을 조율하고 Spring이 저장·배정을 확정한다. Spring API와 후속 Python 연결의 구현 상태는 해당 문서에서 구분한다.
 
+Knowledge가 승인 지식 문서를 읽는 내부 검색은 [지식 검색 REST 계약](KNOWLEDGE_TOOLS.md)을 따른다. 접근 범위·CASE 공개 규칙은 Spring이 실행(runId)에서 확정하고, 검색 실패를 빈 결과로 바꾸지 않는다. Spring API와 AI 연결의 구현 상태는 해당 문서에서 구분한다.
+
 Python 업무 도구·RoleResponse 검증 자료·State.ticketCreationResults 및 AiResult의 가산 필드 ticketCreationResults도 해당 도구 계약을 따른다. 순수 제안과 실제 서버 확인 결과를 구분하며 모델이 ticketId·배정 성공을 구성하지 않는다. Inquiry·Ticket의 runtime 경로와 Spring 업무 도구는 연결됐으며 Knowledge·Curator의 실제 검색/모델 역할·실행 SSE·전체 서비스 E2E는 별도로 검증한다.
 
 - **입력:** 문제별 표준 요청, 확인 사실·미확인 항목·허용 근거, 지원 시스템 목록과 서버가 제공한 기존 작업/티켓 결과.

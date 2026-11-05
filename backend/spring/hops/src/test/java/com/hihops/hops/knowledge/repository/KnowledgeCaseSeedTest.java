@@ -177,14 +177,20 @@ class KnowledgeCaseSeedTest {
     }
 
     @Test
-    void 사례_문서는_색인_전이라_공개_판정에서_제외된다() throws Exception {
+    void 사례_문서는_계약_규칙에서는_색인_전이라_제외되고_1차_SQL_규칙에서는_공개된다() throws Exception {
         loadSeeds();
 
         UUID versionId = jdbc.queryForObject("SELECT v.id FROM knowledge_document_version v JOIN knowledge_document d "
                 + "ON d.id = v.knowledge_document_id WHERE d.document_type = 'CASE' AND d.it_system_id = "
                 + "(SELECT id FROM it_system WHERE code = 'ELECTRONIC_APPROVAL') LIMIT 1", UUID.class);
-        // 현재 공개 규칙은 Vector·Neo4j 반영이 모두 SUCCEEDED여야 한다. 시드는 색인하지 않았으므로 PENDING이고 공개되지 않는다.
-        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(EA_OWNER))).isFalse();
+        // 계약 규칙(INDEXED)은 Vector·Neo4j 반영이 모두 SUCCEEDED여야 한다. 시드는 색인하지 않았으므로 PENDING이고 공개되지 않는다.
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(EA_OWNER), true)).isFalse();
+        // 1차 SQL 검색 규칙(APPROVED_SNAPSHOT)은 승인된 현재 스냅샷이면 공개한다. 색인 상태는 PENDING 그대로다.
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(EA_OWNER), false)).isTrue();
+        // 담당자 전용 사례는 다른 시스템 담당자와 문의자에게 어느 규칙에서도 공개되지 않는다.
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(LOGIN_OWNER), false)).isFalse();
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(REQUESTER1), false)).isFalse();
+        assertThat(count("SELECT count(*) FROM resolved_case WHERE vector_status = 'PENDING' AND graph_status = 'PENDING'")).isEqualTo(6);
     }
 
     @Test

@@ -98,15 +98,15 @@ class KnowledgeSeedTest {
         UUID runbook = versionId("runbook-ea-document-not-listed");
         UUID loginRunbook = versionId("runbook-login-sso-loop");
 
-        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(REQUESTER))).isTrue();
-        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(LOGIN_OWNER))).isTrue();
+        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(REQUESTER), false)).isTrue();
+        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(LOGIN_OWNER), false)).isTrue();
 
-        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(EA_OWNER))).isTrue();
-        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(LOGIN_OWNER))).isFalse();
-        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(REQUESTER))).isFalse();
+        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(EA_OWNER), false)).isTrue();
+        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(LOGIN_OWNER), false)).isFalse();
+        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(REQUESTER), false)).isFalse();
 
-        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(LOGIN_OWNER))).isTrue();
-        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(EA_OWNER))).isFalse();
+        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(LOGIN_OWNER), false)).isTrue();
+        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(EA_OWNER), false)).isFalse();
     }
 
     @Test
