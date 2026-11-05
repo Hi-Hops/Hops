@@ -185,6 +185,21 @@ public class ResolvedCase extends BaseEntity {
         this.versionNo++;
     }
 
+    /**
+     * 현재 초안을 승인한다. 내용·버전은 그대로 두고 승인자·시각을 남기며, 두 저장소 반영은 대기로 시작한다.
+     * 승인은 공개가 아니다. 두 반영이 같은 버전으로 성공해야 검색에 쓴다.
+     */
+    public void approve(Member approver, Instant at) {
+        if (caseStatus != CaseStatus.DRAFT) {
+            throw new IllegalStateException("이미 승인된 사례다");
+        }
+        this.caseStatus = CaseStatus.APPROVED;
+        this.approvedBy = approver;
+        this.approvedAt = at;
+        this.vectorStatus = IndexStatus.PENDING;
+        this.graphStatus = IndexStatus.PENDING;
+    }
+
     public int getVersionNo() {
         return versionNo;
     }

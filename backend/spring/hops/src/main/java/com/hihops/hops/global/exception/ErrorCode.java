@@ -44,6 +44,8 @@ public enum ErrorCode {
     TICKET_REVISION_CONFLICT(HttpStatus.CONFLICT, "티켓이 변경되었습니다. 최신 내용을 확인해 주세요.", false),
     // 보낸 expectedCaseVersion이 사례의 현재 버전과 다름. 최신 사례를 다시 읽고 비교한 뒤 새 requestId로 보낸다 (WIRE_CONTRACT 12.3)
     CASE_VERSION_CONFLICT(HttpStatus.CONFLICT, "사례가 변경되었습니다. 최신 내용을 확인해 주세요.", false),
+    // 원 기록의 문의자 해결 확인 등 승인 전제를 채우지 못함. 확인이 끝난 뒤 새 requestId로 다시 승인한다 (WIRE_CONTRACT 12.3)
+    APPROVAL_PRECONDITION_FAILED(HttpStatus.CONFLICT, "문의자의 해결 확인이 끝난 뒤에 승인할 수 있습니다.", false),
     RESOLUTION_REVISION_CONFLICT(HttpStatus.CONFLICT, "이미 응답했거나 확인 요청이 변경되었습니다.", false),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "지원하지 않는 본문 형식입니다.", false),
     TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", true),

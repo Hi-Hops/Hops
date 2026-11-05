@@ -71,6 +71,12 @@ public class KnowledgeDocument extends BaseEntity {
         this.dataSplit = dataSplit;
     }
 
+    /** 승인된 사례의 검색 문서를 검수 완료로 둔다. 합성 사례만 synthetic으로 표시한다. */
+    public void approve(boolean synthetic) {
+        this.reviewStatus = ReviewStatus.APPROVED;
+        this.synthetic = synthetic;
+    }
+
     public String getTitle() {
         return title;
     }

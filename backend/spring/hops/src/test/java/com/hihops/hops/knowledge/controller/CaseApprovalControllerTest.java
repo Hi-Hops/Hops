@@ -158,8 +158,8 @@ class CaseApprovalControllerTest extends CaseDraftFixture {
         assertThat(body.path("approvedAt").asString()).isNotBlank();
         assertThat(body.path("title").asString()).isEqualTo("가상 사례");
         assertThat(body.path("problemStatement").asString()).isEqualTo("가상 문제");
-        assertThat(body.path("action").asString()).isEqualTo("모델 제안 조치");
-        assertThat(body.path("verification").asString()).isEqualTo("모델 제안 검증");
+        assertThat(body.path("action").asString()).isEqualTo("실제 조치");
+        assertThat(body.path("verification").asString()).isEqualTo("정상 동작 확인");
         assertThat(body.path("applicability").asString()).isEqualTo("가상 환경 전용");
         assertThat(body.path("limitations")).isEqualTo(mapper.valueToTree(LIMITATIONS));
         assertThat(body.path("appliesToSystemVersion").isNull()).isTrue();

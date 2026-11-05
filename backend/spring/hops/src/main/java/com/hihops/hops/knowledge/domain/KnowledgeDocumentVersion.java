@@ -67,6 +67,10 @@ public class KnowledgeDocumentVersion extends CreatedOnlyEntity {
         this.sourceMetadata = sourceMetadata;
     }
 
+    public void approve() {
+        this.reviewStatus = ReviewStatus.APPROVED;
+    }
+
     public KnowledgeDocument getKnowledgeDocument() {
         return knowledgeDocument;
     }
