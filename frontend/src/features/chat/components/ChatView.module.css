@@ -1,4 +1,7 @@
+/* 제목·대화·입력창을 한 폭으로 가운데 모아 넓은 화면에서도 질문과 답변이 멀어지지 않게 한다. */
 .chat {
+  --chat-gutter: max(var(--space-7), calc((100% - var(--answer-width)) / 2));
+
   display: flex;
   flex-direction: column;
   height: calc(100dvh - var(--header-height));
@@ -10,7 +13,7 @@
   align-items: center;
   justify-content: space-between;
   min-height: 83px;
-  padding: var(--space-5) var(--space-7) var(--space-4);
+  padding: var(--space-5) var(--chat-gutter) var(--space-4);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
 }
@@ -43,7 +46,7 @@
   font-weight: var(--font-weight-semibold);
 }
 .log {
-  padding: var(--space-6) var(--space-7);
+  padding: var(--space-6) var(--chat-gutter);
   overflow-y: auto;
   overflow-anchor: none;
   flex: 1;
@@ -191,7 +194,7 @@
 .dock {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-7) var(--space-7);
+  padding: var(--space-3) var(--chat-gutter) var(--space-7);
 }
 .runError {
   width: min(var(--answer-width), 100%);
@@ -217,9 +220,6 @@
   }
 }
 @media (max-width: 600px) {
-  .chat {
-    height: calc(100dvh - 120px);
-  }
   .head {
     padding: var(--space-4);
   }
