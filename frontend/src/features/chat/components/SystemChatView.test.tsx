@@ -95,7 +95,8 @@ function chatState(resultRevision: number, active: boolean, problems = [problem]
     runQuery: { error: null, isError: false },
     subscription: { denied: false },
     items: [answer],
-    live: active ? { runId: 'run', text: '', steps: [] } : null,
+    live: active ? { runId: 'run', text: '' } : null,
+    trails: {},
     active,
     run: null,
     ready: !active,
@@ -179,4 +180,16 @@ it('F005-DETAIL-02 보고 시스템과 책임 시스템이 다른 저장 티켓�
   );
   expect(within(row).getByText(new RegExp(`보고 시스템 ${reported.name}`, 'u'))).toBeVisible();
   expect(within(row).getByText(`책임 ${responsible.name}`)).toBeVisible();
+});
+
+it('분석이 끝나 답변이 저장돼도 진행 단계는 해당 답변 위에 완료 기록으로 남는다', () => {
+  vi.mocked(useSystemChat).mockReturnValue({
+    ...chatState(1, false, []),
+    trails: { [answer.id]: [{ stepNo: 1, text: '가상 문의 내용을 확인했어요' }] },
+  });
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  const article = screen.getByRole('article', { name: 'Hops 답변' });
+  const steps = within(article).getByRole('list', { name: '완료된 진행 단계' });
+  expect(within(steps).getByText('가상 문의 내용을 확인했어요')).toBeVisible();
+  expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
