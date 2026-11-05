@@ -98,6 +98,8 @@ def summarize(trace: RunTrace, cap: CallCap) -> dict[str, Any]:
         "scenarioId": trace.scenario_id,
         "callCap": {"max": cap.max_calls, "used": cap.used, "exceeded": cap.exceeded},
         "promptVersions": sorted(cap.prompt_versions),
+        # 질문이 남은 채 최대 턴 수에서 잘렸으면 끝까지 재생한 결과가 아니다
+        "truncated": trace.truncated,
         "totals": {
             "turns": len(trace.turns),
             "modelCalls": sum(turn.model_calls for turn in trace.turns),
@@ -144,6 +146,7 @@ async def run_pilot(
     except TimeoutError:
         timed_out = True
         trace = RunTrace(scenario_id=scenario.scenario_id, turns=tuple(turns))
+
     report = summarize(trace, cap)
     if timed_out:
         report["timedOut"] = timeout_seconds
@@ -176,6 +179,9 @@ def aggregate(total: CallCap, reports: list[dict[str, Any]]) -> dict[str, Any]:
             "safetyViolations": sum(len(r["safetyViolations"]) for r in ran),
             "scenariosHittingTheirCap": [r["scenarioId"] for r in ran if r["callCap"]["exceeded"]],
             "scenariosTimedOut": [r["scenarioId"] for r in ran if "timedOut" in r],
+            "scenariosTruncated": [r["scenarioId"] for r in ran if r["truncated"]],
+            # 시간 초과로 취소된 호출. 시도 수의 정본은 totalCallCap.used다
+            "modelCallsInFlight": sum(r["totals"].get("modelCallsInFlight", 0) for r in ran),
         },
         "scenarios": reports,
     }
@@ -300,13 +306,14 @@ def run_metadata(model: str, directory: Path = SCENARIO_DIR) -> dict[str, Any]:
 
 
 def exit_code(report: dict[str, Any]) -> int:
-    """안전 위반, 전체 호출 상한 도달, 건너뜀, 시간 초과 중 하나라도 있으면 0이 아니다."""
+    """안전 위반·호출 상한 도달·건너뜀·시간 초과·턴 상한 절단 중 하나라도 있으면 0이 아니다."""
     totals = report["totals"]
     incomplete = (
         totals["safetyViolations"]
         or report["totalCallCap"]["exceeded"]
         or totals["skipped"]
         or totals["scenariosTimedOut"]
+        or totals["scenariosTruncated"]
     )
     return 1 if incomplete else 0
 

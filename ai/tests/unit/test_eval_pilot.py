@@ -285,3 +285,38 @@ async def test_exit_code_is_nonzero_when_a_scenario_timed_out() -> None:
     assert exit_code(clean) == 0
     assert timed_out["totals"]["scenariosTimedOut"] and not timed_out["totalCallCap"]["exceeded"]
     assert exit_code(timed_out) == 1  # 시간 초과만 있어도 성공으로 끝나지 않는다
+
+
+async def test_replay_cut_at_max_turns_is_marked_truncated_and_fails_the_exit_code() -> None:
+    from evaluation.harness.runner import RunConfig
+
+    cut = await run_batch(
+        three_scenarios()[:1],
+        llm=two_turn_llm(),
+        agents_for=lambda _: AGENTS,
+        max_calls=30,
+        config=RunConfig(max_turns=1),  # 첫 실행이 질문을 돌려준 채 끝난다
+    )
+    complete = await run_batch(
+        three_scenarios()[:1], llm=two_turn_llm(), agents_for=lambda _: AGENTS, max_calls=30
+    )
+
+    assert cut["scenarios"][0]["truncated"] is True
+    assert cut["totals"]["scenariosTruncated"] == ["S-batch-0-001"]
+    assert exit_code(cut) == 1
+    assert complete["scenarios"][0]["truncated"] is False
+    assert complete["totals"]["scenariosTruncated"] == []
+    assert exit_code(complete) == 0
+
+
+async def test_batch_totals_report_the_in_flight_calls_of_timed_out_scenarios() -> None:
+    report = await run_batch(
+        three_scenarios()[:2],
+        llm=SlowLLM(),
+        agents_for=lambda _: AGENTS,
+        max_calls=10,
+        scenario_timeout=0.05,
+    )
+
+    assert report["totals"]["modelCalls"] == 0
+    assert report["totals"]["modelCallsInFlight"] == report["totalCallCap"]["used"] == 2

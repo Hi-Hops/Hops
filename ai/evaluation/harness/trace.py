@@ -56,3 +56,5 @@ class RunTrace:
     turns: tuple[TurnTrace, ...]
     # 직원에게 보이면 안 되는 추가 문구(시나리오 정답의 금지 문구).
     extra_forbidden_phrases: tuple[str, ...] = ()
+    # 질문이 남은 채 최대 턴 수에 도달해 재생이 잘렸다. 끝까지 재생한 기록이 아니다.
+    truncated: bool = False

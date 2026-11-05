@@ -48,7 +48,8 @@ async def run_scenario(
         if on_turn is not None:
             on_turn(len(turns), turn)
 
-    for _ in range(cfg.max_turns):
+    truncated = False
+    for turn_number in range(1, cfg.max_turns + 1):
         log = CallLog()
         pipeline = SupervisorPipeline(
             RecordingLLM(llm, log),
@@ -109,8 +110,11 @@ async def run_scenario(
             )
         )
         request = next_request
+        # 마지막 허용 턴에서도 질문이 남아 있으면 다음 실행을 하지 못하고 끝난다
+        truncated = turn_number == cfg.max_turns
     return RunTrace(
         scenario_id=scenario.scenario_id,
         turns=tuple(turns),
         extra_forbidden_phrases=extra_forbidden_phrases,
+        truncated=truncated,
     )
