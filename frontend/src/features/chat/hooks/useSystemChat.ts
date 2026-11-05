@@ -61,6 +61,7 @@ export function useSystemChat(id: string) {
     {},
   );
   const answerId = current?.answerMessageId;
+  const active = isActive(displayedRun?.status);
   useEffect(() => {
     const offDelta = realtime.on('answer.delta', (event) => {
       if (event.inquiryId !== id || event.payload.messageId !== answerId) return;
@@ -89,7 +90,8 @@ export function useSystemChat(id: string) {
       if (event.target.type === 'INQUIRY' && event.target.id === id) {
         buffer.clear();
         setLive(idle);
-        if (answerId) setTrails((t) => ({ ...t, [answerId]: { runId, steps: [] } }));
+        // 종료된 실행의 완료 기록은 재동기화 뒤에도 답변 위에 남긴다.
+        if (answerId && active) setTrails((t) => ({ ...t, [answerId]: { runId, steps: [] } }));
       }
     });
     return () => {
@@ -97,7 +99,7 @@ export function useSystemChat(id: string) {
       offProgress();
       offReset();
     };
-  }, [actor, answerId, buffer, client, id, runId, version]);
+  }, [active, actor, answerId, buffer, client, id, runId, version]);
   useEffect(() => {
     if (!buffer.hasGaps) return;
     const timer = setTimeout(() => {
@@ -119,7 +121,6 @@ export function useSystemChat(id: string) {
     }
     return [...unique.values()].sort((a, b) => a.sequenceNo - b.sequenceNo);
   }, [messages.data]);
-  const active = isActive(displayedRun?.status);
   const steps = useMemo(
     () =>
       Object.fromEntries(

@@ -11,7 +11,22 @@ vi.mock('@/features/realtime', () => ({
   useSubscription: () => ({ denied: false, state: 'connected' }),
   ConnectionIndicator: () => null,
 }));
-vi.mock('@/shared/realtime', () => ({ realtime: { on: () => () => undefined } }));
+const handlers = vi.hoisted(() => new Map<string, Set<(event: unknown) => void>>());
+vi.mock('@/shared/realtime', () => ({
+  realtime: {
+    on: (name: string, handler: (event: unknown) => void) => {
+      const set = handlers.get(name) ?? new Set();
+      set.add(handler);
+      handlers.set(name, set);
+      return () => set.delete(handler);
+    },
+  },
+}));
+const emit = (name: string, event: unknown) => {
+  handlers.get(name)?.forEach((handler) => {
+    handler(event);
+  });
+};
 
 const inquiryId = crypto.randomUUID();
 const running: RunSummary = {
@@ -147,4 +162,57 @@ it('F004-CONTRACT-01 겹친 메시지 페이지는 높은 revision을 표시한�
   await waitFor(() => {
     expect(result.current.items).toEqual([revised]);
   });
+});
+
+it('종료된 실행의 진행 단계는 문의 스트림이 재동기화돼도 답변 위에 남는다', async () => {
+  const { result } = renderHook(() => useSystemChat(inquiryId), { wrapper });
+  await waitFor(() => {
+    expect(result.current.active).toBe(true);
+  });
+  act(() => {
+    emit('agent.progress', {
+      eventId: crypto.randomUUID(),
+      inquiryId,
+      inquiryVersion: running.inquiryVersion,
+      runId: running.id,
+      payload: { stepNo: 1, stepType: 'CHECK', displaySummary: '가상 진행 단계', status: 'DONE' },
+    });
+  });
+  const steps = [{ stepNo: 1, text: '가상 진행 단계' }];
+  expect(result.current.trails[answer.id]).toEqual(steps);
+  vi.mocked(api.getSystemInquiry).mockResolvedValue(snapshot({ ...running, status: 'SUCCEEDED' }));
+  vi.mocked(api.getSystemMessages).mockResolvedValue({
+    items: [answer],
+    nextBeforeSequenceNo: null,
+  });
+  await act(async () => {
+    await result.current.inquiry.refetch();
+  });
+  await waitFor(() => {
+    expect(result.current.active).toBe(false);
+  });
+  act(() => {
+    emit('stream.reset', { target: { type: 'INQUIRY', id: inquiryId } });
+  });
+  expect(result.current.trails[answer.id]).toEqual(steps);
+});
+
+it('실행 중 문의 스트림이 재동기화되면 임시 진행 단계를 비운다', async () => {
+  const { result } = renderHook(() => useSystemChat(inquiryId), { wrapper });
+  await waitFor(() => {
+    expect(result.current.active).toBe(true);
+  });
+  act(() => {
+    emit('agent.progress', {
+      eventId: crypto.randomUUID(),
+      inquiryId,
+      inquiryVersion: running.inquiryVersion,
+      runId: running.id,
+      payload: { stepNo: 1, stepType: 'CHECK', displaySummary: '가상 진행 단계', status: 'DONE' },
+    });
+  });
+  act(() => {
+    emit('stream.reset', { target: { type: 'INQUIRY', id: inquiryId } });
+  });
+  expect(result.current.trails[answer.id]).toBeUndefined();
 });
