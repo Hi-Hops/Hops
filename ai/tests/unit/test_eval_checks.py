@@ -207,6 +207,17 @@ def test_p6_confirmed_values_must_quote_the_source_message() -> None:
     assert ids(check_p6(run_trace(turn(request, unknown_source)))) == ["P6"]
 
 
+def test_p6_a_fact_with_an_empty_quote_is_not_grounded() -> None:
+    request = request_with((("m1", "전자결재에서 지난달 문서가 안 보여요"),))
+    for text in ("하려던 업무·화면: ", "하려던 업무·화면:    "):
+        empty = ai_result(request, problems=[problem_dict(PROBLEM, [fact(text, "m1")])])
+
+        violations = check_p6(run_trace(turn(request, empty)))
+
+        assert ids(violations) == ["P6"], repr(text)
+        assert "비어 있다" in violations[0].message
+
+
 # ---- P7 ----------------------------------------------------------------------------------------
 def asking(request, ref: str, field: str, text: str = "질문입니다."):
     return ai_result(request, answer=text, questions=[question(ref, text, field)])

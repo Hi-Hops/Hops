@@ -191,6 +191,9 @@ def check_p6(trace: RunTrace) -> list[Violation]:
                         found.append(Violation("P6", index, "사실의 출처 메시지가 요청에 없다"))
                         continue
                     quote = fact.text.split(": ", 1)[1] if ": " in fact.text else fact.text
+                    if not _compact(quote):
+                        found.append(Violation("P6", index, "사실의 인용이 비어 있다"))
+                        continue
                     source = _compact("".join(contents[ref] for ref in fact.sourceMessageIds))
                     if _compact(quote) not in source:
                         found.append(
