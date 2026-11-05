@@ -206,6 +206,8 @@ it('F005-DETAIL-05 접수 결과 모달은 티켓 번호·책임 시스템·담�
   expect(within(stored).getByText(person.name)).toBeVisible();
   expect(within(missing).getByText('미생성 확인')).toBeVisible();
   expect(within(dialog).getByText(/1건은 저장하지 못했어요/)).toBeVisible();
+  const panel = screen.getByRole('region', { name: '문제별 처리 결과', hidden: true });
+  expect(within(panel).getByText('티켓 없음')).toBeInTheDocument();
 });
 
 it('F005-DETAIL-05 긴 티켓 번호는 앞자리 0을 줄여 표시하고 전체 번호를 title에 남긴다', async () => {

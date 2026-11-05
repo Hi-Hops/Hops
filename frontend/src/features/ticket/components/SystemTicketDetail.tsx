@@ -239,10 +239,10 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
     allowed &&
     !subscription.denied &&
     (admin || !['connecting', 'disconnected'].includes(subscription.state));
-  const heading =
-    data && query.isSuccess && visible
-      ? displayTicketNumber(data.ticketNumber) + ' · ' + data.title
-      : '티켓 상세';
+  const shownTicket = data && query.isSuccess && visible ? data : null;
+  const heading = shownTicket
+    ? displayTicketNumber(shownTicket.ticketNumber) + ' · ' + shownTicket.title
+    : '티켓 상세';
   const content =
     !allowed || subscription.denied ? (
       <ErrorState title="이 시스템 티켓을 볼 권한이 없어요" />
@@ -426,6 +426,7 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
   return (
     <RouteModal
       title={heading}
+      titleHint={shownTicket?.ticketNumber}
       description={admin ? '업무 관리자 · 제한된 상세' : '표준 요청·근거·배정 정보'}
       onClose={onClose}
       returnFocusId={returnFocusId ?? 'ticket-' + id}

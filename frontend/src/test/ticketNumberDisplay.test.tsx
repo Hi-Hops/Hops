@@ -58,7 +58,7 @@ it('F009-CONTRACT-01 목록 표는 티켓 번호를 줄여 표시하고 전체 �
   expect(screen.queryByText(serverNumber)).not.toBeInTheDocument();
 });
 
-it('F009-CONTRACT-01 티켓 상세 제목은 줄인 번호를 표시하고 응답의 전체 번호는 유지한다', async () => {
+it('F009-CONTRACT-01 티켓 상세 제목은 줄인 번호를 표시하고 전체 번호를 title에 남긴다', async () => {
   const page = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
   const ticket = page.items[0];
   if (!ticket) throw new Error('가상 티켓 없음');
@@ -70,7 +70,9 @@ it('F009-CONTRACT-01 티켓 상세 제목은 줄인 번호를 표시하고 응�
   );
   const dialog = await screen.findByRole('dialog', { name: new RegExp(`· ${ticket.title}$`, 'u') });
   const shown = `T-${ticket.ticketNumber.slice(2).replace(/^0+/u, '').padStart(4, '0')}`;
-  expect(within(dialog).getByRole('heading', { level: 2 }).textContent).toContain(shown);
+  const heading = within(dialog).getByRole('heading', { level: 2 });
+  expect(heading.textContent).toContain(shown);
+  expect(heading).toHaveAttribute('title', ticket.ticketNumber);
   expect(screen.queryByText(ticket.ticketNumber)).not.toBeInTheDocument();
   realtime.disconnect();
 });

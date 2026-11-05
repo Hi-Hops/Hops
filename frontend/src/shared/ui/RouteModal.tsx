@@ -4,6 +4,8 @@ import { Button } from './Button';
 import styles from './RouteModal.module.css';
 type RouteModalProps = {
   title: string;
+  /** 제목을 줄여 표시할 때 마우스를 올리면 보여줄 전체 값. */
+  titleHint?: string | undefined;
   description: string;
   onClose: () => void;
   returnFocusId?: string;
@@ -14,6 +16,7 @@ type RouteModalProps = {
 };
 export function RouteModal({
   title,
+  titleHint,
   description,
   onClose,
   returnFocusId,
@@ -43,7 +46,7 @@ export function RouteModal({
         >
           <header className={styles.header}>
             <div>
-              <Dialog.Title>{title}</Dialog.Title>
+              <Dialog.Title title={titleHint}>{title}</Dialog.Title>
               <Dialog.Description>{description}</Dialog.Description>
             </div>
             <Dialog.Close asChild>

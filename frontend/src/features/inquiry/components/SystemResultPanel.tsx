@@ -142,7 +142,7 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
     const outcome = problem.creationResult?.outcome;
     return {
       tone: outcome === 'NOT_CREATED' ? 'danger' : 'attention',
-      lead: '—',
+      lead: '티켓 없음',
       leadTone: 'muted',
       title: problem.summary,
       aside: <CreationAction inquiry={inquiry} problem={problem} />,
