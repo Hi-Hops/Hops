@@ -50,7 +50,7 @@ Knowledge 연결 이후 상담 경로와 검색을 어떻게 평가할지 정한
 
 ## 반복 실행
 
-- 시나리오마다 같은 입력을 N회 실행한다. 초기 제안은 개발 시나리오 N=5이고, 모델 호출 수와 변동성을 보고 조정한다. 한 실행은 모델 호출이 대략 5회 안팎이라 시나리오 30개 × 5회는 수백 회 규모의 호출이 된다(추정). 실행 전에 호출 수와 비용 상한을 정한다.
+- 시나리오마다 같은 입력을 N회 실행한다. 초기 제안은 개발 시나리오 N=5이고, 모델 호출 수와 변동성을 보고 조정한다. 한 실행은 모델 호출이 대략 5회 안팎이라 개발 시나리오 12개 × 5회는 60회 실행, 호출 수백 회 규모가 된다(추정). 실행 전에 호출 수와 비용 상한을 정한다.
 - 통과율은 시나리오·성질별로 따로 낸다. 전체 평균 하나로 합치지 않는다.
 - 안전 성질은 모든 실행에서 위반이 없어야 한다. 하나라도 있으면 해당 시나리오를 실패로 기록하고 원인을 남긴다.
 - 행동 성질의 통과율 목표는 소량 측정 뒤에 정한다. 지금은 수치를 정하지 않는다.
@@ -58,7 +58,7 @@ Knowledge 연결 이후 상담 경로와 검색을 어떻게 평가할지 정한
 
 ## 개발과 테스트 분할
 
-- 시나리오는 사건 계열 단위로 개발(`DEV`)과 테스트(`TEST`)로 나눈다. 초기 제안은 30개 중 개발 18, 테스트 12다.
+- 시나리오는 사건 계열 단위로 개발(`DEV`)과 테스트(`TEST`)로 나눈다. 초기 제안은 20개 중 개발 12, 테스트 8이다. 시나리오 목록은 [가상 기업 정본](VIRTUAL_COMPANY.md)의 카탈로그를 따른다.
 - 테스트 시나리오는 동결한다. 프롬프트·규칙·검색 설정을 조정하는 데 사용하지 않는다. 최종 측정에서만 실행한다.
 - 테스트 결과를 본 뒤 조정했다면 그 시나리오는 개발로 옮기고 새 테스트를 만든다.
 - 개발 시나리오로 조정한 결과를 일반 성능으로 보고하지 않는다.
@@ -69,14 +69,14 @@ Knowledge 연결 이후 상담 경로와 검색을 어떻게 평가할지 정한
 
 ```json
 {
-  "scenarioId": "S-ea-search-001",
+  "scenarioId": "S-ea-search-howto-001",
   "expectedIntent": "HOW_TO",
   "expectedSystemCode": "ELECTRONIC_APPROVAL",
   "requiredFields": ["taskOrScreen"],
   "mustNotAskFields": ["occurredAt"],
   "allowedFinalActions": ["ANSWER_GUIDE"],
-  "relevantEvidence": ["guide-ea-search-document@1"],
-  "forbiddenEvidence": ["runbook-ea-index-missing@1"],
+  "relevantEvidence": ["guide-ea-document-search@1"],
+  "forbiddenEvidence": ["runbook-ea-document-not-listed@1"],
   "properties": ["P1", "P2", "P3", "P7", "B2"]
 }
 ```

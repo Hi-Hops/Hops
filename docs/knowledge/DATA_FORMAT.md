@@ -2,7 +2,7 @@
 
 가이드·정책·런북·기준 대화 시나리오·시드 해결 사례·그래프 시드·평가 정답을 만들 때 쓸 **형식 검토안**이다. 실제 레코드를 만들기 전에 팀이 형식에 먼저 합의하려는 문서이며, 수량과 내용은 [데이터 구축 계획](DATASETS.md)과 [가상 기업 명세](VIRTUAL_COMPANY.md)를 따른다. 업무 정본의 테이블·컬럼은 [물리 ERD](../ERD.md), 검색 근거의 전송 형식은 [공통 계약](../../specs/contracts/README.md)이 정한다. 이 문서는 둘을 대체하지 않고, 작성 단계에서 어떤 값을 채워야 두 곳에 그대로 옮길 수 있는지만 정리한다.
 
-폴더 구조와 파일명은 3b 데이터셋 단계(`feature/142-knowledge-dataset`)에서 소량 데이터를 만들면서 정한다. 여기서는 논리 구분만 둔다.
+지식 문서 원본은 `docs/knowledge/corpus/`에 두고 파일명을 `documentKey`로 한다. 시나리오와 평가 정답은 `ai/evaluation/`에 둔다. 문서·시나리오 목록은 [가상 기업 정본](VIRTUAL_COMPANY.md)의 카탈로그를 따른다.
 
 ## 공통 원칙
 
@@ -30,7 +30,7 @@ Spring 저장값, AI 계약 값, 작성 단계 값이 이름이 다르다. 데�
 
 ```markdown
 ---
-documentKey: guide-ea-search-document     # 안정 식별자
+documentKey: guide-ea-document-search     # 안정 식별자. 규칙: {종류}-{시스템}-{주제}
 kind: GUIDE                                # GUIDE | POLICY | RUNBOOK
 title: 전자결재에서 지난 문서 찾기
 systemCode: ELECTRONIC_APPROVAL            # ELECTRONIC_APPROVAL | COMMON_LOGIN | FILE_SHARING | 공통이면 생략
@@ -68,8 +68,8 @@ source:
 
 ```json
 {
-  "scenarioId": "S-ea-search-001",
-  "caseFamily": "ea-search-period",
+  "scenarioId": "S-ea-search-time-unknown-001",
+  "caseFamily": "ea-search-time-unknown",
   "split": "DEV",
   "origin": "SYNTHETIC",
   "actor": { "role": "EMPLOYEE", "primarySystemCodes": [] },
