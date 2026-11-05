@@ -1,0 +1,258 @@
+{
+  "totalCallCap": {
+    "max": 40,
+    "used": 16,
+    "exceeded": false
+  },
+  "promptVersions": [
+    "inquiry-extraction-v5",
+    "supervisor.decision.v6",
+    "ticket.proposal.v2"
+  ],
+  "totals": {
+    "scenarios": 2,
+    "skipped": 0,
+    "modelCalls": 16,
+    "inputTokens": 31424,
+    "outputTokens": 1525,
+    "seconds": 51.73,
+    "safetyViolations": 0,
+    "scenariosHittingTheirCap": [],
+    "scenariosTimedOut": []
+  },
+  "scenarios": [
+    {
+      "scenarioId": "S-system-correction-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "promptVersions": [
+        "inquiry-extraction-v5",
+        "supervisor.decision.v6",
+        "ticket.proposal.v2"
+      ],
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15728,
+        "outputTokens": 765,
+        "seconds": 25.81
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5379,
+          "outputTokens": 235,
+          "seconds": 9.87,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "expectedBehavior",
+                "occurredAt"
+              ],
+              "text": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 지운 파일",
+                "actualBehavior": "지운 파일이 안 보여요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 지운 파일",
+                "실제 동작: 지운 파일이 안 보여요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "지운 파일이 다시 보여야 해요. 어제 오후부터요. 아, 전자결재가 아니라 파일 공유 시스템 이야기였어요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 10349,
+          "outputTokens": 530,
+          "seconds": 15.94,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+              "intent": "OBSERVED_SYMPTOM",
+              "processingType": "INVESTIGATION",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+                "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+                "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+                "occurredAt": "어제 오후부터요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재에서 지운 파일",
+                "실제 동작: 지운 파일이 안 보여요.",
+                "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+                "기대한 동작: 지운 파일이 다시 보여야 해요.",
+                "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+                "발생 시점: 어제 오후부터요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    },
+    {
+      "scenarioId": "S-ea-notify-improvement-001",
+      "callCap": {
+        "max": 30,
+        "used": 8,
+        "exceeded": false
+      },
+      "promptVersions": [
+        "inquiry-extraction-v5",
+        "supervisor.decision.v6",
+        "ticket.proposal.v2"
+      ],
+      "totals": {
+        "turns": 2,
+        "modelCalls": 8,
+        "inputTokens": 15696,
+        "outputTokens": 760,
+        "seconds": 25.92
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 5382,
+          "outputTokens": 278,
+          "seconds": 10.49,
+          "roles": [
+            "INQUIRY"
+          ],
+          "questions": [
+            {
+              "problemRef": "new:1",
+              "fields": [
+                "currentWorkflow"
+              ],
+              "text": "지금은 이 일을 어떻게 진행하고 계신가요?"
+            }
+          ],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "IMPROVEMENT_REQUEST",
+              "processingType": "CHANGE_REQUEST",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재의 결재 알림",
+                "actualBehavior": "불편해서",
+                "desiredChange": "개선을 요청하고 싶어요"
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재의 결재 알림",
+                "실제 동작: 불편해서",
+                "바라는 변경: 개선을 요청하고 싶어요"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "지금은 이 일을 어떻게 진행하고 계신가요?",
+          "guide": null,
+          "ticketProposals": 0,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": "알림이 없어서 결재함에 자주 들어가 확인해요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 5,
+          "inputTokens": 10314,
+          "outputTokens": 482,
+          "seconds": 15.42,
+          "roles": [
+            "INQUIRY",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "42a4445f-2de2-5fe5-a6f4-8ae3bc908258",
+              "intent": "IMPROVEMENT_REQUEST",
+              "processingType": "CHANGE_REQUEST",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재의 결재 알림",
+                "actualBehavior": "알림이 없어서",
+                "currentWorkflow": "결재함에 자주 들어가 확인해요.",
+                "desiredChange": "개선을 요청하고 싶어요."
+              },
+              "facts": [
+                "하려던 업무·화면: 전자결재의 결재 알림",
+                "실제 동작: 불편해서",
+                "바라는 변경: 개선을 요청하고 싶어요",
+                "현재 진행 방식: 결재함에 자주 들어가 확인해요.",
+                "실제 동작: 알림이 없어서",
+                "바라는 변경: 개선을 요청하고 싶어요."
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 0,
+          "error": null,
+          "userReply": null
+        }
+      ],
+      "safetyViolations": []
+    }
+  ],
+  "run": {
+    "startedAt": "2026-11-05T03:41:56+00:00",
+    "gitCommit": "be02a6defe37a0e11dfc7f3c1d62cc9cbcbdc654",
+    "gitDirty": true,
+    "model": "gpt-6-luna",
+    "knowledgeSource": "FIXTURE(개발용 고정 자료, 가상 기업 문서 아님)",
+    "runLimits": {
+      "maxModelCalls": 8,
+      "maxInputTokens": 60000,
+      "maxOutputTokens": 12000,
+      "maxToolCalls": 10,
+      "maxRetries": 2
+    }
+  }
+}

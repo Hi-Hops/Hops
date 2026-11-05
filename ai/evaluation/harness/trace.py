@@ -42,6 +42,10 @@ class TurnTrace:
     unknown_after: tuple[tuple[str, str], ...] = ()
     # 이 실행의 결과에서 새 문제 참조("new:...")에 서버가 부여한 문제 ID.
     ref_map: tuple[tuple[str, str], ...] = ()
+    # 공급자가 보고한 토큰 합계. 실패한 원격 호출의 미보고 사용량은 포함하지 않는다.
+    input_tokens: int = 0
+    output_tokens: int = 0
+    elapsed_seconds: float = 0.0
 
 
 @dataclass(frozen=True)

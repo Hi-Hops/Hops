@@ -7,7 +7,7 @@
     "role": "EMPLOYEE",
     "primarySystemCodes": []
   },
-  "firstMessage": "전자결재에서 내 결재 차례가 오면 알려주면 좋겠어요.",
+  "firstMessage": "전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
   "userKnowledge": {
     "systemCode": "ELECTRONIC_APPROVAL",
     "currentWorkflow": "알림이 없어서 결재함에 자주 들어가 확인해요.",

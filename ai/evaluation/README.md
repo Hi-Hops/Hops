@@ -12,7 +12,10 @@
 | `harness/spring_stub.py` | Spring이 AI 결과로 다음 실행 입력을 만드는 일을 흉내 내는 얇은 대역 |
 | `harness/recorders.py` | 런타임 코드를 바꾸지 않고 역할 호출(검색 상태·근거)과 모델 호출 수를 기록 |
 | `harness/scenario.py` | 시나리오 JSON 형식과 검증 |
+| `harness/budget.py` | 평가 전체의 모델 호출 상한(Spring의 실행당 한도와 별개). 호출 전에 소모해 상한을 넘는 원격 호출이 일어나지 않게 한다 |
+| `pilot.py` | 실제 모델로 시나리오를 한 번씩 재생하는 실행 도구. 호출·토큰·시간·위반과 실행 조건을 보고한다 |
 | `harness/validate.py` | 시나리오·정답 형식·정합성 검사, 정본 문서의 표(문서 카탈로그·시나리오 카탈로그) 읽기 |
+| `baselines/` | 정리 전 구조의 실제 모델 기준선(개발용 12개 × 1회)의 원본 보고서와 해석. 비교의 출발점이며 일반 성능이 아니다 |
 | `scenarios/`, `golds/` | 시나리오 20개(`DEV` 12·`TEST` 8)와 평가 정답, 파일 이름은 `scenarioId`. 정답은 런타임이 읽지 못하는 이 위치에만 둔다 |
 
 ## 읽을 때 알아둘 것
@@ -32,5 +35,13 @@ cd ai
 uv run pytest tests/unit/test_eval_*.py
 uv run python -m evaluation.harness.validate
 ```
+
+실제 모델 호출은 사용자가 모델·호출 상한·비용을 승인한 뒤 직접 실행한다. 진행 상황은 stderr에 나오고 `--out`에는 시나리오가 끝날 때마다 저장된다. 시나리오당 시간 제한 기본값은 240초다.
+
+```bash
+OPENAI_API_KEY=... uv run python -m evaluation.pilot --split DEV --max-calls 150 --out /tmp/baseline-dev.json
+OPENAI_API_KEY=... uv run python -m evaluation.pilot system-correction ea-notify-improvement --max-calls 40
+```
+
 
 두 번째 명령은 시나리오·정답 파일을 검사한다(모델을 부르지 않는다). 통과해도 내용이 사실에 맞는다는 뜻은 아니며 사람이 검수한다.

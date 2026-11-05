@@ -4,7 +4,7 @@
     {
       "problemKey": "p1",
       "acceptedIntents": [
-        "HOW_TO"
+        "OBSERVED_SYMPTOM"
       ],
       "reportedSystemCode": "FILE_SHARING",
       "responsibleSystemCodes": [
@@ -12,12 +12,13 @@
       ],
       "requiredFields": [
         "taskOrScreen",
-        "expectedBehavior"
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
       ],
       "mustNotAskFields": [
         "system",
-        "occurredAt",
-        "actualBehavior",
+        "currentWorkflow",
         "requestedAccess",
         "businessPurpose",
         "desiredChange"
@@ -27,7 +28,7 @@
       ],
       "assessment": {
         "acceptedVerdicts": [
-          "NO_MATCH",
+          "PARTIAL",
           "INSUFFICIENT"
         ],
         "missingInformation": []

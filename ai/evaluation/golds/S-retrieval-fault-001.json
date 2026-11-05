@@ -21,7 +21,8 @@
         "desiredChange"
       ],
       "allowedFinalActions": [
-        "PROPOSE_TICKET"
+        "PROPOSE_TICKET",
+        "FAIL_RETRYABLE"
       ],
       "assessment": null,
       "relevantEvidence": [],

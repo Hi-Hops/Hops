@@ -260,7 +260,7 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 | 8 | `ea-search-time-unknown` | 현상 | 전자결재 | 문서가 안 보이는데 **발생 시점을 모름** | 미확인 보존, 재질문 없이 진행 | `runbook-ea-document-not-listed` | DEV |
 | 9 | `ea-notify-improvement` | 개선 | 전자결재 | 결재 대기 알림 개선 요청. 사용자는 **바라는 변경을 끝내 모름** | 미확인을 보존해 담당자 전달 | - | DEV |
 | 10 | `composite-search-permission` | 복합 | 전자결재 + 공통 로그인 | 문서 조회 방법과 권한 신청을 한 번에 문의 | 문제별로 진행(한 문제가 다른 문제를 막지 않음) | `guide-ea-document-search`, `guide-login-permission-request` | DEV |
-| 11 | `system-correction` | 사용법 | 정정 | 처음 말한 시스템이 틀렸다고 **정정** | 최신 사실 반영, 같은 질문 반복 없음 | - | DEV |
+| 11 | `system-correction` | 현상 | 정정 | 파일 공유의 삭제 파일 문의인데 처음에 전자결재라고 말했다가 **정정** | 최신 사실 반영, 같은 질문 반복 없음 | - | DEV |
 | 12 | `retrieval-fault` | 사용법 | 전자결재 | **검색 서비스 오류**(결함 주입)와 0건의 구분 | 오류를 "근거 없음"으로 바꾸지 않음 | - | DEV |
 | 13 | `file-sharelink-howto` | 사용법 | 파일 공유 | 공유 링크 만드는 방법 | 안내로 종결 | `guide-file-share-link`, `policy-file-share-scope` | TEST |
 | 14 | `file-folder-access` | 권한 신청 | 파일 공유 | 폴더 접근 권한 요청 | 정책 안내와 필요한 신청 정보 | `policy-file-share-scope` | TEST |

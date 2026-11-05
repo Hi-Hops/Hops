@@ -90,7 +90,7 @@ Knowledge 연결 이후 상담 경로와 검색을 어떻게 평가할지 정한
 
 - 문제마다 한 항목이며 복합 문의는 항목이 둘 이상이다. `problemKey`는 문의에 나온 순서의 `p1`, `p2`다.
 - `acceptedIntents`·`allowedFinalActions`·`responsibleSystemCodes`·`acceptedVerdicts`는 **허용 집합**이다. 하나의 정확한 값이나 순서가 아니라 "이 중 하나면 된다"를 뜻한다. 보고 시스템과 책임 시스템이 다를 수 있는 문제(로그인 반복 등)는 `responsibleSystemCodes`에 둘 다 둔다.
-- `allowedFinalActions` 어휘: `ANSWER_GUIDE`(안내로 종결), `PROPOSE_TICKET`(담당자 검토 제안), `AWAIT_SYSTEM`(시스템 확인 대기), `NOTICE_OUT_OF_SCOPE`(범위 안내).
+- `allowedFinalActions` 어휘: `ANSWER_GUIDE`(안내로 종결), `PROPOSE_TICKET`(담당자 검토 제안), `AWAIT_SYSTEM`(시스템 확인 대기), `NOTICE_OUT_OF_SCOPE`(범위 안내), `FAIL_RETRYABLE`(재시도 가능한 실패로 끝남. 검색 오류를 근거 없음으로 바꾸지 않는 안전한 종결이며, 현재 구조는 검색 오류에서 이렇게 끝난다).
 - `requiredFields`·`mustNotAskFields`·`missingInformation`은 질문 필드 이름(`system`, `taskOrScreen` 등)을 쓴다. 사용자가 모른다고 한 필수 필드는 `missingInformation`에 있어야 한다.
 - `assessment`는 Knowledge 충분성 판정([AI 에이전트 구조](../ai/AGENT_ARCHITECTURE.md))의 허용 판정이다. 판정을 기대하지 않는 문제(시스템 미확인·범위 밖·검색 오류 주입)는 `null`이다. 지금 코드에는 이 판정이 없으므로 현재 결과 채점에는 쓰지 않고 #181 이후 평가에 쓴다.
 - `relevantEvidence`는 직원에게 인용해도 되는 문서, `forbiddenEvidence`는 직원 응답에 나오면 안 되는 문서(담당자 전용 런북, 방해 문서)다. 담당자 전용 문서는 `relevantEvidence`에 둘 수 없다. 검색 오류를 주입한 시나리오는 근거를 기대하지 않는다.
@@ -129,4 +129,5 @@ Knowledge 연결 이후 상담 경로와 검색을 어떻게 평가할지 정한
 - 실행한 검증과 실행하지 않은 검증을 구분해 쓴다. 문서·형식 검사와 Fake 모델 단위 테스트는 실제 모델 품질을 대신하지 않는다.
 - 실제 모델 결과는 사용한 시나리오 수·반복 횟수·모델·데이터 버전과 함께 쓴다. 소수 표본의 통과를 일반화하지 않는다.
 - 모델이 같은 모델로 자기 답을 사후 검토한 결과는 참고로만 쓴다. 판정 기준은 위 성질이다.
+- 정리 전 구조의 실제 모델 기준선(개발용 12개 × 1회, 호출·토큰·한계 포함)은 [기준선 기록](../../ai/evaluation/baselines/README.md)에 있다. 소수 표본이며 정리 뒤 비교의 출발점으로만 쓴다.
 - 개인 로컬 실험 자료(`.local/` 등)는 이 평가의 근거로 링크하지 않는다. 팀이 채택한 데이터와 병합된 문서만 근거로 쓴다.

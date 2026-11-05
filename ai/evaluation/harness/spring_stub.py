@@ -21,12 +21,13 @@ from evaluation.harness.catalog import SYSTEMS
 from evaluation.harness.scenario import Scenario
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 
+# Spring의 `hops.agent.run.limits.*`(application.properties)와 같은 값이다. 바뀌면 맞춘다.
 DEFAULT_LIMITS = {
     "maxModelCalls": 8,
     "maxInputTokens": 60_000,
-    "maxOutputTokens": 8_000,
-    "maxToolCalls": 3,
-    "maxRetries": 1,
+    "maxOutputTokens": 12_000,
+    "maxToolCalls": 10,
+    "maxRetries": 2,
 }
 
 

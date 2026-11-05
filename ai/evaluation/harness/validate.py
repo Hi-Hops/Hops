@@ -36,7 +36,13 @@ INTENTS = (
     "OUT_OF_SCOPE",
 )
 # 문제가 끝나는 상태. 호출 순서가 아니라 허용되는 끝 상태의 집합이다.
-FINAL_ACTIONS = ("ANSWER_GUIDE", "PROPOSE_TICKET", "AWAIT_SYSTEM", "NOTICE_OUT_OF_SCOPE")
+FINAL_ACTIONS = (
+    "ANSWER_GUIDE",
+    "PROPOSE_TICKET",
+    "AWAIT_SYSTEM",
+    "NOTICE_OUT_OF_SCOPE",
+    "FAIL_RETRYABLE",
+)
 VERDICTS = ("SUFFICIENT", "PARTIAL", "INSUFFICIENT", "NO_MATCH")
 BEHAVIOR_PROPERTIES = ("B1", "B2", "B3", "B4", "B5", "B6")
 SYSTEM_CODES = tuple(system["code"] for system in SYSTEMS)

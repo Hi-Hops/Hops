@@ -4,7 +4,8 @@ AI가 질문하면 규칙 사용자가 답하고 Spring 대역이 다음 실행 
 실패하면 끝난다. 모델은 호출자가 주는 `llm`이며, 이 모듈은 어떤 모델도 만들지 않는다.
 """
 
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from evaluation.harness.recorders import CallLog, RecordingAgent, RecordingLLM
@@ -34,12 +35,19 @@ async def run_scenario(
     agents: Mapping[AgentRole, Agent],
     config: RunConfig | None = None,
     extra_forbidden_phrases: tuple[str, ...] = (),
+    on_turn: Callable[[int, TurnTrace], None] | None = None,
 ) -> RunTrace:
     """시나리오를 재생한다. 역할 구성(`agents`)은 호출자가 정한다(스크립트 역할 또는 실제 역할)."""
     cfg = config or RunConfig()
     stub = SpringStub(scenario, limits=dict(cfg.limits) if cfg.limits else None)
     request = stub.first_request()
     turns: list[TurnTrace] = []
+
+    def record(turn: TurnTrace) -> None:
+        turns.append(turn)
+        if on_turn is not None:
+            on_turn(len(turns), turn)
+
     for _ in range(cfg.max_turns):
         log = CallLog()
         pipeline = SupervisorPipeline(
@@ -53,32 +61,40 @@ async def run_scenario(
             access_scope_ref="evaluation-harness",
             settings=Settings(_env_file=None),
         )
+        started = time.monotonic()
         try:
             result = await pipeline.run(request, context)
         except Exception as exc:  # 실행 전 거부 등. 성공/실패 결과를 만들어 내지 않는다.
-            turns.append(
+            record(
                 TurnTrace(
                     request=request,
                     result=None,
                     role_calls=tuple(log.role_calls),
                     model_calls=log.model_calls,
                     error=type(exc).__name__,
+                    input_tokens=log.input_tokens,
+                    output_tokens=log.output_tokens,
+                    elapsed_seconds=time.monotonic() - started,
                 )
             )
             break
+        elapsed = time.monotonic() - started
         if result.status != "SUCCEEDED" or not result.questions:
-            turns.append(
+            record(
                 TurnTrace(
                     request=request,
                     result=result,
                     role_calls=tuple(log.role_calls),
                     model_calls=log.model_calls,
+                    input_tokens=log.input_tokens,
+                    output_tokens=log.output_tokens,
+                    elapsed_seconds=elapsed,
                 )
             )
             break
         reply = reply_to(scenario, result.questions, turn=len(turns) + 1)
         next_request, ref_map = stub.advance(result, reply.text)
-        turns.append(
+        record(
             TurnTrace(
                 request=request,
                 result=result,
@@ -87,6 +103,9 @@ async def run_scenario(
                 user_reply=reply.text,
                 unknown_after=reply.unknown,
                 ref_map=ref_map,
+                input_tokens=log.input_tokens,
+                output_tokens=log.output_tokens,
+                elapsed_seconds=elapsed,
             )
         )
         request = next_request

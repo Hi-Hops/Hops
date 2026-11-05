@@ -17,10 +17,12 @@ class CallLog:
     def __init__(self) -> None:
         self.role_calls: list[RoleCall] = []
         self.model_calls = 0
+        self.input_tokens = 0
+        self.output_tokens = 0
 
 
 class RecordingLLM:
-    """모델 호출 횟수를 센다. 재시도도 별도 호출로 센다."""
+    """모델 호출 횟수와 공급자가 보고한 토큰을 센다. 재시도도 별도 호출로 센다."""
 
     def __init__(self, inner: LLMClient, log: CallLog) -> None:
         self._inner = inner
@@ -28,7 +30,11 @@ class RecordingLLM:
 
     async def generate[T: BaseModel](self, request: LLMRequest[T]) -> LLMResponse[T]:
         self._log.model_calls += 1
-        return await self._inner.generate(request)
+        response = await self._inner.generate(request)
+        usage = getattr(response, "usage", None)
+        self._log.input_tokens += getattr(usage, "input_tokens", 0)
+        self._log.output_tokens += getattr(usage, "output_tokens", 0)
+        return response
 
 
 class RecordingAgent:
