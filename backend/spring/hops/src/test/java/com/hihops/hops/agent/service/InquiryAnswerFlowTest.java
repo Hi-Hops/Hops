@@ -247,8 +247,9 @@ class InquiryAnswerFlowTest {
         JsonNode payload = jsonMapper.readTree(answer.get("payload").toString());
         assertThat(payload.path("answerRunId").asString()).isEqualTo(runId.toString());
         assertThat(payload.path("pendingTarget").asBoolean(true)).isFalse();
+        // 결과 차수는 티켓 생성 결과용이라 AI 답변만 저장해서는 늘지 않는다 (DATA_TYPES InquiryResult)
         assertThat(jdbc.queryForObject("SELECT result_revision FROM inquiry WHERE id = ?", Integer.class, inquiryId))
-                .isEqualTo(2);
+                .isEqualTo(1);
 
         // 화면이 쓰는 조회 API로도 보인다
         mockMvc.perform(as(get("/api/v2/runs/" + runId)))
@@ -273,8 +274,6 @@ class InquiryAnswerFlowTest {
         dispatcher.deliver(runId);
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id = ?", Long.class, inquiryId)).isEqualTo(2);
-        assertThat(jdbc.queryForObject("SELECT result_revision FROM inquiry WHERE id = ?", Integer.class, inquiryId))
-                .isEqualTo(2);
     }
 
     @Test

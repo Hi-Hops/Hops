@@ -13,7 +13,7 @@ import com.hihops.hops.inquiry.domain.InquiryStatus;
 /**
  * 문의 상세 (specs/contracts/DATA_TYPES.md 신규 절 InquiryResult).
  *
- * <p>inquiryVersion은 DB 문의 버전(1부터)을 그대로 쓴다. resultRevision은 AI 결과를 적용할 때마다 늘어나는 별도 값이다.
+ * <p>inquiryVersion은 DB 문의 버전(1부터)을 그대로 쓴다. resultRevision은 티켓 생성 결과나 해결 응답이 바뀔 때 늘어나는 별도 값이다.
  *
  * @param problems   문제별 결과 (문제 번호 순). 담당자 내부 표준 요청서는 담지 않는다
  * @param currentRun 마지막으로 접수한 상담 실행. 실행이 끝나도 다음 실행 전까지 그대로 가리킨다

@@ -118,11 +118,10 @@ class InquiryAnswerHandlerTest {
     }
 
     @Test
-    void 정상_결과는_예약한_ID로_답변을_저장하고_결과_차수를_올린다() {
+    void 정상_결과는_예약한_ID로_답변을_저장한다() {
         String validation = handler.apply(run, input(), result(""));
 
         verify(writer).insert(inquiryId, answerMessageId, runId, "전자결재 문서 조회에서 작성 기간을 확인해 보세요.");
-        verify(inquiry).recordAnalysisResult();
         assertThat(mapper.readTree(validation).path("applied").get(0).asString()).isEqualTo("answer");
         assertThat(mapper.readTree(validation).path("unapplied")).isEmpty();
         // 저장한 AI 답변을 문의 구독에 알린다 (AI 메시지라 requestId는 없다)
@@ -151,7 +150,6 @@ class InquiryAnswerHandlerTest {
         assertThatThrownBy(() -> handler.apply(run, input(), result(""))).isInstanceOfSatisfying(
                 AgentResultRejectedException.class, e -> assertThat(e.code()).isEqualTo("AUTH_CONTEXT_INVALID"));
         verify(writer, never()).insert(any(), any(), any(), anyString());
-        verify(inquiry, never()).recordAnalysisResult();
         verify(events, never()).publishEvent(any(Object.class));
     }
 
@@ -184,7 +182,6 @@ class InquiryAnswerHandlerTest {
         assertThatThrownBy(() -> handler.apply(run, input(), result(""))).isInstanceOfSatisfying(
                 AgentResultRejectedException.class, e -> assertThat(e.code()).isEqualTo("SUPERSEDED"));
         verify(writer, never()).insert(any(), any(), any(), anyString());
-        verify(inquiry, never()).recordAnalysisResult();
     }
 
     @Test
