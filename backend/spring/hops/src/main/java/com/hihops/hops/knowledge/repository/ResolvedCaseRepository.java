@@ -8,10 +8,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import com.hihops.hops.knowledge.domain.CaseStatus;
 import com.hihops.hops.knowledge.domain.ResolvedCase;
+
+import jakarta.persistence.LockModeType;
 
 /** resolved_case 테이블 저장·조회. 기본 save·findById는 JpaRepository가 제공한다. */
 public interface ResolvedCaseRepository extends JpaRepository<ResolvedCase, UUID> {
@@ -39,4 +42,12 @@ public interface ResolvedCaseRepository extends JpaRepository<ResolvedCase, UUID
             AND c.sourceWorkLog.ticket.inquiryProblem.deletedAt IS NULL
             """)
     Optional<ResolvedCase> findActiveDetail(UUID id);
+
+    /**
+     * 수정·승인 같은 변경 명령의 사례 행 잠금. 같은 사례를 동시에 바꾸는 요청을 한 줄로 세운다.
+     * 연결 조건(시스템·티켓 삭제 여부)은 {@link #findActiveDetail}로 이어서 확인한다. 조인한 행까지 잠그지 않도록 사례만 읽는다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM ResolvedCase c WHERE c.id = :id AND c.deletedAt IS NULL")
+    Optional<ResolvedCase> findForUpdate(UUID id);
 }

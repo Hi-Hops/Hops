@@ -165,6 +165,26 @@ public class ResolvedCase extends BaseEntity {
         this.relationCandidates = relations;
     }
 
+    /**
+     * 현재 초안의 내용을 고치고 버전을 올린다. 출처·원 기록·적용 시스템·확인된 원인·관계 후보는 바꾸지 않는다.
+     * 승인된 사례는 읽기 전용이다.
+     */
+    public void editDraft(String title, String problemStatement, String actionDetail, String verificationResult,
+            String applicability, String appliedVersion, AccessLevel accessLevel, String confirmedFacts) {
+        if (caseStatus != CaseStatus.DRAFT) {
+            throw new IllegalStateException("승인된 사례는 수정할 수 없다");
+        }
+        this.title = title;
+        this.problemStatement = problemStatement;
+        this.actionDetail = actionDetail;
+        this.verificationResult = verificationResult;
+        this.applicability = applicability;
+        this.appliedVersion = appliedVersion;
+        this.accessLevel = accessLevel;
+        this.confirmedFacts = confirmedFacts;
+        this.versionNo++;
+    }
+
     public int getVersionNo() {
         return versionNo;
     }
