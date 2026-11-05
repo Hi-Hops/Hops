@@ -219,4 +219,140 @@ class AgentRunClientTest {
         assertThatThrownBy(() -> client.snapshot(runId.toString())).isInstanceOfSatisfying(AgentRunClientException.class,
                 e -> assertThat(e.code()).isEqualTo(AgentRunClientException.SERVICE_UNAVAILABLE));
     }
+
+    // ---------- 승인 사례 색인 (contracts/agents I1·I1.1) ----------
+
+    private final UUID jobId = UUID.randomUUID();
+    private final UUID indexCaseId = UUID.randomUUID();
+
+    private JsonNode indexRequest() {
+        return mapper.readTree("{\"contractVersion\":\"hops-system-1\",\"jobId\":\"" + jobId
+                + "\",\"caseId\":\"" + indexCaseId + "\",\"caseVersion\":1,\"store\":\"VECTOR\",\"attempt\":1,"
+                + "\"contentDigest\":\"" + "a".repeat(64) + "\",\"approvedCase\":{}}");
+    }
+
+    private String indexSnapshot(String state) {
+        return "{\"contractVersion\":\"hops-system-1\",\"jobId\":\"" + jobId + "\",\"caseId\":\"" + indexCaseId
+                + "\",\"caseVersion\":1,\"store\":\"VECTOR\",\"attempt\":1,\"state\":\"" + state
+                + "\",\"contentDigest\":\"" + "a".repeat(64) + "\",\"error\":null,\"updatedAt\":\"2026-11-05T00:00:00Z\"}";
+    }
+
+    @Test
+    void 색인_접수는_서비스_토큰으로_요청_그대로_고정_경로에_보내고_202_snapshot을_돌려준다() {
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(content().json(indexRequest().toString(), JsonCompareMode.STRICT))
+                .andRespond(withStatus(HttpStatus.ACCEPTED).contentType(MediaType.APPLICATION_JSON).body(indexSnapshot("PENDING")));
+
+        JsonNode result = client.applyIndex(indexRequest());
+
+        assertThat(result.path("state").asString()).isEqualTo("PENDING");
+        server.verify();
+    }
+
+    @Test
+    void 색인_접수_응답의_작업_ID가_다르거나_202가_아니면_계약_오류다() {
+        String other = indexSnapshot("PENDING").replace(jobId.toString(), UUID.randomUUID().toString());
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs"))
+                .andRespond(withStatus(HttpStatus.ACCEPTED).contentType(MediaType.APPLICATION_JSON).body(other));
+        assertThatThrownBy(() -> client.applyIndex(indexRequest())).isInstanceOfSatisfying(AgentRunClientException.class,
+                e -> assertThat(e.code()).isEqualTo(AgentRunClientException.UPSTREAM_PROTOCOL_ERROR));
+
+        server.reset();
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs"))
+                .andRespond(withSuccess(indexSnapshot("PENDING"), MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> client.applyIndex(indexRequest())).isInstanceOfSatisfying(AgentRunClientException.class,
+                e -> assertThat(e.code()).isEqualTo(AgentRunClientException.UPSTREAM_PROTOCOL_ERROR));
+    }
+
+    @Test
+    void 같은_작업에_다른_내용이면_409_충돌을_재시도_불가로_전달한다() {
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs"))
+                .andRespond(withStatus(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON).body(error("CONFLICT", false)));
+
+        assertThatThrownBy(() -> client.applyIndex(indexRequest())).isInstanceOfSatisfying(AgentRunClientException.class, e -> {
+            assertThat(e.code()).isEqualTo("CONFLICT");
+            assertThat(e.httpStatus()).isEqualTo(409);
+            assertThat(e.retryable()).isFalse();
+        });
+    }
+
+    @Test
+    void 색인_조회는_작업_ID와_attempt로_고정_경로를_호출한다() {
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs/" + jobId + "?attempt=2"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN))
+                .andRespond(withSuccess(indexSnapshot("RUNNING"), MediaType.APPLICATION_JSON));
+
+        JsonNode result = client.indexSnapshot(jobId.toString(), 2);
+
+        assertThat(result.path("state").asString()).isEqualTo("RUNNING");
+        server.verify();
+    }
+
+    @Test
+    void 색인_조회_응답의_작업_ID가_다르면_계약_오류다() {
+        String other = indexSnapshot("RUNNING").replace(jobId.toString(), UUID.randomUUID().toString());
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs/" + jobId + "?attempt=1"))
+                .andRespond(withSuccess(other, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.indexSnapshot(jobId.toString(), 1)).isInstanceOfSatisfying(AgentRunClientException.class,
+                e -> assertThat(e.code()).isEqualTo(AgentRunClientException.UPSTREAM_PROTOCOL_ERROR));
+    }
+
+    @Test
+    void 형식이_유효한_404_NOT_FOUND만_없음으로_전달한다() {
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs/" + jobId + "?attempt=1"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body(error("NOT_FOUND", false)));
+
+        assertThatThrownBy(() -> client.indexSnapshot(jobId.toString(), 1)).isInstanceOfSatisfying(AgentRunClientException.class, e -> {
+            assertThat(e.code()).isEqualTo("NOT_FOUND");
+            assertThat(e.httpStatus()).isEqualTo(404);
+        });
+    }
+
+    @Test
+    void 형식이_다른_404는_없음이_아니라_계약_오류다() {
+        for (String body : new String[] {
+                "{\"code\":\"NOT_FOUND\",\"message\":\"x\",\"retryable\":false,\"extra\":1}",
+                "{\"code\":\"NOT_FOUND\",\"message\":\" \",\"retryable\":false}",
+                "{\"code\":\"NOT_FOUND\",\"message\":\"x\"}",
+                "{\"code\":\"CONFLICT\",\"message\":\"x\",\"retryable\":false}",
+                "<html>404</html>"}) {
+            server.reset();
+            server.expect(requestTo("http://ai.test/internal/v2/index-jobs/" + jobId + "?attempt=1"))
+                    .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body(body));
+            assertThatThrownBy(() -> client.indexSnapshot(jobId.toString(), 1)).as(body)
+                    .isInstanceOfSatisfying(AgentRunClientException.class,
+                            e -> assertThat(e.code()).isEqualTo(AgentRunClientException.UPSTREAM_PROTOCOL_ERROR));
+        }
+    }
+
+    @Test
+    void 색인_조회의_503과_연결_실패는_서비스_불가로_전달한다() {
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs/" + jobId + "?attempt=1"))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON)
+                        .body(error("SERVICE_UNAVAILABLE", true)));
+        assertThatThrownBy(() -> client.indexSnapshot(jobId.toString(), 1)).isInstanceOfSatisfying(AgentRunClientException.class,
+                e -> assertThat(e.code()).isEqualTo("SERVICE_UNAVAILABLE"));
+
+        server.reset();
+        server.expect(requestTo("http://ai.test/internal/v2/index-jobs/" + jobId + "?attempt=1"))
+                .andRespond(request -> {
+                    throw new SocketTimeoutException("timeout");
+                });
+        assertThatThrownBy(() -> client.indexSnapshot(jobId.toString(), 1)).isInstanceOfSatisfying(AgentRunClientException.class,
+                e -> assertThat(e.code()).isEqualTo(AgentRunClientException.SERVICE_UNAVAILABLE));
+    }
+
+    @Test
+    void 색인_호출도_서비스_토큰이_없으면_요청을_보내지_않는다() {
+        AgentRunClient unauthenticated = new AgentRunClient(RestClient.builder().baseUrl("http://ai.test").build(), mapper, " ");
+
+        assertThatThrownBy(() -> unauthenticated.applyIndex(indexRequest())).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> unauthenticated.indexSnapshot(jobId.toString(), 1)).isInstanceOf(IllegalStateException.class);
+        server.verify();
+    }
 }

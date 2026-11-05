@@ -530,8 +530,8 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 |  | 관계 연결 후보 | `relation_candidates` | JSONB | ● | '[]' |  | Curator가 제안한 기존 시스템·기능·증상과의 연결. 담당자가 승인한 연결만 Neo4j에 반영 |
 |  | 승인자 ID | `approved_by_member_id` | UUID |  |  | 회원 | 사례를 승인한 해당 시스템 주담당자 (승인 전이면 NULL) |
 |  | 승인일시 | `approved_at` | TIMESTAMPTZ |  |  |  | 승인한 시각 (승인 전이면 NULL) |
-|  | Vector 반영 상태 | `vector_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인 후 Vector 색인에 반영됐는지 (PENDING / SUCCEEDED / FAILED) |
-|  | Neo4j 반영 상태 | `graph_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인 후 Neo4j 관계에 반영됐는지 (PENDING / SUCCEEDED / FAILED) |
+|  | Vector 반영 상태 | `vector_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인 후 Vector 색인에 반영됐는지 (PENDING / RUNNING / SUCCEEDED / FAILED / UNKNOWN) |
+|  | Neo4j 반영 상태 | `graph_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인 후 Neo4j 관계에 반영됐는지 (PENDING / RUNNING / SUCCEEDED / FAILED / UNKNOWN) |
 |  | Neo4j 노드 ID | `graph_node_id` | VARCHAR(100) |  |  |  | Neo4j에 만든 사례 노드를 찾아가려고 (반영 전이면 NULL) |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |

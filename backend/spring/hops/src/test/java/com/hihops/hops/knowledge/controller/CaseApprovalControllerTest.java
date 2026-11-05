@@ -19,7 +19,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -35,14 +34,6 @@ import tools.jackson.databind.node.ObjectNode;
  * (contracts/agents I1.1). 승인했다고 바로 검색에 공개하지 않는다. 초안 준비는 {@link CaseDraftFixture}를 따른다.
  */
 class CaseApprovalControllerTest extends CaseDraftFixture {
-
-    @AfterEach
-    void 검색_문서_정리() {
-        jdbc.update("""
-                DELETE FROM knowledge_document_version WHERE knowledge_document_id IN
-                (SELECT id FROM knowledge_document WHERE document_type='CASE' AND it_system_id IN (?,?))""", system, otherSystem);
-        jdbc.update("DELETE FROM knowledge_document WHERE document_type='CASE' AND it_system_id IN (?,?)", system, otherSystem);
-    }
 
     // ---------- 성공 ----------
 
@@ -414,16 +405,6 @@ class CaseApprovalControllerTest extends CaseDraftFixture {
     }
 
     // ---------- 준비 ----------
-
-    /** 초안을 만들고 문의자가 해결됐다고 확인한 상태. */
-    private UUID readyDraft() throws Exception {
-        UUID caseId = draft();
-        String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
-        result(command(requester, "/resolution-requests/" + resolutionId + "/responses", mapper.createObjectNode()
-                .put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1)
-                .put("decision", "RESOLVED")));
-        return caseId;
-    }
 
     private ObjectNode approve(int expectedCaseVersion) {
         return mapper.createObjectNode().put("requestId", UUID.randomUUID().toString())

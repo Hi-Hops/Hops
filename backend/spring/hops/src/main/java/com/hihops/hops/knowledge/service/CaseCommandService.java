@@ -3,6 +3,7 @@ package com.hihops.hops.knowledge.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -17,12 +18,18 @@ import com.hihops.hops.global.idempotency.ResourceType;
 import com.hihops.hops.knowledge.domain.AccessLevel;
 import com.hihops.hops.knowledge.domain.CaseStatus;
 import com.hihops.hops.knowledge.domain.ResolvedCase;
+import com.hihops.hops.knowledge.domain.IndexStatus;
+import com.hihops.hops.knowledge.domain.IndexStore;
 import com.hihops.hops.knowledge.dto.CaseApproveCommand;
+import com.hihops.hops.knowledge.dto.IndexCheckCommand;
+import com.hihops.hops.knowledge.dto.IndexRetryCommand;
+import com.hihops.hops.knowledge.repository.KnowledgeDocumentVersionRepository;
 import com.hihops.hops.knowledge.dto.CaseEditCommand;
 import com.hihops.hops.ticket.domain.TicketStatus;
 import com.hihops.hops.ticket.service.TicketProgressReader;
 
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -41,6 +48,8 @@ public class CaseCommandService {
     private final AuthService auth;
     private final TicketProgressReader progress;
     private final CaseApprovalWriter approvals;
+    private final KnowledgeDocumentVersionRepository documentVersions;
+    private final ApplicationEventPublisher events;
 
     public CommandResult edit(Jwt jwt, IdempotentRequest request, UUID caseId, CaseEditCommand command) {
         access.check(jwt, caseId);
@@ -71,6 +80,73 @@ public class CaseCommandService {
         }
         approvals.approve(resolved, auth.currentMember(jwt), confirmation);
         return new ResourceRef(ResourceType.CASE, caseId);
+    }
+
+    /**
+     * 색인 확인 (WIRE12 POST /cases/{caseId}/index-checks). 이 거래는 검사만 하고, 원격 조회·재접수는 commit 뒤에 한다.
+     * 순서: 버전 충돌 → 승인 여부 → 확인 대상 상태(PENDING·RUNNING·UNKNOWN).
+     */
+    public CommandResult checkIndex(Jwt jwt, IdempotentRequest request, UUID caseId, IndexCheckCommand command) {
+        access.check(jwt, caseId);
+        return idempotency.execute(request, operationId -> {
+            ResolvedCase resolved = lockApproved(jwt, caseId, command.expectedCaseVersion());
+            if (!resolved.indexStatus(command.store()).isOpen()) {
+                throw new BusinessException(ErrorCode.INVALID_STATE);
+            }
+            JsonNode stored = storedRequest(resolved, command.store());
+            events.publishEvent(new CaseIndexRequested(caseId, command.store(), stored.path("jobId").asString(),
+                    stored.path("attempt").asInt(), CaseIndexRequested.Mode.CHECK));
+            return new ResourceRef(ResourceType.CASE, caseId);
+        });
+    }
+
+    /**
+     * 색인 재시도 (WIRE12 POST /cases/{caseId}/index-retries). FAILED 저장소만, 같은 jobId의 다음 attempt 요청과 PENDING을
+     * 먼저 저장한 뒤 commit 뒤에 전달한다. 승인 본문·digest와 성공한 저장소는 바꾸지 않는다.
+     */
+    public CommandResult retryIndex(Jwt jwt, IdempotentRequest request, UUID caseId, IndexRetryCommand command) {
+        access.check(jwt, caseId);
+        return idempotency.execute(request, operationId -> {
+            ResolvedCase resolved = lockApproved(jwt, caseId, command.expectedCaseVersion());
+            if (resolved.indexStatus(command.store()) != IndexStatus.FAILED) {
+                throw new BusinessException(ErrorCode.INDEX_NOT_RETRYABLE);
+            }
+            JsonNode stored = storedRequest(resolved, command.store());
+            var version = documentVersions.findCaseVersion(caseId.toString(), resolved.getVersionNo())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.SERVICE_UNAVAILABLE));
+            ObjectNode metadata = (ObjectNode) mapper.readTree(version.getSourceMetadata());
+            ObjectNode next = ((ObjectNode) stored).deepCopy();
+            int attempt = stored.path("attempt").asInt() + 1;
+            next.put("attempt", attempt);
+            ((ObjectNode) metadata.path("indexRequests")).set(command.store().name(), next);
+            version.replaceSourceMetadata(mapper.writeValueAsString(metadata));
+            resolved.updateIndexStatus(command.store(), IndexStatus.PENDING);
+            events.publishEvent(new CaseIndexRequested(caseId, command.store(), next.path("jobId").asString(), attempt,
+                    CaseIndexRequested.Mode.DELIVER));
+            return new ResourceRef(ResourceType.CASE, caseId);
+        });
+    }
+
+    private ResolvedCase lockApproved(Jwt jwt, UUID caseId, int expectedCaseVersion) {
+        ResolvedCase resolved = access.lock(jwt, caseId);
+        if (resolved.getVersionNo() != expectedCaseVersion) {
+            throw new BusinessException(ErrorCode.CASE_VERSION_CONFLICT);
+        }
+        if (resolved.getCaseStatus() != CaseStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE);
+        }
+        return resolved;
+    }
+
+    /** 승인 거래가 저장한 저장소별 현재 요청. 없으면 저장 형식 오류이므로 새로 만들지 않고 503이다. */
+    private JsonNode storedRequest(ResolvedCase resolved, IndexStore store) {
+        JsonNode request = documentVersions.findCaseVersion(resolved.getId().toString(), resolved.getVersionNo())
+                .map(version -> mapper.readTree(version.getSourceMetadata()).path("indexRequests").path(store.name()))
+                .orElse(null);
+        if (request == null || !request.isObject() || !request.path("jobId").isString() || !request.path("attempt").isInt()) {
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
+        return request;
     }
 
     private ResourceRef saveEdit(Jwt jwt, UUID caseId, CaseEditCommand command) {

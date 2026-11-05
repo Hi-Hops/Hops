@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import com.hihops.hops.global.exception.BusinessException;
@@ -15,6 +16,7 @@ import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.knowledge.domain.CaseOrigin;
 import com.hihops.hops.knowledge.domain.DataSplit;
 import com.hihops.hops.knowledge.domain.DocumentType;
+import com.hihops.hops.knowledge.domain.IndexStore;
 import com.hihops.hops.knowledge.domain.KnowledgeDocument;
 import com.hihops.hops.knowledge.domain.KnowledgeDocumentVersion;
 import com.hihops.hops.knowledge.domain.ResolvedCase;
@@ -46,6 +48,7 @@ class CaseApprovalWriter {
     private final KnowledgeDocumentRepository documents;
     private final KnowledgeDocumentVersionRepository versions;
     private final JsonMapper mapper;
+    private final ApplicationEventPublisher events;
 
     void approve(ResolvedCase resolved, Member approver, ResolutionRequestResponse confirmation) {
         UUID caseId = resolved.getId();
@@ -77,6 +80,11 @@ class CaseApprovalWriter {
                 content(approvedCase), sha256(canonical(digestSubject)), metadata.toString());
         version.approve();
         versions.save(version);
+        // 승인 거래가 commit된 뒤에만 저장한 요청을 AI에 전달한다. 거래가 취소되면 전달도 없다.
+        for (String store : STORES) {
+            events.publishEvent(new CaseIndexRequested(caseId, IndexStore.valueOf(store),
+                    requests.path(store).path("jobId").asString(), 1, CaseIndexRequested.Mode.DELIVER));
+        }
     }
 
     private ObjectNode approvedCase(ResolvedCase resolved, Member approver, ResolutionRequestResponse confirmation,

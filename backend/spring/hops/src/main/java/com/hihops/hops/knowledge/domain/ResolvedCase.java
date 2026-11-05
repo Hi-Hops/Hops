@@ -200,6 +200,22 @@ public class ResolvedCase extends BaseEntity {
         this.graphStatus = IndexStatus.PENDING;
     }
 
+    public IndexStatus indexStatus(IndexStore store) {
+        return store == IndexStore.VECTOR ? vectorStatus : graphStatus;
+    }
+
+    /** 승인된 사례의 저장소별 반영 상태를 바꾼다. 승인 전에는 반영 상태가 없다. */
+    public void updateIndexStatus(IndexStore store, IndexStatus status) {
+        if (caseStatus != CaseStatus.APPROVED) {
+            throw new IllegalStateException("승인된 사례만 반영 상태를 바꾼다");
+        }
+        if (store == IndexStore.VECTOR) {
+            this.vectorStatus = status;
+        } else {
+            this.graphStatus = status;
+        }
+    }
+
     public int getVersionNo() {
         return versionNo;
     }

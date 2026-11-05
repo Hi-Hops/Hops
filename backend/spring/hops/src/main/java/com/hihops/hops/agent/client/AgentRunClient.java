@@ -77,6 +77,59 @@ public class AgentRunClient {
         return body;
     }
 
+    /**
+     * 승인 사례 색인을 접수시킨다 (POST /internal/v2/index-jobs). 같은 작업·같은 digest의 재전송은 AI가 기존 결과를 돌려준다.
+     *
+     * @param request 승인 거래가 source_metadata.indexRequests에 보존한 IndexApplyRequest 전체
+     * @return 202 IndexApplySnapshot. 접수 결과일 뿐이며 이것만으로 검색 공개를 확정하지 않는다
+     */
+    public JsonNode applyIndex(JsonNode request) {
+        requireToken();
+        String jobId = request.path("jobId").asString("");
+        Response response = call(() -> client.post().uri("/internal/v2/index-jobs")
+                .headers(headers -> headers.setBearerAuth(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request.toString())
+                .exchange((req, res) -> new Response(res.getStatusCode().value(),
+                        res.getHeaders().getFirst("Retry-After"), res.bodyTo(String.class))));
+        return indexBody(bodyOrThrow(response, 202), jobId, response.status());
+    }
+
+    /**
+     * 같은 작업·attempt의 색인 상태를 조회한다 (GET /internal/v2/index-jobs/{jobId}?attempt={n}).
+     *
+     * <p>형식이 유효한 404 NOT_FOUND(code·message·retryable 세 필드만)만 code=NOT_FOUND로 던진다. 그 밖의 404는 계약 위반이다.
+     * 404는 실패나 미실행의 증거가 아니라 원격 멱등 접수에 최초 접수를 맡길 수 있다는 신호다.
+     */
+    public JsonNode indexSnapshot(String jobId, int attempt) {
+        requireToken();
+        Response response = call(() -> client.get().uri("/internal/v2/index-jobs/{id}?attempt={n}", jobId, attempt)
+                .headers(headers -> headers.setBearerAuth(token))
+                .exchange((req, res) -> new Response(res.getStatusCode().value(),
+                        res.getHeaders().getFirst("Retry-After"), res.bodyTo(String.class))));
+        if (response.status() == 404) {
+            if (!validNotFound(parse(response.body()))) {
+                throw protocolError(404, "AI 색인 404 응답이 계약과 다릅니다");
+            }
+            throw new AgentRunClientException("NOT_FOUND", false, 404, null, "AI에 해당 색인 작업이 없습니다", null);
+        }
+        return indexBody(bodyOrThrow(response, 200), jobId, response.status());
+    }
+
+    private static JsonNode indexBody(JsonNode body, String jobId, int status) {
+        if (!CONTRACT_VERSION.equals(body.path("contractVersion").asString("")) || jobId.isEmpty()
+                || !jobId.equals(body.path("jobId").asString(""))) {
+            throw protocolError(status, "AI 색인 응답이 계약과 다릅니다");
+        }
+        return body;
+    }
+
+    private static boolean validNotFound(@Nullable JsonNode body) {
+        return body != null && body.size() == 3 && "NOT_FOUND".equals(body.path("code").asString(""))
+                && body.path("message").isString() && !body.path("message").asString("").isBlank()
+                && body.path("retryable").isBoolean();
+    }
+
     private Response call(Supplier<Response> request) {
         try {
             return request.get();
