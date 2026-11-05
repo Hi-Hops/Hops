@@ -60,6 +60,49 @@ source:
 | 정책 | 규칙, 적용 대상, 예외, 신청 절차(있으면), 근거 | 절차를 임의로 만들어 규칙처럼 서술 |
 | 런북 | 증상, 확인 항목(순서), 가능 원인 후보, 각 확인 항목의 결과 해석, 적용 조건 | 확인되지 않은 원인을 확정 표현. 직원에게 보여 줄 문장 |
 
+### 증상·원인·확인 항목 선언 (`symptoms`, `checks`)
+
+런북은 front matter에 증상, 가능 원인, 원인을 가르는 확인 항목을 **ID와 함께 선언**한다. 이 선언이 관계 데이터(증상 → 원인 → 확인 항목)의 단일 원본이다. 범위와 ID는 [가상 기업 정본 6.1절](VIRTUAL_COMPANY.md#61-관계-카탈로그-증상원인확인-항목)이 정한다. 처리 지연처럼 오류가 아닌 승인 단계가 증상인 경우에 한해, 근거가 되는 정책이 같은 선언을 가질 수 있다.
+
+```yaml
+symptoms:
+  - id: sym-ea-doc-not-listed              # sym-{시스템}-{주제}. 직원이 말하는 현상이며 원인을 담지 않는다
+    label: 문서가 문서함에 보이지 않음
+    featureCode: DOCUMENT_VIEW             # 증상이 나타나는 기능. systemCode의 기능이어야 한다
+    causes:
+      - id: cause-ea-period-out-of-range   # cause-{시스템}-{주제}
+        label: 기안일이 조회 기간 밖
+        checks: [check-ea-draft-date, check-ea-search-period]   # 원인을 가르는 확인 항목 ID
+checks:                                    # 이 문서가 정의하는 확인 항목
+  - id: check-ea-draft-date                # check-{시스템}-{주제}
+    label: 문서를 기안한 시기
+    employeeDisclosable: true              # 직원이 화면·설정에서 스스로 알 수 있는 사실이면 true
+```
+
+- 확인 항목은 **한 문서에서만 정의**하고, 다른 문서의 원인이 같은 항목을 쓰려면 `checks` 목록에서 ID로 참조한다. 정의되지 않은 ID를 참조하거나 정의만 하고 어느 원인도 쓰지 않으면 오류다.
+- 질문 문구(`QuestionTemplate`)는 여기에 쓰지 않는다. 직원 공개 확인 항목마다 관계 카드가 질문 문구를 둔다.
+- 선언은 메타데이터라서 본문 digest와 검색 본문에 들어가지 않는다. 본문에는 같은 내용을 사람이 읽는 문장으로 쓰고, 선언한 모든 ID를 한 번 이상 적어 두 곳이 어긋나는 것을 막는다.
+- 증상 label은 직원이 쓰는 표현으로 쓰고 원인을 암시하지 않는다.
+
+### 관계 카드 (`docs/knowledge/relations/questions.yml`)
+
+직원에게 확인 항목을 묻는 질문 문구(`QuestionTemplate`)와 공개 표시는 관계 카드에 쓴다. 증상·원인·확인 항목과 그 연결은 위 선언이 원본이므로 카드에 다시 쓰지 않는다.
+
+```yaml
+questions:
+  - checkId: check-ea-participation          # 코퍼스에 선언된 확인 항목 ID
+    templates:
+      - key: q-ea-participation-01           # q-{확인 항목 ID에서 check- 를 뺀 값}-{두 자리 번호}
+        text: "그 문서를 직접 기안하셨나요, 아니면 결재선이나 참조로 받으셨나요?"
+        employeeDisclosable: true            # 직원에게 나갈 수 있는지(필수)
+        reviewStatus: APPROVED               # PENDING | APPROVED (필수)
+```
+
+- 직원 공개(`employeeDisclosable: true`) 확인 항목마다 질문이 하나 이상 있고, 직원 공개가 아닌 확인 항목에는 질문이 없다. 한 확인 항목에 질문 여러 개를 둘 수 있다.
+- 질문은 직원이 화면이나 설정에서 스스로 알 수 있는 사실만 묻는다. 원인의 이름, 내부 ID, 런북 표현을 쓰지 않는다(금지어 검사). 300자 이하다.
+- 질문의 근거 문서는 그 확인 항목을 선언한 문서 버전이다.
+- 자동 검사: 키 형식과 유일성, 확인 항목 존재, 공개 표시 일치, 금지어, 길이, 승인 상태 값. 내용 검수를 대신하지 않는다.
+
 화면 경로·버튼명·기본 조회 기간처럼 [가상 기업 명세](VIRTUAL_COMPANY.md)에서 아직 정하지 않은 값은 가이드를 쓰기 전에 먼저 정하고 Mock과 맞춘다. 정하지 않은 사실을 절차에 지어 넣지 않는다.
 
 ## 기준 대화 시나리오
@@ -130,6 +173,31 @@ source:
 - `applicability`는 반드시 쓴다. 같은 증상·다른 원인의 사례가 방해 사례로 같은 묶음에 있어야 한다.
 - 승인 사례는 `caseId + caseVersion`으로 고정하고 승인 후 수정하지 않는다. 바꾸려면 버전을 올린다.
 - 검색 공개 조건(문의자 확인, 주담당자 승인, Vector·Neo4j 양쪽 반영)은 [데이터 구축 계획](DATASETS.md)을 따른다.
+
+### 시드 해결 사례 카드 (`docs/knowledge/cases/*.yml`)
+
+위 JSON은 사례 하나가 담아야 할 내용의 예시이고, 저장소에 두는 시드 사례는 **YAML 카드**(파일명=`caseKey`)로 쓴다. 카드 한 장에서 스크립트가 과거 처리 이력 체인과 사례를 만든다([정본 7.3절](VIRTUAL_COMPANY.md#73-사례를-db에-넣는-데-필요한-이력-체인)). 사례 목록과 근거 위치는 [정본 7.2절](VIRTUAL_COMPANY.md#72-사례-6건)을 따른다.
+
+| 필드 | 설명 |
+|---|---|
+| `caseKey`, `caseVersion`, `seedNo` | 식별자. 시드 사례의 `caseVersion`은 1이다. `seedNo`(1~99)는 문의·티켓·사례 번호(`SEED-Q-001` 등)를 정하므로 바꾸지 않는다. |
+| `system`, `feature` | 시스템 코드와 그 시스템의 기능 코드 |
+| `occurredAt` | 문의가 시작된 가상의 시각(시간대 포함). 이력의 모든 시각이 여기서 정해진다. |
+| `requester`, `assignee` | 문의자 계정(`requester1`~`4`)과 처리한 담당자. 담당자는 그 시스템의 주담당자여야 한다. |
+| `dialogue` | 대화 4개: 문의자(첫 문장), AI(확인 질문), 문의자(답), AI(접수 안내). AI 메시지에는 원인을 쓰지 않는다. |
+| `request` | 표준 요청서: `intent`, `workType`, `summary`, 확인된 사실(`facts`: 문장과 출처 메시지 번호 1 또는 3), 받지 못한 정보(`missing`), 유형별 상세(`details`) |
+| `ticket` | 티켓 제목과 내용 |
+| `workLogs` | 처리 기록 2개: 진행(`PROGRESS`)과 해결(`RESOLVED`). 해결 기록에는 조치, 확인된 원인, 검증 결과가 모두 있어야 한다. |
+| `case` | 사례의 제목, 증상(`problemStatement`), 전제, 적용 조건(`applicability`), 한계 목록(`limitations`), 출처 메시지 번호(`sourceMessages`) |
+| `relation` | 증상·원인·확인 항목 ID. 코퍼스 런북·정책의 선언에 있고 [정본 6.1절](VIRTUAL_COMPANY.md#61-관계-카탈로그-증상원인확인-항목)의 사례 연결과 같아야 한다. |
+| `basis` | 근거 문서 키. 정본 7.2절의 근거 위치와 같아야 한다. |
+
+- 사례의 원인·조치·검증은 해결 기록에서 가져온다(사례 컬럼은 해결 기록의 값을 그대로 쓴다). 원인과 조치는 [정본 5절](VIRTUAL_COMPANY.md#5-시스템기능-명세)의 동작을 벗어나지 않는다.
+- 카드는 모든 사례를 `STAFF` 공개, `SYNTHETIC`, 승인(`APPROVED`)으로 만들고 Vector·Neo4j 반영 상태는 `PENDING`으로 둔다. 색인하지 않은 것을 `SUCCEEDED`로 적지 않는다.
+- 사례의 지식 문서(CASE) 스냅샷은 실제 승인 거래와 같은 형식이다. 본문은 제목, 증상, 조치, 검증, 적용 조건, 한계를 잇고, `content_digest`는 승인 스냅샷 전체의 digest이며, `source_metadata.indexRequests`에 저장소별 반영 요청(전달 전, `attempt` 1, 고정 `jobId`)을 보존한다. 담당자가 기존 색인 API로 확인·재시도할 수 있다.
+- 해결 확인은 가상 설정이라 확인 요청과 응답의 `confirmationOrigin`이 `SYNTHETIC_PRESET`이다.
+- 이력 번호와 ID는 `caseKey`에서 정해지는 고정값이다(`uuid5(NAMESPACE_URL, "hops-seed-case.example/" + caseKey + "/" + 역할)`). 사례의 지식 문서 ID는 사례 ID와 같다.
+- 자동 검사: 필수 필드와 값, 대화 순서, 해결 기록의 검증 결과, 담당자가 주담당자인지, 증상·원인·확인 항목과 근거 문서가 코퍼스에 있는지, 문의자에게 나가는 AI 메시지의 금지어, 정본 7.2·6.1절과의 일치. 내용 검수를 대신하지 않는다.
 
 ### 지식 선순환 검증 묶음
 

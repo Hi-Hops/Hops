@@ -119,6 +119,8 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 - 경로: `전자결재 > 문서함 > 전체 문서`. 조건: 기간, 상태(기본 전체), 제목 키워드. 버튼: [조회].
 - **기간은 문서의 기안일 기준**이며 기본값은 최근 3개월, 최대 12개월이다. 임시 저장한 지 오래된 문서를 최근에 상신해도 기안일이 기간 밖이면 목록에 나오지 않는다.
 - 볼 수 있는 문서: 본인이 기안했거나 결재선·참조에 포함된 문서.
+- 기안자는 상신한 뒤에도 문서 상세의 [참조 추가]로 열람자(참조)를 추가할 수 있다. 상신한 문서의 본문과 결재선은 수정할 수 없다.
+- 임시 저장(`DRAFT`) 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서만 볼 수 있다. 상태·제목 키워드 조건을 넣으면 그 조건에 맞는 문서만 나타난다.
 - 오류: 결과 없음 "조건에 맞는 문서가 없습니다", 권한 거부(직접 링크 접근) "열람 권한이 없는 문서입니다", 조회 오류 "문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요", 조건 불일치 "조회 기간은 최대 12개월입니다".
 
 **결재 상태 (`APPROVAL_STATUS`)**
@@ -142,6 +144,7 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 - 경로: 사내 포털 로그인 화면. 입력: 사번, 비밀번호.
 - 성공하면 SSO 세션이 8시간 유지되고, 그동안 전자결재·파일 공유에 다시 로그인하지 않는다. 비활동 30분이 지나면 세션이 만료된다.
 - 정상 흐름: 로그인 성공 → 대상 시스템 화면. **로그인 후 다시 로그인 화면으로 돌아오는 것은 정상이 아니다.**
+- SSO 세션은 브라우저의 포털 도메인 쿠키에 저장되고, 전자결재·파일 공유는 이 세션을 검증해 이용을 허용한다. 따라서 다음 세 경우에 로그인에 성공해도 로그인 화면으로 돌아온다: (1) 브라우저가 쿠키를 차단해 세션이 저장되지 않음, (2) 단말 시각이 서버와 5분 넘게 어긋나 발급된 세션이 곧바로 만료로 판정됨, (3) 포털 로그인은 정상인데 연동 시스템의 세션 검증이 실패함(포털에서 직접 로그인하면 되고 특정 시스템에서만 반복됨).
 - 오류: 인증 실패 "사번 또는 비밀번호가 올바르지 않습니다", 계정 잠금(아래), 세션 만료 "세션이 만료되었습니다. 다시 로그인해 주세요", 시스템 이용 권한 없음 "이 시스템을 사용할 권한이 없습니다"(권한 거부 — 인증 실패와 구분).
 
 **계정 접근 (`ACCOUNT_ACCESS`)**
@@ -151,6 +154,7 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 **권한 신청 (`PERMISSION_REQUEST`)**
 - 경로: `내 정보 > 접근 권한 신청`. 입력: 대상 시스템, 필요한 기능·권한(읽기 / 쓰기 / 관리), 업무 목적(필수), 필요 기간(선택, 없으면 상시).
 - 승인: 읽기 권한은 대상 시스템 주담당자가 승인한다. 쓰기·관리 권한은 소속 팀장 확인이 추가된다. 처리 목표는 2영업일이다.
+- 신청 접수와 진행 관리는 공통 로그인 담당자가 맡고, 승인은 위처럼 대상 시스템 주담당자(쓰기·관리는 팀장 확인 추가)가 한다. 팀장 확인은 직원 데이터에 팀장을 두지 않고 외부 확인 단계로 다루며, 신청자가 소속 팀장에게 확인을 요청한다. 쓰기·관리 신청은 팀장 확인이 끝나기 전까지 `REQUESTED`에 머문다.
 - 신청 상태: `REQUESTED`(접수), `APPROVED`(승인), `REJECTED`(반려), `APPLIED`(적용).
 - 오류: 이미 보유 "이미 보유한 권한입니다"(조건 불일치), 업무 목적 누락 "업무 목적을 입력해 주세요".
 
@@ -182,7 +186,7 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 
 ## 6. 지식 문서 카탈로그
 
-문서는 [데이터 형식](DATA_FORMAT.md)의 front matter로 쓰고 `docs/knowledge/corpus/` 아래에 둔다(#191). 모든 문서는 `origin: SYNTHETIC`, `dataSplit: RAG`이며 사람이 검수하기 전에는 `PENDING`이다. `appliesToSystemVersion`은 시스템 버전 체계가 없어 모두 `null`이다.
+문서는 [데이터 형식](DATA_FORMAT.md)의 front matter로 쓰고 `docs/knowledge/corpus/` 아래에 둔다(#191). 모든 문서는 `origin: SYNTHETIC`, `dataSplit: RAG`이며 `reviewStatus`는 `APPROVED`로 적재한다. 개발용 합성 시드이므로 이 PR의 리뷰를 검수로 보며, 운영의 승인 흐름을 거친 것이 아니다. 검수에서 내용이 바뀌면 문서 버전을 올린다. `appliesToSystemVersion`은 시스템 버전 체계가 없어 모두 `null`이다.
 
 **`documentKey` 규칙**: `{종류}-{시스템}-{주제}`. 종류는 `guide` / `policy` / `runbook`, 시스템은 `ea`(전자결재) / `login`(공통 로그인) / `file`(파일 공유)다.
 
@@ -211,6 +215,48 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 - 런북 수는 [데이터 구축 계획](DATASETS.md)의 초기 검토안(2~3건)보다 하나 많다. 증상 계열마다 한 건씩 두기 위해서다.
 - 규모: 문서 16건은 파이프라인·권한·방해 사례 검증용 1단계 규모다. 검색 성능 비교(Vector 대 관계 보강)에는 부족하며, 그 시점에 정본 기반으로 확장한다(10절).
 
+### 6.1 관계 카탈로그 (증상·원인·확인 항목)
+
+상담이 "증상 → 가능한 원인 → 원인을 가르는 확인 항목 → 직원에게 묻는 질문"으로 이어지게 하는 관계 데이터의 **범위와 ID**를 정한다(#191 ⑤). 원인·확인 항목은 5절의 동작에서만 고르고, 새 사실이 필요하면 5절에 먼저 쓴다.
+
+- **ID 규칙**: 증상 `sym-{시스템}-{주제}`, 원인 `cause-{시스템}-{주제}`, 확인 항목 `check-{시스템}-{주제}`. 질문 문구의 ID는 `q-{확인 항목 키}-{두 자리 번호}`이며 한 확인 항목에 질문 여러 개를 허용한다.
+- **원본의 위치**: 증상·원인·확인 항목과 그 연결은 해당 **런북(또는 근거 정책)의 front matter**가 단일 원본이다. 직원용 질문 문구와 공개 여부는 관계 카드 `docs/knowledge/relations/questions.yml`, 사례 연결은 사례 카드의 `relation`에 쓴다. 이 절의 표는 범위를 정하며 문구는 카드에만 쓴다. DB에는 `relation_*` 테이블 8개로 들어간다([ERD](../ERD.md#관계-데이터)).
+- **공개 범위**: 증상은 직원이 말하는 현상이라 `EMPLOYEE`, 원인과 확인 항목은 `SYSTEM_STAFF`다. 질문 문구는 해당 확인 항목이 직원 공개(`employeeDisclosable = true`)일 때만 `EMPLOYEE`로 쓴다. 직원 공개는 **직원이 화면에서 직접 보거나 설정으로 알 수 있는 사실**을 묻는 항목에만 준다. 담당자가 시스템 기록으로만 확인할 수 있는 항목(`N`)에는 질문을 두지 않는다. 직원에게는 원인의 이름을 말하지 않는다.
+- 연결은 후보다. 연결만으로 원인을 확정하지 않는다.
+
+| 증상 (기능) | 가능 원인 | 확인 항목 (직원 공개) | 근거 문서 |
+|---|---|---|---|
+| `sym-ea-doc-not-listed` 문서가 문서함에 안 보임 (`DOCUMENT_VIEW`) | `cause-ea-period-out-of-range` 기안일이 조회 기간 밖 | `check-ea-draft-date` 문서를 기안한 시기 (Y), `check-ea-search-period` 설정한 조회 기간 (Y) | `runbook-ea-document-not-listed` |
+| | `cause-ea-no-view-permission` 기안·결재선·참조에 없어 열람 권한 없음 | `check-ea-participation` 기안·결재선·참조 여부 (Y), `check-ea-view-permission-record` 시스템의 결재선·참조 기록 (N) | 위와 같음 |
+| | `cause-ea-draft-not-submitted` 상신하지 않은 임시 저장 문서 | `check-ea-submit-state` 상신 여부 (Y) | 위와 같음 |
+| | `cause-ea-filter-narrow` 상태·제목 키워드 조건이 좁음 | `check-ea-filter-condition` 입력한 상태·키워드 (Y) | 위와 같음 |
+| `sym-ea-attach-not-open` 첨부가 안 열림 (`ATTACHMENT_VIEW`) | `cause-ea-preview-unsupported` 미리보기 미지원 형식 | `check-ea-file-format` 첨부 파일 형식 (Y) | `runbook-ea-attachment-open-failure` |
+| | `cause-ea-attach-scanning` 업로드 직후 보안 검사 중 | `check-ea-upload-time` 올린 시점 (Y) | 위와 같음 |
+| | `cause-ea-storage-error` 저장소 일시 오류 | `check-ea-error-message` 화면에 표시된 문구 (Y), `check-ea-retry-result` 잠시 후 다시 해도 같은지 (Y) | 위와 같음 |
+| | `cause-ea-no-doc-permission` 문서 열람 권한 없음 | `check-ea-error-message` (Y), `check-ea-participation` (Y) | 위와 같음 |
+| `sym-login-loop` 로그인 후 다시 로그인 화면 (`LOGIN_SSO`) | `cause-login-cookie-blocked` 브라우저 쿠키 차단 | `check-login-browser-cookie` 쿠키 차단 설정 여부 (Y), `check-login-browser-other` 다른 브라우저·시크릿 창에서 되는지 (Y) | `runbook-login-sso-loop` |
+| | `cause-login-clock-skew` 단말 시각이 서버와 어긋남 | `check-login-device-time` 단말 날짜·시간 설정 (Y) | 위와 같음 |
+| | `cause-login-linked-system-auth` 연동 시스템의 세션 검증 실패 | `check-login-portal-direct` 포털에서 직접 로그인하면 되는지 (Y), `check-login-reported-system` 어느 시스템에서 반복되는지 (Y) | 위와 같음 |
+| `sym-file-not-open` 공유 파일·폴더가 안 열림 (`FILE_VIEW`) | `cause-file-folder-no-access` 폴더 접근 권한 없음 | `check-file-error-message` 화면에 표시된 문구 (Y), `check-file-access-route` 목록에서 열었는지 링크로 열었는지 (Y) | `runbook-file-open-denied` |
+| | `cause-file-moved-deleted` 파일 삭제·이동 | `check-file-error-message` (Y), `check-file-recent-change` 최근 삭제·이동 여부 (Y) | 위와 같음 |
+| | `cause-file-link-expired` 공유 링크 만료 | `check-file-error-message` (Y), `check-file-link-received` 링크를 받은 시점 (Y) | 위와 같음 |
+| `sym-login-permission-pending` 권한 신청이 지연됨 (`PERMISSION_REQUEST`) | `cause-login-teamlead-confirm-missing` 쓰기·관리 권한에 필요한 팀장 확인 누락 | `check-login-permission-level` 신청한 권한 종류 (Y), `check-login-teamlead-confirm` 팀장 확인 요청 여부 (Y) | `policy-login-permission-approval` |
+
+마지막 증상은 런북이 아니라 공개 정책(`policy-login-permission-approval`)이 근거다. 처리 지연은 오류가 아니라 정해진 승인 단계이기 때문에 별도 런북을 두지 않는다(열린 문제 6).
+
+**사례 연결.** 7.2의 사례는 아래 관계에 연결한다. 사례는 기존 증상·원인·확인 항목에 붙으며 새 항목을 만들지 않는다.
+
+| 사례 | 증상 | 원인 | 사용한 확인 항목 |
+|---|---|---|---|
+| `case-ea-doc-no-permission` | `sym-ea-doc-not-listed` | `cause-ea-no-view-permission` | `check-ea-participation`, `check-ea-view-permission-record` |
+| `case-ea-attach-scanning` | `sym-ea-attach-not-open` | `cause-ea-attach-scanning` | `check-ea-upload-time` |
+| `case-login-cookie-block` | `sym-login-loop` | `cause-login-cookie-blocked` | `check-login-browser-cookie`, `check-login-browser-other` |
+| `case-login-write-permission-delay` | `sym-login-permission-pending` | `cause-login-teamlead-confirm-missing` | `check-login-permission-level`, `check-login-teamlead-confirm` |
+| `case-file-folder-no-access` | `sym-file-not-open` | `cause-file-folder-no-access` | `check-file-error-message`, `check-file-access-route` |
+| `case-file-link-expired` | `sym-file-not-open` | `cause-file-link-expired` | `check-file-error-message`, `check-file-link-received` |
+
+규모: 증상 5, 원인 15, 확인 항목 21(직원 공개 20, 담당자 전용 1), 질문 문구 20(직원 공개 확인 항목마다 1개 이상). 연결은 증상-원인 15, 원인-확인 항목 25, 사례-증상 6, 사례-확인 항목 11이다. 방해 쌍인 첨부 런북과 파일 공유 런북은 증상이 달라(`sym-ea-attach-not-open`, `sym-file-not-open`) 원인이 서로 연결되지 않는다. 같은 확인 항목 이름(`error-message`)도 시스템별로 따로 둔다.
+
 ## 7. 시드 해결 사례
 
 기존 사례가 하나도 없으면 사례 재사용을 시험할 수 없으므로, **과거에 해결됐다고 가정한 합성 사례 6건**을 시드로 둔다. 3.1절의 원칙대로 사용법 문의가 아니라 티켓을 거친 증상·처리 건이다.
@@ -227,20 +273,23 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 | `case-ea-attach-scanning` | 전자결재·첨부 열람 | 방금 올린 첨부가 안 열림 | 업로드 직후 보안 검사 중(최대 10분) | 검사 완료 후 다시 열기 안내 | `runbook-ea-attachment-open-failure` |
 | `case-login-cookie-block` | 공통 로그인·로그인 SSO | 로그인 후 다시 로그인 화면 | 브라우저의 쿠키 차단 설정 | 포털 도메인 쿠키 허용 | `runbook-login-sso-loop` |
 | `case-login-write-permission-delay` | 공통 로그인·권한 신청 | 쓰기 권한 신청이 승인되지 않고 지연 | 쓰기 권한에 필요한 팀장 확인 누락 | 팀장 확인 요청 후 승인·적용 | `policy-login-permission-approval` |
-| `case-file-folder-no-access` | 파일 공유·파일 열람 | 링크로 접근하면 폴더 접근 불가 | 폴더 접근 권한 없음 | 접근 권한 신청 처리 후 반영 | `runbook-file-open-denied` |
+| `case-file-folder-no-access` | 파일 공유·파일 열람 | 링크로 접근하면 폴더 접근 불가 | 폴더 접근 권한 없음 | 접근 권한 신청 처리 후 반영 | `runbook-file-open-denied`, `policy-file-share-scope` |
 | `case-file-link-expired` | 파일 공유·파일 공유 | 공유 링크가 열리지 않음 | 만료일(기본 7일) 경과 | 새 링크 생성(만료일 지정) | `runbook-file-open-denied`, `guide-file-share-link` |
 
-- 모든 사례는 `origin_type = SYNTHETIC`, `case_status = APPROVED`, `case_type = RESOLUTION`, 공개 범위는 담당자 전용(`STAFF`)이다. 승인자는 해당 시스템 주담당자이고, 문의자 해결 확인은 가상 설정이며 합성임을 표시한다.
+- 모든 사례는 `origin_type = SYNTHETIC`, `case_status = APPROVED`, `case_type = RESOLUTION`, 공개 범위는 담당자 전용(`STAFF`)이다. 승인자는 해당 시스템 주담당자이고, 문의자 해결 확인은 가상 설정이며 확인 요청과 응답의 `confirmationOrigin`을 `SYNTHETIC_PRESET`으로 표시한다.
 - 해당 시스템의 주담당자가 처리한 것으로 쓴다(전자결재 2건은 `ea_owner`, 로그인 2건은 `login_owner`, 파일 공유 2건은 `file_owner`). 문의자는 문의자 4명 중에서 정한다.
 - 사례 내용은 #191의 사례 카드 검수에서 확정한다. 6건은 시작 규모이며 시간이 부족하면 4건(시스템당 최소 1건)으로 줄일 수 있다.
 
 ### 7.3 사례를 DB에 넣는 데 필요한 이력 체인
 
-`resolved_case.source_work_log_id`가 필수이므로, 사례 한 건마다 아래 행이 같이 필요하다(합성 과거 이력). 약 14행이며 6건이면 약 85행이다.
+`resolved_case.source_work_log_id`가 필수이고, 이미 병합된 사례 조회 API가 큐레이터 실행과 해결 확인 이벤트를 읽으므로(`GET /cases`, `GET /cases/{id}`), 사례 한 건마다 아래 행이 같이 필요하다(합성 과거 이력). 약 19행이며 6건이면 약 114행이다.
 
-`문의` → `메시지 2~4개` → `문제` → `과거 AI 실행 1`(`model_version`에 seed 표시) → `표준 요청` → `티켓`(해결 완료) → `배정` → `처리 기록 1~2`(검증 결과 포함) → `사례`(승인) → `지식 문서 스냅샷`(CASE) → `문서 버전`
+`문의`(해결 완료) → `메시지 4개`(문의자 첫 문장, AI 확인 질문, 문의자 답, AI 접수 안내) → `상담 AI 실행 2`(`model_version`에 seed 표시) → `문제` → `표준 요청` → `티켓`(해결 완료) → `배정`(주담당자) → `처리 기록 2`(진행 1, 검증 결과가 있는 해결 1) → `티켓 이벤트 2`(해결 확인 요청, 문의자 응답) → `큐레이터 AI 실행 1`(해결 기록이 시작, 성공) → `사례`(승인) → `지식 문서(CASE)와 버전`
 
-이 이력은 문의자의 "내 문의" 목록에 과거 해결된 문의로 보일 수 있다. 검색 공개 조건(벡터·그래프 반영)은 열린 문제다(10절).
+- **번호**: 문의 `SEED-Q-00N`, 티켓 `SEED-T-00N`, 사례 `SEED-C-00N`. 실제 번호(`Q-00000001`, `T-0000000000000001`)와 시퀀스가 겹쳐 나중에 만들 번호와 충돌하지 않게 접두사로 구분한다.
+- **ID**: 사례 ID는 `uuid5(NAMESPACE_URL, "hops-seed-case.example/" + 사례 키)`, 나머지는 사례 키와 역할을 이어 같은 방식으로 정한다. 사례의 지식 문서 ID는 `resolved_case.id`와 같다(DATA.md 11.3).
+- **공개 상태**: 승인(`APPROVED`)이고 `vector_status`·`graph_status`는 `PENDING`이다. 지식 문서(CASE) 스냅샷은 실제 승인 거래와 같은 형식으로 본문, 승인 스냅샷 digest, 저장소별 반영 요청(`indexRequests`)을 보존하되 AI에 전달하지 않은 승인 직후 상태다. 이 PR은 Vector·Neo4j에 색인하지 않으므로 `SUCCEEDED`로 적는 것은 사실이 아니다. 현재 공개 판정은 둘 다 `SUCCEEDED`를 요구하므로 시드 사례는 1차 SQL 검색에 아직 나오지 않으며, 규칙 변경은 열린 문제 1에서 정한다.
+- 이 이력은 문의자의 "내 문의" 목록에 과거 해결된 문의로 보일 수 있다.
 
 ## 8. 시나리오 카탈로그
 
@@ -298,14 +347,16 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 - 후속 확장 시스템(인사·경비 정산·구매 등)의 명세. PRD는 이를 후속 목표로 구분한다.
 - 선순환 묶음(문의 A·B·C)의 구체적 내용과 사례 A의 원인(#201).
 
-**합성 값이라 리뷰에서 바꿀 수 있는 것**: 기본 조회 기간(3개월), 첨부 한도(20MB·10개), 세션 시간(8시간·비활동 30분), 계정 잠금(5회·30분), 권한 처리 목표(2영업일), 공유 만료(7일·최대 30일), 직원 수(8명)와 이름·로그인 ID. 값을 바꾸면 이 문서와 해당 지식 문서·사례·시나리오를 함께 바꾼다.
+**합성 값이라 리뷰에서 바꿀 수 있는 것**: 기본 조회 기간(3개월), 첨부 한도(20MB·10개), 세션 시간(8시간·비활동 30분), 계정 잠금(5회·30분), 권한 처리 목표(2영업일), 공유 만료(7일·최대 30일), 단말 시각 허용 오차(5분), 직원 수(8명)와 이름·로그인 ID. 값을 바꾸면 이 문서와 해당 지식 문서·사례·시나리오를 함께 바꾼다.
 
 **열린 문제 (PR 리뷰에서 확인)**
-1. **시드 사례의 검색 공개 조건.** 계약은 승인 사례가 벡터와 그래프 양쪽에 반영돼야 검색에 쓴다고 한다. 1차 검색은 SQL이라 실제 벡터·그래프 반영이 없다. 시드의 `vector_status`·`graph_status`를 `SUCCEEDED`로 적는 것은 사실이 아니므로, 권고는 두 열을 `PENDING`으로 두고 1차 SQL 검색에서만 승인된 CASE를 공개하는 규칙을 별도로 정하는 것이다. 계약과 다른 규칙이라 Spring 담당자의 확인이 필요하다(#194, #201).
+1. **시드 사례의 검색 공개 조건.** 계약은 승인 사례가 벡터와 그래프 양쪽에 반영돼야 검색에 쓴다고 한다. 1차 검색은 SQL이라 실제 벡터·그래프 반영이 없다. 시드의 `vector_status`·`graph_status`를 `SUCCEEDED`로 적는 것은 사실이 아니므로, 이 PR의 시드는 두 열을 `PENDING`으로 둔다(7.3절). 1차 SQL 검색에서 승인된 CASE를 공개하는 규칙은 별도로 정해야 하고, 현재 공개 판정(`isCurrentlyVisible`)과 사례 API의 `searchable`은 둘 다 `SUCCEEDED`를 요구한다. 계약과 다른 규칙이라 Spring 담당자의 확인이 필요하다(#194, #201).
 2. **시드 이력의 노출.** 시드 사례의 과거 문의가 문의자의 "내 문의" 목록에 보인다. 권고는 허용이다. 시연 화면이 어수선해 보이면 조정한다.
 3. **기존 DB.** 이전 seed가 적재된 DB는 부서 코드·ID가 겹쳐 새 seed가 적용되지 않는다. 초기화 후 재적재가 필요하다. 영향받는 테스트(`DemoSeedIntegrationTest`)는 #191에서 고친다.
 4. **프론트.** 프론트가 Mock 대신 DB 데이터를 받게 바꾸고 로그인 화면의 빠른 계정을 정리하는 작업은 프론트 담당이며 #171 범위 밖이다.
 5. **확장.** 지식 문서 16건·사례 6건은 1단계 규모다. 검색 성능 비교를 시작할 때 정본 기반으로 문서 약 40~60건·사례 약 15~20건으로 늘린다(수치는 추정). 늘릴 때는 정본에서 출발해 초안을 만들고 사람이 검수하며, 생성 방법을 기록하고 평가 정답이 섞이지 않게 한다.
+6. **권한 신청 지연의 근거.** `case-login-write-permission-delay`는 런북이 아니라 공개 정책이 근거다(6.1절). 원인 노드의 공개 범위는 `SYSTEM_STAFF`로 두어 직원에게 원인 이름이 나가지 않게 한다. 별도 런북을 두는 편이 낫다고 보면 문서가 17건이 되며, 이슈의 16건 수치와 6절을 함께 바꿔야 한다. 권고는 현행 유지다.
+7. **`QuestionTemplate`의 그래프 노드 여부.** 1차는 SQL 테이블이라 별도 개체로 둔다. 에이전트 계약의 그래프 허용 노드(`Check`까지)에는 이 개체가 없으므로, 2차에 Neo4j로 옮길 때 별도 노드로 둘지 `Check`의 속성으로 투영할지를 정하고 계약을 갱신한다.
 
 **이 PR 밖의 후속 반영**
 - seed를 이 문서의 조직·직원·담당과 사례로 바꾸고 지식 문서를 DB에 적재한다(#191).
