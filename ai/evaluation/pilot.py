@@ -254,7 +254,7 @@ async def run_batch(
 def _build_real(
     model: str | None,
 ) -> tuple[LLMClient, Callable[[Scenario], Mapping[AgentRole, Agent]], str]:
-    from hops_ai.agents.registry import build_runtime_registry
+    from hops_ai.agents.registry import build_registry
     from hops_ai.services.llm.openai import OpenAIClient
     from hops_ai.services.retrieval.factory import knowledge_source_for
     from hops_ai.settings import KnowledgeSourceKind, Settings
@@ -266,8 +266,8 @@ def _build_real(
 
     def agents_for(scenario: Scenario) -> Mapping[AgentRole, Agent]:
         if "RETRIEVAL_ERROR" in scenario.faults:
-            return build_runtime_registry(FaultyKnowledgeSource())
-        return build_runtime_registry(knowledge_source_for(settings))
+            return build_registry(FaultyKnowledgeSource())
+        return build_registry(knowledge_source_for(settings))
 
     return (
         OpenAIClient(key, model or settings.supervisor_model),

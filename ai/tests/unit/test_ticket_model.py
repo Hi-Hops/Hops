@@ -16,8 +16,6 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchResult
 from hops_ai.contracts.wire import AiRunRequest, QuestionProposal
 from hops_ai.harness.errors import OutputRejected, TransientError
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
 from hops_ai.supervisor.bootstrap import create_run_services
@@ -72,8 +70,6 @@ def setup_call(*decisions, request=None, evidence=()):
         settings=Settings(_env_file=None),
         access_scope_ref="test-ticket",
         llm=llm,
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
     return state, services, llm

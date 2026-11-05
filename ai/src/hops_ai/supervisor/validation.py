@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 from hops_ai.contracts.roles import InquiryResult, KnowledgeResult
+from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import (
     AiRunRequest,
     EvidenceStatement,
@@ -220,7 +221,7 @@ def get_problem_progress(state: "SupervisorState") -> list[ProblemProgress]:
         아직 질문·안내·티켓 또는 안내 가능한 기존 결과가 준비되지 않았다는 뜻이다.
         미확인 항목 수와 값이 있는 상세 필드 이름만 전달하며 내부 지식 원문은 싣지 않는다.
 
-    시스템 미확인 대기는 서버가 이미 전달한 WAITING_SYSTEM이거나 질문 5회를
+    시스템 미확인 대기는 서버가 이미 전달한 WAITING_SYSTEM이거나 질문 한도를
     소진했고 보고 시스템을 확인하지 못한 경우다. 원인 같은 unknowns가 남았다는
     이유만으로 조사 티켓을 막지 않는다. 기존 업무의 NOT_CREATED는 완료 근거가 아니다.
     """
@@ -261,7 +262,7 @@ def get_problem_progress(state: "SupervisorState") -> list[ProblemProgress]:
             # 서버가 제공한 기존 상태를 안내할 수 있을 뿐 새 해결·배정을 확정하지 않는다.
             outcome = "EXISTING_STATE"
         elif problem.reportedSystemCandidateId is None and (
-            question_count >= 5 or original_state == "WAITING_SYSTEM"
+            question_count >= QUESTION_LIMIT or original_state == "WAITING_SYSTEM"
         ):
             outcome = "WAITING_SYSTEM"
 
@@ -271,7 +272,7 @@ def get_problem_progress(state: "SupervisorState") -> list[ProblemProgress]:
                 outcome=outcome,
                 existingWorkOutcome=work_outcome,
                 originalState=original_state,
-                remainingQuestions=5 - question_count,
+                remainingQuestions=QUESTION_LIMIT - question_count,
                 unknownCount=len(problem.unknowns),
                 availableDetails=[
                     name
@@ -522,7 +523,7 @@ def validate_questions(state: "SupervisorState") -> None:
         validate_problem_ref(state, question.problemRef)
         if key != (question.problemRef, question.bundleRef) or question.problemRef in seen:
             raise OutputRejected("문제당 하나의 질문 묶음만 허용한다")
-        if counts.get(question.problemRef, 0) >= 5:
+        if counts.get(question.problemRef, 0) >= QUESTION_LIMIT:
             raise OutputRejected("문제의 질문 한도를 초과했다")
         if question.problemRef in state["ticketProposals"] or (
             state["guide"] is not None and state["guide"].problemRef == question.problemRef

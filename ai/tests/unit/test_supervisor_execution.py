@@ -59,7 +59,7 @@ def services(clock, make_settings) -> SharedServices:
         settings=make_settings(),
         clock=clock,
     )
-    return SharedServices(runtime=runtime, llm=None, vector=None, graph=None, tools=None)
+    return SharedServices(runtime=runtime, llm=None, tools=None)
 
 
 async def test_inquiry_reserves_call_and_keeps_original_snapshot(services) -> None:

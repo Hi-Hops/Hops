@@ -14,13 +14,11 @@ from hops_ai.agents.inquiry.extraction import (
     QuotedValue,
     UnknownClaim,
 )
-from hops_ai.agents.registry import build_registry, build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.harness.errors import OutputRejected
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
@@ -88,8 +86,6 @@ def services_for(request: AiRunRequest, *outcomes) -> tuple[SharedServices, Fake
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=llm,
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
     return runtime, llm
@@ -398,13 +394,11 @@ async def test_model_receives_messages_systems_and_the_injection_rule() -> None:
     assert request.max_output_tokens <= 1500
 
 
-def test_runtime_registry_implements_inquiry_and_keeps_the_rest_pending() -> None:
-    runtime = build_runtime_registry()
+def test_registry_implements_inquiry_and_keeps_knowledge_pending_without_a_source() -> None:
+    registry = build_registry()
 
-    assert isinstance(runtime[AgentRole.INQUIRY], ExtractionInquiryAgent)
-    assert isinstance(runtime[AgentRole.KNOWLEDGE], PendingAgent)
-    # 팀이 쓰는 기본 registry는 그대로 연결 전 자리다
-    assert all(isinstance(agent, PendingAgent) for agent in build_registry().values())
+    assert isinstance(registry[AgentRole.INQUIRY], ExtractionInquiryAgent)
+    assert isinstance(registry[AgentRole.KNOWLEDGE], PendingAgent)
 
 
 async def test_supervisor_turns_a_vague_inquiry_into_a_question_for_the_user() -> None:

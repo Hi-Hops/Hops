@@ -6,17 +6,14 @@ Fake는 모델이 낼 수 있는 나쁜 출력(없는 인용, AI 메시지 인�
 
 import pytest
 
-from hops_ai.agents.base import PendingAgent
-from hops_ai.agents.curator import CuratorAgent, ModelCuratorAgent
+from hops_ai.agents.curator import ModelCuratorAgent
 from hops_ai.agents.curator.drafting import PROMPT_VERSION, CaseDraft, SourceQuote
-from hops_ai.agents.registry import build_registry, build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import CuratorResult
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected, TransientError
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
@@ -82,8 +79,6 @@ def services_for(request: AiRunRequest, *outcomes) -> tuple[SharedServices, Fake
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=llm,
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
     return services, llm
@@ -278,10 +273,8 @@ async def test_model_receives_the_record_problem_and_messages_with_the_injection
     assert '"appliesToSystemVersion": null' in payload
 
 
-def test_runtime_registry_uses_the_model_curator_and_the_default_keeps_the_placeholder() -> None:
-    assert isinstance(build_runtime_registry()[AgentRole.CURATOR], ModelCuratorAgent)
-    assert isinstance(build_registry()[AgentRole.CURATOR], CuratorAgent)
-    assert isinstance(build_registry()[AgentRole.CURATOR], PendingAgent)
+def test_registry_uses_the_model_curator() -> None:
+    assert isinstance(build_registry()[AgentRole.CURATOR], ModelCuratorAgent)
 
 
 async def test_supervisor_case_draft_run_calls_the_curator_and_finishes() -> None:

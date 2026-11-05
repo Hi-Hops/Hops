@@ -1,13 +1,13 @@
 """테스트용 역할 조합과 Ticket 모델 응답 도우미."""
 
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from tests.supervisor_fixtures import SYSTEM
 
 
 def runtime_registry(knowledge_source=None):
-    return dict(build_runtime_registry(knowledge_source))
+    return dict(build_registry(knowledge_source))
 
 
 def fake_ticket_decisions(state) -> TicketDecisions | None:

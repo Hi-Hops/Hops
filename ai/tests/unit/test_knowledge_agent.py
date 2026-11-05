@@ -17,8 +17,6 @@ from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected, RetrievalUnavailable
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.retrieval.knowledge_source import KnowledgeHit, KnowledgeQuery
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
@@ -70,8 +68,6 @@ def services_for(request: AiRunRequest) -> SharedServices:
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=FakeLLMClient(),
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
 

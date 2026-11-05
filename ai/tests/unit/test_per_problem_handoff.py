@@ -15,7 +15,7 @@ from hops_ai.agents.inquiry import ExtractionInquiryAgent
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.knowledge.agent import guidable_problem
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchResult
@@ -218,7 +218,7 @@ async def test_a_staff_only_hit_ends_in_a_review_ticket_without_repeating_the_se
         ),
         decision("PROPOSE_TICKETS"),
     )
-    agents = build_runtime_registry(FixtureKnowledgeSource())
+    agents = build_registry(FixtureKnowledgeSource())
     roles = implemented_roles(agents)
     supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
 

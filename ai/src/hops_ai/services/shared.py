@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 from hops_ai.harness.context import RunContext
 from hops_ai.services.llm.client import LLMClient
-from hops_ai.services.retrieval.base import GraphRetriever, VectorRetriever
 from hops_ai.services.tickets import TicketSession
 from hops_ai.services.tools.base import ToolGateway
 from hops_ai.services.tracing import RunTracing
@@ -12,7 +11,7 @@ from hops_ai.services.tracing import RunTracing
 
 @dataclass(frozen=True)
 class SharedServices:
-    """한 run의 실행 문맥과 모델·검색·도구 인터페이스를 함께 전달한다.
+    """한 run의 실행 문맥과 모델·도구 인터페이스를 함께 전달한다.
 
     create_run_services가 요청별 RunContext를 생성하고 나머지 구현체는 그대로 주입한다.
     SupervisorRuntime은 이 객체를 복사해 누적 제한 wrapper를 적용한다.
@@ -21,8 +20,6 @@ class SharedServices:
 
     runtime: RunContext
     llm: LLMClient
-    vector: VectorRetriever
-    graph: GraphRetriever
     tools: ToolGateway
     tracing: RunTracing = field(default_factory=RunTracing)
     ticket_tools: TicketSession | None = None

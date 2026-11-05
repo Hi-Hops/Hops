@@ -24,9 +24,15 @@ class Agent(Protocol):
 class PendingAgent:
     """아직 연결하지 않은 역할을 명시적으로 거부한다. 성공 결과를 자동 생성하지 않는다."""
 
-    role: AgentRole
+    def __init__(self, role: AgentRole) -> None:
+        self.role = role
 
     async def run(
         self, request: "RoleRequest", services: "SharedServices"
     ) -> "RoleResult | RoleResponse":
         raise ComponentNotReady(self.role.value)
+
+
+def pending_agents() -> dict[AgentRole, Agent]:
+    """모든 역할을 연결 전 자리로 둔 조합. 구현을 주입하지 않은 Supervisor의 기본값이다."""
+    return {role: PendingAgent(role) for role in AgentRole}

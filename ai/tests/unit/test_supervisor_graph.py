@@ -18,8 +18,6 @@ from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import ComponentNotReady, InputRejected
 from hops_ai.services.llm.client import LLMMessage, LLMRequest, LLMResponse, LLMUsage
 from hops_ai.services.llm.openai import OpenAIClient
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.runs.events import RunEventHub, RunEvents
 from hops_ai.services.shared import SharedServices
 from hops_ai.settings import Settings
@@ -70,7 +68,7 @@ def services_for(request, model) -> SharedServices:
         access_scope_ref="test-authorized-scope",
         settings=Settings(_env_file=None),
     )
-    return SharedServices(runtime, model, PgVectorRetriever(), Neo4jRetriever(), UnusedTools())
+    return SharedServices(runtime, model, UnusedTools())
 
 
 def decision(action="FINISH", role=None, summary="요청 내용을 정리했습니다."):

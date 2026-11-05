@@ -12,7 +12,7 @@ import pytest
 
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
@@ -20,8 +20,6 @@ from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult, 
 from hops_ai.contracts.wire import AiRunRequest, ProblemProposal
 from hops_ai.harness.errors import OutputRejected
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
@@ -54,8 +52,6 @@ def services_for(request: AiRunRequest, llm: FakeLLMClient | None = None) -> Sha
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=llm or FakeLLMClient(),
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
 
@@ -243,7 +239,7 @@ def no_guide_request() -> AiRunRequest:
 
 
 def registry():
-    return build_runtime_registry(FixtureKnowledgeSource())
+    return build_registry(FixtureKnowledgeSource())
 
 
 def ticket_decisions():

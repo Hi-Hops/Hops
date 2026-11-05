@@ -9,7 +9,7 @@ from pydantic import ValidationError, model_validator
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import CuratorResult, InquiryResult, KnowledgeResult, TicketResult
-from hops_ai.contracts.types import ContractModel
+from hops_ai.contracts.types import QUESTION_LIMIT, ContractModel
 from hops_ai.contracts.wire import WireText
 from hops_ai.harness.errors import BudgetExceeded, OutputRejected
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
@@ -193,7 +193,7 @@ def _decision_context(
                 "intent": problem.intent,
                 "processingType": problem.processingType,
                 "reportedSystemCandidateId": problem.reportedSystemCandidateId,
-                "remainingQuestions": 5 - counts.get(problem.problemRef, 0),
+                "remainingQuestions": QUESTION_LIMIT - counts.get(problem.problemRef, 0),
             }
             for problem in state["problems"].values()
         ],

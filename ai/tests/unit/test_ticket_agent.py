@@ -7,14 +7,12 @@ import pytest
 
 from hops_ai.agents.inquiry import ExtractionInquiryAgent
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest, ProblemProposal
 from hops_ai.harness.errors import OutputRejected
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
@@ -50,8 +48,6 @@ def services_for(request: AiRunRequest, llm=None) -> SharedServices:
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=llm or FakeLLMClient(),
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
 
@@ -193,7 +189,7 @@ async def test_supervisor_ends_a_complete_inquiry_with_a_ticket_proposal() -> No
         ),
         SupervisorDecision(nextAction="PROPOSE_TICKETS", role=None, publicSummary="제안합니다."),
     )
-    registry = build_runtime_registry()
+    registry = build_registry()
     agents = {role: registry[role] for role in (AgentRole.INQUIRY, AgentRole.TICKET)}
     assert isinstance(agents[AgentRole.INQUIRY], ExtractionInquiryAgent)
 

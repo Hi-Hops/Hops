@@ -2,7 +2,7 @@
 
 import pytest
 
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.executing import ExecutingTicketAgent
 from hops_ai.contracts.domain import AgentRole
@@ -11,11 +11,11 @@ from tests.doubles.llm import FakeLLMClient
 
 
 def test_default_runtime_registry_only_proposes_tickets() -> None:
-    assert type(build_runtime_registry()[AgentRole.TICKET]) is ModelTicketAgent
+    assert type(build_registry()[AgentRole.TICKET]) is ModelTicketAgent
 
 
 def test_runtime_registry_executes_tickets_only_when_asked() -> None:
-    agent = build_runtime_registry(execute_tickets=True)[AgentRole.TICKET]
+    agent = build_registry(execute_tickets=True)[AgentRole.TICKET]
 
     assert type(agent) is ExecutingTicketAgent
 
@@ -41,7 +41,7 @@ def test_executing_agent_builds_its_proposer_once(monkeypatch) -> None:
 
 
 def test_pipeline_does_not_silently_replace_an_injected_ticket_role() -> None:
-    agents = dict(build_runtime_registry())
+    agents = dict(build_registry())
 
     with pytest.raises(ValueError, match="ticket_client"):
         SupervisorPipeline(FakeLLMClient(), agents, ticket_client=object())  # type: ignore[arg-type]

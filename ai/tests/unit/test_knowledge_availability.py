@@ -12,7 +12,7 @@ import pytest
 
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.knowledge.agent import guidable_problem
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import GuideProposal
@@ -32,7 +32,7 @@ from tests.unit.test_knowledge_wiring import decision, how_to_first_message
 
 
 def registry():
-    return build_runtime_registry(FixtureKnowledgeSource())
+    return build_registry(FixtureKnowledgeSource())
 
 
 def roles_for(state, agents=None) -> set[AgentRole]:
@@ -108,7 +108,7 @@ def test_roles_without_an_availability_check_are_never_removed_or_added() -> Non
         async def run(self, request, services):
             raise AssertionError("선택지 계산에서는 호출하지 않는다")
 
-    agents = dict(build_runtime_registry())  # Knowledge 연결 전
+    agents = dict(build_registry())  # Knowledge 연결 전
     agents[AgentRole.TICKET] = TicketWithoutCheck()
     state = running_state(how_to_first_message())
 

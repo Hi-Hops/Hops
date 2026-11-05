@@ -6,8 +6,7 @@ from typing import Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from hops_ai.agents.base import Agent
-from hops_ai.agents.registry import build_registry
+from hops_ai.agents.base import Agent, pending_agents
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected
@@ -35,7 +34,7 @@ class _GraphState(TypedDict):
 class Supervisor:
     """주입된 모델과 전문 역할로 한 run의 제안을 만든다.
 
-    기본 registry의 전문 역할과 OpenAI 어댑터는 아직 구현 전이다.
+    역할을 주입하지 않으면 모든 역할이 연결 전 자리라 실행은 안전한 실패로 끝난다.
     이 클래스가 테스트 대역이나 정해진 업무 답변으로 자동 대체하지는 않는다.
     실제 서비스 접수·중복 방지·결과 저장은 호출 측 RunLedger 연결이 담당한다.
     """
@@ -47,7 +46,7 @@ class Supervisor:
         available_roles: Callable[[SupervisorState], set[AgentRole]] | None = None,
     ) -> None:
         """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다."""
-        self._agents = dict(build_registry() if agents is None else agents)
+        self._agents = dict(pending_agents() if agents is None else agents)
         self._available_roles = available_roles
 
     async def analyze(self, request: AiRunRequest, services: SharedServices) -> AiResult:
