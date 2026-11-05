@@ -208,3 +208,17 @@ knowledge_document_version.id는 내부 FK이고, 외부 documentId는 knowledge
 Entity·Flyway의 저장·재조회·유일성·CHECK는 #23 Repository 테스트로 확인했다. DB 경합·서비스 권한·실제 모델/검색·브라우저 E2E는 구현 PR에서 검증한다. Spring이 중계하는 임시 답변 조각은 message의 저장 완료 행과 별개이며 ERD의 message_status만으로 실시간 연결이 구현됐다고 볼 수 없다. 현재 프론트/Mock은 `hops-system-1`으로 전환됐고 DB 상태·버전 변환은 Spring에서 연결해야 한다. 화면·어댑터의 실제 범위는 [프론트 기준](frontend/README.md#erd-대조-후-프론트-구현-범위)을 따른다.
 
 GUIDE의 UNRESOLVED 응답은 기존 메시지의 확인 메타데이터와 원 안내를 보존한 채 문제를 CLARIFYING으로 돌리고 commit 뒤 새 상담 run을 호출한다. input.problems[].resolutionContext에 원 요청/안내 revision·UNRESOLVED를 넣고 activeRunId를 갱신한다. 질문 횟수는 유지한다. WORK_RECORD의 UNRESOLVED는 기존 ticket_event에 남기고 같은 티켓 IN_PROGRESS로 돌아가며 새 사람 처리 기록 전 CASE_DRAFT를 다시 실행하지 않는다.
+
+### 11.5 관계 데이터 (증상·원인·확인 항목·질문 문구)
+
+`RelationSource`([에이전트 설계 8절](ai/AGENT_ARCHITECTURE.md))의 1차 구현은 Spring이 관리하는 SQL 테이블이다. 이 절의 테이블은 11.4절의 "추가 테이블 없음" 기준에 대한 의도된 예외이며, 컬럼은 [ERD 3절 관계 데이터](ERD.md#관계-데이터)가 정하고 마이그레이션은 V25다(#191).
+
+| 항목 | 규칙 |
+|---|---|
+| 테이블 | `relation_symptom`, `relation_cause`, `relation_check_item`, `relation_question_template`와 연결 `relation_symptom_cause`(MAY_HAVE_CAUSE), `relation_cause_check`(CHECKED_BY), `relation_case_symptom`(ADDRESSES), `relation_case_check`(USES_CHECK). `HAS_FEATURE`·`DEPENDS_ON`·`APPLIES_TO`는 `system_feature`·`it_system`·`resolved_case.it_system_id`가 이미 가진다. |
+| 식별 | 노드의 `catalog_key`는 [정본 6.1절](knowledge/VIRTUAL_COMPANY.md#61-관계-카탈로그-증상원인확인-항목)의 ID(`sym-`·`cause-`·`check-`·`q-`)이며 유일하다. 행 ID는 `uuid5(NAMESPACE_URL, "hops-relation.example/" + 종류 + "/" + 키)`다. |
+| 공개 범위 | 모든 행이 `access_level`(EMPLOYEE/STAFF)과 `review_status`(PENDING/APPROVED)를 가진다. 증상은 `EMPLOYEE`, 원인·확인 항목·연결은 `STAFF`, 질문 문구는 직원 공개일 때 `EMPLOYEE`다. |
+| 직원 공개 | `relation_check_item.employee_disclosable`과 `relation_question_template.employee_disclosable`을 별도로 둔다. 직원 상담은 둘 다 true이고 승인된 문구만 쓴다. 문구가 true이면 `access_level`은 `EMPLOYEE`여야 한다(CHECK). 확인 항목이 직원 공개일 때만 문구를 두는 규칙은 시드 검사와 테스트가 확인한다. |
+| 근거 | 모든 행이 `source_document_version_id`(문서 버전 FK)를 가진다. 근거 없는 연결은 만들 수 없다. 사례 연결의 근거는 그 사례의 CASE 문서 버전이다(문서 ID = `resolved_case.id`). |
+| 원본 | 증상·원인·확인 항목과 그 연결은 코퍼스 런북·정책 front matter, 질문 문구는 `docs/knowledge/relations/questions.yml`, 사례 연결은 사례 카드의 `relation`이다. `scripts/knowledge/build_relation_seed.py`가 `R__seed_dev_relations.sql`을 만든다. |
+| 한계 | 연결은 후보다. 연결만으로 현재 문의의 원인을 확정하지 않는다. 승인되지 않은 행은 상담에 공개하지 않는다. 검색·탐색 API는 이 절의 범위가 아니다(#194). |

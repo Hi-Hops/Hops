@@ -32,6 +32,14 @@
 |  | **문서 버전** | `knowledge_document_version` | 문서 내용을 덮어쓰지 않고 버전별로 보관해요. | 최종기획서 8.5 |
 |  | **검색 조각** | `knowledge_chunk` | 문서를 검색하기 좋게 잘게 나눈 조각과 임베딩이에요. | 최종기획서 9.1, 9.3 |
 |  | **해결 사례** | `resolved_case` | 해결·구현 기록으로 만든 사례예요. Curator 초안 → 주담당자 승인 → Vector·Neo4j 반영 후 검색에 써요. | 최종기획서 8.1~8.5 |
+| 관계 데이터 | **증상** | `relation_symptom` | 직원이 말하는 현상이에요. 시스템·기능에 묶이고 원인을 담지 않아요. | 에이전트 설계 8절, #191 |
+|  | **가능 원인** | `relation_cause` | 증상의 가능한 원인 후보예요. 담당자 전용이고 확정이 아니에요. | 에이전트 설계 8절, #191 |
+|  | **확인 항목** | `relation_check_item` | 원인을 가르는 확인거리예요. 직원이 스스로 답할 수 있는 항목만 직원 공개로 표시해요. | 에이전트 설계 8절, #191 |
+|  | **질문 문구** | `relation_question_template` | 확인 항목을 직원에게 묻는 문구예요. 승인되고 공개 표시가 있는 문구만 직원 상담에 써요. | 에이전트 설계 8절, #191 |
+|  | **증상-원인 연결** | `relation_symptom_cause` | 증상에서 가능한 원인 후보로 가는 연결이에요. | 에이전트 설계 8절, #191 |
+|  | **원인-확인 항목 연결** | `relation_cause_check` | 원인에서 그 원인을 가르는 확인 항목으로 가는 연결이에요. | 에이전트 설계 8절, #191 |
+|  | **사례-증상 연결** | `relation_case_symptom` | 승인 사례가 다룬 증상을 이어요. | 에이전트 설계 8절, #191 |
+|  | **사례-확인 항목 연결** | `relation_case_check` | 승인 사례가 쓴 확인 항목을 이어요. | 에이전트 설계 8절, #191 |
 
 ## 2. 공통 규칙
 
@@ -542,6 +550,137 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 - **이번 범위:** PRD1.44에 따라 실패한 저장소의 수동 재실행과 UNKNOWN 결과 확인을 제공한다. 승인 취소·자동 재검토·자동 비활성화·자동 색인 재시도·전용 복구 화면은 제외한다. 반영이 실패하면 `FAILED`로 남기고 성공으로 바꾸지 않는다 (7.3).
 - 작성자는 원 처리 기록의 작성 담당자다. 처리 기록 하나에서 사례는 최대 하나만 만든다.
 
+### 관계 데이터
+
+증상 → 가능 원인 → 확인 항목 → 직원용 질문 문구, 그리고 승인 사례와의 연결이에요. 1차 `RelationSource`(에이전트 설계 8절)의 저장소이고, Neo4j는 2차에 같은 인터페이스 뒤로 교체해요(노드는 테이블, 관계는 연결 테이블로 1:1 대응). 연결은 후보이며 원인을 확정하지 않아요. 모든 행이 근거 문서 버전·공개 범위·승인 상태를 가져요. 마이그레이션은 V25예요.
+
+#### 증상 `relation_symptom`
+직원이 말하는 현상이에요. 원인을 담지 않아요. 시스템 기능에 묶여요. *(근거: 에이전트 설계 8절, 정본 6.1절)*
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **증상** | 증상 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 카탈로그 ID | `catalog_key` | VARCHAR(100) | ● |  |  | 정본 카탈로그 ID(예: sym-ea-doc-not-listed). 문서가 바뀌어도 같은 항목을 가리키려고. 유일 |
+|  | 이름 | `label` | VARCHAR(200) | ● |  |  | 사람이 읽는 이름. 빈 값 불가 |
+|  | 시스템 ID | `it_system_id` | UUID | ● |  | 시스템 | 어느 시스템 이야기인지. 시스템으로 좁혀 찾으려고 |
+|  | 시스템 기능 ID | `system_feature_id` | UUID | ● |  | 시스템 기능 | 증상이 나타나는 기능 |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
+#### 가능 원인 `relation_cause`
+증상의 가능한 원인 후보예요. 담당자 전용이며, 연결만으로 원인을 확정하지 않아요.
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **가능 원인** | 원인 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 카탈로그 ID | `catalog_key` | VARCHAR(100) | ● |  |  | 정본 카탈로그 ID(예: sym-ea-doc-not-listed). 문서가 바뀌어도 같은 항목을 가리키려고. 유일 |
+|  | 이름 | `label` | VARCHAR(200) | ● |  |  | 사람이 읽는 이름. 빈 값 불가 |
+|  | 시스템 ID | `it_system_id` | UUID | ● |  | 시스템 | 어느 시스템 이야기인지. 시스템으로 좁혀 찾으려고 |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
+#### 확인 항목 `relation_check_item`
+원인을 가르는 확인거리예요. 직원이 화면·설정에서 스스로 알 수 있는 사실만 직원 공개로 표시해요.
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **확인 항목** | 확인 항목 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 카탈로그 ID | `catalog_key` | VARCHAR(100) | ● |  |  | 정본 카탈로그 ID(예: sym-ea-doc-not-listed). 문서가 바뀌어도 같은 항목을 가리키려고. 유일 |
+|  | 이름 | `label` | VARCHAR(200) | ● |  |  | 사람이 읽는 이름. 빈 값 불가 |
+|  | 시스템 ID | `it_system_id` | UUID | ● |  | 시스템 | 어느 시스템 이야기인지. 시스템으로 좁혀 찾으려고 |
+|  | 직원 공개 여부 | `employee_disclosable` | BOOLEAN | ● | false |  | 직원에게 질문으로 나갈 수 있는지. 담당자가 시스템 기록으로만 확인하는 항목은 false |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
+#### 질문 문구 `relation_question_template`
+확인 항목을 직원에게 묻는 문구예요. 한 확인 항목에 여러 개를 둘 수 있어요. 직원 상담은 승인되고 공개 표시가 있는 문구만 써요. 문구의 공개 표시가 확인 항목의 공개 표시를 넘지 않는지는 테이블을 가로지르므로 시드 검사와 테스트가 확인해요.
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **질문 문구** | 질문 문구 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 카탈로그 ID | `catalog_key` | VARCHAR(100) | ● |  |  | 질문 키(q-{확인 항목}-{번호}). 유일 |
+|  | 확인 항목 ID | `check_item_id` | UUID | ● |  | 확인 항목 | 어느 확인 항목을 묻는 문구인지 |
+|  | 질문 문구 | `question_text` | VARCHAR(500) | ● |  |  | 직원에게 그대로 보여 줄 문장. 빈 값 불가, 담당자 전용 문구 금지 |
+|  | 직원 공개 여부 | `employee_disclosable` | BOOLEAN | ● | false |  | 직원에게 나갈 수 있는 문구인지. true이면 공개 범위가 EMPLOYEE여야 해요(CHECK) |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
+#### 증상-원인 연결 `relation_symptom_cause`
+증상에서 가능한 원인 후보로 가는 연결(MAY_HAVE_CAUSE)이에요.
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **증상-원인 연결** | 증상-원인 연결 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 증상 ID | `symptom_id` | UUID | ● |  | 증상 | 연결의 한쪽 끝 |
+|  | 원인 ID | `cause_id` | UUID | ● |  | 가능 원인 | 연결의 다른쪽 끝. (symptom_id, cause_id)는 유일 |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
+#### 원인-확인 항목 연결 `relation_cause_check`
+원인에서 그 원인을 가르는 확인 항목으로 가는 연결(CHECKED_BY)이에요.
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **원인-확인 항목 연결** | 원인-확인 항목 연결 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 원인 ID | `cause_id` | UUID | ● |  | 가능 원인 | 연결의 한쪽 끝 |
+|  | 확인 항목 ID | `check_item_id` | UUID | ● |  | 확인 항목 | 연결의 다른쪽 끝. (cause_id, check_item_id)는 유일 |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
+#### 사례-증상 연결 `relation_case_symptom`
+승인 사례가 다룬 증상(ADDRESSES)이에요. 근거는 그 사례의 CASE 문서 버전이에요.
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **사례-증상 연결** | 사례-증상 연결 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 해결 사례 ID | `resolved_case_id` | UUID | ● |  | 해결 사례 | 연결의 한쪽 끝 |
+|  | 증상 ID | `symptom_id` | UUID | ● |  | 증상 | 연결의 다른쪽 끝. (resolved_case_id, symptom_id)는 유일 |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
+#### 사례-확인 항목 연결 `relation_case_check`
+승인 사례가 쓴 확인 항목(USES_CHECK)이에요.
+
+| 테이블명 | 컬럼명 | 물리명 | 타입 | 필수 | 기본값 | 참조 | 설명 (왜 쓰는지) |
+|---|---|---|---|:-:|---|---|---|
+| **사례-확인 항목 연결** | 사례-확인 항목 연결 ID | `id` | UUID | ● | uuidv7() |  | 한 건을 구분하는 고유 번호 |
+|  | 해결 사례 ID | `resolved_case_id` | UUID | ● |  | 해결 사례 | 연결의 한쪽 끝 |
+|  | 확인 항목 ID | `check_item_id` | UUID | ● |  | 확인 항목 | 연결의 다른쪽 끝. (resolved_case_id, check_item_id)는 유일 |
+|  | 공개 범위 | `access_level` | VARCHAR(30) | ● |  |  | 상담에 쓰기 전에 직원 공개 자료와 담당자 전용 자료를 걸러내려고 (EMPLOYEE / STAFF) |
+|  | 검수 상태 | `review_status` | VARCHAR(30) | ● | 'PENDING' |  | 승인된 항목만 상담에 쓰려고 (PENDING / APPROVED) |
+|  | 근거 문서 버전 ID | `source_document_version_id` | UUID | ● |  | 문서 버전 | 근거 없는 연결을 만들지 않으려고. 문서 ID·버전은 이 버전에서 읽어요. 사례 연결은 그 사례의 CASE 문서 버전이에요 |
+|  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지 |
+|  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
+|  | 삭제일시 | `deleted_at` | TIMESTAMPTZ |  |  |  | 삭제 처리한 시각 (NULL이면 사용 중). 실제로 지우지 않고 기록을 남기려고 |
+
 ## 4. 주요 흐름에서 쓰이는 테이블
 
 | 흐름 | 테이블 순서 |
@@ -558,6 +697,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 ## 5. 물리 적용 상태
 
 - 22개 테이블 전부 [Flyway 마이그레이션](../backend/spring/hops/src/main/resources/db/migration/) V1~V21로 실제 DB에 적용했다 (#23). 테이블마다 파일 하나(V2~V20)이며, 순환 참조 FK는 뒤 파일에서 `ALTER TABLE`로 붙인다 (`inquiry.current_run_id`→V7, `agent_run.ticket_id`→V11, `agent_run.trigger_work_log_id`→V14).
+- 관계 데이터 8개 테이블(`relation_*`)은 V25로 적용한다(#191). 마이그레이션은 EC2에서 자동 실행되지 않으므로 배포 담당자가 적용 시점을 맞춘다. 개발용 시드는 `R__seed_dev_relations.sql`이 넣는다.
 - 검색 조각은 pgvector `vector` 타입을 쓴다. V19는 `CREATE EXTENSION IF NOT EXISTS vector`를 실행한다. 제한 권한의 로컬 DB 계정은 슈퍼유저로 확장을 먼저 켜고, 통합 Compose는 pgvector 이미지와 확장 생성 권한이 있는 DB 계정으로 Flyway를 실행한다. 환경별 준비는 [Spring README](../backend/spring/hops/README.md)를 따른다.
 - 아직 적용하지 않은 것: `department.is_routable`·`AGENT_OPS_ADMIN` 제거(서버 권한·DTO 전환), AI 서버 계정의 `hops_knowledge` 전용 권한, 모델 선정 후 임베딩 차원 고정, JSONB 내부 구조의 전용 타입. 초기 검색은 QUESTIONS의 정확 코사인 기준이며 ANN 인덱스는 MVP 필수 미완료 항목이 아니다.
 - JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다.

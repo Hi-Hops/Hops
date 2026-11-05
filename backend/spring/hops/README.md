@@ -134,7 +134,7 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 직원에게 계정을 안전하게 전달하는 방법과 초기 비밀번호 변경 기능은 별도 준비가 필요하다.
 
 
-`src/main/resources/db/seed/`의 `R__seed_dev_department_member.sql`(부서·회원·역할)과 `R__seed_dev_it_system.sql`(시스템·기능)에 있습니다. 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
+`src/main/resources/db/seed/`의 `R__seed_dev_department_member.sql`(부서·회원·역할)과 `R__seed_dev_it_system.sql`(시스템·기능)에 있습니다. 지식 문서·시드 해결 사례·관계 데이터(`R__seed_dev_knowledge.sql`, `R__seed_dev_knowledge_cases.sql`, `R__seed_dev_relations.sql`)는 `docs/knowledge`의 원본에서 **자동 생성한 파일**이라 직접 고치지 않습니다([갱신 절차](../../../docs/knowledge/README.md#코퍼스-갱신-절차)). 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
 
 - 부서 5개: 마케팅팀·영업팀·인사팀·IT운영팀(`IT_OPS`, 문의 처리 대상 `is_routable=true`)·시스템관리팀
 - 회원 8명, **모든 계정 비밀번호 `hops1234!`**

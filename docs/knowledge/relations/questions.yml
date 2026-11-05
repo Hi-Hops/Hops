@@ -1,0 +1,134 @@
+# 관계 카드: 직원에게 확인 항목을 묻는 질문 문구(QuestionTemplate).
+# 증상·원인·확인 항목과 그 연결은 코퍼스 런북·정책 front matter에 선언되어 있고, 여기에는 질문 문구와 공개 표시만 둔다.
+# 형식과 규칙은 docs/knowledge/DATA_FORMAT.md "관계 카드"를 따른다. 이 카드에서 scripts/knowledge/build_relation_seed.py가 seed SQL을 만든다.
+#
+# 규칙
+# - 직원 공개(employeeDisclosable: true) 확인 항목마다 질문이 하나 이상 있고, 직원 공개가 아닌 확인 항목에는 질문이 없다.
+# - 질문은 직원이 화면이나 설정에서 스스로 알 수 있는 사실만 묻는다. 원인의 이름이나 내부 ID를 쓰지 않는다.
+# - 질문 키는 q-{확인 항목 ID에서 check- 를 뺀 값}-{두 자리 번호}다.
+questions:
+  # ---- 전자결재: 문서가 문서함에 보이지 않음 (runbook-ea-document-not-listed)
+  - checkId: check-ea-search-period
+    templates:
+      - key: q-ea-search-period-01
+        text: "전자결재 문서함에서 조회 기간을 어떻게 설정하셨나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-ea-draft-date
+    templates:
+      - key: q-ea-draft-date-01
+        text: "찾으시는 문서를 기안한 시기가 대략 언제인가요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-ea-filter-condition
+    templates:
+      - key: q-ea-filter-condition-01
+        text: "조회할 때 상태나 제목 키워드를 입력하셨나요? 입력하셨다면 무엇인가요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-ea-submit-state
+    templates:
+      - key: q-ea-submit-state-01
+        text: "그 문서를 상신하셨나요, 아니면 임시 저장만 해 두셨나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-ea-participation
+    templates:
+      - key: q-ea-participation-01
+        text: "그 문서를 직접 기안하셨나요, 아니면 결재선이나 참조로 받으셨나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  # ---- 전자결재: 첨부 파일이 열리지 않음 (runbook-ea-attachment-open-failure)
+  - checkId: check-ea-file-format
+    templates:
+      - key: q-ea-file-format-01
+        text: "열리지 않는 첨부 파일의 형식이 무엇인가요? (예: pdf, docx, xlsx)"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-ea-upload-time
+    templates:
+      - key: q-ea-upload-time-01
+        text: "첨부 파일을 올린 지 얼마나 되었나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-ea-error-message
+    templates:
+      - key: q-ea-error-message-01
+        text: "첨부 파일을 열 때 화면에 어떤 문구가 표시되나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-ea-retry-result
+    templates:
+      - key: q-ea-retry-result-01
+        text: "잠시 뒤에 다시 열어 보셔도 같은가요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  # ---- 공통 로그인: 로그인 후 다시 로그인 화면 (runbook-login-sso-loop)
+  - checkId: check-login-browser-cookie
+    templates:
+      - key: q-login-browser-cookie-01
+        text: "사용 중인 브라우저에서 쿠키를 차단하는 설정을 해 두셨나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-login-browser-other
+    templates:
+      - key: q-login-browser-other-01
+        text: "다른 브라우저나 시크릿 창에서 로그인하면 어떤가요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-login-device-time
+    templates:
+      - key: q-login-device-time-01
+        text: "사용 중인 컴퓨터의 날짜와 시간이 맞게 설정되어 있나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-login-portal-direct
+    templates:
+      - key: q-login-portal-direct-01
+        text: "사내 포털에서 직접 로그인하면 정상적으로 되나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-login-reported-system
+    templates:
+      - key: q-login-reported-system-01
+        text: "어느 시스템에서 로그인 화면이 반복되나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  # ---- 공통 로그인: 권한 신청이 오래 승인되지 않음 (policy-login-permission-approval)
+  - checkId: check-login-permission-level
+    templates:
+      - key: q-login-permission-level-01
+        text: "어떤 권한 종류(읽기, 쓰기, 관리)로 신청하셨나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-login-teamlead-confirm
+    templates:
+      - key: q-login-teamlead-confirm-01
+        text: "소속 팀장에게 확인을 요청하셨나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  # ---- 파일 공유: 파일이나 폴더가 열리지 않음 (runbook-file-open-denied)
+  - checkId: check-file-error-message
+    templates:
+      - key: q-file-error-message-01
+        text: "화면에 어떤 문구가 표시되나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-file-access-route
+    templates:
+      - key: q-file-access-route-01
+        text: "폴더 목록에서 열려고 하셨나요, 링크로 여셨나요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-file-recent-change
+    templates:
+      - key: q-file-recent-change-01
+        text: "그 파일이 최근에 삭제되거나 옮겨졌는지 알고 계신가요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
+  - checkId: check-file-link-received
+    templates:
+      - key: q-file-link-received-01
+        text: "공유 링크를 받은 게 언제쯤인가요?"
+        employeeDisclosable: true
+        reviewStatus: APPROVED
