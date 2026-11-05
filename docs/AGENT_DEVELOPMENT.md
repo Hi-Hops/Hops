@@ -14,7 +14,7 @@ Python은 제안과 근거를 반환하고, Spring이 인증·권한·저장·�
 
 HOPS 내부 티켓 생성·결과 조회는 [Ticket 도구 REST 계약](../contracts/agents/TICKET_TOOLS.md)의 별도 허용 경로다. Ticket이 Spring 도구로 생성·확인을 조율하되 업무 DB 직접 쓰기·외부 시스템 변경은 허용하지 않는다. Spring API와 Python 도구 연결의 구현 상태를 구분한다.
 
-Knowledge의 승인 지식 읽기는 [지식 검색 REST 계약](../contracts/agents/KNOWLEDGE_TOOLS.md)의 Spring 내부 API를 쓴다. AI 쪽 연결(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)은 해당 문서의 구현 상태를 따른다.
+Knowledge의 승인 지식 읽기는 [지식 검색 REST 계약](../contracts/agents/KNOWLEDGE_TOOLS.md)의 Spring 내부 API를 쓴다. AI 쪽 연결은 `HOPS_AI_KNOWLEDGE_SOURCE=spring`(기본 `none`, 개발·테스트용 `fixture`)이며 구현 상태는 해당 문서를 따른다.
 
 새 작업은 루트 [AGENTS.md](../AGENTS.md)와 PRD를 읽은 뒤 이 문서에서 구현 범위를 확인한다. 이어서 [역할별 입출력](../contracts/agents/README.md#역할별-상세-책임), [서비스 실행 계약](../contracts/agents/README.md#hops-system-1-실행-계약안), [호출과 진행 예시](../contracts/agents/README.md#호출과-진행-예시)를 읽는다. 프론트·Spring과 맞출 필드·상태·전송은 [공통 계약](../specs/contracts/README.md), 실제 환경·실행은 [AI 실행 안내](../ai/README.md)를 확인한다.
 

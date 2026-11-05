@@ -54,7 +54,8 @@ class InternalRunAccess {
     /** 실행이 접수된 현재 실행이고 진행 중이며 문의 버전이 같고 기한 전일 때의 접근 문맥. */
     RunAccess active(UUID runId, int inquiryVersion) {
         AgentRun run = runs.findById(runId).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
-        Inquiry inquiry = inquiries.findByIdAndDeletedAtIsNull(run.getInquiry().getId())
+        // 읽기 전용 API라 문의 행을 잠그지 않는다(findByIdAndDeletedAtIsNull은 쓰기 잠금이라 읽기 전용 거래에서 실패한다).
+        Inquiry inquiry = inquiries.findById(run.getInquiry().getId()).filter(found -> !found.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         // 취소·교체된 실행의 캐시를 쓰지 않는다.
         entities.refresh(run);

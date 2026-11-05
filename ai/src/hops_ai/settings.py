@@ -22,6 +22,8 @@ class KnowledgeSourceKind(StrEnum):
     NONE = "none"
     # 개발용 고정 데이터. 검색 품질 검증이나 운영 지식으로 쓰지 않는다.
     FIXTURE = "fixture"
+    # Spring 내부 읽기 API로 DB의 승인 문서를 읽는다. Spring 주소와 서비스 토큰이 필요하다.
+    SPRING = "spring"
 
 
 class Settings(BaseSettings):
@@ -56,6 +58,8 @@ class Settings(BaseSettings):
     ticket_poll_interval_seconds: float = Field(default=0.25, ge=0, le=2)
     # none이면 Knowledge 역할은 연결 전으로 남아 Supervisor가 고르지 못한다.
     knowledge_source: KnowledgeSourceKind = KnowledgeSourceKind.NONE
+    # Spring 지식 검색·관계 조회 요청 한 번의 제한 시간. 남은 실행 기한보다 길게 기다리지 않는다.
+    knowledge_http_timeout_seconds: float = Field(default=5, gt=0, le=30)
     langfuse_public_key: SecretStr | None = Field(
         default=None, validation_alias="LANGFUSE_PUBLIC_KEY"
     )

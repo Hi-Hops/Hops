@@ -11,14 +11,35 @@
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from hops_ai.contracts.roles import AuthorizedKnowledgeRef
 from hops_ai.contracts.wire import AccessScope, KnowledgeEvidence
 
 MAX_TOP_K = 5
+
+# Spring 내부 읽기 API를 부르는 업무 도구 이름. 역할별 도구 허용 목록과 호출 한도(toolCalls)에 쓴다.
+SEARCH_KNOWLEDGE = "search_knowledge"
+SEARCH_RELATIONS = "search_relations"
+KNOWLEDGE_TOOLS = frozenset({SEARCH_KNOWLEDGE, SEARCH_RELATIONS})
+
+
+@dataclass(frozen=True)
+class RunLink:
+    """검색이 속한 실행·문제와 도구 호출 예약. Spring 내부 API 호출에 필요하다.
+
+    질의 지문에는 포함하지 않는다.
+
+    reserve_call은 호출 직전에 취소·기한·역할 허용·도구 호출 한도를 확인하고 1회를 소비한 뒤,
+    그 호출에 쓸 수 있는 남은 시간(초)을 돌려준다. 한도를 넘으면 예외를 발생시킨다.
+    """
+
+    run_id: str
+    inquiry_version: int
+    problem_ref: str
+    reserve_call: Callable[[], float]
 
 
 @dataclass(frozen=True)
@@ -33,6 +54,8 @@ class KnowledgeQuery:
     # 지원 시스템의 안정적인 코드 → ID. 코드로 자료를 구분하는 구현이 ID를 찾는 데 쓴다.
     system_ids_by_code: Mapping[str, str]
     top_k: int = MAX_TOP_K
+    # Spring 내부 API 구현이 쓰는 실행 문맥. 고정 자료는 쓰지 않는다. 비교·지문에서 제외한다.
+    run: RunLink | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.text.strip():

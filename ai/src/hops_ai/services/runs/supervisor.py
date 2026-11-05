@@ -16,7 +16,7 @@ from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMClient
-from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
+from hops_ai.services.retrieval.knowledge_source import KNOWLEDGE_TOOLS, KnowledgeSource
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tickets import TICKET_TOOLS, TicketHTTPClient
 from hops_ai.services.tools.base import ToolGateway
@@ -51,16 +51,21 @@ class SupervisorPipeline:
             else agents
         )
         self._ticket_client = ticket_client
+        self._knowledge_connected = agents is None and knowledge_source is not None
         self._tracing = tracing or RunTracing()
         self._llm = TracedLLMClient(llm, self._tracing) if self._tracing.client else llm
         self._tools = tools or DisabledToolGateway()
         self._supervisor = Supervisor(registry, restrict_roles=True)
 
     async def run(self, request: AiRunRequest, context: RunContext) -> AiResult:
+        allowed = dict(context.tool_policy.allowed_by_role)
         if self._ticket_client is not None:
-            context.tool_policy = ToolPolicy.of(
-                {**context.tool_policy.allowed_by_role, AgentRole.TICKET: TICKET_TOOLS}
-            )
+            allowed[AgentRole.TICKET] = TICKET_TOOLS
+        if self._knowledge_connected:
+            # Spring 내부 읽기 API 호출은 Knowledge 역할만 하며 실행 전체의 toolCalls를 소비한다.
+            allowed[AgentRole.KNOWLEDGE] = KNOWLEDGE_TOOLS
+        if allowed != context.tool_policy.allowed_by_role:
+            context.tool_policy = ToolPolicy.of(allowed)
         ticket_tools = self._ticket_client.bind(request, context) if self._ticket_client else None
         with self._tracing.observe(
             "hops.ai.run",

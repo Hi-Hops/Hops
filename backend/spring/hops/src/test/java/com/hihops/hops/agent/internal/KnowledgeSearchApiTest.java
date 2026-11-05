@@ -60,6 +60,7 @@ class KnowledgeSearchApiTest extends InternalRunApiTestBase {
     @Autowired KnowledgeEvidenceAssembler assembler;
     @Autowired com.hihops.hops.itsystem.repository.ItSystemQueryRepository systems;
     @Autowired com.hihops.hops.ticket.service.TicketStoredData storedData;
+    @Autowired jakarta.persistence.EntityManager entityManager;
 
     // ---- 접근 범위
 
@@ -368,6 +369,63 @@ class KnowledgeSearchApiTest extends InternalRunApiTestBase {
         request.put("kinds", List.of("CASE"));
 
         search(request).andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("SEARCH_UNAVAILABLE"));
+    }
+
+    @Test
+    void DB_값과_근거_값의_대응이_고정되어_있다() throws Exception {
+        allowStaffScope();
+        jdbc.update("UPDATE it_system SET primary_owner_member_id = ?::uuid WHERE id = ?", REQUESTER1, eaSystem);
+        var all = body("전자결재 문서 조회 첨부 문서함 열람 권한");
+        all.put("kinds", List.of("GUIDE", "POLICY", "RUNBOOK", "CASE"));
+        all.put("topK", 5);
+
+        // 문서 종류·공개 범위: EMPLOYEE_GUIDE→GUIDE, POLICY→POLICY, STAFF_RUNBOOK→RUNBOOK, CASE→CASE / EMPLOYEE→EMPLOYEE, STAFF→SYSTEM_STAFF
+        Map<String, String> expected = Map.of("GUIDE", "EMPLOYEE", "POLICY", "EMPLOYEE", "RUNBOOK", "SYSTEM_STAFF", "CASE", "SYSTEM_STAFF");
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
+            var request = body("전자결재 문서 조회 첨부 문서함 열람 권한");
+            request.put("kinds", List.of(entry.getKey()));
+            request.put("systemIds", List.of(eaSystem));
+            JsonNode response = search(request).andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("FOUND")).andReturn().json();
+            for (JsonNode result : response.path("results")) {
+                assertThat(result.path("evidence").path("kind").asString()).isEqualTo(entry.getKey());
+                assertThat(result.path("evidence").path("accessScope").asString()).isEqualTo(entry.getValue());
+            }
+        }
+
+        // 사례 출처: PRODUCTION→OPERATIONAL, DEMO_VERIFIED·SYNTHETIC은 그대로
+        var cases = body("전자결재 문서가 문서함에 안 보임 열람 권한");
+        cases.put("kinds", List.of("CASE"));
+        for (String[] pair : new String[][] {{"PRODUCTION", "OPERATIONAL"}, {"DEMO_VERIFIED", "DEMO_VERIFIED"}, {"SYNTHETIC", "SYNTHETIC"}}) {
+            jdbc.update("UPDATE resolved_case SET origin_type = ? WHERE it_system_id = ?", pair[0], eaSystem);
+            entityManager.clear(); // 같은 거래 안에서 JDBC로 바꾼 값을 다시 읽는다(운영에서는 요청마다 거래가 다르다)
+            JsonNode response = search(cases).andExpect(status().isOk()).andReturn().json();
+            assertThat(response.path("results").size()).isPositive();
+            for (JsonNode result : response.path("results")) {
+                assertThat(result.path("evidence").path("origin").asString()).as(pair[0]).isEqualTo(pair[1]);
+            }
+        }
+
+        // 문서 출처: 메타데이터에 origin이 있으면 그 값, 없으면 합성 여부(is_synthetic)로 SYNTHETIC·OPERATIONAL을 정한다.
+        var guide = body(EA_QUERY);
+        guide.put("kinds", List.of("GUIDE"));
+        jdbc.update("UPDATE knowledge_document_version SET source_metadata = source_metadata - 'origin' WHERE knowledge_document_id IN "
+                + "(SELECT id FROM knowledge_document WHERE document_type = 'EMPLOYEE_GUIDE')");
+        jdbc.update("UPDATE knowledge_document SET is_synthetic = false WHERE document_type = 'EMPLOYEE_GUIDE'");
+        entityManager.clear();
+        for (JsonNode result : search(guide).json().path("results")) {
+            assertThat(result.path("evidence").path("origin").asString()).isEqualTo("OPERATIONAL");
+        }
+        jdbc.update("UPDATE knowledge_document SET is_synthetic = true WHERE document_type = 'EMPLOYEE_GUIDE'");
+        entityManager.clear();
+        for (JsonNode result : search(guide).json().path("results")) {
+            assertThat(result.path("evidence").path("origin").asString()).isEqualTo("SYNTHETIC");
+        }
+        jdbc.update("UPDATE knowledge_document_version SET source_metadata = jsonb_set(source_metadata, '{origin}', '\"DEMO_VERIFIED\"') WHERE knowledge_document_id IN "
+                + "(SELECT id FROM knowledge_document WHERE document_type = 'EMPLOYEE_GUIDE')");
+        entityManager.clear();
+        for (JsonNode result : search(guide).json().path("results")) {
+            assertThat(result.path("evidence").path("origin").asString()).isEqualTo("DEMO_VERIFIED");
+        }
     }
 
     // ---- 도우미

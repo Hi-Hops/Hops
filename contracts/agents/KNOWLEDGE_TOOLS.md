@@ -6,7 +6,9 @@ Knowledge는 Spring의 내부 REST로 승인된 지식 문서를 읽는다. 업�
 
 ## 구현 상태
 
-Spring의 지식 검색 API와 관계 조회 API, 내부 판단 경계(옵션, 기본 꺼짐)를 구현했다. AI 쪽 `SpringKnowledgeSource`·`SpringRelationSource`(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)는 같은 PR의 커밋 ④에서 추가하므로 지금 AI는 이 API들을 호출하지 않는다. 관계 조회의 AI 쪽 사용(질문 생성·평가)은 #181 범위다.
+Spring의 지식 검색 API와 관계 조회 API, 내부 판단 경계(옵션, 기본 꺼짐)를 구현했다. AI 쪽에는 `SpringKnowledgeSource`(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)와 `SpringRelationSource`가 있다. `SpringKnowledgeSource`는 Knowledge 역할이 사용법 안내 검색에 쓴다. `SpringRelationSource`는 클라이언트·변환·오류 매핑까지이고 상담 흐름에서 부르는 것(질문 생성·평가)은 #181 범위다.
+
+AI 클라이언트의 처리: 고정 origin과 서비스 토큰만 쓰고 리다이렉트·환경 프록시를 쓰지 않으며 응답 크기와 시간을 제한한다. 호출마다 실행 전체의 도구 호출 한도(`toolCalls`)를 소비하고 Knowledge 역할만 허용한다. 재시도하지 않는다. `NO_RESULT`는 빈 목록, `DENIED`·HTTP 오류·시간 초과·잘못된 응답은 `RetrievalUnavailable`, 401·403은 `PolicyDenied`다. 응답은 신뢰하지 않고 실행·문제 일치, 근거 형식, 본문 digest(`digestBasis=CONTENT`), 요청 시스템 안의 근거인지를 다시 검증한다. 사용자 범위 밖의 근거(내부 판단 읽기 응답의 담당자 자료)는 근거로 쓰지 않고 건수만 경고 로그에 남긴다.
 
 ## 인증
 
