@@ -275,10 +275,17 @@ DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 
 기존 AI 런타임 DB에 `migrations/003_index_jobs.sql`을 수동 적용하고 migrator로
 `db/04_index_privileges.sql`을 실행한다. 앱·배포가 migration을 자동 적용하지 않는다.
 색인 계정은 업무 원본 쓰기 권한 없이 `hops_knowledge.knowledge_chunk`의 SELECT·INSERT만 사용한다.
+업무 DB 관리자·소유자의 `db/05_index_roles.sql`·`db/06_vector_privileges.sql` 절차는
+[DB 계정 안내](db/README.md)를 따른다. FK 검사를 위해 업무 원본 읽기·쓰기 권한을 늘리지 않는다.
 원장 계정과 색인 계정은 분리한다. Neo4j에는 대상 System과 승인할 기존 노드를 먼저 준비한다.
 
 보존 구현의 pgvector·Neo4j 어댑터를 현재 API에 연결했다. 저장소별 요청 digest를 재검증하고,
 Vector는 Spring 전용 `X-Hops-Document-Version`·`X-Hops-Document-Digest` 헤더의 원본 참조와 대조한다.
+Vector 입력은 선택한 모델의 tiktoken 토크나이저로 청크당 최대 2,000 토큰, 배치당 최대 32개로 나눈다.
+필드·문장 경계를 우선하며 원문을 자르거나 치환하지 않는다. 원문 digest와 청크별 digest를 따로 저장하고,
+청크를 순서대로 이어 원문과 대조한다. 모든 청크는 한 거래로 저장하며 이미 완전하게 저장된 버전은
+다시 임베딩하지 않는다. 토크나이저 데이터 캐시는 최초 준비 시 네트워크가 필요할 수 있다.
+입력별·요청 합계 제한은 [OpenAI 임베딩 API 문서](https://developers.openai.com/api/reference/resources/embeddings/methods/create)를 따른다.
 같은 `(jobId, attempt)`와 같은 본문은 기존 결과를 반환하고 다른 본문은409다.
 RUNNING을 원장에 먼저 commit하여 응답 유실·프로세스 종료 뒤 같은 작업을 새로 실행하지 않는다.
 실행 연결은 작업별 PostgreSQL 세션 잠금을 결과 저장까지 유지한다. 조회·재접수 시 실행 주체가
@@ -296,6 +303,8 @@ PostgreSQL의 권한·스키마·데이터 거부와 확정된 거래 롤백 SQL
 `HOPS_INDEX_NEO4J_TEST_URL`에서 실제 원장·저장소 검사를 실행한다. Neo4j 검사의 테스트 전용
 비밀번호는 `case170-fixture`이며 운영·공유 서버에 사용하지 않는다.
 pgvector 검사의 임베딩은 합성 벡터다. 이 검사를 실제 OpenAI 임베딩 품질·모델 E2E로 보고하지 않는다.
+`HOPS_INDEX_VECTOR_ADMIN_TEST_DSN`은 별도 `_test` 업무 DB에서 최소 권한 역할·기존 FK·대형 사례
+청크 저장·업무 원본 접근 거부를 검사한다. 임시 테스트 역할을 만들고 정리하므로 격리 DB 관리자만 지정한다.
 
 ## 구현 경계와 다음 작업
 

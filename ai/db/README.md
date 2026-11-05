@@ -6,6 +6,17 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 
 ## 계정
 
+Vector 색인은 런타임 계정과 별도 `hops_ai_indexer`를 사용한다. Spring migration이 적용된 **업무 DB**에서
+관리자가 [05_index_roles.sql](05_index_roles.sql)을 실행하고 `\password hops_ai_indexer`로 비밀번호를 별도 설정한다.
+그 다음 업무 DB의 스키마·테이블 소유자가 [06_vector_privileges.sql](06_vector_privileges.sql)을 적용한다.
+`HOPS_AI_INDEX_VECTOR_DSN`에는 이 전용 계정의 업무 DB 접속 정보를 주입한다.
+
+06은 스키마 USAGE와 `hops_knowledge.knowledge_chunk`의 SELECT·INSERT만 부여한다. 업무 원본의
+SELECT·쓰기·REFERENCES는 부여하지 않는다. 기존 FK의 INSERT 검사는 DB 제약으로 수행되며,
+원본 테이블 접근 권한을 추가하지 않는다. 재실행 시에도 문서·청크 데이터는 변경하지 않는다.
+전용 계정이 다른 역할을 상속하거나 객체를 소유하면 적용을 거부한다. PUBLIC 정책으로 업무 원본 접근이나
+스키마 CREATE가 열려 있어도 실패하므로, 관리자가 해당 정책을 별도로 점검해야 한다.
+
 | 계정 | 용도 | 권한 |
 |---|---|---|
 | `hops_ai_migrator` | `hops_ai_runtime` DB와 테이블 소유자. 마이그레이션·권한 부여에만 사용 | DB·스키마 소유. 관리자 속성 없음 |

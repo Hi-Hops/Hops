@@ -167,6 +167,7 @@ jobs:
     env:
       HOPS_LEDGER_TEST_DSN: host=localhost port=5432 dbname=hops_ai_runtime_test user=postgres password=ci-only-fixture
       HOPS_INDEX_TEST_DSN: host=localhost port=5432 dbname=hops_ai_runtime_test user=postgres password=ci-only-fixture
+      HOPS_INDEX_VECTOR_ADMIN_TEST_DSN: host=localhost port=5432 dbname=hops_index_test user=postgres password=ci-only-fixture
       HOPS_LEDGER_LIMITED_TEST_DSN: host=localhost port=5432 dbname=hops_ai_runtime_test user=hops_ai_test password=ci-only-fixture
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -185,6 +186,7 @@ jobs:
           POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: |
           docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c 'CREATE DATABASE hops_business_test'
+          docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c 'CREATE DATABASE hops_index_test'
           docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c 'REVOKE CONNECT ON DATABASE hops_business_test FROM PUBLIC'
           docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE ROLE hops_ai_test LOGIN PASSWORD 'ci-only-fixture'"
           docker exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d hops_ai_runtime_test < ai/migrations/001_run_ledger.sql
