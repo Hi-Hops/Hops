@@ -245,11 +245,14 @@ def check_p8(trace: RunTrace) -> list[Violation]:
 
 
 def check_p9(trace: RunTrace) -> list[Violation]:
-    """P9. 모델 호출이 설정된 한도 안에서 끝난다. 한도 초과를 성공으로 바꾸지 않는다."""
+    """P9. 모델 호출이 설정된 한도 안에서 끝난다. 한도 초과를 성공으로 바꾸지 않는다.
+
+    `maxModelCalls`는 최초 호출과 재시도를 합친 시도 상한이다(`RunBudget.constrain`). 기록의 호출
+    수는 재시도도 센다. 재시도 횟수는 기록에 따로 없으므로 `maxRetries`는 검사하지 않는다.
+    """
     found: list[Violation] = []
     for index, turn in enumerate(trace.turns):
-        limits = turn.request.limits
-        allowed = limits.maxModelCalls + limits.maxRetries
+        allowed = turn.request.limits.maxModelCalls
         if turn.model_calls > allowed:
             found.append(
                 Violation(

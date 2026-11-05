@@ -281,3 +281,15 @@ def test_unknown_system_is_declared_with_system_code_and_answered_as_unknown() -
 
     assert "시스템" in reply.text and "모르겠어요" in reply.text
     assert reply.unknown == (("new:1", "system"),)
+
+
+def test_validator_rejects_empty_follow_up_actions_when_the_scenario_has_a_follow_up() -> None:
+    name = "S-guide-unresolved-001"
+    scenario = load_scenario(SCENARIO_DIR / f"{name}.json")
+    gold = gold_of(name)
+    assert validate_gold(gold, scenario, DOCUMENTS) == []  # 기준: 원래 정답은 통과
+    gold["problems"][0]["afterFollowUp"]["allowedFinalActions"] = []
+
+    errors = validate_gold(gold, scenario, DOCUMENTS)
+
+    assert any("afterFollowUp.allowedFinalActions가 비어 있다" in error for error in errors)

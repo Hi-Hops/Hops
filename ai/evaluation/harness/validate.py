@@ -207,12 +207,13 @@ def _validate_problem(
                 f"{prefix}.afterFollowUp은 allowedFinalActions·mustNotRepeatEvidence를 가진다"
             )
         else:
-            _subset(
+            if not _subset(
                 f"{prefix}.afterFollowUp.allowedFinalActions",
                 follow["allowedFinalActions"],
                 FINAL_ACTIONS,
                 errors,
-            )
+            ):
+                errors.append(f"{prefix}: afterFollowUp.allowedFinalActions가 비어 있다")
             _evidence(
                 f"{prefix}.afterFollowUp.mustNotRepeatEvidence",
                 follow["mustNotRepeatEvidence"],

@@ -246,12 +246,13 @@ def test_p8_a_problem_gets_at_most_five_question_bundles() -> None:
 
 
 # ---- P9 ----------------------------------------------------------------------------------------
-def test_p9_model_calls_stay_within_calls_plus_retries() -> None:
-    request = request_with(max_calls=3, max_retries=1)
+def test_p9_model_calls_stay_within_the_limit_that_already_counts_retries() -> None:
+    request = request_with(max_calls=8, max_retries=2)
     result = ai_result(request)
 
-    assert check_p9(run_trace(turn(request, result, model_calls=4))) == []
-    assert ids(check_p9(run_trace(turn(request, result, model_calls=5)))) == ["P9"]
+    assert check_p9(run_trace(turn(request, result, model_calls=8))) == []
+    # 재시도 한도를 호출 한도에 더하지 않는다: 9회는 위반이다
+    assert ids(check_p9(run_trace(turn(request, result, model_calls=9)))) == ["P9"]
 
 
 # ---- 공통 --------------------------------------------------------------------------------------

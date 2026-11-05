@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel
 
+from evaluation.harness.budget import CallCapExceeded
 from evaluation.harness.trace import RoleCall
 from hops_ai.agents.base import Agent
 from hops_ai.contracts.domain import AgentRole
@@ -30,7 +31,12 @@ class RecordingLLM:
 
     async def generate[T: BaseModel](self, request: LLMRequest[T]) -> LLMResponse[T]:
         self._log.model_calls += 1
-        response = await self._inner.generate(request)
+        try:
+            response = await self._inner.generate(request)
+        except CallCapExceeded:
+            # 평가 상한이 막은 요청은 모델에 전달되지 않았으므로 호출로 세지 않는다
+            self._log.model_calls -= 1
+            raise
         usage = getattr(response, "usage", None)
         self._log.input_tokens += getattr(usage, "input_tokens", 0)
         self._log.output_tokens += getattr(usage, "output_tokens", 0)

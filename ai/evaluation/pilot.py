@@ -297,6 +297,12 @@ def run_metadata(model: str, directory: Path = SCENARIO_DIR) -> dict[str, Any]:
     }
 
 
+def finish_run_info(run_info: dict[str, Any], now: datetime | None = None) -> dict[str, Any]:
+    """실행 전에 만든 조건 기록에 종료 시각을 더한다. 시작 시각은 바꾸지 않는다."""
+    finished = (now or datetime.now(UTC)).isoformat(timespec="seconds")
+    return {**run_info, "finishedAt": finished}
+
+
 def _log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
@@ -364,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         _log("중단됨. 끝난 시나리오까지만 저장한다(진행 중이던 시나리오는 포함되지 않는다).")
         return 130
-    report["run"] = run_metadata(model)
+    report["run"] = finish_run_info(run_info)
     text = json.dumps(report, ensure_ascii=False, indent=2)
     print(text)
     if args.out:

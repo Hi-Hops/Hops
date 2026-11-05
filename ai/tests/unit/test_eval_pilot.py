@@ -1,6 +1,7 @@
 """시범 실행 도구의 토큰 기록과 전체 호출 상한. Fake 모델만 쓰며 실제 모델을 부르지 않는다."""
 
 import asyncio
+from datetime import UTC, datetime
 
 import pytest
 
@@ -8,6 +9,7 @@ from evaluation.harness.budget import CallCap, CallCapExceeded
 from evaluation.harness.scenario import parse_scenario
 from evaluation.pilot import (
     FaultyKnowledgeSource,
+    finish_run_info,
     main,
     run_batch,
     run_metadata,
@@ -243,3 +245,23 @@ async def test_report_records_the_prompt_versions_used() -> None:
     )
 
     assert report["promptVersions"] and all(isinstance(v, str) for v in report["promptVersions"])
+
+
+async def test_calls_rejected_by_the_cap_are_not_counted_as_model_calls() -> None:
+    llm = two_turn_llm()
+
+    report = await run_pilot(parse_scenario(SCENARIO), llm=llm, agents=AGENTS, max_calls=3)
+
+    assert report["callCap"]["used"] == 3
+    assert report["totals"]["modelCalls"] == 3 == len(llm.requests)
+
+
+def test_final_run_info_keeps_the_start_time_and_adds_the_finish_time() -> None:
+    started = {"startedAt": "2026-11-05T03:00:00+00:00", "model": "m"}
+    later = datetime(2026, 11, 5, 3, 5, tzinfo=UTC)
+
+    final = finish_run_info(started, later)
+
+    assert final["startedAt"] == "2026-11-05T03:00:00+00:00"
+    assert final["finishedAt"] == "2026-11-05T03:05:00+00:00"
+    assert started == {"startedAt": "2026-11-05T03:00:00+00:00", "model": "m"}  # 원본은 그대로
