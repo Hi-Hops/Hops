@@ -156,7 +156,7 @@ def inquiry_has_nothing_left_to_do(state: "SupervisorState") -> bool:
         return False
     from hops_ai.agents.inquiry.extraction import DETAIL_FIELDS
     from hops_ai.agents.inquiry.forms import FIELD_LABELS, missing_fields
-    from hops_ai.agents.ticket.agent import TICKETABLE_TYPES
+    from hops_ai.agents.ticket.model import TICKETABLE_TYPES
 
     progress = get_problem_progress(state)
     names_by_label = {label: name for name, label in FIELD_LABELS.items()}

@@ -138,7 +138,7 @@ curl -i http://127.0.0.1:8000/readyz
 
 처리 흐름은 Supervisor 판단 → Inquiry(원문 추출·양식 규칙 질문) → 필요 시 Ticket(제안·Spring 생성 요청·저장 결과 확인) → 최종 답변 조립이다. 정보가 부족하면 질문으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge 기본 설정(none)에서는 안전한 실패로 끝나며, 개발용 고정 자료 연결은 아래 Knowledge 절을 따른다. Ticket은 등록된 업무 도구로 Spring REST를 호출하고 저장·배정 확정은 Spring이 한다. 최종 AI 결과 수신 경로가 같은 티켓을 다시 생성하지 않는다.
 
-real 모드의 기본 Ticket은 `ExecutingTicketAgent`다. 내부 `ModelTicketAgent`가 공용 LLM·동일 실행 예산으로 한 번의 구조화 출력을 요청하고(`ticket.proposal.v2`, 출력 상한 1,500토큰), 이후 생성·조회·제한 재시도는 코드로 수행해 추가 모델 호출을 하지 않는다. `RuleTicketAgent`는 기존 규칙 검사 용도로 남아 있으며 모델/서비스 실패 시 자동 대체하지 않는다. 기본 `build_runtime_registry()`의 순수 제안 구현과 제품 `SupervisorPipeline(ticket_client=...)`의 실행 구현을 구분한다.
+real 모드의 기본 Ticket은 `ExecutingTicketAgent`다. 내부 `ModelTicketAgent`가 공용 LLM·동일 실행 예산으로 한 번의 구조화 출력을 요청하고(`ticket.proposal.v2`, 출력 상한 1,500토큰), 이후 생성·조회·제한 재시도는 코드로 수행해 추가 모델 호출을 하지 않는다. 모델/서비스 실패 시 규칙 구현으로 자동 대체하지 않는다. `build_runtime_registry()`의 기본 Ticket은 순수 제안 구현(`ModelTicketAgent`)이고, `execute_tickets=True`(제품 `SupervisorPipeline(ticket_client=...)`)이면 실행 구현(`ExecutingTicketAgent`)을 연결한다. `agents`를 직접 주면서 `ticket_client`를 함께 줄 수는 없다.
 
 `HOPS_AI_TICKET_TOOLS_ENABLED=true`가 기본이다. real 모드에는 `HOPS_AI_SPRING_BASE_URL`(Compose 기본 http://backend:8080)과 Spring 내부 API의 `SPRING_SERVICE_TOKEN`도 필요하며 없으면 시작을 거부한다. 이 토큰은 Spring→AI의 `AI_SERVICE_TOKEN`과 다르다. Compose는 backend/.env의 방향별 값을 AI에도 전달하며 호스트 직접 실행은 해당 값을 프로세스 환경변수 또는 ai/.env에 설정한다. 명시적으로 false를 설정한 경우만 제안 전용 모드로 실행하고 저장 성공을 표시하지 않는다.
 

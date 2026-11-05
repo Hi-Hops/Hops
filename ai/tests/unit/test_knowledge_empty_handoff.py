@@ -13,7 +13,7 @@ import pytest
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.registry import build_runtime_registry
-from hops_ai.agents.ticket import RuleTicketAgent
+from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult, TicketResult
@@ -32,6 +32,7 @@ from hops_ai.supervisor.finalize import finalize_result
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.merge import merge_ticket_result
 from hops_ai.supervisor.state import transition_phase
+from tests.doubles.agents import fake_ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -105,8 +106,10 @@ def state_after(search: KnowledgeResult | None, *problems: ProblemProposal):
 
 async def run_ticket(state):
     reserved = reserve(state, AgentRole.TICKET, "inv-t")
-    result = await RuleTicketAgent().run(
-        RoleRequest("inv-t", reserved), services_for(state["input"])
+    decisions = fake_ticket_decisions(state)
+    llm = FakeLLMClient() if decisions is None else FakeLLMClient(decisions)
+    result = await ModelTicketAgent().run(
+        RoleRequest("inv-t", reserved), services_for(state["input"], llm)
     )
     return reserved, result
 

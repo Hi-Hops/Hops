@@ -6,7 +6,6 @@ TicketAgent는 연결 전 자리이고, 실제 구현은 ModelTicketAgent다.
 """
 
 from hops_ai.agents.base import PendingAgent
-from hops_ai.agents.ticket.agent import RuleTicketAgent
 from hops_ai.agents.ticket.model import ModelTicketAgent
 from hops_ai.contracts.domain import AgentRole
 
@@ -15,4 +14,4 @@ class TicketAgent(PendingAgent):
     role = AgentRole.TICKET
 
 
-__all__ = ["ModelTicketAgent", "RuleTicketAgent", "TicketAgent"]
+__all__ = ["ModelTicketAgent", "TicketAgent"]

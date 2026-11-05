@@ -108,7 +108,7 @@ def test_decision_context_carries_the_readiness_without_limiting_roles() -> None
 
 async def test_supervisor_sees_the_readiness_and_the_v5_guidance_after_an_empty_search() -> None:
     from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-    from tests.doubles.agents import runtime_registry_with_rule_ticket
+    from tests.doubles.agents import runtime_registry, ticket_decisions
     from tests.unit.test_knowledge_empty_handoff import how_to_extraction, no_guide_request
 
     request = no_guide_request()
@@ -117,9 +117,10 @@ async def test_supervisor_sees_the_readiness_and_the_v5_guidance_after_an_empty_
         how_to_extraction(),
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions("new:1"),
         decision("PROPOSE_TICKETS"),
     )
-    registry = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
+    registry = runtime_registry(FixtureKnowledgeSource())
 
     result = await Supervisor(registry).analyze(request, services_for(request, llm))
 

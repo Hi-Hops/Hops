@@ -15,7 +15,7 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.supervisor.graph import Supervisor
-from tests.doubles.agents import runtime_registry_with_rule_ticket
+from tests.doubles.agents import runtime_registry, ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import MESSAGE, make_request
 from tests.unit.test_knowledge_wiring import decision, services_for
@@ -74,7 +74,7 @@ def script(second: InquiryExtraction, *tail):
 
 async def analyze(llm: FakeLLMClient):
     request = request_with_text()
-    registry = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
+    registry = runtime_registry(FixtureKnowledgeSource())
     return await Supervisor(registry).analyze(request, services_for(request, llm))
 
 
@@ -83,6 +83,7 @@ async def test_second_call_with_different_quotes_keeps_the_earlier_facts() -> No
     llm = script(
         extraction(currentWorkflow=SECOND_QUOTE, expectedBehavior=SECOND_QUOTE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions("new:1"),
         decision("PROPOSE_TICKETS"),
     )
 
@@ -102,6 +103,7 @@ async def test_field_found_earlier_is_not_asked_again_when_the_rerun_misses_it()
     llm = script(
         extraction(expectedBehavior=SECOND_QUOTE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions("new:1"),
         decision("PROPOSE_TICKETS"),
     )
 
@@ -136,6 +138,7 @@ async def test_rerun_quote_that_only_shortens_an_earlier_one_adds_no_duplicate_f
     llm = script(
         extraction(taskOrScreen="결재선을 한 번에 바꾸는", expectedBehavior=FIRST_QUOTE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions("new:1"),
         decision("PROPOSE_TICKETS"),
     )
 
@@ -155,6 +158,7 @@ async def test_rerun_quote_that_adds_information_is_kept_next_to_the_earlier_fac
     llm = script(
         extraction(taskOrScreen=longer, expectedBehavior=SECOND_QUOTE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions("new:1"),
         decision("PROPOSE_TICKETS"),
     )
 

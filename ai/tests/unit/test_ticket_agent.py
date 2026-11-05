@@ -1,6 +1,6 @@
 """Ticket 역할의 제안 조립.
 
-모델 호출이 없는 규칙 구현이며 Supervisor의 병합 검증을 그대로 통과해야 한다.
+모델 응답은 Fake이며 품질을 검증하지 않는다. 제안은 Supervisor의 병합 검증을 그대로 통과해야 한다.
 """
 
 import pytest
@@ -8,7 +8,7 @@ import pytest
 from hops_ai.agents.inquiry import ExtractionInquiryAgent
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.registry import build_runtime_registry
-from hops_ai.agents.ticket import RuleTicketAgent
+from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest, ProblemProposal
@@ -23,6 +23,7 @@ from hops_ai.supervisor.decision import SupervisorDecision
 from hops_ai.supervisor.execution import RoleRequest
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.merge import merge_ticket_result
+from tests.doubles.agents import fake_ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -68,7 +69,11 @@ def problem(ref: str = "new:1", **changes) -> ProblemProposal:
 async def propose(state) -> object:
     reserved = reserve(state, AgentRole.TICKET, "inv-t")
     request = state["input"]
-    result = await RuleTicketAgent().run(RoleRequest("inv-t", reserved), services_for(request))
+    decisions = fake_ticket_decisions(state)
+    llm = FakeLLMClient() if decisions is None else FakeLLMClient(decisions)
+    result = await ModelTicketAgent().run(
+        RoleRequest("inv-t", reserved), services_for(request, llm)
+    )
     return reserved, result
 
 
@@ -143,16 +148,6 @@ async def test_problems_that_already_have_a_ticket_proposal_are_not_proposed_aga
 
     with pytest.raises(OutputRejected):
         await propose(state)
-
-
-async def test_long_summary_is_cut_to_the_title_limit_but_kept_whole_in_the_request() -> None:
-    long_summary = "문서 조회가 되지 않음 " * 40
-
-    _, result = await propose(state_with(problem(summary=long_summary)))
-
-    [proposal] = result.proposals
-    assert len(proposal.title) == 200
-    assert proposal.standardRequestSnapshot.summary == long_summary
 
 
 async def test_supervisor_ends_a_complete_inquiry_with_a_ticket_proposal() -> None:

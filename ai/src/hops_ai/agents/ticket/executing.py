@@ -16,8 +16,12 @@ if TYPE_CHECKING:
 class ExecutingTicketAgent:
     role = AgentRole.TICKET
 
+    def __init__(self) -> None:
+        # 상태가 없는 제안 역할이므로 한 번만 만들어 선택지 계산과 실행에서 함께 쓴다.
+        self._proposer = ModelTicketAgent()
+
     def available_for(self, state: "SupervisorState") -> bool:
-        return ModelTicketAgent().available_for(state)
+        return self._proposer.available_for(state)
 
     async def run(self, call: "RoleRequest", services: SharedServices):
         from hops_ai.supervisor.execution import RoleResponse
@@ -26,7 +30,7 @@ class ExecutingTicketAgent:
         tools = services.ticket_tools
         if tools is None:
             raise ComponentNotReady("Spring 티켓 업무 도구")
-        proposed = await ModelTicketAgent().run(call, services)
+        proposed = await self._proposer.run(call, services)
         # 한 문제의 잘못된 공개 구간을 나중에 발견해 불필요한 부분 저장을 만들지 않는다.
         commands = [
             creation_command(

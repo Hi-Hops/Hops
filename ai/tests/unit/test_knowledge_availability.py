@@ -100,10 +100,16 @@ def test_knowledge_is_hidden_once_a_guide_exists() -> None:
 
 
 def test_roles_without_an_availability_check_are_never_removed_or_added() -> None:
-    from hops_ai.agents.ticket.agent import RuleTicketAgent
+    class TicketWithoutCheck:
+        """available_for를 제공하지 않는 명시적 대역."""
+
+        role = AgentRole.TICKET
+
+        async def run(self, request, services):
+            raise AssertionError("선택지 계산에서는 호출하지 않는다")
 
     agents = dict(build_runtime_registry())  # Knowledge 연결 전
-    agents[AgentRole.TICKET] = RuleTicketAgent()  # available_for가 없는 명시적 대역
+    agents[AgentRole.TICKET] = TicketWithoutCheck()
     state = running_state(how_to_first_message())
 
     assert roles_for(state, agents) == {AgentRole.INQUIRY, AgentRole.TICKET}

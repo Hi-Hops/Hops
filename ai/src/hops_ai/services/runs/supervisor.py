@@ -10,7 +10,6 @@ from collections.abc import Mapping
 
 from hops_ai.agents.base import Agent, PendingAgent
 from hops_ai.agents.registry import build_runtime_registry
-from hops_ai.agents.ticket.executing import ExecutingTicketAgent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
@@ -69,9 +68,14 @@ class SupervisorPipeline:
         검색·도구를 주지 않으면 연결 전 자리(ComponentNotReady)와 거부 게이트웨이를 쓴다.
         knowledge_source는 기본 역할 조합(agents를 주지 않은 경우)에서만 Knowledge를 연결한다.
         """
-        registry = dict(build_runtime_registry(knowledge_source) if agents is None else agents)
-        if ticket_client is not None:
-            registry[AgentRole.TICKET] = ExecutingTicketAgent()
+        if agents is not None and ticket_client is not None:
+            # 주입한 역할 조합의 TICKET을 몰래 바꾸지 않는다. 호출 측이 직접 넣는다.
+            raise ValueError("agents와 ticket_client를 함께 줄 수 없다")
+        registry = dict(
+            build_runtime_registry(knowledge_source, execute_tickets=ticket_client is not None)
+            if agents is None
+            else agents
+        )
         self._ticket_client = ticket_client
         self._tracing = tracing or RunTracing()
         self._llm = TracedLLMClient(llm, self._tracing) if self._tracing.client else llm

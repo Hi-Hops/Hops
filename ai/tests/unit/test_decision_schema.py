@@ -15,7 +15,7 @@ from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.decision import SupervisorDecision, decision_schema
 from hops_ai.supervisor.graph import Supervisor
-from tests.doubles.agents import runtime_registry_with_rule_ticket
+from tests.doubles.agents import runtime_registry, ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import MESSAGE
 from tests.unit.test_inquiry_agent import _strict_violations
@@ -67,7 +67,7 @@ def test_default_model_schema_is_not_modified_by_building_a_restricted_one() -> 
 async def test_first_request_offers_only_the_roles_the_context_allows() -> None:
     request = how_to_first_message()
     llm = FakeLLMClient(decision("FINISH"))
-    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
+    agents = runtime_registry(FixtureKnowledgeSource())
     roles = implemented_roles(agents)
     supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
 
@@ -75,9 +75,9 @@ async def test_first_request_offers_only_the_roles_the_context_allows() -> None:
 
     sent = llm.requests[0]
     context = json.loads(sent.messages[-1].content)
-    # 문제가 없는 첫 판단에서는 Knowledge가 허용 역할에도 스키마에도 없다.
-    assert context["allowedRoles"] == ["INQUIRY", "TICKET"]
-    assert role_enum(sent.response_schema) == ["INQUIRY", "TICKET"]
+    # 문제가 없는 첫 판단에서는 검색할 문제도 티켓으로 제안할 문제도 없어 Inquiry만 남는다.
+    assert context["allowedRoles"] == ["INQUIRY"]
+    assert role_enum(sent.response_schema) == ["INQUIRY"]
     assert sent.response_model is SupervisorDecision
     assert sent.prompt_version == "supervisor.decision.v6"
 
@@ -90,9 +90,10 @@ async def test_schema_after_an_empty_search_leaves_out_inquiry_when_nothing_is_m
         how_to_extraction(desired=quote),
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions("new:1"),
         decision("PROPOSE_TICKETS"),
     )
-    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
+    agents = runtime_registry(FixtureKnowledgeSource())
     roles = implemented_roles(agents)
     supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
 
@@ -103,5 +104,6 @@ async def test_schema_after_an_empty_search_leaves_out_inquiry_when_nothing_is_m
     allowed = json.loads(after_empty.messages[-1].content)["allowedRoles"]
     # 검색한 문제는 같은 질의로 다시 검색하지 않으므로 Knowledge도 선택지에서 빠진다.
     assert role_enum(after_empty.response_schema) == allowed == ["TICKET"]
-    # 검색 직전의 판단에서는 세 역할이 모두 선택지에 있다. 스키마가 이후 상태를 반영해 좁아진다.
-    assert role_enum(llm.requests[2].response_schema) == ["INQUIRY", "KNOWLEDGE", "TICKET"]
+    # 검색 직전의 판단에서는 Inquiry와 Knowledge가 선택지에 있다. 사용법 문제는 검색하지 않으면
+    # 티켓으로 넘길 수 없으므로 Ticket은 아직 없고, 스키마가 이후 상태를 반영해 좁아진다.
+    assert role_enum(llm.requests[2].response_schema) == ["INQUIRY", "KNOWLEDGE"]

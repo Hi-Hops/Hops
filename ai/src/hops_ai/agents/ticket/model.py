@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
-from hops_ai.agents.ticket.agent import TICKETABLE_TYPES
 from hops_ai.agents.ticket.proposal import (
     MAX_OUTPUT_TOKENS,
     PROMPT_VERSION,
@@ -22,6 +21,11 @@ from hops_ai.services.shared import SharedServices
 if TYPE_CHECKING:
     from hops_ai.supervisor.execution import RoleRequest
     from hops_ai.supervisor.state import SupervisorState
+
+# 담당자가 처리하는 유형. 사용법(KNOWLEDGE_QA)은 안내로, 범위 밖은 범위 안내로 끝난다.
+TICKETABLE_TYPES = frozenset(
+    {"SERVICE_REQUEST", "INVESTIGATION", "CHANGE_REQUEST", "REVIEW_REQUIRED"}
+)
 
 
 class ModelTicketAgent:
