@@ -34,7 +34,7 @@ Curator 실패가 업무 저장을 취소하지 않는다. 승인과 양쪽 반�
 
 ## 4. 작업 책임과 미결정
 
-- AI: [에이전트 계약](../contracts/agents/README.md)의 목표 경계와 실제 코드 간 차이를 정리한다.
+- AI: [에이전트 계약](../contracts/agents/README.md)의 목표 경계와 실제 코드 간 차이를 정리한다. 코드 구조 진단·결정·정리 단계는 [AI 서버 정리 계획](ai/CLEANUP_PLAN.md)에 둔다.
 - Knowledge·데이터: [데이터 구축 계획](knowledge/DATASETS.md)을 기준으로 가상 시스템, 상담 대화·지식·평가 데이터의 출처와 리뷰를 관리한다.
 - Spring: [데이터](DATA.md)·[API](API.md)의 채택된 DTO·저장 대응을 서비스에 연결하고 저장·권한·부분 실패를 검증한다. Flyway/Entity 구현과 업무 서비스 구현을 구분한다.
 - Frontend: [기능 명세](../specs/README.md)의 문의·업무·처리·확인·사례 UI와 v2 호출은 구현됐으며 서버 연결 후 저장 결과·권한·실시간 동기화를 검증한다.
