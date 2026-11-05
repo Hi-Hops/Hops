@@ -166,6 +166,7 @@ jobs:
           --health-retries 10
     env:
       HOPS_LEDGER_TEST_DSN: host=localhost port=5432 dbname=hops_ai_runtime_test user=postgres password=ci-only-fixture
+      HOPS_INDEX_TEST_DSN: host=localhost port=5432 dbname=hops_ai_runtime_test user=postgres password=ci-only-fixture
       HOPS_LEDGER_LIMITED_TEST_DSN: host=localhost port=5432 dbname=hops_ai_runtime_test user=hops_ai_test password=ci-only-fixture
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -188,6 +189,7 @@ jobs:
           docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "CREATE ROLE hops_ai_test LOGIN PASSWORD 'ci-only-fixture'"
           docker exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d hops_ai_runtime_test < ai/migrations/001_run_ledger.sql
           docker exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d hops_ai_runtime_test < ai/migrations/002_run_owner.sql
+          docker exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d hops_ai_runtime_test < ai/migrations/003_index_jobs.sql
           docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d hops_ai_runtime_test -c 'GRANT CONNECT ON DATABASE hops_ai_runtime_test TO hops_ai_test'
           docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d hops_ai_runtime_test -c 'GRANT USAGE ON SCHEMA public TO hops_ai_test'
           docker exec "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d hops_ai_runtime_test -c 'GRANT SELECT, INSERT, UPDATE ON public.ai_run_ledger TO hops_ai_test'

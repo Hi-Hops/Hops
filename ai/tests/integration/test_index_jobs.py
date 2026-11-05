@@ -231,6 +231,104 @@ async def test_auth_digest_schema_and_missing_job(client, monkeypatch):
     assert missing.status_code == 404 and missing.json()["code"] == "NOT_FOUND"
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [
+        psycopg.errors.InsufficientPrivilege,
+        psycopg.errors.UndefinedTable,
+        psycopg.errors.UndefinedColumn,
+        psycopg.errors.CheckViolation,
+        psycopg.errors.InvalidSchemaName,
+        psycopg.errors.SerializationFailure,
+        psycopg.errors.DeadlockDetected,
+    ],
+)
+async def test_sql_rejection_is_failed_and_next_attempt_can_recover(client, monkeypatch, failure):
+    request = request_body("VECTOR")
+    content = {key: request[key] for key in ("caseId", "caseVersion", "approvedCase")}
+    headers = {
+        "X-Hops-Document-Version": str(uuid4()),
+        "X-Hops-Document-Digest": sha256(canonical(content)),
+    }
+    calls = 0
+
+    async def apply(*_args):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise failure("synthetic-private-sql-details")
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    try:
+        first = await client.post("/internal/v2/index-jobs", json=request, headers=headers)
+        assert first.status_code == 202
+        assert first.json()["state"] == "FAILED"
+        assert "synthetic-private-sql-details" not in first.text
+        replay = await client.post("/internal/v2/index-jobs", json=request, headers=headers)
+        assert replay.json() == first.json()
+        assert calls == 1
+        recovered = await client.post(
+            "/internal/v2/index-jobs", json={**request, "attempt": 2}, headers=headers
+        )
+        assert recovered.json()["state"] == "SUCCEEDED"
+        assert recovered.json()["jobId"] == request["jobId"]
+        assert recovered.json()["contentDigest"] == request["contentDigest"]
+        assert calls == 2
+    finally:
+        await cleanup(request)
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        psycopg.OperationalError,
+        psycopg.errors.ConnectionFailure,
+        psycopg.errors.TransactionResolutionUnknown,
+        psycopg.errors.StatementCompletionUnknown,
+        psycopg.errors.AdminShutdown,
+        psycopg.errors.QueryCanceled,
+    ],
+)
+async def test_ambiguous_sql_failure_stays_unknown_without_reexecution(
+    client, monkeypatch, failure
+):
+    request = request_body()
+    calls = 0
+
+    async def apply(*_args):
+        nonlocal calls
+        calls += 1
+        raise failure("synthetic-private-sql-details")
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    try:
+        for _ in range(2):
+            response = await client.post("/internal/v2/index-jobs", json=request)
+            assert response.status_code == 202
+            assert response.json()["state"] == "UNKNOWN"
+            assert "synthetic-private-sql-details" not in response.text
+        assert calls == 1
+    finally:
+        await cleanup(request)
+
+
+async def test_real_postgres_server_rejection_is_recorded_as_failed(client, monkeypatch):
+    request = request_body()
+
+    async def apply(*_args):
+        async with await psycopg.AsyncConnection.connect(DSN) as connection:
+            await connection.execute("SELECT * FROM case170_deliberately_missing_table")
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    try:
+        response = await client.post("/internal/v2/index-jobs", json=request)
+        assert response.status_code == 202
+        assert response.json()["state"] == "FAILED"
+        assert "case170_deliberately_missing_table" not in response.text
+    finally:
+        await cleanup(request)
+
+
 async def test_vector_requires_original_document_reference(client):
     request = request_body("VECTOR")
     response = await client.post("/internal/v2/index-jobs", json=request)

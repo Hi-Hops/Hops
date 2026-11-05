@@ -181,7 +181,27 @@ def index_router(settings: Settings) -> APIRouter:
                             retryable=status == 429 if rejected else True,
                         ),
                     )
-                except (httpx.HTTPError, psycopg.Error):
+                except psycopg.Error as error:
+                    # 서버가 거부·롤백을 확정한 SQLSTATE만 실패로 분류한다.
+                    # 연결/종료 오류와 40003(statement_completion_unknown)은 재실행 근거가 아니다.
+                    state = error.sqlstate or ""
+                    rolled_back = state in {"40001", "40P01"}
+                    rejected = state[:2] in {"0A", "22", "23", "28", "3D", "3F", "42"}
+                    failed = rejected or rolled_back
+                    snapshot = _snapshot(
+                        request,
+                        "FAILED" if failed else "UNKNOWN",
+                        AiError(
+                            code="INDEX_UNAVAILABLE",
+                            message=(
+                                "저장소가 색인 요청을 거부했습니다"
+                                if failed
+                                else "저장소 반영 결과를 확인할 수 없습니다"
+                            ),
+                            retryable=rolled_back or not failed,
+                        ),
+                    )
+                except httpx.HTTPError:
                     snapshot = _snapshot(
                         request,
                         "UNKNOWN",

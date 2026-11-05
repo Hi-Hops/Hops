@@ -284,6 +284,8 @@ RUNNING을 원장에 먼저 commit하여 응답 유실·프로세스 종료 뒤 
 원장 상세와 키를 삭제·자동 재시도하지 않으며, 미확인 결과는 새 작업으로 간주하지 않는다.
 외부 서비스의 명시적 4xx 거부(408 제외)는 FAILED로 보존해 설정 수정 후 Spring의 수동 새 시도를 허용한다.
 408·5xx·연결 오류·시간 초과는 UNKNOWN으로 보존하며 같은 시도를 다시 실행하지 않는다.
+PostgreSQL의 권한·스키마·데이터 거부와 확정된 거래 롤백 SQLSTATE는 FAILED로 기록한다.
+연결 종료·commit 결과 미확인 등 실패를 확정할 수 없는 SQL 오류는 UNKNOWN을 유지한다.
 승인·양쪽 공개·사용자 권한의 정본은 Spring이다. 실제 Knowledge 후보 검색 연결은 #142에서 이어간다.
 
 색인 검사는 `tests/unit/test_case_indexing.py`, `tests/integration/test_index_jobs.py`다.
