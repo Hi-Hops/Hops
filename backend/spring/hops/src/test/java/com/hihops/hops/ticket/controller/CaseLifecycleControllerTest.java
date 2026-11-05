@@ -199,4 +199,37 @@ class CaseLifecycleControllerTest extends TicketCommandFixture {
         assertThat(version.path("approvedCase").path("origin").asString()).isEqualTo(wireOrigin);
         assertThat(caseDetail().path("version").path("origin").asString()).isEqualTo(wireOrigin);
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "problemStatement,가", "action,가", "verification,가", "applicability,가",
+        "problemStatement,😀", "action,😀", "verification,😀", "applicability,😀"
+    })
+    void 본문_4001코드포인트는_편집과_승인문서_저장전에_거부한다(String field, String character) throws Exception {
+        var command = edit().put(field, character.repeat(4001));
+        mvc.perform(command(staff, "/cases/" + caseId + "/versions", command)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        var value = caseDetail();
+        assertThat(value.path("version").path("caseVersion").asInt()).isEqualTo(1);
+        assertThat(value.path("version").path("state").asString()).isEqualTo("DRAFT");
+        assertThat(value.path("approval").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM knowledge_document WHERE source_data->>'caseId'=?",
+                Integer.class, caseId.toString())).isZero();
+        verifyNoInteractions(indexClient);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "problemStatement,가", "action,가", "verification,가", "applicability,가",
+        "problemStatement,😀", "action,😀", "verification,😀", "applicability,😀"
+    })
+    void 본문_4000코드포인트는_잘라내지_않고_승인문서에_보존한다(String field, String character) throws Exception {
+        String content = character.repeat(4000);
+        result(command(staff, "/cases/" + caseId + "/versions", edit().put(field, content)));
+        resolve("RESOLVED");
+        result(command(staff, "/cases/" + caseId + "/approvals", basic(2)));
+        var version = json(jdbc.queryForObject("SELECT content FROM knowledge_document_version WHERE source_metadata->>'caseId'=?",
+                String.class, caseId.toString()));
+        assertThat(version.path("approvedCase").path(field).asString()).isEqualTo(content);
+    }
 }

@@ -335,6 +335,43 @@ async def test_vector_requires_original_document_reference(client):
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("field", ["problemStatement", "action", "verification", "applicability"])
+@pytest.mark.parametrize("character", ["가", "😀"])
+@pytest.mark.parametrize("length", [4000, 4001])
+async def test_case_content_boundary_matches_spring_code_points(
+    client, monkeypatch, field, character, length
+):
+    request = request_body()
+    request["approvedCase"][field] = character * length
+    request["contentDigest"] = sha256(
+        canonical({key: request[key] for key in ("caseId", "caseVersion", "store", "approvedCase")})
+    )
+    calls = 0
+
+    async def apply(_settings, payload, _document):
+        nonlocal calls
+        calls += 1
+        assert payload["approvedCase"][field] == character * length
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    try:
+        response = await client.post("/internal/v2/index-jobs", json=request)
+        assert response.status_code == (202 if length == 4000 else 422)
+        assert calls == (1 if length == 4000 else 0)
+        if length == 4000:
+            assert response.json()["state"] == "SUCCEEDED"
+        else:
+            async with await psycopg.AsyncConnection.connect(DSN) as connection:
+                row = await (
+                    await connection.execute(
+                        "SELECT count(*) FROM ai_index_job WHERE job_id=%s", (request["jobId"],)
+                    )
+                ).fetchone()
+                assert row[0] == 0
+    finally:
+        await cleanup(request)
+
+
 @pytest.mark.skipif(not os.getenv("HOPS_INDEX_VECTOR_TEST_DSN"), reason="격리 pgvector DB 미설정")
 async def test_real_pgvector_upsert_verifies_original_digest_and_avoids_reembedding():
     from hops_ai.services.indexing.pgvector import ApprovedDocumentVersion, PgVectorCaseIndex
