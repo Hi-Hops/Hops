@@ -36,6 +36,7 @@ from evaluation.harness.runner import RunConfig, run_scenario
 from evaluation.harness.scenario import Scenario, load_scenario
 from evaluation.harness.spring_stub import DEFAULT_LIMITS
 from evaluation.harness.trace import RunTrace, TurnTrace
+from evaluation.harness.trace_io import save_trace
 from hops_ai.agents.base import Agent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.services.llm.client import LLMClient
@@ -130,6 +131,7 @@ async def run_pilot(
     config: RunConfig | None = None,
     timeout_seconds: float | None = None,
     on_turn: Callable[[int, TurnTrace], None] | None = None,
+    on_trace: Callable[[RunTrace], None] | None = None,
 ) -> dict[str, Any]:
     """전체 호출 상한을 적용해 시나리오를 재생하고 보고서(dict)를 돌려준다.
 
@@ -154,6 +156,8 @@ async def run_pilot(
         timed_out = True
         trace = RunTrace(scenario_id=scenario.scenario_id, turns=tuple(turns))
 
+    if on_trace is not None:
+        on_trace(trace)  # 보고서 요약 전에 원본 기록을 넘긴다(저장용)
     report = summarize(trace, cap)
     if timed_out:
         report["timedOut"] = timeout_seconds
@@ -207,6 +211,7 @@ async def run_batch(
     on_start: Callable[[int, int, Scenario], None] | None = None,
     on_turn: Callable[[str, int, TurnTrace], None] | None = None,
     on_report: Callable[[dict[str, Any]], None] | None = None,
+    on_trace: Callable[[RunTrace], None] | None = None,
 ) -> dict[str, Any]:
     """시나리오를 차례로 한 번씩 재생한다. 전체 호출은 `max_calls`를 넘지 않는다.
 
@@ -237,6 +242,7 @@ async def run_batch(
             config=config,
             timeout_seconds=scenario_timeout,
             on_turn=(lambda i, t, sid=scenario_id: on_turn(sid, i, t)) if on_turn else None,
+            on_trace=on_trace,
         )
         total.used += report["callCap"]["used"]
         if scenario.follow_up is not None:
@@ -248,7 +254,7 @@ async def run_batch(
 def _build_real(
     model: str | None,
 ) -> tuple[LLMClient, Callable[[Scenario], Mapping[AgentRole, Agent]], str]:
-    from hops_ai.agents.registry import build_runtime_registry
+    from hops_ai.agents.registry import build_registry
     from hops_ai.services.llm.openai import OpenAIClient
     from hops_ai.services.retrieval.factory import knowledge_source_for
     from hops_ai.settings import KnowledgeSourceKind, Settings
@@ -260,8 +266,8 @@ def _build_real(
 
     def agents_for(scenario: Scenario) -> Mapping[AgentRole, Agent]:
         if "RETRIEVAL_ERROR" in scenario.faults:
-            return build_runtime_registry(FaultyKnowledgeSource())
-        return build_runtime_registry(knowledge_source_for(settings))
+            return build_registry(FaultyKnowledgeSource())
+        return build_registry(knowledge_source_for(settings))
 
     return (
         OpenAIClient(key, model or settings.supervisor_model),
@@ -353,6 +359,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--model", default=None, help="기본값은 설정의 supervisor_model")
     parser.add_argument("--out", type=Path, default=None, help="보고서를 JSON 파일로도 저장")
+    parser.add_argument(
+        "--trace-dir",
+        type=Path,
+        default=None,
+        help="시나리오마다 원본 실행 기록을 저장(나중에 evaluation.recheck로 재판정)",
+    )
     args = parser.parse_args(argv)
 
     scenarios = select_scenarios(args.caseFamilies, args.split, allow_test=args.allow_test)
@@ -396,6 +408,9 @@ def main(argv: list[str] | None = None) -> int:
                 on_start=lambda n, total, sc: _log(f"[{n}/{total}] 시작: {sc.scenario_id}"),
                 on_turn=log_turn,
                 on_report=save_partial,
+                on_trace=(lambda trace: save_trace(trace, args.trace_dir))
+                if args.trace_dir
+                else None,
             )
         )
     except KeyboardInterrupt:

@@ -7,7 +7,6 @@ from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import InputRejected
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMClient
-from hops_ai.services.retrieval.base import GraphRetriever, VectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.base import ToolGateway
 from hops_ai.settings import Settings
@@ -20,8 +19,6 @@ def create_run_services(
     settings: Settings,
     access_scope_ref: str,
     llm: LLMClient,
-    vector: VectorRetriever,
-    graph: GraphRetriever,
     tools: ToolGateway,
     tool_policy: ToolPolicy | None = None,
 ) -> SharedServices:
@@ -35,8 +32,6 @@ def create_run_services(
             허용하지 않는다. 이 문자열 자체는 권한 증명이나 사용자 JWT가 아니다.
         llm: 호출자가 선택한 원시 LLM 클라이언트. 누적 예산 wrapper는 이후
             SupervisorRuntime이 적용하므로 이 함수는 모델을 호출하거나 감싸지 않는다.
-        vector: 현재 접근 범위와 공개 상태를 강제할 Vector 검색 구현체.
-        graph: 같은 조건을 강제할 Neo4j 관계 검색 구현체. LangGraph 실행 그래프와 구분한다.
         tools: 등록·인자 검사를 적용한 도구 구현체. 실제 호출 시 SupervisorRuntime이
             GuardedToolGateway 연결과 문맥의 역할별 허용 정책을 검사한다.
         tool_policy: 서버가 정한 역할별 도구 허용 목록. 생략하면 기본적으로 모두 거부한다.
@@ -70,4 +65,4 @@ def create_run_services(
         deadline_at=datetime.fromisoformat(snapshot.expiresAt),
         tool_policy=tool_policy,
     )
-    return SharedServices(runtime=runtime, llm=llm, vector=vector, graph=graph, tools=tools)
+    return SharedServices(runtime=runtime, llm=llm, tools=tools)

@@ -102,9 +102,7 @@ def runtime_for(
         gateway = GuardedToolGateway(
             gateway, ToolRegistry(ToolSpec("read_status", "가상 조회")), context.tool_policy
         )
-    services = SharedServices(
-        context, llm or FakeLLMClient(Reply(text="응답")), None, None, gateway
-    )
+    services = SharedServices(context, llm or FakeLLMClient(Reply(text="응답")), gateway)
     return SupervisorRuntime(request, services), create_initial_state(request), services
 
 

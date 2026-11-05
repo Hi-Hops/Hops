@@ -16,8 +16,6 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchResult
 from hops_ai.contracts.wire import AiRunRequest, QuestionProposal
 from hops_ai.harness.errors import OutputRejected, TransientError
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
 from hops_ai.supervisor.bootstrap import create_run_services
@@ -72,8 +70,6 @@ def setup_call(*decisions, request=None, evidence=()):
         settings=Settings(_env_file=None),
         access_scope_ref="test-ticket",
         llm=llm,
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
     return state, services, llm
@@ -202,31 +198,31 @@ async def test_pending_question_and_missing_system_do_not_call_model():
         with pytest.raises(OutputRejected):
             await run(state, services)
         assert not llm.requests
-        assert not ModelTicketAgent().available_for(state)
+        assert not ModelTicketAgent.eligible_problems(state)
 
 
 def test_runtime_ticket_selection_waits_for_answers_but_allows_other_ready_problems():
     from hops_ai.agents.ticket.executing import ExecutingTicketAgent
-    from hops_ai.services.runs.supervisor import selectable_roles
+    from hops_ai.supervisor.choices import legal_roles
 
     state, _, _ = setup_call()
     agent = ExecutingTicketAgent()
     registry = {AgentRole.TICKET: agent}
-    assert selectable_roles(registry, set(registry), state) == {AgentRole.TICKET}
+    assert legal_roles(state, registry) == {AgentRole.TICKET}
     state["questions"] = {
         (PROBLEM, "q"): QuestionProposal(
             problemRef=PROBLEM, bundleRef="q", text="언제인가요?", requestedFields=["occurredAt"]
         )
     }
-    assert selectable_roles(registry, set(registry), state) == set()
+    assert legal_roles(state, registry) == set()
     # 복합 문의의 준비된 다른 문제까지 막지는 않는다.
     state["problems"]["new:ready"] = make_problem("new:ready")
-    assert selectable_roles(registry, set(registry), state) == {AgentRole.TICKET}
+    assert legal_roles(state, registry) == {AgentRole.TICKET}
     assert set(ModelTicketAgent.eligible_problems(state)) == {"new:ready"}
     state["problems"] = {}
     state["questions"] = {}
     state["input"] = state["input"].model_copy(update={"problems": [], "problemIds": []})
-    assert not agent.available_for(state)
+    assert legal_roles(state, registry) == set()
 
 
 async def test_disallowed_knowledge_is_rejected_before_model_input():
@@ -395,7 +391,7 @@ async def test_shared_evidence_is_allowed_only_when_linked_to_both_problems():
 
 
 def test_ticket_merge_rejects_evidence_linked_only_to_another_problem():
-    from hops_ai.supervisor.merge import validate_ticket
+    from hops_ai.rules.proposals import validate_ticket
     from tests.supervisor_fixtures import make_ticket
 
     state, _, _ = setup_call(evidence=[make_evidence()])

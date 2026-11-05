@@ -13,8 +13,6 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult, KnowledgeResult, SearchResult, TicketResult
 from hops_ai.contracts.wire import AiRunRequest, GuideProposal, QuestionProposal
 from hops_ai.harness.context import RunContext
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.settings import Settings
 from hops_ai.supervisor.decision import SupervisorDecision
@@ -55,7 +53,7 @@ async def run_scenario(request, agents, *decisions):
         access_scope_ref="synthetic-routing-evaluation",
         settings=Settings(_env_file=None),
     )
-    services = SharedServices(runtime, llm, PgVectorRetriever(), Neo4jRetriever(), UnusedTools())
+    services = SharedServices(runtime, llm, UnusedTools())
     return await Supervisor(agents).analyze(request, services)
 
 

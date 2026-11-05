@@ -2,7 +2,8 @@
 
 이 경계는 접근 범위 선필터와 현재 권한·원문 digest 확인을 끝낸 근거만 돌려준다.
 개발용 고정 데이터 구현은 이 확인을 AI 안에서 흉내 내는 대역이다. 실검색 구현은
-VectorRetriever·GraphRetriever로 후보를 찾고 Spring 권한 확인을 거쳐 같은 형태로 돌려준다.
+후보를 찾고 Spring 권한 확인을 거쳐 같은 형태로 돌려준다. pgvector·Neo4j 같은 검색 방식은
+이 경계 뒤에서 교체한다.
 
 검색 0건은 빈 목록이다. 검색 시스템 오류는 RetrievalUnavailable을 발생시키며
 빈 목록으로 바꾸지 않는다.

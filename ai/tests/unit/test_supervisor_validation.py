@@ -8,11 +8,9 @@ from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import KnowledgeResult, SearchResult
 from hops_ai.contracts.wire import AiRunRequest, EvidenceStatement
 from hops_ai.harness.errors import OutputRejected
-from hops_ai.supervisor.validation import (
-    get_problem_progress,
-    validate_completion,
-    validate_statements,
-)
+from hops_ai.rules.progress import get_problem_progress
+from hops_ai.rules.proposals import validate_statements
+from hops_ai.supervisor.validation import validate_completion
 from tests.supervisor_fixtures import (
     MESSAGE,
     PROBLEM,

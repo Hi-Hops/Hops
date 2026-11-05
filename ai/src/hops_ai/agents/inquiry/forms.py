@@ -20,12 +20,14 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import Intent
 
 # 시스템은 RequestDetails 필드가 아니라 문제의 보고 시스템 후보로 확인한다.
 SYSTEM = "system"
 
-MAX_QUESTIONS_PER_PROBLEM = 5
+# 문제당 질문 한도의 정본은 contracts.types.QUESTION_LIMIT 하나다.
+MAX_QUESTIONS_PER_PROBLEM = QUESTION_LIMIT
 MAX_FIELDS_PER_QUESTION = 3
 
 # 의도별로 처리에 꼭 필요한 정보. 앞에 있을수록 먼저 묻는다.

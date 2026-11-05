@@ -1,11 +1,9 @@
 """모델은 제목·책임 후보만 판단하고, 표준 요청의 사실과 출처는 코드가 보존한다."""
 
 import json
-from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
-from hops_ai.agents.ticket.agent import TICKETABLE_TYPES
 from hops_ai.agents.ticket.proposal import (
     MAX_OUTPUT_TOKENS,
     PROMPT_VERSION,
@@ -14,23 +12,28 @@ from hops_ai.agents.ticket.proposal import (
 )
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import TicketResult
+from hops_ai.contracts.state import RoleRequest, SupervisorState
 from hops_ai.contracts.wire import ProblemProposal, StandardRequestBody, TicketProposal
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.progress import (
+    TICKETABLE_TYPES,
+    get_problem_knowledge,
+    get_problem_message_ids,
+    get_problem_progress,
+    problems_without_guide,
+    validate_evidence_scope,
+)
+from hops_ai.rules.proposals import validate_ticket
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
-
-if TYPE_CHECKING:
-    from hops_ai.supervisor.execution import RoleRequest
-    from hops_ai.supervisor.state import SupervisorState
 
 
 class ModelTicketAgent:
     role = AgentRole.TICKET
 
     @staticmethod
-    def eligible_problems(state: "SupervisorState") -> dict[str, ProblemProposal]:
+    def eligible_problems(state: SupervisorState) -> dict[str, ProblemProposal]:
         """실행과 Supervisor 선택지가 동일한 문제별 처리 가능 조건을 사용한다."""
-        from hops_ai.supervisor.validation import get_problem_progress, problems_without_guide
 
         pending = {p["problemRef"] for p in get_problem_progress(state) if p["outcome"] is None}
         no_guide = problems_without_guide(state)
@@ -45,17 +48,7 @@ class ModelTicketAgent:
             )
         }
 
-    def available_for(self, state: "SupervisorState") -> bool:
-        return bool(self.eligible_problems(state))
-
-    async def run(self, call: "RoleRequest", services: SharedServices) -> TicketResult:
-        # registry의 순환 import를 피하고 동일한 Supervisor 검증을 재사용한다.
-        from hops_ai.supervisor.merge import validate_ticket
-        from hops_ai.supervisor.validation import (
-            get_problem_knowledge,
-            get_problem_message_ids,
-            validate_evidence_scope,
-        )
+    async def run(self, call: RoleRequest, services: SharedServices) -> TicketResult:
 
         services.runtime.ensure_active()
         state = call.state

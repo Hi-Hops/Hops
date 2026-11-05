@@ -11,15 +11,14 @@ import json
 import pytest
 
 from hops_ai.agents.inquiry.extraction import InquiryExtraction, QuotedValue
+from hops_ai.agents.inquiry.readiness import get_handoff_readiness
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import AiRunRequest
+from hops_ai.rules.progress import get_problem_progress
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
+from hops_ai.supervisor.choices import compute_choices
 from hops_ai.supervisor.graph import Supervisor
-from hops_ai.supervisor.policy import get_allowed_roles
-from hops_ai.supervisor.validation import get_handoff_readiness, get_problem_progress
-from tests.doubles.agents import runtime_registry_with_rule_ticket
+from tests.doubles.agents import runtime_registry, ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -44,9 +43,8 @@ COMPLETE = {"taskOrScreen": "결재선 변경", "expectedBehavior": "한꺼번�
 
 
 def roles_for(state) -> set[AgentRole]:
-    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
-    selectable = selectable_roles(agents, implemented_roles(agents), state)
-    return selectable & get_allowed_roles(RunKind(state["input"].kind))
+    agents = runtime_registry(FixtureKnowledgeSource())
+    return set(compute_choices(state, agents).roles)
 
 
 def test_inquiry_is_hidden_when_nothing_is_missing_after_an_empty_search() -> None:
@@ -116,13 +114,11 @@ async def test_supervisor_after_an_empty_search_no_longer_offers_inquiry_when_re
         how_to_extraction(desired=quote),
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions("new:1"),
         decision("PROPOSE_TICKETS"),
     )
-    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
-    callable_roles = implemented_roles(agents)
-    supervisor = Supervisor(
-        agents, available_roles=lambda state: selectable_roles(agents, callable_roles, state)
-    )
+    agents = runtime_registry(FixtureKnowledgeSource())
+    supervisor = Supervisor(agents, restrict_roles=True)
 
     result = await supervisor.analyze(request, services_for(request, llm))
 
@@ -250,8 +246,8 @@ async def test_supervisor_after_a_guide_and_a_question_offers_no_inquiry() -> No
     assert result.status == "SUCCEEDED", result.error
     assert result.guide is not None and [q.problemRef for q in result.questions] == ["new:2"]
     after_search = json.loads(llm.requests[3].messages[-1].content)
-    # 안내와 질문으로 모든 문제가 처리됐으므로 Inquiry(와 이미 검색한 Knowledge)는 선택지에 없다.
-    assert after_search["allowedRoles"] == ["TICKET"]
+    # 안내와 질문으로 모든 문제가 처리됐으므로 Inquiry·Knowledge·Ticket 모두 선택지에 없다.
+    assert after_search["allowedRoles"] == []
     first = json.loads(llm.requests[0].messages[-1].content)
     assert "INQUIRY" in first["allowedRoles"]
 
@@ -301,6 +297,7 @@ def test_inquiry_stays_while_questions_remain_for_the_missing_items() -> None:
 
 
 async def test_run_at_the_question_limit_ends_in_a_review_ticket() -> None:
+    from tests.supervisor_fixtures import PROBLEM
     from tests.unit.test_composite_inquiry import _extracted
     from tests.unit.test_knowledge_empty_handoff import services_for as handoff_services
 
@@ -319,11 +316,11 @@ async def test_run_at_the_question_limit_ends_in_a_review_ticket() -> None:
         ),
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("CALL_ROLE", AgentRole.TICKET),
+        ticket_decisions(PROBLEM),
         decision("PROPOSE_TICKETS"),
     )
-    agents = runtime_registry_with_rule_ticket(FixtureKnowledgeSource())
-    roles = implemented_roles(agents)
-    supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
+    agents = runtime_registry(FixtureKnowledgeSource())
+    supervisor = Supervisor(agents, restrict_roles=True)
 
     result = await supervisor.analyze(request, handoff_services(request, llm))
 

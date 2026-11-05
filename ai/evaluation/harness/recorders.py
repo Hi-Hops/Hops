@@ -46,8 +46,8 @@ class RecordingLLM:
 class RecordingAgent:
     """역할 호출의 결과(검색 상태·근거)를 기록하고 결과는 그대로 돌려준다.
 
-    `available_for` 같은 역할의 다른 속성은 원래 역할에 위임한다. 그래야 Supervisor의 선택지
-    판단이 기록 래퍼 때문에 달라지지 않는다.
+    역할의 다른 속성은 원래 역할에 위임한다. Supervisor의 선택지는 역할 규칙(supervisor.choices)이
+    State에서 정하므로 기록 래퍼 때문에 달라지지 않는다.
     """
 
     def __init__(self, inner: Agent, log: CallLog) -> None:

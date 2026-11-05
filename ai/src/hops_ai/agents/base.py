@@ -1,14 +1,12 @@
 """Supervisor가 호출하는 전문 역할의 입력·반환 타입과 미구현 기본 동작."""
 
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 
 from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.roles import RoleResult
+from hops_ai.contracts.state import RoleRequest, RoleResponse
 from hops_ai.harness.errors import ComponentNotReady
-
-if TYPE_CHECKING:
-    from hops_ai.contracts.roles import RoleResult
-    from hops_ai.services.shared import SharedServices
-    from hops_ai.supervisor.execution import RoleRequest, RoleResponse
+from hops_ai.services.shared import SharedServices
 
 
 class Agent(Protocol):
@@ -17,16 +15,22 @@ class Agent(Protocol):
     role: AgentRole
 
     async def run(
-        self, request: "RoleRequest", services: "SharedServices"
-    ) -> "RoleResult | RoleResponse": ...
+        self, request: RoleRequest, services: SharedServices
+    ) -> RoleResult | RoleResponse: ...
 
 
 class PendingAgent:
     """아직 연결하지 않은 역할을 명시적으로 거부한다. 성공 결과를 자동 생성하지 않는다."""
 
-    role: AgentRole
+    def __init__(self, role: AgentRole) -> None:
+        self.role = role
 
     async def run(
-        self, request: "RoleRequest", services: "SharedServices"
-    ) -> "RoleResult | RoleResponse":
+        self, request: RoleRequest, services: SharedServices
+    ) -> RoleResult | RoleResponse:
         raise ComponentNotReady(self.role.value)
+
+
+def pending_agents() -> dict[AgentRole, Agent]:
+    """모든 역할을 연결 전 자리로 둔 조합. 구현을 주입하지 않은 Supervisor의 기본값이다."""
+    return {role: PendingAgent(role) for role in AgentRole}

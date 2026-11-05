@@ -8,8 +8,6 @@ reusable=false는 사례 없음이라는 정상 결과다. 모델 오류·형식
 그대로 실패시킨다. 초안 저장·승인·검색 공개는 Spring과 담당자가 결정한다.
 """
 
-from typing import TYPE_CHECKING
-
 from pydantic import ValidationError
 
 from hops_ai.agents.curator.drafting import (
@@ -25,14 +23,11 @@ from hops_ai.agents.curator.drafting import (
 )
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import CuratorResult
+from hops_ai.contracts.state import RoleRequest, RoleResponse
 from hops_ai.contracts.wire import AiRunRequest, CaseProposal, EntityLink, WorkRecordContext
 from hops_ai.harness.errors import InputRejected, OutputRejected
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
-
-if TYPE_CHECKING:
-    # supervisor 패키지가 registry를 통해 이 모듈을 다시 불러오므로 타입 검사 때만 가져온다.
-    from hops_ai.supervisor.execution import RoleRequest, RoleResponse
 
 # 담당자 처리 기록에서 나온 사례는 담당자에게만 공개한다. 문의자 공개 범위로 넓히지 않는다.
 CASE_ACCESS_SCOPE = "SYSTEM_STAFF"
@@ -59,9 +54,8 @@ class ModelCuratorAgent:
     role = AgentRole.CURATOR
 
     async def run(
-        self, call: "RoleRequest", services: SharedServices
-    ) -> "CuratorResult | RoleResponse":
-        from hops_ai.supervisor.execution import RoleResponse
+        self, call: RoleRequest, services: SharedServices
+    ) -> CuratorResult | RoleResponse:
 
         services.runtime.ensure_active()
         request = call.state["input"]

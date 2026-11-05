@@ -1,73 +1,17 @@
 """한 run의 작업 상태와 상태 전이. 업무 DB 상태를 직접 변경하지 않는다."""
 
-from typing import Literal, TypedDict
-
-from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import RoleResult
+from hops_ai.contracts.state import Cancellation, RunPhase, SupervisorState, Usage
 from hops_ai.contracts.wire import (
     AiError,
-    AiResult,
     AiRunRequest,
-    CaseProposal,
-    GuideProposal,
     InputProblem,
     KnowledgeEvidence,
     ProblemProposal,
-    QuestionProposal,
     RequestDetails,
-    TicketExecution,
-    TicketProposal,
 )
 from hops_ai.harness.errors import InputRejected, OutputRejected
-from hops_ai.supervisor.validation import ensure_active, validate_evidence_scope, validate_request
-
-type RunPhase = Literal[
-    "QUEUED", "RUNNING", "FINALIZING", "SUCCEEDED", "FAILED", "TIMED_OUT", "SUPERSEDED"
-]
-
-
-class Usage(TypedDict):
-    """실행기·도구 wrapper만 증가시키는 누적 사용량."""
-
-    calls: int
-    inputTokens: int
-    outputTokens: int
-    toolCalls: int
-    retries: int
-
-
-class Cancellation(TypedDict):
-    """서버 취소 경로가 기록할 취소 여부와 안전한 사유."""
-
-    cancelled: bool
-    reason: str | None
-
-
-class SupervisorState(TypedDict):
-    """계약 S3의 내부 State. 역할은 결과만 반환하고 실행기가 새 State를 병합한다."""
-
-    input: AiRunRequest
-    phase: RunPhase
-    activeRole: AgentRole | Literal["SUPERVISOR"] | None
-    nextAction: (
-        Literal["CALL_ROLE", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS", "FINISH"] | None
-    )
-    problems: dict[str, ProblemProposal]
-    questions: dict[tuple[str, str], QuestionProposal]
-    evidence: dict[str, KnowledgeEvidence]
-    guide: GuideProposal | None
-    answer: str | None
-    ticketProposals: dict[str, TicketProposal]
-    ticketCreationResults: dict[str, TicketExecution]
-    caseProposal: CaseProposal | None
-    roleResults: dict[str, RoleResult]
-    pendingCalls: set[str]
-    usage: Usage
-    eventSeq: int
-    answerChunkSeq: int
-    cancellation: Cancellation
-    error: AiError | None
-    finalResult: AiResult | None
+from hops_ai.rules.progress import validate_evidence_scope
+from hops_ai.supervisor.validation import ensure_active, validate_request
 
 
 def _problem_from_input(problem: InputProblem) -> ProblemProposal:

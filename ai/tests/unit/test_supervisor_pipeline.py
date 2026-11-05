@@ -8,19 +8,18 @@ import json
 
 import pytest
 
-from hops_ai.agents.base import PendingAgent
-from hops_ai.agents.registry import build_registry, build_runtime_registry
+from hops_ai.agents.base import PendingAgent, pending_agents
+from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import ComponentNotReady
 from hops_ai.main import create_app
 from hops_ai.services.llm.client import LLMResponse, LLMUsage
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
-from hops_ai.services.runs.supervisor import SupervisorPipeline, implemented_roles
+from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import RunMode, Settings
 from hops_ai.supervisor.bootstrap import create_run_services
+from hops_ai.supervisor.choices import implemented_roles
 from hops_ai.supervisor.decision import SupervisorDecision
 from tests.supervisor_fixtures import make_request
 
@@ -52,19 +51,14 @@ def run_context(request) -> RunContext:
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=RecordingLLM(),
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
     return services.runtime
 
 
 def test_pending_roles_are_not_implemented() -> None:
-    class Pending(PendingAgent):
-        role = AgentRole.KNOWLEDGE
-
     registry = {
-        AgentRole.KNOWLEDGE: Pending(),
+        AgentRole.KNOWLEDGE: PendingAgent(AgentRole.KNOWLEDGE),
         AgentRole.INQUIRY: ImplementedRole(AgentRole.INQUIRY),
     }
 
@@ -78,7 +72,7 @@ async def test_supervisor_only_sees_implemented_roles() -> None:
         llm,
         {
             AgentRole.INQUIRY: ImplementedRole(AgentRole.INQUIRY),
-            AgentRole.KNOWLEDGE: type("P", (PendingAgent,), {"role": AgentRole.KNOWLEDGE})(),
+            AgentRole.KNOWLEDGE: PendingAgent(AgentRole.KNOWLEDGE),
         },
     )
 
@@ -87,11 +81,11 @@ async def test_supervisor_only_sees_implemented_roles() -> None:
     assert llm.allowed_roles == [["INQUIRY"]]
 
 
-async def test_default_registry_without_implemented_roles_ends_safely_without_success() -> None:
+async def test_registry_without_implemented_roles_ends_safely_without_success() -> None:
     request = make_request()
     llm = RecordingLLM()
 
-    result = await SupervisorPipeline(llm, build_registry()).run(request, run_context(request))
+    result = await SupervisorPipeline(llm, pending_agents()).run(request, run_context(request))
 
     assert llm.allowed_roles and all(roles == [] for roles in llm.allowed_roles)
     assert result.status == "FAILED"
@@ -143,8 +137,8 @@ def test_real_mode_builds_the_app_when_every_requirement_is_set() -> None:
     assert app.title == "Hops AI"
 
 
-def test_default_pipeline_registry_is_the_runtime_registry() -> None:
-    assert implemented_roles(build_runtime_registry()) == {
+def test_default_pipeline_registry_is_the_built_registry() -> None:
+    assert implemented_roles(build_registry()) == {
         AgentRole.INQUIRY,
         AgentRole.TICKET,
         AgentRole.CURATOR,

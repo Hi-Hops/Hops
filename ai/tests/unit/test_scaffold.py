@@ -1,33 +1,24 @@
 import pytest
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from hops_ai.agents.registry import build_registry
+from hops_ai.agents.base import pending_agents
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.types import QuestionCount
 from hops_ai.harness.errors import ComponentNotReady, InputRejected
 from hops_ai.services.llm.client import LLMRequest
 from hops_ai.services.llm.openai import OpenAIClient
-from hops_ai.services.retrieval.base import RetrievalQuery
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.supervisor.graph import Supervisor
 
 
 @pytest.mark.parametrize("role", list(AgentRole))
 async def test_pending_role_never_generates_success_or_assignment(role) -> None:
     with pytest.raises(ComponentNotReady):
-        await build_registry()[role].run(object(), None)
+        await pending_agents()[role].run(object(), None)
 
 
 async def test_supervisor_rejects_missing_request_and_services() -> None:
     with pytest.raises(InputRejected):
         await Supervisor().analyze(object(), None)
-
-
-@pytest.mark.parametrize("retriever", [PgVectorRetriever(), Neo4jRetriever()])
-async def test_disconnected_retrieval_is_not_a_successful_empty_search(retriever) -> None:
-    with pytest.raises(ComponentNotReady):
-        await retriever.search(RetrievalQuery("전자결재 문서 조회", "test-scope"))
 
 
 async def test_disconnected_model_does_not_generate_a_fake_answer() -> None:

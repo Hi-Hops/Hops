@@ -13,8 +13,8 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 항목 | 상태 |
 |---|---|
 | FastAPI | `GET /healthz`는 프로세스 생존 200. `GET /readyz`는 실행 접수가 열려 있고 RunLedger 소유 세션이 응답할 때만 200, 그 외 503 |
-| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_runtime_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`일 때만 개발용 고정 자료로 실행하고 기본(`none`)은 연결 전 자리. 기본 `build_registry()`는 연결 전 자리 그대로 |
-| OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j는 내부 인터페이스와 연결 자리만 존재하며 호출하면 미구현 오류 |
+| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`일 때만 개발용 고정 자료로 실행하고 기본(`none`)은 연결 전 자리. 역할 조합을 만드는 함수는 `build_registry` 하나이며 Knowledge 연결 여부는 `knowledge_source` 인자로, Ticket의 Spring 생성 실행 여부는 `execute_tickets` 인자로 정한다. 역할을 주입하지 않은 `Supervisor()`는 모든 역할이 연결 전 자리(`pending_agents()`)다 |
+| OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j 검색은 아직 구현하지 않았고 연결 자리 코드도 두지 않는다. 2차에 `KnowledgeSource` 뒤에서 교체한다 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결. real 모드 Supervisor 파이프라인 사용 |
 | 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot·progress/result SSE 조회. 실행 접수와 취소는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 주입 시 취소는 항상 202 빈 본문(최선 노력) |
@@ -29,29 +29,28 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 src/hops_ai/
 ├── api/routes/health.py       생존·준비 상태
 ├── api/routes/runs.py         서비스 인증된 내부 실행 접수·snapshot 조회
-├── contracts/                내부 자료형과 Spring↔AI 실행 wire DTO
-├── supervisor/               역할 정책·State·판단 검증·역할 실행·병합·실행 제한·LangGraph 최종화
+├── contracts/                내부 자료형(State·역할 호출 입출력 포함)과 Spring↔AI 실행 wire DTO
+├── supervisor/               역할 정책·State 전이·판단 검증·역할 실행·병합·실행 제한·LangGraph 최종화
+├── rules/                    에이전트와 Supervisor가 함께 쓰는 문제 진행 상태 계산·제안 검증(supervisor·agents를 불러오지 않음)
 ├── persistence/run_ledger.py AI 실행 ID·입력 digest·상태·결과 보존
 ├── agents/
 │   ├── inquiry/              대화·질문·독립 문제·표준 요청
-│   ├── knowledge/            Vector·관계 검색과 조건부 분석
+│   ├── knowledge/            승인된 지식 검색과 직원 안내 제안
 │   ├── ticket/               책임 시스템 후보·근거·티켓 내용 제안
 │   └── curator/              처리 기록 기반 사례 초안·기존 관계 연결 후보
 ├── harness/                  누적 예산·유일한 재시도 루프·실행 대기/취소·도구 정책
 ├── services/
 │   ├── llm/                  LLM 인터페이스·예산 래퍼·OpenAI 연결 자리
 │   ├── runs/                 기한·한도 확인과 RunLedger 접수, 백그라운드 실행기, 주기 복구·상세 만료
-│   ├── retrieval/            검색 인터페이스·pgvector·Neo4j 연결 자리
-│   ├── tools/                읽기 도구 인터페이스·등록/인자 검사·공통 예산 wrapper
-│   └── indexing/             청크·임베딩·관계 반영 구현 자리
-└── evaluation/               검색·표준화·응답 평가 구현 자리
+│   ├── retrieval/            Knowledge 검색 자료 경계(KnowledgeSource)와 개발용 고정 자료
+│   └── tools/                읽기 도구 인터페이스·등록/인자 검사·공통 예산 wrapper
 tests/
 ├── doubles/                  정해 둔 응답만 반환하는 LLM·도구·실행 기록 대역
 ├── unit/                     기술 하네스와 미구현 경계 검증
 └── integration/              골격 앱의 생존·준비 상태와 옛 API 비노출 검증
 ```
 
-`src/` 밖의 `evaluation/`은 정리 전후의 동작을 같은 기준으로 비교하는 평가 하네스다(안전 성질 P1~P9 검사기, 시나리오 재생기, 규칙 사용자 모사). 운영 코드와 실행 이미지에 들어가지 않으며, 위 트리의 `src/hops_ai/evaluation/` 자리와는 다르다. 사용법과 한계는 [evaluation/README.md](evaluation/README.md)를 본다. Fake 모델 결과는 실제 모델 품질이 아니다.
+`src/` 밖의 `evaluation/`은 정리 전후의 동작을 같은 기준으로 비교하는 평가 하네스다(안전 성질 P1~P9 검사기, 시나리오 재생기, 규칙 사용자 모사). 운영 코드와 실행 이미지에 들어가지 않는다. 사용법과 한계는 [evaluation/README.md](evaluation/README.md)를 본다. Fake 모델 결과는 실제 모델 품질이 아니다.
 
 `contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 내부 실행 API는 이 요청 형식과 저장된 snapshot을 검증하며, 실행 파이프라인이 주입된 경우에만 새 실행을 접수한다. 실행기는 파이프라인 결과를 같은 run·문의·버전의 `AiResult`로 다시 검증한 뒤에만 저장한다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
 
@@ -63,13 +62,16 @@ Inquiry가 기존 확인 사실을 일부 빠뜨리기만 하면 기존 사실�
 
 확인 사실·추정·티켓 책임 근거의 메시지 ID는 `get_problem_message_ids`로 대상 문제의 `InputMessage.problemIds`와 대조한다. 입력에서 생략된 과거 출처는 해당 문제의 기존 표준 요청만 참조하며, 현재 메시지가 있으면 현재 연결을 우선한다. 신규 `new:` 문제는 복합 문의 분리를 위해 미연결 원문과 이번 실행 대상 문제의 원문을 사용할 수 있지만 참고용 비대상 문제나 다른 문제의 과거 출처는 복사하지 않는다. 원문의 내용상 관련성 판단은 Inquiry, 실제 문제·메시지 연결과 저장 확정은 Spring이 담당한다.
 
+의존 방향은 `contracts` ← `rules` ← `agents` ← `supervisor`다. `agents`·`rules`·`contracts`는 `supervisor`를 불러오지 않으며 `tests/unit/test_import_layers.py`가 이를 검사한다.
+
 실행 흐름은 `decision.py` → `execution.py` → `runtime.py` → `graph.py` 순서로 확인한다.
 
+- `choices.py`의 `compute_choices`가 State에서 이번 판단의 선택지(호출할 수 있는 역할과 종료 행동)를 계산한다. 연결 전 자리(`PendingAgent`)와, 문제가 아직 없는데 검색하는 것처럼 지금 State에서 호출이 성립하지 않는 역할은 선택지에 없다. 역할별 호출 조건은 이 파일의 규칙 표 한 곳에 있고 역할 구현은 호출 조건을 알지 못한다. 그래프의 `decide` 노드가 선택지를 계산해 모델 호출과 조건부 엣지에 넘기며, 모델이 선택지 밖의 역할을 내면 거부한다. `Supervisor(agents, restrict_roles=True)`일 때만 제한하고(`SupervisorPipeline`은 항상 제한) 기본은 등록된 역할을 모두 선택지로 둔다.
 - `SupervisorDecision`은 다음 행동·전문 역할·공개 요약을 담는다. `decide_next_action`은 최소 실행 문맥으로 LLM을 호출하고 `validate_supervisor_decision`이 실행 종류별 역할과 준비된 제안을 검사한다. `problemProgress`에는 대상별 결과 준비 여부·남은 질문 횟수·미확인 개수·값이 있는 상세 필드명만 투영하며 담당자 지식과 상세 분석 원문은 넣지 않는다. 모델의 `publicSummary`는 최종 답변 본문으로 사용하지 않는다.
 - `execute_role`은 호출 ID를 발급하고 독립적인 `RoleRequest` 스냅샷을 전달한다. 역할은 그 ID를 결과에 유지하며 모델이 호출 ID를 생성하지 않는다. 반환 결과의 종류·ID를 검사한 뒤 기존 역할별 merge 함수로 병합한다. Knowledge의 `RoleResponse.authorized_refs`는 허용 문서 참조, `verified_evidence`는 같은 어댑터가 검증한 원본 `KnowledgeEvidence` 객체의 tuple이다. 둘 다 모델 JSON에서 만들지 않으며 FOUND 결과는 검증 객체와 모든 필드가 일치해야 한다. 문서 참조만 전달하면 거부한다. 검색 본문을 모델에 전달하기 전 현재 Spring 권한과 원문·청크 digest 확인은 검색 어댑터가 수행한다. 문서 전체 digest를 발췌문 해시와 직접 비교하지 않는다. Curator의 기존 엔티티 목록도 신뢰된 어댑터가 제공한다.
 - `SupervisorRuntime`은 요청의 ID·누적 한도를 공통 실행기에 연결하고 사용량을 State에 복사하는 어댑터다. `RunBudget`이 호출·보고 토큰·도구·전체 재시도 사용량을 소유하고, `call_with_retry`만 모델 재시도 루프를 구현한다. `RunExecution`은 전체 그래프 대기·취소·종료 정리를 관리하며 `BudgetedLLMClient`와 `BudgetedToolGateway`가 실제 호출에 제한을 적용한다. 이미 감싼 LLM이나 재사용한 `RunContext`는 거부한다. 도구는 기본 거부 정책과 `GuardedToolGateway`의 등록·인자 검사를 통과해야 한다. 정확한 입력 토큰 사전 계산과 실패한 원격 호출의 미보고 과금 확인은 공급자 어댑터의 후속 작업이며 이 수치는 금액 예산 보장이 아니다.
-- `Supervisor.analyze`는 판단 → 필요한 역할 호출·병합 → 재판단 → 최종화의 LangGraph를 실행한다. 역할을 고정 순서로 모두 호출하지 않는다. `ASK_USER`는 현재 run을 끝내며 사용자 답변은 Spring이 새 run으로 전달한다. 실패 결과는 새 제안을 비우고 안전한 오류만 반환한다.
-- `get_problem_progress`는 별도 State 필드를 저장하지 않고 준비 상태를 계산한다. `validate_completion`은 모든 대상과 신규 문제에 질문·가이드·티켓 제안 또는 안내할 기존 결과·범위 안내·시스템 선택 대기가 있는지 검사한다. `allowedActions`, 종료 행동 검증, 최종화가 이 조건을 함께 사용한다. 검색 0건이나 자유 문구만으로 종료할 수 없고, 원인 미확인 항목이 남았다는 이유만으로 조사 티켓을 차단하지 않는다.
+- `Supervisor.analyze`는 판단(`decide`) → 선택한 역할 노드(`inquiry`·`knowledge`·`ticket`·`curator`)의 호출·병합 → 재판단 → 최종화(`finish`)의 LangGraph를 실행한다. 그래프 State가 한 run의 유일한 정본이며 노드 경계에서 실행기가 예산·취소를 State에 반영하고 고정 진행 문구를 발행한다. 실패 결과는 그래프가 마지막으로 확정한 State로 만든다. 역할을 고정 순서로 모두 호출하지 않는다. `ASK_USER`는 현재 run을 끝내며 사용자 답변은 Spring이 새 run으로 전달한다. 실패 결과는 새 제안을 비우고 안전한 오류만 반환한다.
+- `get_problem_progress`(`rules/progress.py`)는 별도 State 필드를 저장하지 않고 준비 상태를 계산한다. `validate_completion`은 모든 대상과 신규 문제에 질문·가이드·티켓 제안 또는 안내할 기존 결과·범위 안내·시스템 선택 대기가 있는지 검사한다. `allowedActions`, 종료 행동 검증, 최종화가 이 조건을 함께 사용한다. 검색 0건이나 자유 문구만으로 종료할 수 없고, 원인 미확인 항목이 남았다는 이유만으로 조사 티켓을 차단하지 않는다.
 - `compose_public_answer`는 검증된 질문·가이드 항목을 한 번씩 조립하고, 티켓 제안 준비와 서버가 제공한 기존 저장 결과를 구분해 답변을 만든다. 서로 다른 문제의 질문 본문이 완전히 같으면 문제 번호를 묶어 한 번 표시하고 문제별 질문 메타데이터는 유지한다. 질문과 가이드처럼 의미가 다른 결과는 같은 문구라고 임의로 합치지 않는다. 전송 DTO는 필수 본문 누락을 검사하며 다른 질문·가이드 안의 같은 부분 문자열을 중복 항목으로 세지 않는다. 이 검사는 사용자 답변의 적절성 판단이나 질문 횟수 집계와 구분한다. 새 티켓 저장·담당자 배정·해결을 추정하지 않는다. 질문 5회 소진 후 시스템이 미확인이면 추가 질문 대신 시스템 선택 안내를 구성한다. 최종 본문의 길이·참조 검증이 실패하면 자동 절단하지 않고 실패 처리한다. 질문·가이드 자체의 의미 정확성은 역할별 평가가 필요하다.
 
 이 내부 흐름은 명시적인 테스트 대역으로 검증한다. 서비스 실행은 아래 `real` 모드·RunLedger·HTTP 접수·진행 SSE 경로에서 연결하며 실제 모델·검색·Spring 권한·저장 전체 통합 검증은 별도다. 취소는 아래 `cancel` 경로로 전파한다. 서버 준비 상태는 아래 `readyz` 기준을 따른다. 메모리 문맥의 중복 실행 차단은 영속 RunLedger 접수를 대신하지 않는다.
@@ -86,8 +88,6 @@ services = create_run_services(
     settings=settings,
     access_scope_ref=server_scope_ref,
     llm=llm_client,
-    vector=vector_retriever,
-    graph=graph_retriever,
     tools=guarded_tools,
     tool_policy=tool_policy,
 )
@@ -138,7 +138,7 @@ curl -i http://127.0.0.1:8000/readyz
 
 처리 흐름은 Supervisor 판단 → Inquiry(원문 추출·양식 규칙 질문) → 필요 시 Ticket(제안·Spring 생성 요청·저장 결과 확인) → 최종 답변 조립이다. 정보가 부족하면 질문으로 끝난다. 사용법 문의처럼 근거 있는 가이드가 필요한 경로는 Knowledge 기본 설정(none)에서는 안전한 실패로 끝나며, 개발용 고정 자료 연결은 아래 Knowledge 절을 따른다. Ticket은 등록된 업무 도구로 Spring REST를 호출하고 저장·배정 확정은 Spring이 한다. 최종 AI 결과 수신 경로가 같은 티켓을 다시 생성하지 않는다.
 
-real 모드의 기본 Ticket은 `ExecutingTicketAgent`다. 내부 `ModelTicketAgent`가 공용 LLM·동일 실행 예산으로 한 번의 구조화 출력을 요청하고(`ticket.proposal.v2`, 출력 상한 1,500토큰), 이후 생성·조회·제한 재시도는 코드로 수행해 추가 모델 호출을 하지 않는다. `RuleTicketAgent`는 기존 규칙 검사 용도로 남아 있으며 모델/서비스 실패 시 자동 대체하지 않는다. 기본 `build_runtime_registry()`의 순수 제안 구현과 제품 `SupervisorPipeline(ticket_client=...)`의 실행 구현을 구분한다.
+real 모드의 기본 Ticket은 `ExecutingTicketAgent`다. 내부 `ModelTicketAgent`가 공용 LLM·동일 실행 예산으로 한 번의 구조화 출력을 요청하고(`ticket.proposal.v2`, 출력 상한 1,500토큰), 이후 생성·조회·제한 재시도는 코드로 수행해 추가 모델 호출을 하지 않는다. 모델/서비스 실패 시 규칙 구현으로 자동 대체하지 않는다. `build_registry()`의 기본 Ticket은 순수 제안 구현(`ModelTicketAgent`)이고, `execute_tickets=True`(제품 `SupervisorPipeline(ticket_client=...)`)이면 실행 구현(`ExecutingTicketAgent`)을 연결한다. `agents`를 직접 주면서 `ticket_client`를 함께 줄 수는 없다.
 
 `HOPS_AI_TICKET_TOOLS_ENABLED=true`가 기본이다. real 모드에는 `HOPS_AI_SPRING_BASE_URL`(Compose 기본 http://backend:8080)과 Spring 내부 API의 `SPRING_SERVICE_TOKEN`도 필요하며 없으면 시작을 거부한다. 이 토큰은 Spring→AI의 `AI_SERVICE_TOKEN`과 다르다. Compose는 backend/.env의 방향별 값을 AI에도 전달하며 호스트 직접 실행은 해당 값을 프로세스 환경변수 또는 ai/.env에 설정한다. 명시적으로 false를 설정한 경우만 제안 전용 모드로 실행하고 저장 성공을 표시하지 않는다.
 

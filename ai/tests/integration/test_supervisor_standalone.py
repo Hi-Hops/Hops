@@ -11,8 +11,6 @@ from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiRunRequest, ProblemProposal, QuestionProposal
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMMessage, LLMRequest, LLMResponse, LLMUsage
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.runs.admission import RunAdmissionService
 from hops_ai.services.runs.executor import RunExecutor, server_ceilings
 from hops_ai.services.shared import SharedServices
@@ -112,8 +110,6 @@ def compose(request, llm):
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=llm,
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=GuardedToolGateway(UnusedTool(), ToolRegistry(), policy),
         tool_policy=policy,
     )
@@ -209,8 +205,6 @@ async def test_executor_context_reaches_supervisor_and_checked_result_is_stored(
             services = SharedServices(
                 runtime=context,
                 llm=llm,
-                vector=PgVectorRetriever(),
-                graph=Neo4jRetriever(),
                 tools=UnusedTool(),
             )
             return await supervisor.analyze(request, services)

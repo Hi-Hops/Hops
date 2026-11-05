@@ -19,19 +19,10 @@ from tests.supervisor_fixtures import (
 )
 
 
-class UnusedRetrieval:
-    """구성 시 검색을 실행하면 즉시 실패하는 명시적 대역."""
-
-    async def search(self, query):
-        raise AssertionError("서비스 구성 중 검색해서는 안 된다")
-
-
 def dependencies():
     """모든 의존성을 호출자가 직접 지정한다. 서버 기본 대역으로 사용하지 않는다."""
     return {
         "llm": FakeLLMClient(),
-        "vector": UnusedRetrieval(),
-        "graph": UnusedRetrieval(),
         "tools": GuardedToolGateway(FakeToolGateway(), ToolRegistry(), ToolPolicy()),
     }
 

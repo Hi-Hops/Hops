@@ -15,18 +15,18 @@ from hops_ai.agents.inquiry import ExtractionInquiryAgent
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.knowledge.agent import guidable_problem
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchResult
 from hops_ai.contracts.wire import AiRunRequest, GuideProposal
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.progress import problems_without_guide
+from hops_ai.rules.proposals import validate_ticket
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.execution import RoleRequest, execute_role
 from hops_ai.supervisor.graph import Supervisor
-from hops_ai.supervisor.merge import merge_knowledge_result, validate_ticket
-from hops_ai.supervisor.validation import problems_without_guide
+from hops_ai.supervisor.merge import merge_knowledge_result
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -218,9 +218,8 @@ async def test_a_staff_only_hit_ends_in_a_review_ticket_without_repeating_the_se
         ),
         decision("PROPOSE_TICKETS"),
     )
-    agents = build_runtime_registry(FixtureKnowledgeSource())
-    roles = implemented_roles(agents)
-    supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
+    agents = build_registry(FixtureKnowledgeSource())
+    supervisor = Supervisor(agents, restrict_roles=True)
 
     result = await supervisor.analyze(request, services_for(request, llm))
 

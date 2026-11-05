@@ -127,17 +127,19 @@ async def test_batch_never_exceeds_the_total_cap_and_marks_skipped_scenarios() -
 
 
 async def test_batch_applies_the_per_scenario_cap() -> None:
-    llm = FakeLLMClient(decision("CALL_ROLE", AgentRole.INQUIRY), repeat_last=True)
+    # 첫 실행이 2번, 사용자가 답한 두 번째 실행이 3번 모델을 부른다.
+    # 상한 3회는 둘째 실행 도중에 닿는다.
+    llm = two_turn_llm()
 
     report = await run_batch(
         three_scenarios()[:1],
         llm=llm,
         agents_for=lambda _: AGENTS,
         max_calls=100,
-        per_scenario_calls=2,
+        per_scenario_calls=3,
     )
 
-    assert len(llm.requests) == 2
+    assert len(llm.requests) == 3
     assert report["totals"]["scenariosHittingTheirCap"] == ["S-batch-0-001"]
     assert not report["totalCallCap"]["exceeded"]  # 전체 상한에는 여유가 있다
     assert exit_code(report) == 1  # 시나리오별 상한에 걸린 실행도 성공으로 끝나지 않는다

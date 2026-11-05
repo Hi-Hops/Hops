@@ -11,18 +11,17 @@ from hops_ai.agents.base import PendingAgent
 from hops_ai.agents.inquiry import ExtractionInquiryAgent
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
-from hops_ai.agents.registry import build_runtime_registry
+from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.services.retrieval.factory import knowledge_source_for
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
-from hops_ai.services.runs.supervisor import SupervisorPipeline, implemented_roles
+from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import KnowledgeSourceKind, Settings
 from hops_ai.supervisor.bootstrap import create_run_services
+from hops_ai.supervisor.choices import implemented_roles
 from hops_ai.supervisor.decision import SupervisorDecision
 from hops_ai.supervisor.graph import Supervisor
 from tests.doubles.llm import FakeLLMClient
@@ -71,8 +70,6 @@ def services_for(request: AiRunRequest, llm: FakeLLMClient) -> SharedServices:
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=llm,
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
 
@@ -87,8 +84,8 @@ def test_source_is_disconnected_unless_the_fixture_is_chosen() -> None:
 
 
 def test_runtime_registry_connects_knowledge_only_when_a_source_is_given() -> None:
-    disconnected = build_runtime_registry()
-    connected = build_runtime_registry(FixtureKnowledgeSource())
+    disconnected = build_registry()
+    connected = build_registry(FixtureKnowledgeSource())
 
     assert isinstance(disconnected[AgentRole.KNOWLEDGE], PendingAgent)
     assert implemented_roles(disconnected) == {
@@ -117,7 +114,7 @@ async def test_how_to_question_ends_with_a_guide_without_asking_the_form_questio
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("PROVIDE_GUIDE"),
     )
-    registry = build_runtime_registry(FixtureKnowledgeSource())
+    registry = build_registry(FixtureKnowledgeSource())
 
     result = await Supervisor(registry).analyze(request, services_for(request, llm))
 
@@ -139,7 +136,7 @@ async def test_unknown_task_is_asked_before_searching() -> None:
         how_to_extraction(task=None),
         decision("ASK_USER"),
     )
-    registry = build_runtime_registry(FixtureKnowledgeSource())
+    registry = build_registry(FixtureKnowledgeSource())
 
     result = await Supervisor(registry).analyze(request, services_for(request, llm))
 
@@ -156,7 +153,7 @@ async def test_without_a_knowledge_source_the_existing_form_question_is_kept() -
         decision("ASK_USER"),
     )
 
-    result = await Supervisor(build_runtime_registry()).analyze(request, services_for(request, llm))
+    result = await Supervisor(build_registry()).analyze(request, services_for(request, llm))
 
     [question] = result.questions
     assert question.requestedFields == ["currentWorkflow"]

@@ -12,16 +12,14 @@ import pytest
 
 from hops_ai.agents.inquiry.extraction import ExtractedProblem, InquiryExtraction, QuotedValue
 from hops_ai.agents.knowledge import SearchKnowledgeAgent
-from hops_ai.agents.registry import build_runtime_registry
-from hops_ai.agents.ticket import RuleTicketAgent
+from hops_ai.agents.registry import build_registry
+from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.proposal import TicketDecision, TicketDecisions
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult, TicketResult
 from hops_ai.contracts.wire import AiRunRequest, ProblemProposal
 from hops_ai.harness.errors import OutputRejected
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.retrieval.neo4j import Neo4jRetriever
-from hops_ai.services.retrieval.pgvector import PgVectorRetriever
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
@@ -32,6 +30,7 @@ from hops_ai.supervisor.finalize import finalize_result
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.merge import merge_ticket_result
 from hops_ai.supervisor.state import transition_phase
+from tests.doubles.agents import fake_ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -53,8 +52,6 @@ def services_for(request: AiRunRequest, llm: FakeLLMClient | None = None) -> Sha
         settings=Settings(_env_file=None),
         access_scope_ref=f"test-scope:{request.runId}",
         llm=llm or FakeLLMClient(),
-        vector=PgVectorRetriever(),
-        graph=Neo4jRetriever(),
         tools=DisabledToolGateway(),
     )
 
@@ -105,8 +102,10 @@ def state_after(search: KnowledgeResult | None, *problems: ProblemProposal):
 
 async def run_ticket(state):
     reserved = reserve(state, AgentRole.TICKET, "inv-t")
-    result = await RuleTicketAgent().run(
-        RoleRequest("inv-t", reserved), services_for(state["input"])
+    decisions = fake_ticket_decisions(state)
+    llm = FakeLLMClient() if decisions is None else FakeLLMClient(decisions)
+    result = await ModelTicketAgent().run(
+        RoleRequest("inv-t", reserved), services_for(state["input"], llm)
     )
     return reserved, result
 
@@ -240,7 +239,7 @@ def no_guide_request() -> AiRunRequest:
 
 
 def registry():
-    return build_runtime_registry(FixtureKnowledgeSource())
+    return build_registry(FixtureKnowledgeSource())
 
 
 def ticket_decisions():
