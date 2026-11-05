@@ -77,6 +77,16 @@ public class AgentRunClient {
         return body;
     }
 
+    /** 승인 사례 색인 접수 (POST /internal/v2/index-jobs). 구현 전 자리 표시. */
+    public JsonNode applyIndex(JsonNode request) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    /** 승인 사례 색인 조회 (GET /internal/v2/index-jobs/{jobId}?attempt={n}). 구현 전 자리 표시. */
+    public JsonNode indexSnapshot(String jobId, int attempt) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
     private Response call(Supplier<Response> request) {
         try {
             return request.get();

@@ -9,11 +9,16 @@ import java.util.List;
 import java.util.UUID;
 
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.hihops.hops.agent.client.AgentRunClient;
+import com.hihops.hops.agent.service.AgentDispatchConfig;
 import com.hihops.hops.ticket.controller.TicketCommandFixture;
 
 import tools.jackson.databind.JsonNode;
@@ -32,6 +37,21 @@ public abstract class CaseDraftFixture extends TicketCommandFixture {
     @MockitoBean
     protected AgentRunClient client;
 
+    @Autowired
+    @Qualifier(AgentDispatchConfig.AGENT_DISPATCH_EXECUTOR)
+    private ThreadPoolTaskExecutor dispatchExecutor;
+
+    /** 승인 뒤 색인 전달은 전용 스레드에서 돈다. 다음 테스트의 가짜 AI를 건드리지 않게 끝난 뒤 문서를 지운다. */
+    @AfterEach
+    void 검색_문서_정리() {
+        Awaitility.await().atMost(Duration.ofSeconds(10)).until(() ->
+                dispatchExecutor.getActiveCount() == 0 && dispatchExecutor.getThreadPoolExecutor().getQueue().isEmpty());
+        jdbc.update("""
+                DELETE FROM knowledge_document_version WHERE knowledge_document_id IN
+                (SELECT id FROM knowledge_document WHERE document_type='CASE' AND it_system_id IN (?,?))""", system, otherSystem);
+        jdbc.update("DELETE FROM knowledge_document WHERE document_type='CASE' AND it_system_id IN (?,?)", system, otherSystem);
+    }
+
     @BeforeEach
     void 문의자_원문() {
         // Curator는 해당 문제의 USER 원문만 사례 출처로 인정한다.
@@ -49,6 +69,16 @@ public abstract class CaseDraftFixture extends TicketCommandFixture {
         Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
                 assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo("SUCCEEDED"));
         return UUID.fromString(detail().path("caseGeneration").path("caseId").asString());
+    }
+
+    /** 초안을 만들고 문의자가 해결됐다고 확인한 상태. */
+    protected UUID readyDraft() throws Exception {
+        UUID caseId = draft();
+        String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
+        result(command(requester, "/resolution-requests/" + resolutionId + "/responses", mapper.createObjectNode()
+                .put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1)
+                .put("decision", "RESOLVED")));
+        return caseId;
     }
 
     protected JsonNode reusableSnapshot(String runId) {
