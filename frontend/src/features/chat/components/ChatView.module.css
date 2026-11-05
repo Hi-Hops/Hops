@@ -23,7 +23,7 @@
   min-height: var(--header-height);
   padding: var(--space-2) var(--chat-gutter-end) var(--space-2) var(--chat-gutter-start);
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg);
+  background: var(--color-surface);
 }
 .head h1 {
   min-width: 0;
@@ -53,6 +53,24 @@
   min-width: 0;
   background: var(--color-surface);
 }
+/* 상단 상태와 처리 현황은 오래 보는 업무 정보라 상태색의 채도를 낮춰 경고처럼 튀지 않게 한다. */
+.head,
+.rail,
+.statusBar,
+.statusContent {
+  --color-progress-bg: #f0f4f9;
+  --color-progress: #2f5a8f;
+  --color-progress-border: #d3deea;
+  --color-success-bg: #f1f6f4;
+  --color-success: #2f6b58;
+  --color-success-border: #d3e3dc;
+  --color-attention-bg: #faf7f0;
+  --color-attention: #80540f;
+  --color-attention-border: #e8dcc4;
+  --color-danger-bg: #fbf3f2;
+  --color-danger: #9f3a33;
+  --color-danger-border: #efd6d3;
+}
 /* 사이드바를 닫아 폭이 넓어져도 사용자·Hops 메시지와 입력창의 기준선을 한 열에 맞춘다. */
 .log {
   padding: var(--space-6) var(--chat-gutter-end) var(--space-6) var(--chat-gutter-start);
@@ -74,7 +92,7 @@
   padding: var(--space-5) var(--space-4);
   overflow-y: auto;
   border-left: 1px solid var(--color-border);
-  background: var(--color-nav);
+  background: var(--color-bg);
 }
 .rail > h2 {
   font-size: var(--font-size-md);
