@@ -2,11 +2,11 @@
 
 Knowledge는 Spring의 내부 REST로 승인된 지식 문서를 읽는다. 업무 정본·접근 범위·공개 규칙은 Spring이 확정하고, AI는 접근 범위가 확정된 승인 문서만 받는다. 모델 출력이나 AI 쪽 필터를 권한 확인으로 해석하지 않는다. 1차 검색은 임베딩 없이 PostgreSQL SQL로 하며 `KnowledgeSource` 뒤에서 2차에 교체한다([AGENT_ARCHITECTURE](../../docs/ai/AGENT_ARCHITECTURE.md) 8절, [CLEANUP_PLAN](../../docs/ai/CLEANUP_PLAN.md) D4).
 
-이 문서는 팀 리뷰를 거쳐 병합된 뒤 기준이 된다. 병합 전까지는 구현 제안이다. 관계 조회는 별도 엔드포인트로 같은 PR의 다음 커밋에서 추가한다.
+이 문서는 팀 리뷰를 거쳐 병합된 뒤 기준이 된다. 병합 전까지는 구현 제안이다. 문서 검색은 아래 본문, 증상→확인 항목→질문 문구를 찾는 **관계 조회**는 "관계 조회" 절이 정한다. 두 API는 같은 인증·실행 검사·접근 범위 규칙을 쓴다.
 
 ## 구현 상태
 
-커밋 ①에서 Spring의 지식 검색 API를 구현했다. AI 쪽 `SpringKnowledgeSource`(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)는 같은 PR의 커밋 ④에서 추가하므로 지금 AI는 이 API를 호출하지 않는다.
+Spring의 지식 검색 API와 관계 조회 API를 구현했다. AI 쪽 `SpringKnowledgeSource`·`SpringRelationSource`(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)는 같은 PR의 커밋 ④에서 추가하므로 지금 AI는 이 API들을 호출하지 않는다. 관계 조회의 AI 쪽 사용(질문 생성·평가)은 #181 범위다.
 
 ## 인증
 
@@ -127,6 +127,59 @@ Spring 공통 ApiError. 400 INVALID_INPUT(형식·알 수 없는 필드·빈 검
 ## 검증
 
 `KnowledgeSearchApiTest`가 실제 PostgreSQL과 MockMvc로 다음을 확인한다: 직원 실행에서 담당자 문서 0건, 미승인·EVAL·삭제 제외, 시스템 범위와 좁히기, 종류·시스템 직접 요청의 `DENIED`, 결과 없음과 검색 실패(503)의 구분, 인증 실패, 실행·버전·기한 검증, `topK` 상한, 요청 본문으로 접근 범위를 넓히려는 시도 거부, CASE 공개 설정별 동작과 저장된 색인 상태 노출, 검색 근거가 현재 공개 검증을 통과함. 실제 AI 호출·모델 품질·프론트 E2E는 포함하지 않는다.
+
+## 관계 조회
+
+`POST /internal/v2/runs/{runId}/relation-searches`
+
+`RelationSource`([AGENT_ARCHITECTURE](../../docs/ai/AGENT_ARCHITECTURE.md) 8절)의 1차 SQL 구현이다. 키워드·기능 후보·시스템으로 **증상 → 확인 항목 → 직원용 질문 문구 → 승인 사례 이웃**과 각 항목의 근거·공개 범위를 돌려준다. 연결은 후보일 뿐이며 현재 문의의 원인을 확정하는 필드는 없다. Neo4j는 같은 인터페이스 뒤로 2차에 교체한다. 인증·실행 검사·알 수 없는 필드 거부·오류 코드는 지식 검색과 같다.
+
+요청 본문(알 수 없는 필드는 거부):
+
+```text
+inquiryVersion: 양의 정수. 실행의 문의 버전과 같아야 한다
+problemRef: 실행 입력의 기존 문제 UUID 또는 new:[A-Za-z0-9_-]+
+keywords: 선택. 핵심어 1~20개, 각 1~50자
+featureIds: 선택. 시스템 기능 UUID 1~10개 (실행 입력 systems의 기능 후보)
+systemIds: 선택. 실행의 접근 시스템 안에서 더 좁힌다 (최대 10개)
+limit: 1~5, 생략하면 5. 돌려줄 증상 수
+```
+
+`keywords`와 `featureIds` 중 하나는 있어야 한다(둘 다 없으면 400). `featureIds`가 실행의 접근 시스템 기능이 아니거나 없는 기능이면 `FEATURE_NOT_ALLOWED`로 거부한다.
+
+응답:
+
+```text
+contractVersion, runId, problemRef
+outcome: FOUND | NO_RESULT | DENIED
+deniedReason: SYSTEM_NOT_ALLOWED | FEATURE_NOT_ALLOWED | null
+applied: { accessScopes, systemIds, limit }
+symptoms: 점수 순(같으면 catalogKey 순)
+  id, catalogKey, label, systemId, featureId, featureCode, accessScope, basis, score
+  checkItems: 원인을 가르는 확인 항목. 후보 원인을 더 많이 가르는 순
+    id, catalogKey, label(담당자 범위 응답만), employeeDisclosable, accessScope, basis
+    questions: 직원용 질문 문구 id, catalogKey, text, basis
+  causes: 가능 원인(담당자 범위 응답만). 직원 응답에는 키가 없다
+  cases: 승인 사례 이웃 documentKey(사례 번호), evidence(KnowledgeEvidence 형태), caseIndexStatus
+```
+
+- 증상은 키워드 토큰이 증상 이름에 있거나 기능 후보가 증상의 기능과 같으면 후보다. 기능이 같으면 가산한다. 일치 신호가 없으면 결과에 넣지 않는다.
+- `basis`는 그 항목을 선언한 근거 문서 버전이 **지금 이 실행에 공개 가능할 때만** `{visible: true, documentId, documentVersion, documentKey}`다. 담당자 전용 런북에서 나온 항목이라도 직원 응답에는 런북의 ID·키를 싣지 않고 `{visible: false}`로 둔다. 근거가 없는 항목은 DB 제약상 존재하지 않는다.
+
+### 접근 범위: 지식 검색과 다른 점
+
+관계 항목의 공개 범위는 항목 종류마다 정본 6.1절이 정한다. 증상은 `EMPLOYEE`, 원인·확인 항목·연결은 `SYSTEM_STAFF`이며 확인 항목 대부분이 "직원 공개"(`employeeDisclosable`)다. 그래서 지식 검색처럼 `access_level`만으로 거르면 직원 상담의 확인 항목과 질문이 모두 사라진다. 규칙은 다음과 같다.
+
+- 모든 항목은 승인(`APPROVED`)이고 삭제되지 않았으며 활성 시스템이어야 한다. 승인되지 않은 항목·연결은 후보 계산에도 쓰지 않는다.
+- **직원 실행**(`allowedDocumentScopes=["EMPLOYEE"]`): 응답에는 `EMPLOYEE` 증상, **직원 공개로 표시된** 확인 항목의 ID, 그 항목의 승인된 `EMPLOYEE` 질문 문구와 `EMPLOYEE` 사례만 나간다. 확인 항목은 후보 원인을 가르는 연결로 찾지만 응답에는 **원인의 이름·ID·수·연결, 담당자 전용 확인 항목의 ID·이름, 확인 항목의 이름(label)이 없다.** 직원 공개 표시가 없거나 질문 문구가 직원 공개로 승인되지 않은 확인 항목은 응답에 나타나지 않는다.
+- **담당자 범위 실행**(옵션 프로필, 서버가 실행 입력으로만 켠다): 문서 검색과 같이 해당 시스템의 주담당자인 실행 문의자에게만 `STAFF` 증상·원인·모든 확인 항목·사례를 돌려준다. 확인 항목에는 `label`과 직원 공개 여부가 붙는다.
+- 사례 이웃은 지식 검색과 같은 현재 공개 판정(`isCurrentlyVisible`)과 `hops.knowledge.case-visibility`를 따른다. 사례의 색인 상태는 저장된 값 그대로다.
+- `DENIED`는 요청이 실행의 접근 범위(시스템·기능)를 넘을 때만이며, 담당자 전용 항목이 걸러진 것은 `DENIED`가 아니다.
+- 검색 실패(DB 오류)는 HTTP 503 `SEARCH_UNAVAILABLE`이다. 오류를 `NO_RESULT`로 바꾸지 않는다.
+
+### 검증
+
+`RelationSearchApiTest`가 실제 PostgreSQL로 다음을 확인한다: 직원 실행에서 원인·담당자 전용 확인 항목·확인 항목 이름이 어디에도 없고 질문 문구만 나가는 것, 직원 공개 표시가 없거나 미승인인 항목·질문의 제외, 근거 런북 키의 비공개, 0건과 503의 구분, 시스템·기능 범위와 좁히기와 `DENIED`, 인증·실행 검증, 알 수 없는 필드와 범위 확대 시도의 거부, 담당자 범위 실행에서 주담당자에게만 원인·사례가 나가는 것과 사례 공개 규칙. 실제 AI 호출·질문 생성·모델 품질은 포함하지 않는다.
 
 ## 한국어 검색 품질 확인
 

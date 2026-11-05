@@ -40,6 +40,15 @@ class InternalRunAccess {
     private final Clock clock;
 
     record RunAccess(AgentRun run, Inquiry inquiry, AiRunRequest input) {
+        /** 기존 문제 UUID는 이 실행 입력의 문제여야 한다. 새 문제(new:)는 서버가 아직 모르므로 형식만 본다. */
+        void requireKnownProblem(String problemRef) {
+            if (problemRef.startsWith("new:")) {
+                return;
+            }
+            if (input.problems().stream().noneMatch(problem -> problem.id().toString().equals(problemRef))) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT);
+            }
+        }
     }
 
     /** 실행이 접수된 현재 실행이고 진행 중이며 문의 버전이 같고 기한 전일 때의 접근 문맥. */

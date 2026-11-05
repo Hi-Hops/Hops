@@ -43,23 +43,14 @@ class KnowledgeSearchHandler {
     KnowledgeSearchResponse search(UUID runId, KnowledgeSearchRequest request) {
         var access = runAccess.active(runId, request.inquiryVersion());
         AiRunRequest input = access.input();
-        checkProblemRef(input, request.problemRef());
+        access.requireKnownProblem(request.problemRef());
 
-        Set<AccessLevel> levels = EnumSet.noneOf(AccessLevel.class);
-        for (String scope : input.accessContext().allowedDocumentScopes()) {
-            switch (scope) {
-                case "EMPLOYEE" -> levels.add(AccessLevel.EMPLOYEE);
-                case "SYSTEM_STAFF" -> levels.add(AccessLevel.STAFF);
-                default -> throw new BusinessException(ErrorCode.ACCESS_DENIED);
-            }
-        }
-        if (levels.isEmpty()) {
-            throw new BusinessException(ErrorCode.ACCESS_DENIED);
-        }
-        Set<Kind> allowedKinds = levels.contains(AccessLevel.STAFF) ? EnumSet.allOf(Kind.class) : EMPLOYEE_KINDS;
-        Set<UUID> accessibleSystems = new LinkedHashSet<>(input.accessContext().systemIds());
+        RunScope scope = RunScope.of(input, access.inquiry().getRequester().getId());
+        Set<AccessLevel> levels = scope.levels();
+        Set<Kind> allowedKinds = scope.includesStaff() ? EnumSet.allOf(Kind.class) : EMPLOYEE_KINDS;
+        Set<UUID> accessibleSystems = scope.systemIds();
         int topK = request.effectiveTopK();
-        var applied = new KnowledgeSearchResponse.Applied(scopeNames(levels), allowedKinds.stream().map(Enum::name).toList(),
+        var applied = new KnowledgeSearchResponse.Applied(scope.scopeNames(), allowedKinds.stream().map(Enum::name).toList(),
                 List.copyOf(accessibleSystems), topK);
 
         Set<Kind> kinds = request.kinds() == null ? allowedKinds : EnumSet.copyOf(request.kinds());
@@ -80,7 +71,7 @@ class KnowledgeSearchHandler {
             hits = search.search(new KnowledgeSearchService.Query(tokens, levels,
                     kinds.stream().map(KnowledgeSearchHandler::documentType).collect(java.util.stream.Collectors.toCollection(
                             () -> EnumSet.noneOf(DocumentType.class))),
-                    systems, access.inquiry().getRequester().getId(), topK));
+                    systems, scope.memberId(), topK));
         } catch (IntegrityException | DataAccessException exception) {
             // 검색어·본문은 로그에 남기지 않는다. 실패를 빈 결과로 바꾸지 않고 503으로 알린다.
             log.warn("지식 검색 실패 runId={} cause={}", runId, exception.getClass().getSimpleName());
@@ -96,21 +87,6 @@ class KnowledgeSearchHandler {
     private static KnowledgeSearchResponse denied(UUID runId, KnowledgeSearchRequest request,
             KnowledgeSearchResponse.Applied applied, String reason) {
         return new KnowledgeSearchResponse(CONTRACT, runId, request.problemRef(), "DENIED", reason, applied, List.of());
-    }
-
-    /** 기존 문제 UUID는 이 실행 입력의 문제여야 한다. 새 문제(new:)는 서버가 아직 모르므로 형식만 본다. */
-    private static void checkProblemRef(AiRunRequest input, String problemRef) {
-        if (problemRef.startsWith("new:")) {
-            return;
-        }
-        boolean known = input.problems().stream().anyMatch(problem -> problem.id().toString().equals(problemRef));
-        if (!known) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
-        }
-    }
-
-    private static List<String> scopeNames(Set<AccessLevel> levels) {
-        return levels.stream().map(level -> level == AccessLevel.STAFF ? "SYSTEM_STAFF" : "EMPLOYEE").sorted().toList();
     }
 
     private static DocumentType documentType(Kind kind) {

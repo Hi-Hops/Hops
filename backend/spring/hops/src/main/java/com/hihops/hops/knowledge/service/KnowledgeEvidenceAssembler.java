@@ -88,11 +88,16 @@ public class KnowledgeEvidenceAssembler {
         if (applicability == null) {
             applicability = derivedApplicability(document, kind, appliesTo);
         }
-        String documentKey = text(mapper.readTree(document.getSourceData() == null ? "{}" : document.getSourceData()).path("documentKey"));
+        String documentKey = documentKey(document);
         var evidence = new KnowledgeEvidenceResponse(version.getId(), document.getId(), version.getVersionNo(), kind,
                 document.getTitle(), version.getContent(), systemId, appliesTo, applicability, scope, origin);
         return Optional.of(new Assembled(evidence, documentKey == null ? document.getId().toString() : documentKey,
                 version.getContent(), version.getContentDigest(), DIGEST_CONTENT, null));
+    }
+
+    /** 문서 키(source_data.documentKey). 사례 문서처럼 없으면 null이다. */
+    public String documentKey(KnowledgeDocument document) {
+        return text(mapper.readTree(document.getSourceData() == null ? "{}" : document.getSourceData()).path("documentKey"));
     }
 
     private Optional<Assembled> assembleCase(KnowledgeDocumentVersion version, KnowledgeDocument document,
