@@ -129,6 +129,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.mocked(useSystemChat).mockReset();
+  localStorage.clear();
 });
 
 it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨도 닫은 접수 결과의 접수 결과 모달은 다시 열지 않는다', async () => {
@@ -162,6 +163,50 @@ it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨�
   vi.mocked(useSystemChat).mockReturnValue(chatState(3, false, [problem, another]));
   view.rerender(<SystemChatView inquiryId={inquiryId} />);
   expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
+});
+
+it('F005-CONTRACT-03 안내한 접수 결과의 모달은 새로고침·재진입해도 다시 열지 않는다', async () => {
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false));
+  const first = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
+
+  // 닫지 않고 새로고침해도 이미 안내한 결과로 기록돼 있다.
+  first.unmount();
+  const second = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(await screen.findByRole('region', { name: '문제별 처리 결과' })).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+  // 다른 소유자의 기록과는 분리한다.
+  second.unmount();
+  useSession.setState((state) => ({
+    user: state.user ? { ...state.user, id: 'other-user' } : null,
+  }));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
+});
+
+it('F005-DETAIL-05 접수 결과 모달은 티켓 번호·책임 시스템·담당자와 미생성 항목을 구분해 보여준다', async () => {
+  const failed: Problem = {
+    ...problem,
+    id: crypto.randomUUID(),
+    summary: '가상 미생성 문제',
+    ticket: null,
+    creationResult: problem.creationResult && {
+      ...problem.creationResult,
+      outcome: 'NOT_CREATED',
+      ticketId: null,
+    },
+  };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [problem, failed]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  const dialog = await screen.findByRole('dialog', { name: '티켓 접수 결과' });
+  const [stored, missing] = within(dialog).getAllByRole('listitem');
+  if (!stored || !missing) throw new Error('결과 항목 없음');
+  expect(within(stored).getByText('TK-TEST')).toBeVisible();
+  expect(within(stored).getByText('처리 대기')).toBeVisible();
+  expect(within(stored).getByText(person.name)).toBeVisible();
+  expect(within(missing).getByText('미생성 확인')).toBeVisible();
+  expect(within(dialog).getByText(/1건은 저장하지 못했어요/)).toBeVisible();
 });
 
 it('F005-DETAIL-02 보고 시스템과 책임 시스템이 다른 저장 티켓은 결과 카드에 두 시스템을 모두 표시한다', async () => {

@@ -4,10 +4,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
 import type { InquiryResult, Problem } from '@/shared/api/types/hopsSystem1';
 import { Button } from '@/shared/ui/Button';
-import { RouteModal } from '@/shared/ui/RouteModal';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { ResolutionControls } from './ResolutionControls';
 import { SystemCommandButton } from './SystemCommandButton';
+import { TicketResultNotice } from './TicketResultNotice';
 import {
   confirmSystemCommand,
   getCreationResult,
@@ -16,7 +16,7 @@ import {
   retryCreationCommand,
 } from '../api/systemInquiryApi';
 import { QUESTION_LIMIT, isCreationFailed, resultCounts } from '../model/resultSummary';
-import { editableInquiryStatus, systemStatus, ticketStates } from '../model/systemStatus';
+import { editableInquiryStatus, systemStatus, ticketStateLabel } from '../model/systemStatus';
 import styles from './ResultPanel.module.css';
 
 const needsSystem = (p: Problem) =>
@@ -128,11 +128,7 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
           책임 {problem.ticket.responsibleSystem.name}
         </span>
       ),
-      note: `보고 시스템 ${problem.ticket.reportedSystem.name} · 담당자 ${problem.ticket.assignee.name} · ${
-        problem.ticket.state in ticketStates
-          ? ticketStates[problem.ticket.state as keyof typeof ticketStates]
-          : systemStatus(problem.ticket.state).label
-      }`,
+      note: `보고 시스템 ${problem.ticket.reportedSystem.name} · 담당자 ${problem.ticket.assignee.name} · ${ticketStateLabel(problem.ticket.state)}`,
     };
   if (isCreationFailed(problem)) {
     const outcome = problem.creationResult?.outcome;
@@ -280,31 +276,16 @@ export function SystemConfirmations({ inquiry }: { inquiry: InquiryResult }) {
     </section>
   );
 }
-// 결과 패널은 답변 위치에 따라 다시 마운트되므로, 모달을 닫은 접수 결과 키는 상위 화면이 보관한다.
+// 결과 패널은 답변 위치에 따라 다시 마운트되므로, 모달 표시 상태는 상위 화면이 보관한다.
 export function SystemResultPanel({
   result,
-  dismissedCreationKey,
-  onDismiss,
+  noticeOpen,
+  onNoticeClose,
 }: {
   result: InquiryResult;
-  dismissedCreationKey: string;
-  onDismiss: (key: string) => void;
+  noticeOpen: boolean;
+  onNoticeClose: () => void;
 }) {
-  const hasResult = result.problems.some((p) => p.creationResult);
-  // 해결 응답·처리 기록도 resultRevision을 올리므로 접수 결과만 비교한다.
-  const creationKey = JSON.stringify([
-    result.id,
-    result.problems
-      .filter((p) => p.creationResult)
-      .map((p) => [
-        p.id,
-        p.creationResult?.workItemId,
-        p.creationResult?.outcome,
-        p.creationResult?.ticketId,
-        p.creationResult?.error?.code,
-      ])
-      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
-  ]);
   const banner = bannerFor(result);
   return (
     <section className={styles.panel} id="problem-confirmations" aria-label="문제별 처리 결과">
@@ -317,31 +298,7 @@ export function SystemResultPanel({
       {result.pendingTargetMessageIds.map((id) => (
         <PendingTarget key={id} inquiry={result} messageId={id} />
       ))}
-      {hasResult && creationKey !== dismissedCreationKey && (
-        <RouteModal
-          title="티켓 접수 결과"
-          description="서버에 저장된 문제별 접수·배정 결과예요. 해결 완료와는 구분해요."
-          onClose={() => {
-            onDismiss(creationKey);
-          }}
-          returnFocusId="chat-title"
-        >
-          <ul>
-            {result.problems.map((p) => (
-              <li key={p.id}>
-                {p.summary} ·{' '}
-                {p.ticket
-                  ? `${p.ticket.ticketNumber} / ${p.ticket.responsibleSystem.name} / ${p.ticket.assignee.name}`
-                  : p.creationResult?.outcome === 'NOT_CREATED'
-                    ? '미생성 확인'
-                    : p.creationResult
-                      ? '저장 결과 확인 중'
-                      : systemStatus(p.state).label}
-              </li>
-            ))}
-          </ul>
-        </RouteModal>
-      )}
+      {noticeOpen && <TicketResultNotice result={result} banner={banner} onClose={onNoticeClose} />}
     </section>
   );
 }

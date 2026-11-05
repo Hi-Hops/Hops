@@ -47,6 +47,9 @@
 .compact {
   width: min(768px, calc(100vw - 48px));
 }
+.narrow {
+  width: min(560px, calc(100vw - 48px));
+}
 .footer {
   padding: var(--space-4) var(--space-6);
   display: flex;
@@ -55,6 +58,9 @@
   gap: var(--space-4);
   border-top: 1px solid var(--color-border);
   background: var(--color-nav);
+}
+.footer > :last-child {
+  margin-left: auto;
 }
 .footer span {
   font-size: var(--font-size-sm);

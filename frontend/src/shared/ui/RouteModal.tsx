@@ -9,7 +9,7 @@ type RouteModalProps = {
   returnFocusId?: string;
   children: ReactNode;
   footer?: ReactNode;
-  size?: 'wide' | 'compact';
+  size?: 'wide' | 'compact' | 'narrow';
   padded?: boolean;
 };
 export function RouteModal({
@@ -32,9 +32,7 @@ export function RouteModal({
       <Dialog.Portal>
         <Dialog.Overlay className={styles.overlay} />
         <Dialog.Content
-          className={
-            (styles.content ?? '') + (size === 'compact' ? ' ' + (styles.compact ?? '') : '')
-          }
+          className={(styles.content ?? '') + (size === 'wide' ? '' : ' ' + (styles[size] ?? ''))}
           onCloseAutoFocus={(event) => {
             if (returnFocusId) {
               event.preventDefault();

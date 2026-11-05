@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useRef } from 'react';
 import { Link } from 'react-router';
 import { useSession } from '@/features/auth';
 import { ConnectionIndicator } from '@/features/realtime';
@@ -10,6 +10,7 @@ import {
   editableInquiryStatus,
   inquiryTitle,
   resultMetaParts,
+  useResultNotice,
 } from '@/features/inquiry';
 import { ApiError } from '@/shared/api/client';
 import { displayChatTime, isToday } from '@/shared/lib/date';
@@ -28,13 +29,14 @@ import styles from './ChatView.module.css';
 export function SystemChatView({ inquiryId }: { inquiryId: string }) {
   const chat = useSystemChat(inquiryId);
   const userName = useSession((s) => s.user?.name) ?? '나';
+  const actor = useSession((s) => s.user?.id) ?? '';
+  const { noticeOpen, closeNotice } = useResultNotice(actor, chat.inquiry.data);
   const { log, hasNew, observe, remember, bottom, cancelPrepend } = useChatScroll(
     inquiryId,
     chat.items.map((m) => `${m.id}:${m.revision}`).join(','),
     chat.live?.text,
   );
   const loading = useRef(false);
-  const [dismissedCreationKey, setDismissedCreationKey] = useState('');
   async function older() {
     if (!chat.messages.hasNextPage || chat.messages.isFetching || loading.current) return;
     loading.current = true;
@@ -85,11 +87,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
         .find((m) => m.sender === 'AI' && m.problemIds.some((id) => problemIds.has(id)))?.id;
   const results =
     inquiry.problems.length > 0 ? (
-      <SystemResultPanel
-        result={inquiry}
-        dismissedCreationKey={dismissedCreationKey}
-        onDismiss={setDismissedCreationKey}
-      />
+      <SystemResultPanel result={inquiry} noticeOpen={noticeOpen} onNoticeClose={closeNotice} />
     ) : null;
   // 답변이 끝난 실행의 진행 단계는 사라지지 않고 해당 답변 위에 완료 기록으로 남는다.
   const trailOf = (message: (typeof chat.items)[number]) =>

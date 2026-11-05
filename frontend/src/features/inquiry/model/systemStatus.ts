@@ -25,3 +25,8 @@ export const ticketStates = {
   WAITING_CONFIRMATION: '해결 확인 대기',
   RESOLVED: '해결 완료',
 };
+export function ticketStateLabel(value: string) {
+  return value in ticketStates
+    ? ticketStates[value as keyof typeof ticketStates]
+    : systemStatus(value).label;
+}
