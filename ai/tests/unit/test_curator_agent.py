@@ -286,10 +286,7 @@ async def test_supervisor_case_draft_run_calls_the_curator_and_finishes() -> Non
         SupervisorDecision(nextAction="FINISH", role=None, publicSummary="사례를 정리했습니다."),
     )
 
-    result = await Supervisor(
-        {AgentRole.CURATOR: ModelCuratorAgent()},
-        available_roles=lambda _state: {AgentRole.CURATOR},
-    ).analyze(request, services)
+    result = await Supervisor({AgentRole.CURATOR: ModelCuratorAgent()}).analyze(request, services)
 
     assert result.status == "SUCCEEDED"
     assert result.kind == "CASE_DRAFT"

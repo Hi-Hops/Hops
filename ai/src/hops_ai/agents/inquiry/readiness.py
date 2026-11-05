@@ -1,7 +1,7 @@
 """Inquiry가 더 할 일이 있는지 양식 규칙으로 센다. 역할 선택을 직접 정하지 않는다.
 
-Supervisor의 판단 문맥(handoffReadiness)과 Inquiry의 호출 가능 여부(available_for)가 같은
-계산을 쓴다.
+Supervisor의 판단 문맥(handoffReadiness)과 Inquiry의 호출 가능 여부(supervisor.choices)가
+같은 계산을 쓴다.
 """
 
 from typing import TypedDict

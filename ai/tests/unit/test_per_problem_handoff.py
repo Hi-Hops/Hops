@@ -24,7 +24,6 @@ from hops_ai.harness.errors import OutputRejected
 from hops_ai.rules.progress import problems_without_guide
 from hops_ai.rules.proposals import validate_ticket
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.supervisor.execution import RoleRequest, execute_role
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.merge import merge_knowledge_result
@@ -220,8 +219,7 @@ async def test_a_staff_only_hit_ends_in_a_review_ticket_without_repeating_the_se
         decision("PROPOSE_TICKETS"),
     )
     agents = build_registry(FixtureKnowledgeSource())
-    roles = implemented_roles(agents)
-    supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
+    supervisor = Supervisor(agents, restrict_roles=True)
 
     result = await supervisor.analyze(request, services_for(request, llm))
 

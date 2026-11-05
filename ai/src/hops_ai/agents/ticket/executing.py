@@ -2,7 +2,7 @@
 
 from hops_ai.agents.ticket.model import ModelTicketAgent
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
+from hops_ai.contracts.state import RoleRequest, RoleResponse
 from hops_ai.harness.errors import ComponentNotReady, OutputRejected
 from hops_ai.rules.progress import get_problem_knowledge
 from hops_ai.services.shared import SharedServices
@@ -15,9 +15,6 @@ class ExecutingTicketAgent:
     def __init__(self) -> None:
         # 상태가 없는 제안 역할이므로 한 번만 만들어 선택지 계산과 실행에서 함께 쓴다.
         self._proposer = ModelTicketAgent()
-
-    def available_for(self, state: SupervisorState) -> bool:
-        return self._proposer.available_for(state)
 
     async def run(self, call: RoleRequest, services: SharedServices):
 

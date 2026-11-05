@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import ValidationError, model_validator
 
@@ -20,6 +20,9 @@ from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.policy import get_allowed_roles, validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import ensure_active, validate_completion, validate_questions
+
+if TYPE_CHECKING:
+    from hops_ai.supervisor.choices import Choices
 
 
 class SupervisorDecision(ContractModel):
@@ -123,12 +126,12 @@ def validate_supervisor_decision(state: SupervisorState, decision: SupervisorDec
         raise OutputRejected("PROPOSE_TICKETS에 사용할 검증된 티켓 제안이 없다")
 
 
-def _allowed_actions(state: SupervisorState) -> list[str]:
+def allowed_actions(state: SupervisorState) -> list[str]:
     """실제 결정 검사에 통과하는 종료 행동만 모델의 선택지에 포함한다.
 
     종료 가능 여부를 별도 조건문으로 복제하지 않는다. 없는 제안이나 미처리 문제로
     거부되는 행동만 제외하고 취소·기한·예산 예외는 호출자에게 그대로 전달한다.
-    CALL_ROLE의 구체 역할은 기존 실행 종류별 정책으로 따로 제한한다.
+    CALL_ROLE의 구체 역할은 supervisor.choices가 계산한 합법한 역할로 따로 제한한다.
     """
     actions = ["CALL_ROLE"]
     for action in ("FINISH", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS"):
@@ -141,15 +144,16 @@ def _allowed_actions(state: SupervisorState) -> list[str]:
     return actions
 
 
-def _decision_context(
-    state: SupervisorState, available_roles: set[AgentRole] | None = None
-) -> dict:
+def _decision_context(state: SupervisorState, choices: "Choices | None" = None) -> dict:
     """판단에 필요한 문제별 준비 상태와 안전한 문맥을 새 객체로 투영한다.
 
     problemProgress는 수정 대상과 신규 문제의 종료 결과·질문 여유·미확인 개수·
     값이 있는 상세 필드명을 담는다. 상세 값과 담당자 지식·분석 원문은 포함하지 않는다.
     미확인 개수가 남아 있어도 담당자 조사 티켓을 준비할 수 있으므로 이를 필수 항목의
     누락이나 티켓 금지 조건으로 해석하지 않는다.
+
+    choices는 그래프가 계산한 이번 판단의 선택지다. 주지 않으면 실행 종류의 허용 역할 전체를
+    선택지로 본다. 허용 역할과 행동은 여기서 다시 계산하지 않고 선택지를 그대로 쓴다.
     """
     request = state["input"]
     if state["guide"] is not None:
@@ -171,14 +175,14 @@ def _decision_context(
             item.update(role=AgentRole.CURATOR.value, reusable=result.proposal.reusable)
         completed.append(item)
 
-    roles = get_allowed_roles(RunKind(request.kind))
-    if available_roles is not None:
-        roles &= available_roles
+    if choices is None:
+        roles = get_allowed_roles(RunKind(request.kind))
+        actions = [action for action in allowed_actions(state) if roles or action != "CALL_ROLE"]
+    else:
+        roles, actions = set(choices.roles), list(choices.actions)
     return {
         "kind": request.kind,
-        "allowedActions": [
-            action for action in _allowed_actions(state) if roles or action != "CALL_ROLE"
-        ],
+        "allowedActions": actions,
         "allowedRoles": sorted(role.value for role in roles),
         "messages": [message.model_dump(mode="json") for message in request.messages],
         "systems": [system.model_dump(mode="json") for system in request.systems],
@@ -208,7 +212,7 @@ def _decision_context(
 
 
 async def decide_next_action(
-    state: SupervisorState, services: SharedServices, available_roles: set[AgentRole] | None = None
+    state: SupervisorState, services: SharedServices, choices: "Choices | None" = None
 ) -> SupervisorDecision:
     """현재 실행 정보를 LLM에 전달하여 다음 행동 하나를 얻고 검증한다.
 
@@ -232,7 +236,7 @@ async def decide_next_action(
     if remaining_output <= 0:
         raise BudgetExceeded("Supervisor 판단에 사용할 출력 토큰이 없다")
 
-    context = _decision_context(state, available_roles)
+    context = _decision_context(state, choices)
     request = LLMRequest(
         messages=[
             LLMMessage(

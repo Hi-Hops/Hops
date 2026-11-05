@@ -22,7 +22,6 @@ def test_runtime_registry_executes_tickets_only_when_asked() -> None:
 
 def test_executing_agent_builds_its_proposer_once(monkeypatch) -> None:
     from hops_ai.agents.ticket import executing
-    from tests.supervisor_fixtures import make_request, running_state
 
     created = []
 
@@ -31,11 +30,8 @@ def test_executing_agent_builds_its_proposer_once(monkeypatch) -> None:
             created.append(self)
 
     monkeypatch.setattr(executing, "ModelTicketAgent", CountingProposer)
-    agent = ExecutingTicketAgent()
-    state = running_state(make_request())
 
-    agent.available_for(state)
-    agent.available_for(state)
+    ExecutingTicketAgent()
 
     assert len(created) == 1
 

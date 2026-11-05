@@ -10,16 +10,14 @@ import json
 
 import pytest
 
-from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.knowledge.agent import guidable_problem
 from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import GuideProposal
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
+from hops_ai.supervisor.choices import compute_choices, legal_roles
 from hops_ai.supervisor.graph import Supervisor
-from hops_ai.supervisor.policy import get_allowed_roles
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import make_evidence, make_request, running_state
 from tests.unit.test_knowledge_empty_handoff import (
@@ -38,8 +36,7 @@ def registry():
 def roles_for(state, agents=None) -> set[AgentRole]:
     """Supervisor가 실제로 보는 선택지: 선택 가능한 역할과 실행 종류별 허용 역할의 교집합."""
     agents = registry() if agents is None else agents
-    selectable = selectable_roles(agents, implemented_roles(agents), state)
-    return selectable & get_allowed_roles(RunKind(state["input"].kind))
+    return set(compute_choices(state, agents).roles)
 
 
 def test_no_problem_yet_means_nothing_to_search() -> None:
@@ -99,9 +96,9 @@ def test_knowledge_is_hidden_once_a_guide_exists() -> None:
     assert AgentRole.KNOWLEDGE not in roles_for(state)
 
 
-def test_roles_without_an_availability_check_are_never_removed_or_added() -> None:
-    class TicketWithoutCheck:
-        """available_for를 제공하지 않는 명시적 대역."""
+def test_legality_does_not_depend_on_which_implementation_is_registered() -> None:
+    class AnotherTicket:
+        """다른 구현으로 바꿔 끼운 Ticket. 호출 조건은 역할 규칙이 정하고 구현이 정하지 않는다."""
 
         role = AgentRole.TICKET
 
@@ -109,26 +106,24 @@ def test_roles_without_an_availability_check_are_never_removed_or_added() -> Non
             raise AssertionError("선택지 계산에서는 호출하지 않는다")
 
     agents = dict(build_registry())  # Knowledge 연결 전
-    agents[AgentRole.TICKET] = TicketWithoutCheck()
+    agents[AgentRole.TICKET] = AnotherTicket()
     state = running_state(how_to_first_message())
 
-    assert roles_for(state, agents) == {AgentRole.INQUIRY, AgentRole.TICKET}
+    # 문제가 아직 없으므로 티켓으로 제안할 대상이 없다.
+    assert roles_for(state, agents) == {AgentRole.INQUIRY}
 
 
 def test_case_draft_runs_are_not_served_by_this_knowledge_agent() -> None:
     state = running_state(make_request(kind=RunKind.CASE_DRAFT))
 
-    assert SearchKnowledgeAgent(FixtureKnowledgeSource()).available_for(state) is False
+    assert AgentRole.KNOWLEDGE not in legal_roles(state, registry())
 
 
 async def test_first_decision_never_offers_knowledge_and_a_wrong_pick_is_rejected() -> None:
     request = how_to_first_message()
     llm = FakeLLMClient(decision("CALL_ROLE", AgentRole.KNOWLEDGE))
     agents = registry()
-    callable_roles = implemented_roles(agents)
-    supervisor = Supervisor(
-        agents, available_roles=lambda state: selectable_roles(agents, callable_roles, state)
-    )
+    supervisor = Supervisor(agents, restrict_roles=True)
 
     result = await supervisor.analyze(request, services_for(request, llm))
 

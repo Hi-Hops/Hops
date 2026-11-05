@@ -18,6 +18,7 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected
 from hops_ai.services.shared import SharedServices
+from hops_ai.supervisor.choices import Choices, compute_choices
 from hops_ai.supervisor.decision import SupervisorDecision, decide_next_action
 from hops_ai.supervisor.execution import execute_role
 from hops_ai.supervisor.finalize import finalize_result
@@ -37,10 +38,11 @@ ROLE_NODES: dict[AgentRole, str] = {role: role.value.lower() for role in AgentRo
 
 
 class _GraphState(TypedDict):
-    """작업 State와 직전 판단을 함께 전달한다. 외부 API에 반환하지 않는다."""
+    """작업 State와 직전 판단·그 판단의 선택지를 함께 전달한다. 외부 API에 반환하지 않는다."""
 
     state: SupervisorState
     decision: SupervisorDecision | None
+    choices: Choices | None
 
 
 @dataclass
@@ -66,11 +68,15 @@ class Supervisor:
         self,
         agents: Mapping[AgentRole, Agent] | None = None,
         *,
-        available_roles: Callable[[SupervisorState], set[AgentRole]] | None = None,
+        restrict_roles: bool = False,
     ) -> None:
-        """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다."""
+        """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다.
+
+        restrict_roles가 참이면 연결 전 자리(PendingAgent)와 지금 State에서 호출이 성립하지 않는
+        역할을 선택지에서 뺀다(supervisor.choices). 거짓이면 등록된 역할을 모두 선택지로 둔다.
+        """
         self._agents = dict(pending_agents() if agents is None else agents)
-        self._available_roles = available_roles
+        self._restrict_roles = restrict_roles
 
     async def analyze(self, request: AiRunRequest, services: SharedServices) -> AiResult:
         """문의 분석 또는 사례 초안 실행을 최종 AiResult로 반환한다.
@@ -128,7 +134,7 @@ class Supervisor:
     ) -> None:
         """그래프를 끝까지 실행하며 단계마다 확정된 State를 기록한다."""
         graph = self._build_graph(runtime)
-        first = _GraphState(state=last.state, decision=None)
+        first = _GraphState(state=last.state, decision=None, choices=None)
         async for values in graph.astream(
             first, config={"recursion_limit": recursion_limit}, stream_mode="values"
         ):
@@ -160,13 +166,11 @@ class Supervisor:
     async def _decide(self, runtime: SupervisorRuntime, data: _GraphState) -> _GraphState:
         """현재 상태로 다음 행동을 요청하고 검증된 판단만 기록한다."""
         state = _enter(runtime, data, "SUPERVISOR")
-        roles = set(self._agents)
-        if self._available_roles is not None:
-            roles &= self._available_roles(state)
+        choices = compute_choices(state, self._agents, restrict=self._restrict_roles)
         with runtime.services.tracing.observe(
-            "SUPERVISOR", {"registeredRoles": sorted(role.value for role in roles)}
+            "SUPERVISOR", {"registeredRoles": sorted(role.value for role in choices.registered)}
         ) as span:
-            decision = await decide_next_action(state, runtime.services, roles)
+            decision = await decide_next_action(state, runtime.services, choices)
             if span is not None:
                 span.update(
                     output={
@@ -178,7 +182,7 @@ class Supervisor:
         state = {**state, "nextAction": decision.nextAction}
         # 모델의 공개 요약도 검증되지 않은 문구다. 최종 답변은 최종화 단계에서
         # 준비된 제안과 서버가 제공한 기존 상태를 기준으로 한 번만 구성한다.
-        return _GraphState(state=state, decision=decision)
+        return _GraphState(state=state, decision=decision, choices=choices)
 
     def _role_node(
         self, runtime: SupervisorRuntime, role: AgentRole
@@ -200,7 +204,7 @@ class Supervisor:
                 merged = await execute_role(state, role, runtime.services, self._agents)
                 if span is not None:
                     span.update(output=_role_span_output(runtime, role, state, merged))
-            return _GraphState(state=runtime.sync_state(merged), decision=None)
+            return _GraphState(state=runtime.sync_state(merged), decision=None, choices=None)
 
         return run_role
 
@@ -209,7 +213,7 @@ class Supervisor:
         state = runtime.sync_state(data["state"])
         runtime.ensure_active()
         state = transition_phase(state, "FINALIZING")
-        return _GraphState(state=state, decision=data["decision"])
+        return _GraphState(state=state, decision=data["decision"], choices=data["choices"])
 
 
 def _enter(runtime: SupervisorRuntime, data: _GraphState, label: str) -> SupervisorState:
@@ -226,8 +230,9 @@ def _route(data: _GraphState) -> str:
         raise OutputRejected("다음 행동이 없다")
     if decision.nextAction != "CALL_ROLE":
         return FINISH
-    if decision.role is None:
-        raise OutputRejected("호출할 역할이 없다")
+    choices = data["choices"]
+    if decision.role is None or choices is None or decision.role not in choices.roles:
+        raise OutputRejected("호출할 수 없는 역할이다")
     return ROLE_NODES[decision.role]
 
 

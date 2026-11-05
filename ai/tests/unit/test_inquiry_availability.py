@@ -13,13 +13,11 @@ import pytest
 from hops_ai.agents.inquiry.extraction import InquiryExtraction, QuotedValue
 from hops_ai.agents.inquiry.readiness import get_handoff_readiness
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.rules.progress import get_problem_progress
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
+from hops_ai.supervisor.choices import compute_choices
 from hops_ai.supervisor.graph import Supervisor
-from hops_ai.supervisor.policy import get_allowed_roles
 from tests.doubles.agents import runtime_registry, ticket_decisions
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
@@ -46,8 +44,7 @@ COMPLETE = {"taskOrScreen": "결재선 변경", "expectedBehavior": "한꺼번�
 
 def roles_for(state) -> set[AgentRole]:
     agents = runtime_registry(FixtureKnowledgeSource())
-    selectable = selectable_roles(agents, implemented_roles(agents), state)
-    return selectable & get_allowed_roles(RunKind(state["input"].kind))
+    return set(compute_choices(state, agents).roles)
 
 
 def test_inquiry_is_hidden_when_nothing_is_missing_after_an_empty_search() -> None:
@@ -121,10 +118,7 @@ async def test_supervisor_after_an_empty_search_no_longer_offers_inquiry_when_re
         decision("PROPOSE_TICKETS"),
     )
     agents = runtime_registry(FixtureKnowledgeSource())
-    callable_roles = implemented_roles(agents)
-    supervisor = Supervisor(
-        agents, available_roles=lambda state: selectable_roles(agents, callable_roles, state)
-    )
+    supervisor = Supervisor(agents, restrict_roles=True)
 
     result = await supervisor.analyze(request, services_for(request, llm))
 
@@ -326,8 +320,7 @@ async def test_run_at_the_question_limit_ends_in_a_review_ticket() -> None:
         decision("PROPOSE_TICKETS"),
     )
     agents = runtime_registry(FixtureKnowledgeSource())
-    roles = implemented_roles(agents)
-    supervisor = Supervisor(agents, available_roles=lambda s: selectable_roles(agents, roles, s))
+    supervisor = Supervisor(agents, restrict_roles=True)
 
     result = await supervisor.analyze(request, handoff_services(request, llm))
 

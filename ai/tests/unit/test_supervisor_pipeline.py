@@ -15,10 +15,11 @@ from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import ComponentNotReady
 from hops_ai.main import create_app
 from hops_ai.services.llm.client import LLMResponse, LLMUsage
-from hops_ai.services.runs.supervisor import SupervisorPipeline, implemented_roles
+from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import RunMode, Settings
 from hops_ai.supervisor.bootstrap import create_run_services
+from hops_ai.supervisor.choices import implemented_roles
 from hops_ai.supervisor.decision import SupervisorDecision
 from tests.supervisor_fixtures import make_request
 

@@ -44,12 +44,6 @@ class SearchKnowledgeAgent:
     def __init__(self, source: KnowledgeSource) -> None:
         self._source = source
 
-    def available_for(self, state: SupervisorState) -> bool:
-        """지금 호출해도 성립하는지. 안내할 사용법 문제가 없으면 검색할 대상이 없다."""
-        return (
-            state["input"].kind == RunKind.INQUIRY_ANALYSIS and guidable_problem(state) is not None
-        )
-
     async def run(self, call: RoleRequest, services: SharedServices) -> RoleResponse:
 
         services.runtime.ensure_active()

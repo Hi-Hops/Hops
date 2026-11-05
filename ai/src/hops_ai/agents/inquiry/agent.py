@@ -23,13 +23,9 @@ from hops_ai.agents.inquiry.extraction import (
     ground_unknown,
 )
 from hops_ai.agents.inquiry.forms import FIELD_LABELS, plan_next
-from hops_ai.agents.inquiry.readiness import (
-    all_unfinished_ready_for_handoff,
-    inquiry_has_nothing_left_to_do,
-)
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult
-from hops_ai.contracts.state import RoleRequest, SupervisorState
+from hops_ai.contracts.state import RoleRequest
 from hops_ai.contracts.wire import (
     EvidenceStatement,
     InputProblem,
@@ -66,24 +62,6 @@ class ExtractionInquiryAgent:
         Knowledge로 넘어간다. 거짓이면 기존 양식 질문을 그대로 한다.
         """
         self._guide_first = guide_first
-
-    def available_for(self, state: SupervisorState) -> bool:
-        """지금 호출해도 할 일이 있는지.
-
-        - Knowledge가 근거를 찾지 못했고 남은 사용법 문제가 모두 담당자 전달 정보를 갖췄다면,
-          다시 호출해도 같은 원문에서 같은 사실을 다시 뽑을 뿐 새 질문을 만들 수 없다.
-        - Inquiry가 이미 돌았고 모든 문제에 결과가 준비됐다면, 질문을 만들 문제가 없고 이미 만든
-          질문과 충돌할 위험만 있다.
-        - 조사·신청 등 티켓 대상의 필수 정보가 갖춰졌거나 질문 한도에 도달했다면 같은 원문을
-          다시 추출하지 않고 Ticket으로 전달한다. 다른 미처리 문제가 있으면 호출을 유지한다.
-        사용자가 새 메시지로 답한 다음 실행은 새 State라서 다시 호출할 수 있다.
-        """
-
-        if state["input"].kind != "INQUIRY_ANALYSIS":
-            return True
-        return not (
-            all_unfinished_ready_for_handoff(state) or inquiry_has_nothing_left_to_do(state)
-        )
 
     async def run(self, call: RoleRequest, services: SharedServices) -> InquiryResult:
 

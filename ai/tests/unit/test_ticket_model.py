@@ -198,31 +198,31 @@ async def test_pending_question_and_missing_system_do_not_call_model():
         with pytest.raises(OutputRejected):
             await run(state, services)
         assert not llm.requests
-        assert not ModelTicketAgent().available_for(state)
+        assert not ModelTicketAgent.eligible_problems(state)
 
 
 def test_runtime_ticket_selection_waits_for_answers_but_allows_other_ready_problems():
     from hops_ai.agents.ticket.executing import ExecutingTicketAgent
-    from hops_ai.services.runs.supervisor import selectable_roles
+    from hops_ai.supervisor.choices import legal_roles
 
     state, _, _ = setup_call()
     agent = ExecutingTicketAgent()
     registry = {AgentRole.TICKET: agent}
-    assert selectable_roles(registry, set(registry), state) == {AgentRole.TICKET}
+    assert legal_roles(state, registry) == {AgentRole.TICKET}
     state["questions"] = {
         (PROBLEM, "q"): QuestionProposal(
             problemRef=PROBLEM, bundleRef="q", text="언제인가요?", requestedFields=["occurredAt"]
         )
     }
-    assert selectable_roles(registry, set(registry), state) == set()
+    assert legal_roles(state, registry) == set()
     # 복합 문의의 준비된 다른 문제까지 막지는 않는다.
     state["problems"]["new:ready"] = make_problem("new:ready")
-    assert selectable_roles(registry, set(registry), state) == {AgentRole.TICKET}
+    assert legal_roles(state, registry) == {AgentRole.TICKET}
     assert set(ModelTicketAgent.eligible_problems(state)) == {"new:ready"}
     state["problems"] = {}
     state["questions"] = {}
     state["input"] = state["input"].model_copy(update={"problems": [], "problemIds": []})
-    assert not agent.available_for(state)
+    assert legal_roles(state, registry) == set()
 
 
 async def test_disallowed_knowledge_is_rejected_before_model_input():

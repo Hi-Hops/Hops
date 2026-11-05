@@ -16,11 +16,12 @@ from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.services.retrieval.factory import knowledge_source_for
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
-from hops_ai.services.runs.supervisor import SupervisorPipeline, implemented_roles
+from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import KnowledgeSourceKind, Settings
 from hops_ai.supervisor.bootstrap import create_run_services
+from hops_ai.supervisor.choices import implemented_roles
 from hops_ai.supervisor.decision import SupervisorDecision
 from hops_ai.supervisor.graph import Supervisor
 from tests.doubles.llm import FakeLLMClient

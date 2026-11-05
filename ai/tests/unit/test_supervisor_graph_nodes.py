@@ -4,7 +4,6 @@ from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.runs.events import SUMMARIES, RunEventHub, RunEvents
-from hops_ai.services.runs.supervisor import implemented_roles, selectable_roles
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
 from hops_ai.supervisor.bootstrap import create_run_services
@@ -31,10 +30,7 @@ def services_with_events(request, llm):
 
 def supervisor() -> Supervisor:
     agents = dict(build_registry(FixtureKnowledgeSource()))
-    callable_roles = implemented_roles(agents)
-    return Supervisor(
-        agents, available_roles=lambda state: selectable_roles(agents, callable_roles, state)
-    )
+    return Supervisor(agents, restrict_roles=True)
 
 
 def drain(queue) -> list[tuple[str, str]]:

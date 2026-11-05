@@ -48,9 +48,6 @@ class ModelTicketAgent:
             )
         }
 
-    def available_for(self, state: SupervisorState) -> bool:
-        return bool(self.eligible_problems(state))
-
     async def run(self, call: RoleRequest, services: SharedServices) -> TicketResult:
 
         services.runtime.ensure_active()
