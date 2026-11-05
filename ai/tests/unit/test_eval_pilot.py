@@ -322,3 +322,29 @@ async def test_batch_totals_report_the_in_flight_calls_of_timed_out_scenarios() 
 
     assert report["totals"]["modelCalls"] == 0
     assert report["totals"]["modelCallsInFlight"] == report["totalCallCap"]["used"] == 2
+
+
+def test_run_config_rejects_a_non_positive_turn_limit() -> None:
+    from evaluation.harness.runner import RunConfig
+
+    for bad in (0, -1):
+        with pytest.raises(ValueError, match="max_turns"):
+            RunConfig(max_turns=bad)
+
+
+async def test_exhausting_the_per_run_model_budget_fails_the_exit_code() -> None:
+    from evaluation.harness.runner import RunConfig
+    from evaluation.harness.spring_stub import DEFAULT_LIMITS
+
+    report = await run_batch(
+        three_scenarios()[:1],
+        llm=two_turn_llm(),
+        agents_for=lambda _: AGENTS,
+        max_calls=100,
+        config=RunConfig(limits={**DEFAULT_LIMITS, "maxModelCalls": 2}),
+    )
+
+    assert report["scenarios"][0]["runBudgetExceeded"] is True
+    assert report["totals"]["scenariosOverRunBudget"] == ["S-batch-0-001"]
+    assert not report["totalCallCap"]["exceeded"]  # 평가 상한에는 여유가 있다
+    assert exit_code(report) == 1

@@ -218,6 +218,23 @@ def test_p6_a_fact_with_an_empty_quote_is_not_grounded() -> None:
         assert "비어 있다" in violations[0].message
 
 
+def test_p6_a_quote_from_an_ai_message_is_not_grounded_in_the_user() -> None:
+    base = request_with((("m1", "전자결재에서 문서가 안 보여요"), ("m2", "결재선을 바꾸려고 함")))
+    ai_second = base.messages[1].model_copy(update={"sender": "AI"})
+    from_ai = base.model_copy(update={"messages": [base.messages[0], ai_second]})
+    quoting_ai = ai_result(
+        from_ai,
+        problems=[problem_dict(PROBLEM, [fact("하려던 업무·화면: 결재선을 바꾸려고 함", "m2")])],
+    )
+    quoting_user = ai_result(
+        base,
+        problems=[problem_dict(PROBLEM, [fact("하려던 업무·화면: 결재선을 바꾸려고 함", "m2")])],
+    )
+
+    assert ids(check_p6(run_trace(turn(from_ai, quoting_ai)))) == ["P6"]
+    assert check_p6(run_trace(turn(base, quoting_user))) == []  # 같은 문구라도 사용자 메시지면 통과
+
+
 # ---- P7 ----------------------------------------------------------------------------------------
 def asking(request, ref: str, field: str, text: str = "질문입니다."):
     return ai_result(request, answer=text, questions=[question(ref, text, field)])
@@ -243,6 +260,23 @@ def test_p7_field_the_user_said_they_do_not_know_is_not_asked_again() -> None:
     violations = check_p7(run_trace(first, again))
     assert ids(violations) == ["P7"]
     assert "모른다고" in violations[0].message
+
+
+def test_p7_the_same_temporary_ref_in_different_turns_is_a_different_problem() -> None:
+    request = request_with()
+    other = uid(77)
+    first = turn(
+        request, asking(request, "new:1", "occurredAt"), ref_map=[("new:1", PROBLEM)]
+    )  # 첫 턴의 new:1은 PROBLEM
+    second = turn(
+        request, asking(request, "new:1", "occurredAt"), ref_map=[("new:1", other)]
+    )  # 둘째 턴의 new:1은 다른 문제
+    repeat_first = turn(request, asking(request, PROBLEM, "occurredAt"))
+
+    assert check_p7(run_trace(first, second)) == []  # 서로 다른 문제의 질문이다
+    assert [(v.property_id, v.turn) for v in check_p7(run_trace(first, second, repeat_first))] == [
+        ("P7", 2)
+    ]  # 첫 문제에 같은 필드를 다시 물은 것은 위반이다
 
 
 # ---- P8 ----------------------------------------------------------------------------------------

@@ -100,6 +100,13 @@ def summarize(trace: RunTrace, cap: CallCap) -> dict[str, Any]:
         "promptVersions": sorted(cap.prompt_versions),
         # 질문이 남은 채 최대 턴 수에서 잘렸으면 끝까지 재생한 결과가 아니다
         "truncated": trace.truncated,
+        # 실행(턴) 중 요청의 maxModelCalls 같은 실행별 예산을 소진해 실패한 적이 있다
+        "runBudgetExceeded": any(
+            turn.result is not None
+            and turn.result.error is not None
+            and turn.result.error.code == "BUDGET_EXCEEDED"
+            for turn in trace.turns
+        ),
         "totals": {
             "turns": len(trace.turns),
             "modelCalls": sum(turn.model_calls for turn in trace.turns),
@@ -180,6 +187,7 @@ def aggregate(total: CallCap, reports: list[dict[str, Any]]) -> dict[str, Any]:
             "scenariosHittingTheirCap": [r["scenarioId"] for r in ran if r["callCap"]["exceeded"]],
             "scenariosTimedOut": [r["scenarioId"] for r in ran if "timedOut" in r],
             "scenariosTruncated": [r["scenarioId"] for r in ran if r["truncated"]],
+            "scenariosOverRunBudget": [r["scenarioId"] for r in ran if r["runBudgetExceeded"]],
             # 시간 초과로 취소된 호출. 시도 수의 정본은 totalCallCap.used다
             "modelCallsInFlight": sum(r["totals"].get("modelCallsInFlight", 0) for r in ran),
         },
@@ -315,6 +323,7 @@ def exit_code(report: dict[str, Any]) -> int:
         or totals["scenariosTimedOut"]
         or totals["scenariosTruncated"]
         or totals["scenariosHittingTheirCap"]
+        or totals["scenariosOverRunBudget"]
     )
     return 1 if incomplete else 0
 

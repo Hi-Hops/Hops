@@ -27,6 +27,10 @@ class RunConfig:
     max_turns: int = 7
     limits: Mapping[str, int] | None = None
 
+    def __post_init__(self) -> None:
+        if self.max_turns < 1:
+            raise ValueError("max_turns는 1 이상이어야 한다")
+
 
 async def run_scenario(
     scenario: Scenario,

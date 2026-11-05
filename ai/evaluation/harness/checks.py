@@ -32,10 +32,14 @@ def _compact(text: str) -> str:
     return re.sub(r"\s+", "", text)
 
 
-def _canonical(trace: RunTrace) -> Callable[[str], str]:
-    """새 문제 참조("new:...")를 서버가 부여한 ID로 바꿔 같은 문제를 같은 키로 만든다."""
-    mapping = {ref: pid for turn in trace.turns for ref, pid in turn.ref_map}
-    return lambda ref: mapping.get(ref, ref)
+def _canonical(trace: RunTrace) -> Callable[[int, str], str]:
+    """새 문제 참조("new:...")를 서버가 부여한 ID로 바꿔 같은 문제를 같은 키로 만든다.
+
+    임시 참조는 실행(턴)마다 새로 붙으므로 매핑도 그 턴의 `ref_map`만 쓴다. 서로 다른 턴의
+    `new:1`이 다른 문제일 수 있다.
+    """
+    maps = [dict(turn.ref_map) for turn in trace.turns]
+    return lambda index, ref: maps[index].get(ref, ref)
 
 
 def _all_evidence(turn: TurnTrace) -> Iterator[KnowledgeEvidence]:
@@ -117,7 +121,7 @@ def check_p3(trace: RunTrace) -> list[Violation]:
             if call.role == AgentRole.KNOWLEDGE
             and call.search_state == "FOUND"
             and call.problem_ref is not None
-            and canonical(call.problem_ref) == canonical(guide.problemRef)
+            and canonical(index, call.problem_ref) == canonical(index, guide.problemRef)
             for item in call.evidence
         }
         extra = set(guide.evidenceIds) - allowed
@@ -137,15 +141,15 @@ def check_p4(trace: RunTrace) -> list[Violation]:
         for proposal in result.ticketProposals:
             if proposal.processingType != "REVIEW_REQUIRED":
                 continue
-            ref = canonical(proposal.problemRef)
+            ref = canonical(index, proposal.problemRef)
             searched = any(
                 call.role == AgentRole.KNOWLEDGE
                 and call.search_state in ("FOUND", "EMPTY")
                 and call.problem_ref is not None
-                and canonical(call.problem_ref) == ref
+                and canonical(index, call.problem_ref) == ref
                 for call in turn.role_calls
             )
-            guided = result.guide is not None and canonical(result.guide.problemRef) == ref
+            guided = result.guide is not None and canonical(index, result.guide.problemRef) == ref
             if not searched:
                 found.append(Violation("P4", index, "검색하지 않은 문제를 담당자 검토로 전환했다"))
             elif guided:
@@ -162,12 +166,12 @@ def check_p5(trace: RunTrace) -> list[Violation]:
     for index, turn in enumerate(trace.turns):
         if not _succeeded(turn) or turn.result.guide is None:
             continue
-        ref = canonical(turn.result.guide.problemRef)
+        ref = canonical(index, turn.result.guide.problemRef)
         has_found = any(
             call.role == AgentRole.KNOWLEDGE
             and call.search_state == "FOUND"
             and call.problem_ref is not None
-            and canonical(call.problem_ref) == ref
+            and canonical(index, call.problem_ref) == ref
             for call in turn.role_calls
         )
         if not has_found:
@@ -181,14 +185,21 @@ def check_p6(trace: RunTrace) -> list[Violation]:
     for index, turn in enumerate(trace.turns):
         if not _succeeded(turn):
             continue
-        contents = {message.id: message.content for message in turn.request.messages}
+        # 확보 값의 근거는 사용자 원문이다. AI가 만든 문구를 다시 인용한 사실은 근거로 보지 않는다
+        contents = {
+            message.id: message.content
+            for message in turn.request.messages
+            if message.sender == "USER"
+        }
         known_evidence = {item.id for item in _all_evidence(turn)}
         for problem in turn.result.problemProposals:
             for fact in problem.facts:
                 if fact.sourceMessageIds:
                     missing = [ref for ref in fact.sourceMessageIds if ref not in contents]
                     if missing:
-                        found.append(Violation("P6", index, "사실의 출처 메시지가 요청에 없다"))
+                        found.append(
+                            Violation("P6", index, "사실의 출처가 요청의 사용자 메시지에 없다")
+                        )
                         continue
                     quote = fact.text.split(": ", 1)[1] if ": " in fact.text else fact.text
                     if not _compact(quote):
@@ -213,7 +224,7 @@ def check_p7(trace: RunTrace) -> list[Violation]:
     for index, turn in enumerate(trace.turns):
         if _succeeded(turn):
             for question in turn.result.questions:
-                problem = canonical(question.problemRef)
+                problem = canonical(index, question.problemRef)
                 for name in question.requestedFields:
                     if name in unknown.get(problem, set()):
                         found.append(
@@ -225,7 +236,7 @@ def check_p7(trace: RunTrace) -> list[Violation]:
                         )
                     asked.setdefault(problem, set()).add(name)
         for ref, name in turn.unknown_after:
-            unknown.setdefault(canonical(ref), set()).add(name)
+            unknown.setdefault(canonical(index, ref), set()).add(name)
     return found
 
 
@@ -238,7 +249,7 @@ def check_p8(trace: RunTrace) -> list[Violation]:
         if not _succeeded(turn):
             continue
         for question in turn.result.questions:
-            problem = canonical(question.problemRef)
+            problem = canonical(index, question.problemRef)
             counts[problem] = counts.get(problem, 0) + 1
             if counts[problem] == MAX_QUESTIONS_PER_PROBLEM + 1:
                 found.append(
