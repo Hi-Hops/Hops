@@ -85,3 +85,21 @@ def test_recheck_applies_the_current_checkers_to_a_saved_trace(tmp_path: Path) -
     assert list(results.values()) == [["P6 턴 1: 사실의 인용이 비어 있다"]]
     assert recheck_main([str(tmp_path)]) == 1
     assert recheck_main([]) == 2
+
+
+def test_same_scenario_id_in_two_places_never_hides_a_violation(tmp_path: Path) -> None:
+    request = request_with((("m1", "전자결재에서 문서가 안 보여요"),))
+    empty_quote = ai_result(
+        request, problems=[problem_dict(PROBLEM, [fact("하려던 업무·화면: ", "m1")])]
+    )
+    violating, safe = tmp_path / "before", tmp_path / "after"
+    save_trace(run_trace(turn(request, empty_quote)), violating)
+    save_trace(run_trace(turn(request, ai_result(request))), safe)
+
+    for order in ([violating, safe], [safe, violating]):
+        results = recheck(order)
+
+        assert len(results) == 2
+        assert sorted(len(found) for found in results.values()) == [0, 1]
+        assert recheck_main([str(path) for path in order]) == 1
+    assert recheck([safe]) == {"S-test-001": []}

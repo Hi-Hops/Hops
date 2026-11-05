@@ -7,6 +7,7 @@
 """
 
 import sys
+from collections import Counter
 from pathlib import Path
 
 from evaluation.harness.checks import check_trace
@@ -14,16 +15,22 @@ from evaluation.harness.trace_io import load_trace
 
 
 def recheck(paths: list[Path]) -> dict[str, list[str]]:
-    """파일 또는 디렉터리(`*.trace.json`)의 기록을 판정해 시나리오별 위반 문장을 돌려준다."""
+    """파일 또는 디렉터리(`*.trace.json`)의 기록을 판정해 기록마다 위반 문장을 돌려준다.
+
+    키는 시나리오 ID다. 같은 시나리오 ID의 기록이 둘 이상이면(예: 서로 다른 기준선 디렉터리) 어느
+    판정도 덮어쓰지 않도록 모든 기록의 키를 `시나리오ID (파일 경로)`로 구분한다.
+    """
     files: list[Path] = []
     for path in paths:
         files.extend(sorted(path.glob("*.trace.json")) if path.is_dir() else [path])
+    traces = [(file, load_trace(file)) for file in files]
+    counts = Counter(trace.scenario_id for _, trace in traces)
     results: dict[str, list[str]] = {}
-    for file in files:
-        trace = load_trace(file)
-        results[trace.scenario_id] = [
-            f"{v.property_id} 턴 {v.turn + 1}: {v.message}" for v in check_trace(trace)
-        ]
+    for file, trace in traces:
+        key = (
+            trace.scenario_id if counts[trace.scenario_id] == 1 else f"{trace.scenario_id} ({file})"
+        )
+        results[key] = [f"{v.property_id} 턴 {v.turn + 1}: {v.message}" for v in check_trace(trace)]
     return results
 
 
