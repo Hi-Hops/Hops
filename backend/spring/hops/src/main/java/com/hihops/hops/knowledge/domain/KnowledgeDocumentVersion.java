@@ -67,6 +67,11 @@ public class KnowledgeDocumentVersion extends CreatedOnlyEntity {
         this.sourceMetadata = sourceMetadata;
     }
 
+    /** 반영 요청 메타데이터만 바꾼다. 승인 본문·출처·버전·digest는 불변이다 (docs/DATA.md source_metadata). */
+    public void replaceSourceMetadata(String sourceMetadata) {
+        this.sourceMetadata = sourceMetadata;
+    }
+
     public void approve() {
         this.reviewStatus = ReviewStatus.APPROVED;
     }

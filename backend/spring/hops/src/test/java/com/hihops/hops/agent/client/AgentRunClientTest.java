@@ -223,15 +223,16 @@ class AgentRunClientTest {
     // ---------- 승인 사례 색인 (contracts/agents I1·I1.1) ----------
 
     private final UUID jobId = UUID.randomUUID();
+    private final UUID indexCaseId = UUID.randomUUID();
 
     private JsonNode indexRequest() {
         return mapper.readTree("{\"contractVersion\":\"hops-system-1\",\"jobId\":\"" + jobId
-                + "\",\"caseId\":\"" + UUID.randomUUID() + "\",\"caseVersion\":1,\"store\":\"VECTOR\",\"attempt\":1,"
+                + "\",\"caseId\":\"" + indexCaseId + "\",\"caseVersion\":1,\"store\":\"VECTOR\",\"attempt\":1,"
                 + "\"contentDigest\":\"" + "a".repeat(64) + "\",\"approvedCase\":{}}");
     }
 
     private String indexSnapshot(String state) {
-        return "{\"contractVersion\":\"hops-system-1\",\"jobId\":\"" + jobId + "\",\"caseId\":\"" + UUID.randomUUID()
+        return "{\"contractVersion\":\"hops-system-1\",\"jobId\":\"" + jobId + "\",\"caseId\":\"" + indexCaseId
                 + "\",\"caseVersion\":1,\"store\":\"VECTOR\",\"attempt\":1,\"state\":\"" + state
                 + "\",\"contentDigest\":\"" + "a".repeat(64) + "\",\"error\":null,\"updatedAt\":\"2026-11-05T00:00:00Z\"}";
     }

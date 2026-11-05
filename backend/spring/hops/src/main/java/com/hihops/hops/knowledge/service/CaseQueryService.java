@@ -13,9 +13,12 @@ import com.hihops.hops.auth.service.AuthService;
 import com.hihops.hops.global.dto.PageResponse;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.global.exception.ErrorResponse;
+import com.hihops.hops.global.filter.RequestIdFilter;
 import com.hihops.hops.itsystem.repository.ItSystemQueryRepository;
 import com.hihops.hops.knowledge.domain.CaseStatus;
 import com.hihops.hops.knowledge.domain.IndexStatus;
+import com.hihops.hops.knowledge.domain.IndexStore;
 import com.hihops.hops.knowledge.domain.ResolvedCase;
 import com.hihops.hops.knowledge.dto.CaseApprovalResponse;
 import com.hihops.hops.knowledge.dto.CaseDetailRequest;
@@ -105,9 +108,12 @@ public class CaseQueryService {
                     || !request.path("attempt").isInt() || !request.path("jobId").isString()) {
                 throw unavailable();
             }
-            IndexStatus state = "VECTOR".equals(store) ? resolved.getVectorStatus() : resolved.getGraphStatus();
+            IndexStatus state = resolved.indexStatus(IndexStore.valueOf(store));
+            // 실패 원인은 저장하지 않는다. 원격 오류 세부를 노출하지 않고 일반 오류로 알린다.
+            ErrorResponse error = state == IndexStatus.FAILED
+                    ? ErrorResponse.of(ErrorCode.SERVICE_UNAVAILABLE, RequestIdFilter.currentRequestId()) : null;
             result.add(new IndexResultResponse(UUID.fromString(request.path("jobId").asString()), resolved.getId(),
-                    resolved.getVersionNo(), store, state.name(), request.path("attempt").asInt(), null,
+                    resolved.getVersionNo(), store, state.name(), request.path("attempt").asInt(), error,
                     resolved.getUpdatedAt()));
         }
         return List.copyOf(result);

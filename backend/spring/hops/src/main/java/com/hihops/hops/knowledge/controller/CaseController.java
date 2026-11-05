@@ -19,6 +19,8 @@ import com.hihops.hops.global.idempotency.CommandReceipt;
 import com.hihops.hops.global.idempotency.IdempotentRequest;
 import com.hihops.hops.knowledge.dto.CaseApproveCommand;
 import com.hihops.hops.knowledge.dto.CaseEditCommand;
+import com.hihops.hops.knowledge.dto.IndexCheckCommand;
+import com.hihops.hops.knowledge.dto.IndexRetryCommand;
 import com.hihops.hops.knowledge.dto.CaseDetailRequest;
 import com.hihops.hops.knowledge.dto.CaseDetailResponse;
 import com.hihops.hops.knowledge.dto.CaseListRequest;
@@ -63,6 +65,22 @@ public class CaseController {
             @RequestHeader(value = IdempotentRequest.HEADER, required = false) String key,
             @Valid @RequestBody CaseApproveCommand body, HttpServletRequest http) {
         return commands.approve(jwt, IdempotentRequest.of(jwt, http, key, body.requestId(), body), caseId, body)
+                .toResponseEntity();
+    }
+
+    @PostMapping("/{caseId}/index-checks")
+    public ResponseEntity<CommandReceipt> checkIndex(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID caseId,
+            @RequestHeader(value = IdempotentRequest.HEADER, required = false) String key,
+            @Valid @RequestBody IndexCheckCommand body, HttpServletRequest http) {
+        return commands.checkIndex(jwt, IdempotentRequest.of(jwt, http, key, body.requestId(), body), caseId, body)
+                .toResponseEntity();
+    }
+
+    @PostMapping("/{caseId}/index-retries")
+    public ResponseEntity<CommandReceipt> retryIndex(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID caseId,
+            @RequestHeader(value = IdempotentRequest.HEADER, required = false) String key,
+            @Valid @RequestBody IndexRetryCommand body, HttpServletRequest http) {
+        return commands.retryIndex(jwt, IdempotentRequest.of(jwt, http, key, body.requestId(), body), caseId, body)
                 .toResponseEntity();
     }
 }

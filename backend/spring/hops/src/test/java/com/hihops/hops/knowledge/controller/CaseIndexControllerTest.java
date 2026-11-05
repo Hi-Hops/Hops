@@ -4,11 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -48,7 +49,7 @@ class CaseIndexControllerTest extends CaseDraftFixture {
     @BeforeEach
     void 가짜_AI_기본_응답() {
         // 접수는 PENDING으로 돌려준다. 결과는 각 테스트가 정한다.
-        when(client.applyIndex(any())).thenAnswer(call -> snapshot(call.getArgument(0), "PENDING"));
+        doAnswer(call -> snapshot(call.getArgument(0), "PENDING")).when(client).applyIndex(any());
     }
 
     // ---------- 승인 뒤 전달 ----------
@@ -69,7 +70,7 @@ class CaseIndexControllerTest extends CaseDraftFixture {
 
     @Test
     void 두_저장소가_같은_승인_버전으로_성공하면_그때서야_공개된다() throws Exception {
-        when(client.applyIndex(any())).thenAnswer(call -> snapshot(call.getArgument(0), "SUCCEEDED"));
+        doAnswer(call -> snapshot(call.getArgument(0), "SUCCEEDED")).when(client).applyIndex(any());
         UUID caseId = approved();
 
         awaitStates(caseId, "SUCCEEDED", "SUCCEEDED");
@@ -84,8 +85,8 @@ class CaseIndexControllerTest extends CaseDraftFixture {
 
     @Test
     void 한쪽만_성공하면_공개하지_않고_실패한_쪽은_FAILED와_오류를_보여_준다() throws Exception {
-        when(client.applyIndex(any())).thenAnswer(call -> snapshot(call.getArgument(0),
-                "VECTOR".equals(call.getArgument(0, JsonNode.class).path("store").asString()) ? "SUCCEEDED" : "FAILED"));
+        doAnswer(call -> snapshot(call.getArgument(0),
+                "VECTOR".equals(call.getArgument(0, JsonNode.class).path("store").asString()) ? "SUCCEEDED" : "FAILED")).when(client).applyIndex(any());
         UUID caseId = approved();
 
         awaitStates(caseId, "SUCCEEDED", "FAILED");
@@ -102,7 +103,7 @@ class CaseIndexControllerTest extends CaseDraftFixture {
 
     @Test
     void 접수_응답이_진행_중이면_RUNNING으로_보인다() throws Exception {
-        when(client.applyIndex(any())).thenAnswer(call -> snapshot(call.getArgument(0), "RUNNING"));
+        doAnswer(call -> snapshot(call.getArgument(0), "RUNNING")).when(client).applyIndex(any());
         UUID caseId = approved();
 
         awaitStates(caseId, "RUNNING", "RUNNING");
@@ -113,8 +114,8 @@ class CaseIndexControllerTest extends CaseDraftFixture {
 
     @Test
     void AI_호출이_실패해도_승인은_유지되고_반영은_대기로_남는다() throws Exception {
-        when(client.applyIndex(any())).thenThrow(new AgentRunClientException(AgentRunClientException.SERVICE_UNAVAILABLE,
-                true, 0, null, "연결 실패", null));
+        doThrow(new AgentRunClientException(AgentRunClientException.SERVICE_UNAVAILABLE,
+                true, 0, null, "연결 실패", null)).when(client).applyIndex(any());
         UUID caseId = approved();
 
         JsonNode body = result(caseDetail(staff, caseId));
@@ -125,11 +126,11 @@ class CaseIndexControllerTest extends CaseDraftFixture {
 
     @Test
     void 응답이_저장한_요청과_다르면_상태를_바꾸지_않는다() throws Exception {
-        when(client.applyIndex(any())).thenAnswer(call -> {
+        doAnswer(call -> {
             ObjectNode other = snapshot(call.getArgument(0), "SUCCEEDED");
             other.put("contentDigest", "f".repeat(64));
             return other;
-        });
+        }).when(client).applyIndex(any());
         UUID caseId = approved();
 
         assertThat(stored(caseId)).containsEntry("vector_status", "PENDING").containsEntry("graph_status", "PENDING");
@@ -189,9 +190,9 @@ class CaseIndexControllerTest extends CaseDraftFixture {
     void 유효한_원격_NOT_FOUND이면_보존한_같은_요청_전체를_한_번_다시_접수한다() throws Exception {
         UUID caseId = approved();
         JsonNode stored = storedRequest(caseId, "VECTOR");
-        when(client.indexSnapshot(any(), anyInt())).thenThrow(new AgentRunClientException("NOT_FOUND", false, 404, null,
-                "없음", null));
-        when(client.applyIndex(any())).thenAnswer(call -> snapshot(call.getArgument(0), "SUCCEEDED"));
+        doThrow(new AgentRunClientException("NOT_FOUND", false, 404, null,
+                "없음", null)).when(client).indexSnapshot(any(), anyInt());
+        doAnswer(call -> snapshot(call.getArgument(0), "SUCCEEDED")).when(client).applyIndex(any());
 
         result(checks(staff, caseId, check(1, "VECTOR")));
 
@@ -207,7 +208,7 @@ class CaseIndexControllerTest extends CaseDraftFixture {
     @ValueSource(strings = {"SERVICE_UNAVAILABLE", "UPSTREAM_PROTOCOL_ERROR", "AUTH_CONTEXT_INVALID"})
     void 시간초과_5xx_인증_형식_오류이면_재전달하지_않고_미확인으로_둔다(String code) throws Exception {
         UUID caseId = approved();
-        when(client.indexSnapshot(any(), anyInt())).thenThrow(new AgentRunClientException(code, false, 0, null, "오류", null));
+        doThrow(new AgentRunClientException(code, false, 0, null, "오류", null)).when(client).indexSnapshot(any(), anyInt());
 
         result(checks(staff, caseId, check(1, "VECTOR")));
 
@@ -219,10 +220,10 @@ class CaseIndexControllerTest extends CaseDraftFixture {
     @Test
     void 재접수가_실패하면_성공으로_바꾸지_않고_미확인으로_둔다() throws Exception {
         UUID caseId = approved();
-        when(client.indexSnapshot(any(), anyInt())).thenThrow(new AgentRunClientException("NOT_FOUND", false, 404, null,
-                "없음", null));
-        when(client.applyIndex(any())).thenThrow(new AgentRunClientException(AgentRunClientException.SERVICE_UNAVAILABLE,
-                true, 0, null, "연결 실패", null));
+        doThrow(new AgentRunClientException("NOT_FOUND", false, 404, null,
+                "없음", null)).when(client).indexSnapshot(any(), anyInt());
+        doThrow(new AgentRunClientException(AgentRunClientException.SERVICE_UNAVAILABLE,
+                true, 0, null, "연결 실패", null)).when(client).applyIndex(any());
 
         result(checks(staff, caseId, check(1, "VECTOR")));
 
@@ -232,11 +233,11 @@ class CaseIndexControllerTest extends CaseDraftFixture {
     @Test
     void 조회_응답이_저장한_요청과_다르면_성공으로_받지_않고_미확인으로_둔다() throws Exception {
         UUID caseId = approved();
-        when(client.indexSnapshot(any(), anyInt())).thenAnswer(call -> {
+        doAnswer(call -> {
             ObjectNode other = snapshot(requestByJob(call.getArgument(0, String.class)), "SUCCEEDED");
             other.put("attempt", 7);
             return other;
-        });
+        }).when(client).indexSnapshot(any(), anyInt());
 
         result(checks(staff, caseId, check(1, "VECTOR")));
 
@@ -315,13 +316,13 @@ class CaseIndexControllerTest extends CaseDraftFixture {
 
     @Test
     void 실패한_저장소만_같은_작업의_다음_attempt로_저장하고_전달하며_성공한_저장소는_유지한다() throws Exception {
-        when(client.applyIndex(any())).thenAnswer(call -> snapshot(call.getArgument(0),
-                "VECTOR".equals(call.getArgument(0, JsonNode.class).path("store").asString()) ? "SUCCEEDED" : "FAILED"));
+        doAnswer(call -> snapshot(call.getArgument(0),
+                "VECTOR".equals(call.getArgument(0, JsonNode.class).path("store").asString()) ? "SUCCEEDED" : "FAILED")).when(client).applyIndex(any());
         UUID caseId = approved();
         awaitStates(caseId, "SUCCEEDED", "FAILED");
         JsonNode before = storedRequest(caseId, "NEO4J");
         JsonNode vectorBefore = storedRequest(caseId, "VECTOR");
-        when(client.applyIndex(any())).thenAnswer(call -> snapshot(call.getArgument(0), "RUNNING"));
+        doAnswer(call -> snapshot(call.getArgument(0), "RUNNING")).when(client).applyIndex(any());
 
         JsonNode receipt = result(retries(staff, caseId, retry(1, "NEO4J")));
         assertThat(receipt.path("resource").path("type").asString()).isEqualTo("CASE");
@@ -348,8 +349,8 @@ class CaseIndexControllerTest extends CaseDraftFixture {
     void 재시도_전달이_실패해도_새_attempt는_대기로_저장돼_있다() throws Exception {
         UUID caseId = approved();
         jdbc.update("UPDATE resolved_case SET graph_status='FAILED' WHERE id=?", caseId);
-        when(client.applyIndex(any())).thenThrow(new AgentRunClientException(AgentRunClientException.SERVICE_UNAVAILABLE,
-                true, 0, null, "연결 실패", null));
+        doThrow(new AgentRunClientException(AgentRunClientException.SERVICE_UNAVAILABLE,
+                true, 0, null, "연결 실패", null)).when(client).applyIndex(any());
 
         result(retries(staff, caseId, retry(1, "NEO4J")));
 
@@ -488,8 +489,8 @@ class CaseIndexControllerTest extends CaseDraftFixture {
 
     /** 원격이 저장한 요청에 대해 같은 작업 ID·attempt·digest의 지정한 상태를 돌려주게 한다. */
     private void stubRemote(String state) {
-        when(client.indexSnapshot(any(), anyInt())).thenAnswer(call ->
-                snapshot(requestByJob(call.getArgument(0, String.class)), state));
+        doAnswer(call ->
+                snapshot(requestByJob(call.getArgument(0, String.class)), state)).when(client).indexSnapshot(any(), anyInt());
     }
 
     private ObjectNode snapshot(JsonNode request, String state) {
