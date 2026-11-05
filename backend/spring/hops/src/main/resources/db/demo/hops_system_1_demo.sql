@@ -7,10 +7,10 @@ LOCK TABLE member, it_system, inquiry, message IN SHARE ROW EXCLUSIVE MODE;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM member WHERE (id, login_id) IN (
-                       ('a0000000-0000-7000-8000-000000000001'::uuid, 'requester'),
+                       ('a0000000-0000-7000-8000-000000000101'::uuid, 'requester1'),
                        ('f5b994d0-b857-5aba-bd46-2c49c7e8d1f0'::uuid, 'demo.requester')) AND deleted_at IS NULL)
        OR NOT EXISTS (SELECT 1 FROM member WHERE (id, login_id) IN (
-                       ('a0000000-0000-7000-8000-000000000014'::uuid, '20260014'),
+                       ('a0000000-0000-7000-8000-000000000103'::uuid, 'requester3'),
                        ('ca1fd3bb-10f4-5504-94da-704b8a5f394b'::uuid, 'demo.file')) AND deleted_at IS NULL)
        OR (SELECT count(*) FROM it_system WHERE deleted_at IS NULL AND (id, code) IN (
            ('3320ce84-c47c-592c-b599-6e968e12b0a3'::uuid, 'ELECTRONIC_APPROVAL'),
@@ -34,14 +34,14 @@ END $$;
 CREATE TEMP TABLE demo_seed_actor (label text PRIMARY KEY, id uuid NOT NULL) ON COMMIT DROP;
 INSERT INTO demo_seed_actor
 SELECT 'requester', id FROM member WHERE (id, login_id) IN (
-    ('a0000000-0000-7000-8000-000000000001'::uuid, 'requester'),
+    ('a0000000-0000-7000-8000-000000000101'::uuid, 'requester1'),
     ('f5b994d0-b857-5aba-bd46-2c49c7e8d1f0'::uuid, 'demo.requester'))
-    AND deleted_at IS NULL ORDER BY (login_id = 'requester') DESC LIMIT 1;
+    AND deleted_at IS NULL ORDER BY (login_id = 'requester1') DESC LIMIT 1;
 INSERT INTO demo_seed_actor
 SELECT 'other', id FROM member WHERE (id, login_id) IN (
-    ('a0000000-0000-7000-8000-000000000014'::uuid, '20260014'),
+    ('a0000000-0000-7000-8000-000000000103'::uuid, 'requester3'),
     ('ca1fd3bb-10f4-5504-94da-704b8a5f394b'::uuid, 'demo.file'))
-    AND deleted_at IS NULL ORDER BY (login_id = '20260014') DESC LIMIT 1;
+    AND deleted_at IS NULL ORDER BY (login_id = 'requester3') DESC LIMIT 1;
 
 -- 현재 원격 문의 상세 API는 문제·AI 실행이 없는 문의만 조회할 수 있다.
 -- 문의자 메시지만 기록하며 AI가 실행되거나 티켓이 생성되었다고 표시하지 않는다.

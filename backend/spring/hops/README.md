@@ -134,36 +134,39 @@ git에는 "DB를 만드는 방법(SQL 파일)"만 올라가고, DB 자체는 각
 직원에게 계정을 안전하게 전달하는 방법과 초기 비밀번호 변경 기능은 별도 준비가 필요하다.
 
 
-`src/main/resources/db/seed/`의 `R__seed_dev_department_member.sql`(부서·회원·역할)과 `R__seed_dev_it_system.sql`(시스템·기능)에 있습니다. 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
+`src/main/resources/db/seed/`의 `R__seed_dev_department_member.sql`(부서·회원·역할)과 `R__seed_dev_it_system.sql`(시스템·기능)에 있습니다. 지식 문서·시드 해결 사례·관계 데이터(`R__seed_dev_knowledge.sql`, `R__seed_dev_knowledge_cases.sql`, `R__seed_dev_relations.sql`)는 `docs/knowledge`의 원본에서 **자동 생성한 파일**이라 직접 고치지 않습니다([갱신 절차](../../../docs/knowledge/README.md#코퍼스-갱신-절차)). 실제 회사·사람이 아닌 가상 데이터이며 **db 프로필에서만** 들어갑니다. 테스트 DB(`hops_test`)와 운영에는 넣지 않습니다.
 
-- 부서 11개: IT 처리 부서 8개(`is_routable=true`) + 요청자 소속 부서 3개(영업팀·인사팀·경영지원팀)
-- 회원 20명, **모든 계정 비밀번호 `hops1234!`**
-- ID는 고정값이라 모든 PC에서 같습니다 (예: `requester` 회원 ID `a0000000-0000-7000-8000-000000000001`). 전체 목록은 SQL 파일에 있습니다.
+- 부서 5개: 마케팅팀·영업팀·인사팀·IT운영팀(`IT_OPS`, 문의 처리 대상 `is_routable=true`)·시스템관리팀
+- 회원 8명, **모든 계정 비밀번호 `hops1234!`**
+- 값의 정본은 [가상 기업·시스템 정본](../../../docs/knowledge/VIRTUAL_COMPANY.md) 4절입니다. 이 파일은 그 문서에서 파생합니다.
+- ID는 고정값이라 모든 PC에서 같습니다 (예: `requester1` 회원 ID `a0000000-0000-7000-8000-000000000101`). 회원 ID 끝 3자리는 사번 끝 3자리와 같습니다. 전체 목록은 SQL 파일에 있습니다.
 
 | 로그인 ID | 사번 | 소속 부서 | 역할 | 용도 |
 |---|---|---|---|---|
-| `requester` | 20260001 | 영업팀 | 없음 | 일반 직원(문의자) |
-| `network` | 20260002 | 네트워크 | 없음 | IT 담당자 |
-| `bizadmin` | 20260003 | 경영지원팀 | `BIZ_ADMIN` | 업무 관리자 |
-| `opsadmin` | 20260004 | 경영지원팀 | `AGENT_OPS_ADMIN` | 에이전트 운영 관리자 |
-| `20260020` | 20260020 | 경영지원팀 | `BIZ_ADMIN`, `AGENT_OPS_ADMIN` | 역할 두 개 확인용 |
-| `20260005`~`20260019` (15명) | 로그인 ID와 같음 | 처리 부서별 담당자·일반 직원 | 없음 | 부서별 테스트 |
+| `requester1`, `requester2` | 20260101, 20260102 | 마케팅팀 | 없음 | 일반 직원(문의자) |
+| `requester3` | 20260103 | 영업팀 | 없음 | 일반 직원(문의자) |
+| `requester4` | 20260104 | 인사팀 | 없음 | 일반 직원(문의자) |
+| `ea_owner` | 20260011 | IT운영팀 | 없음 | 전자결재 주담당자 |
+| `login_owner` | 20260012 | IT운영팀 | 없음 | 공통 로그인 주담당자 |
+| `file_owner` | 20260013 | IT운영팀 | 없음 | 파일 공유 주담당자 |
+| `admin` | 20260001 | 시스템관리팀 | `BIZ_ADMIN`, `AGENT_OPS_ADMIN` | 업무 관리자 + 에이전트 운영 관리자 |
 
 시스템 3개와 기능 10개의 ID는 [데이터 저장 계약 2절](../../../docs/DATA.md#2-고정-카탈로그) 값과 같습니다(프론트 Mock·AI 테스트와 같은 ID). 기능 코드는 DATA.md에 없어 seed 파일에서 정했습니다.
 
 | 시스템 | 코드 | 기능 | 주담당자 |
 |---|---|---|---|
-| 전자결재 | `ELECTRONIC_APPROVAL` | 문서 작성·문서 조회·결재 상태·첨부 열람 | `network` |
-| 공통 로그인 | `COMMON_LOGIN` | 로그인·SSO·계정 접근·권한 신청 | `network` |
-| 파일 공유 | `FILE_SHARING` | 파일 열람·파일 공유·접근 권한 | `20260010` |
+| 전자결재 | `ELECTRONIC_APPROVAL` | 문서 작성·문서 조회·결재 상태·첨부 열람 | `ea_owner` |
+| 공통 로그인 | `COMMON_LOGIN` | 로그인·SSO·계정 접근·권한 신청 | `login_owner` |
+| 파일 공유 | `FILE_SHARING` | 파일 열람·파일 공유·접근 권한 | `file_owner` |
 
-- `network`로 로그인하면 `primarySystemIds`에 시스템 2개가 담깁니다(담당자 화면 확인용).
+- 시스템마다 현재 주담당자는 한 명이고, 한 사람이 한 시스템만 맡습니다. 담당자로 로그인하면 `primarySystemIds`에 자기 시스템 하나가 담깁니다.
 
 - 이 계정으로 `POST /api/v2/auth/login`에 로그인할 수 있습니다(아래 [인증](#인증)). DB에서 직접 보려면:
   ```bash
   psql -U hops -d hops -c "SELECT login_id, employee_no, name FROM member;"
   ```
-- seed 파일을 수정하면 다음 실행 때 다시 실행되지만, **이미 있는 행(같은 ID)은 바꾸지 않고 건너뜁니다.** 기존 행의 값을 바꾸려면 아래처럼 DB를 새로 만듭니다.
+- seed 파일을 수정하면 다음 실행 때 다시 실행되지만, **이미 있는 행(같은 ID 또는 같은 코드·사번·로그인 ID)은 바꾸지 않고 건너뜁니다.** 기존 행의 값을 바꾸려면 아래처럼 DB를 새로 만듭니다.
+- **이전 구성(부서 11개·회원 20명, `requester`·`network` 등)이 들어간 DB는 반드시 아래 "처음 상태로 되돌리기"로 새로 만든 뒤 적재합니다.** 그대로 두면 새 행만 추가되어 이전 구성과 섞이고, 시스템 주담당자도 바뀌지 않습니다. EC2 개발 서버는 Flyway를 실행하지 않으므로 이 seed가 자동으로 들어가지 않습니다(배포 담당자와 별도로 정합니다).
 
 ### 처음 상태로 되돌리기
 
@@ -255,7 +258,7 @@ Java 21, Gradle Kotlin DSL과 Gradle Wrapper 9.8.1을 사용하고 이 README가
 
 ```bash
 # 1) 로그인해서 토큰 저장
-TOKEN=$(curl -s -H 'Content-Type: application/json' -d '{"loginId":"bizadmin","password":"hops1234!"}' http://localhost:8080/api/v2/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
+TOKEN=$(curl -s -H 'Content-Type: application/json' -d '{"loginId":"admin","password":"hops1234!"}' http://localhost:8080/api/v2/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["accessToken"])')
 # 2) 토큰 내용(클레임) 보기 — 서명 검증은 하지 않고 읽기만 한다
 echo "$TOKEN" | python3 -c 'import sys,base64,json; p=sys.stdin.read().strip().split(".")[1]; print(json.dumps(json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))),ensure_ascii=False,indent=2))'
 # 3) 서버가 유효하다고 보는지 확인 — 200이면 서명·만료·발급자·대상 통과
