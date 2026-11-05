@@ -10,7 +10,7 @@ Ticket 내부 REST의 `agent_ticket_request`(V23)는 실행별 임시 문제 참
 
 ## 2. 고정 카탈로그
 
-세 시스템·기능10개·가상 사용자·현재 PRIMARY3개는 아래 catalogVersion=hops-demo-v1의 seed 작성 코드를 기준으로 한다. 부서는 소속이다. 시스템 UUID는 `uuid5(NAMESPACE_URL,"hops-system-1.example/"+SystemCode)`, 기능은 `uuid5(NAMESPACE_URL,"hops-system-1.feature/"+SystemCode+"/"+기능코드)`다. 데이터는 모두 가상이며 로그인 비밀값을 포함하지 않는다. 아래 코드는 계약 호출 예시용 seed의 식별·관계를 설명하며 실제 DB 적재나 공통 지식·평가 데이터 선정을 뜻하지 않는다. 데이터 제작 범위는 [데이터 구축 계획](knowledge/DATASETS.md)을 따른다. 직원용 API에는 담당 관계 전체를 노출하지 않고 해당 DTO로 투영한다.
+세 시스템·기능10개·가상 사용자·현재 PRIMARY3개는 아래 catalogVersion=hops-demo-v1의 seed 작성 코드를 기준으로 한다. 가상 회사의 정본은 [가상 기업·시스템 정본](knowledge/VIRTUAL_COMPANY.md)이다. 아래 시스템 3개·기능 10개의 ID는 그대로 유효하지만, 부서·사용자(DEMO-001~004)·현재 PRIMARY 구성은 구 프론트 Mock 시연용이며 정본의 조직·직원·담당(한 사람이 한 시스템)을 따르지 않는다. 부서는 소속이다. 시스템 UUID는 `uuid5(NAMESPACE_URL,"hops-system-1.example/"+SystemCode)`, 기능은 `uuid5(NAMESPACE_URL,"hops-system-1.feature/"+SystemCode+"/"+기능코드)`다. 데이터는 모두 가상이며 로그인 비밀값을 포함하지 않는다. 아래 코드는 계약 호출 예시용 seed의 식별·관계를 설명하며 실제 DB 적재나 공통 지식·평가 데이터 선정을 뜻하지 않는다. 데이터 제작 범위는 [데이터 구축 계획](knowledge/DATASETS.md)을 따른다. 직원용 API에는 담당 관계 전체를 노출하지 않고 해당 DTO로 투영한다.
 
 ```javascript
 const catalogVersion = "hops-demo-v1";
