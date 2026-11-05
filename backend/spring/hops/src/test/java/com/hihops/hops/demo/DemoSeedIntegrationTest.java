@@ -31,8 +31,8 @@ class DemoSeedIntegrationTest {
         executeSql("db/seed/R__seed_dev_department_member.sql");
         executeSql("db/seed/R__seed_dev_it_system.sql");
         executeSql("db/demo/hops_system_1_demo.sql");
-        String requester = "a0000000-0000-7000-8000-000000000001";
-        String other = "a0000000-0000-7000-8000-000000000014";
+        String requester = "a0000000-0000-7000-8000-000000000101";
+        String other = "a0000000-0000-7000-8000-000000000103";
         mockMvc.perform(get("/api/v2/inquiries").with(jwt().jwt(token -> token.subject(requester))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(4));
         for (int n = 1; n <= 4; n++) {
@@ -54,11 +54,11 @@ class DemoSeedIntegrationTest {
     void 기존_시연_계정만_있는_환경도_사용한다() throws Exception {
         executeSql("db/seed/R__seed_dev_department_member.sql");
         executeSql("db/seed/R__seed_dev_it_system.sql");
-        jdbcTemplate.update("DELETE FROM member WHERE login_id IN ('requester', '20260014')");
+        jdbcTemplate.update("DELETE FROM member WHERE login_id IN ('requester1', 'requester3')");
         jdbcTemplate.update("INSERT INTO member (id, login_id, employee_no, password_hash, name, department_id) "
-                + "SELECT 'f5b994d0-b857-5aba-bd46-2c49c7e8d1f0', 'demo.requester', 'DEMO-1', password_hash, '가상 문의자', department_id FROM member WHERE login_id = 'bizadmin'");
+                + "SELECT 'f5b994d0-b857-5aba-bd46-2c49c7e8d1f0', 'demo.requester', 'DEMO-1', password_hash, '가상 문의자', department_id FROM member WHERE login_id = 'admin'");
         jdbcTemplate.update("INSERT INTO member (id, login_id, employee_no, password_hash, name, department_id) "
-                + "SELECT 'ca1fd3bb-10f4-5504-94da-704b8a5f394b', 'demo.file', 'DEMO-2', password_hash, '가상 담당자', department_id FROM member WHERE login_id = 'bizadmin'");
+                + "SELECT 'ca1fd3bb-10f4-5504-94da-704b8a5f394b', 'demo.file', 'DEMO-2', password_hash, '가상 담당자', department_id FROM member WHERE login_id = 'admin'");
         executeSql("db/demo/hops_system_1_demo.sql");
         mockMvc.perform(get("/api/v2/inquiries").with(jwt().jwt(token -> token.subject("f5b994d0-b857-5aba-bd46-2c49c7e8d1f0"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(4));

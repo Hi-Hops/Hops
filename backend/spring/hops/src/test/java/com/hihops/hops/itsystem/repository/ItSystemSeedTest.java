@@ -22,7 +22,7 @@ class ItSystemSeedTest {
     @Test void 같은코드의_수동_시스템이_있어도_기능시드가_실제_시스템에_연결된다() {
         new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev_department_member.sql")).execute(dataSource);
         var existing = UUID.randomUUID();
-        jdbc.update("INSERT INTO it_system(id,code,name,primary_owner_member_id) VALUES (?,'ELECTRONIC_APPROVAL','수동 데모','a0000000-0000-7000-8000-000000000002')", existing);
+        jdbc.update("INSERT INTO it_system(id,code,name,primary_owner_member_id) VALUES (?,'ELECTRONIC_APPROVAL','수동 데모','a0000000-0000-7000-8000-000000000011')", existing);
         var seed = new ResourceDatabasePopulator(new ClassPathResource("db/seed/R__seed_dev_it_system.sql"));
         seed.execute(dataSource); seed.execute(dataSource);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM system_feature WHERE it_system_id=?", Integer.class, existing)).isEqualTo(4);
