@@ -44,12 +44,17 @@ public abstract class CaseDraftFixture extends TicketCommandFixture {
     /** 승인 뒤 색인 전달은 전용 스레드에서 돈다. 다음 테스트의 가짜 AI를 건드리지 않게 끝난 뒤 문서를 지운다. */
     @AfterEach
     void 검색_문서_정리() {
-        Awaitility.await().atMost(Duration.ofSeconds(10)).until(() ->
-                dispatchExecutor.getActiveCount() == 0 && dispatchExecutor.getThreadPoolExecutor().getQueue().isEmpty());
+        awaitDeliveries();
         jdbc.update("""
                 DELETE FROM knowledge_document_version WHERE knowledge_document_id IN
                 (SELECT id FROM knowledge_document WHERE document_type='CASE' AND it_system_id IN (?,?))""", system, otherSystem);
         jdbc.update("DELETE FROM knowledge_document WHERE document_type='CASE' AND it_system_id IN (?,?)", system, otherSystem);
+    }
+
+    /** 전달 스레드가 모두 끝날 때까지 기다린다. 이미 접수된 전달이 이후 상태 변경을 덮어쓰지 않게 한다. */
+    protected void awaitDeliveries() {
+        Awaitility.await().atMost(Duration.ofSeconds(10)).pollDelay(Duration.ofMillis(100)).until(() ->
+                dispatchExecutor.getActiveCount() == 0 && dispatchExecutor.getThreadPoolExecutor().getQueue().isEmpty());
     }
 
     @BeforeEach
