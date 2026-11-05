@@ -2,7 +2,7 @@ import { paths } from '@/shared/config/paths';
 import { connectionMode } from '@/shared/config/connection';
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { logout, refreshSession, useSession } from '@/features/auth';
 import { RealtimeBoundary } from '@/features/realtime';
 import { RecentInquiries } from '@/features/inquiry';
@@ -11,10 +11,39 @@ import { Button } from '@/shared/ui/Button';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
 import styles from './AppLayout.module.css';
 
+const sidebarStorageKey = 'hops:sidebar-open';
+
+function readSidebarOpen() {
+  try {
+    return localStorage.getItem(sidebarStorageKey) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function Chevron({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true">
+      <path
+        d={direction === 'left' ? 'M12 5 7 10l5 5' : 'M8 5l5 5-5 5'}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function AppLayout() {
   const user = useSession((state) => state.user);
   const expiresAt = useSession((state) => state.expiresAt);
   const [refreshError, setRefreshError] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(readSidebarOpen);
+  const sidebarToggled = useRef(false);
+  const openButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
   const client = useQueryClient();
   const navigate = useNavigate();
   const catalog = useQuery({
@@ -45,6 +74,20 @@ export function AppLayout() {
       clearTimeout(timer);
     };
   }, [expiresAt]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(sidebarStorageKey, String(sidebarOpen));
+    } catch {
+      // 저장소를 쓸 수 없으면 현재 화면에서만 상태를 유지한다.
+    }
+    // 누른 버튼이 숨겨지므로 키보드 포커스를 반대편 버튼으로 옮긴다.
+    if (sidebarToggled.current) (sidebarOpen ? closeButton : openButton).current?.focus();
+    sidebarToggled.current = false;
+  }, [sidebarOpen]);
+  function toggleSidebar(open: boolean) {
+    sidebarToggled.current = true;
+    setSidebarOpen(open);
+  }
   if (!user) return null;
   return (
     <div className={styles.shell}>
@@ -108,52 +151,85 @@ export function AppLayout() {
         </div>
       )}
       <div className={styles.body}>
-        <aside className={styles.sidebar}>
-          <nav aria-label="주 메뉴">
-            <NavLink
-              end
-              to="/"
-              className={({ isActive }) => (isActive ? styles.active : styles.link)}
-            >
-              + 새 문의
-            </NavLink>
-            <NavLink
-              to={paths.inquiries}
-              className={({ isActive }) => (isActive ? styles.active : styles.link)}
-            >
-              내 문의
-            </NavLink>
-            {user.primarySystemIds.length > 0 && (
-              <>
-                <p className={styles.group}>업무</p>
+        <div className={styles.overlayRail}>
+          <button
+            ref={openButton}
+            type="button"
+            className={`${styles.sidebarOpen ?? ''} ${sidebarOpen ? (styles.hidden ?? '') : ''}`}
+            aria-label="사이드바 열기"
+            aria-expanded={sidebarOpen}
+            aria-controls="app-sidebar"
+            title="사이드바 열기"
+            onClick={() => {
+              toggleSidebar(true);
+            }}
+          >
+            <Chevron direction="right" />
+          </button>
+          <aside
+            id="app-sidebar"
+            className={`${styles.sidebar ?? ''} ${sidebarOpen ? '' : (styles.closed ?? '')}`}
+          >
+            <nav aria-label="주 메뉴">
+              <div className={styles.navTop}>
                 <NavLink
-                  to={paths.tickets}
+                  end
+                  to="/"
                   className={({ isActive }) => (isActive ? styles.active : styles.link)}
                 >
-                  담당 시스템 업무
+                  + 새 문의
                 </NavLink>
-                <NavLink
-                  to={paths.cases}
-                  className={({ isActive }) => (isActive ? styles.active : styles.link)}
+                <Button
+                  ref={closeButton}
+                  variant="ghost"
+                  className={styles.sidebarClose}
+                  aria-label="사이드바 닫기"
+                  title="사이드바 닫기"
+                  onClick={() => {
+                    toggleSidebar(false);
+                  }}
                 >
-                  사례 검토
-                </NavLink>
-              </>
-            )}
-            {user.roles.includes('BIZ_ADMIN') && (
+                  <Chevron direction="left" />
+                </Button>
+              </div>
               <NavLink
-                to={paths.adminTickets}
+                to={paths.inquiries}
                 className={({ isActive }) => (isActive ? styles.active : styles.link)}
               >
-                업무 관리
+                내 문의
               </NavLink>
-            )}
-          </nav>
-          <RecentInquiries />
-          <footer className={styles.sidebarFooter}>
-            <p>{catalog.data?.map((system) => system.name).join(' · ')}</p>
-          </footer>
-        </aside>
+              {user.primarySystemIds.length > 0 && (
+                <>
+                  <p className={styles.group}>업무</p>
+                  <NavLink
+                    to={paths.tickets}
+                    className={({ isActive }) => (isActive ? styles.active : styles.link)}
+                  >
+                    담당 시스템 업무
+                  </NavLink>
+                  <NavLink
+                    to={paths.cases}
+                    className={({ isActive }) => (isActive ? styles.active : styles.link)}
+                  >
+                    사례 검토
+                  </NavLink>
+                </>
+              )}
+              {user.roles.includes('BIZ_ADMIN') && (
+                <NavLink
+                  to={paths.adminTickets}
+                  className={({ isActive }) => (isActive ? styles.active : styles.link)}
+                >
+                  업무 관리
+                </NavLink>
+              )}
+            </nav>
+            <RecentInquiries />
+            <footer className={styles.sidebarFooter}>
+              <p>{catalog.data?.map((system) => system.name).join(' · ')}</p>
+            </footer>
+          </aside>
+        </div>
         <div className={styles.content}>
           <RealtimeBoundary>
             <Outlet />
