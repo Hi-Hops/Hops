@@ -26,7 +26,7 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringBootTest(properties = "hops.agent.dispatch-enabled=false")
 @AutoConfigureMockMvc
 @ActiveProfiles({"db", "test"})
-abstract class TicketCommandFixture {
+public abstract class TicketCommandFixture {
     @Autowired
     protected MockMvc mvc;
     @Autowired

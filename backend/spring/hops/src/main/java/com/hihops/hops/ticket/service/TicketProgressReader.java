@@ -52,6 +52,30 @@ public class TicketProgressReader {
         return result;
     }
 
+    /**
+     * 처리 기록 하나가 만든 해결 확인 요청과 그 응답(ticket_event에 저장된 최신 값)을 읽는다.
+     * 사례는 원 처리 기록에 고정되므로 같은 티켓의 다른 처리 기록이 만든 요청을 대신 쓰지 않는다.
+     */
+    public ResolutionRequestResponse resolution(TicketWorkLog record) {
+        var ticket = record.getTicket();
+        ResolutionRequestResponse result = null;
+        for (var event : events.findByTicketIdOrderByCreatedAtAscIdAsc(ticket.getId())) {
+            if (event.getAfterData() == null) continue;
+            var node = data.parse(event.getAfterData()).get("resolutionRequest");
+            if (node == null || node.isNull()) continue;
+            var request = data.value(node, ResolutionRequestResponse.class);
+            if (record.getId().equals(request.sourceId())) result = request;
+        }
+        if (result == null || !ticket.getId().equals(result.ticketId())
+                || !ticket.getInquiry().getId().equals(result.inquiryId())
+                || !ticket.getInquiryProblem().getId().equals(result.problemId()) || !"WORK_RECORD".equals(result.source())
+                || result.sourceVersion() != 1
+                || (record.getLogType() != WorkLogType.RESOLVED && record.getLogType() != WorkLogType.IMPLEMENTED)) {
+            unavailable();
+        }
+        return result;
+    }
+
     public CaseGenerationResponse generation(Ticket ticket) {
         var curations = runs.findCurationsByTicketId(ticket.getId());
         if (curations.isEmpty()) return null;
