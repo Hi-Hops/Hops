@@ -12,10 +12,10 @@ public final class CaseCommands {
     public enum Scope { EMPLOYEE, SYSTEM_STAFF }
     public enum Store { VECTOR, NEO4J }
     public record Edit(@NotNull UUID requestId, @NotNull @Min(1) Integer expectedCaseVersion,
-            @NotBlank @UserContent @Size(max = 200) String title, @NotBlank @UserContent String problemStatement,
+            @NotBlank @UserContent(max = 200) String title, @NotBlank @UserContent String problemStatement,
             @NotBlank @UserContent String action, @NotBlank @UserContent String verification, @NotBlank @UserContent String applicability,
-            @NotNull @Size(max = 100) List<@NotBlank @Size(max = 4000) String> limitations,
-            @JsonProperty(required = true) @UserContent @Size(max = 100) String appliesToSystemVersion,
+            @NotNull @Size(max = 100) List<@NotBlank @UserContent String> limitations,
+            @JsonProperty(required = true) @UserContent(max = 100) String appliesToSystemVersion,
             @NotNull Scope accessScope) {}
     public record Approve(@NotNull UUID requestId, @NotNull @Min(1) Integer expectedCaseVersion) {}
     public record Index(@NotNull UUID requestId, @NotNull @Min(1) Integer expectedCaseVersion,

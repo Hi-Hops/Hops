@@ -40,7 +40,7 @@ class ApprovedCase(WireModel):
     verification: WireContent
     applicability: WireContent
     limitations: list[WireText] = Field(max_length=100)
-    appliesToSystemVersion: WireText | None
+    appliesToSystemVersion: Annotated[WireText, Field(max_length=100)] | None
     accessScope: Literal["EMPLOYEE", "SYSTEM_STAFF"]
     origin: Literal["SYNTHETIC", "DEMO_VERIFIED", "OPERATIONAL"]
     confirmationOrigin: Literal["SYNTHETIC_PRESET", "HOPS_USER"]

@@ -57,4 +57,15 @@ class UserContentValidatorTest {
     private boolean valid(String value) {
         return validator.isValid(value, null);
     }
+
+    private record Title(@UserContent(max = 200) String value) {}
+
+    @Test
+    void 더_작은_계약상한도_코드포인트로_검사한다() throws ReflectiveOperationException {
+        validator.initialize(Title.class.getDeclaredField("value").getAnnotation(UserContent.class));
+        assertThat(valid("😀".repeat(200))).isTrue();
+        assertThat(valid("😀".repeat(201))).isFalse();
+        assertThat(valid("가".repeat(200))).isTrue();
+        assertThat(valid("가".repeat(201))).isFalse();
+    }
 }

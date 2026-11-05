@@ -232,4 +232,34 @@ class CaseLifecycleControllerTest extends TicketCommandFixture {
                 String.class, caseId.toString()));
         assertThat(version.path("approvedCase").path(field).asString()).isEqualTo(content);
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "title,101,true", "title,200,true", "title,201,false",
+        "appliesToSystemVersion,51,true", "appliesToSystemVersion,100,true", "appliesToSystemVersion,101,false"
+    })
+    void 제목과_적용버전의_보충문자_길이는_계약_코드포인트로_검증한다(String field, int length, boolean accepted) throws Exception {
+        String content = "😀".repeat(length);
+        var command = edit().put(field, content);
+        if (!accepted) {
+            mvc.perform(command(staff, "/cases/" + caseId + "/versions", command)).andExpect(status().isBadRequest());
+            assertThat(caseDetail().path("version").path("caseVersion").asInt()).isEqualTo(1);
+            verifyNoInteractions(indexClient);
+            return;
+        }
+        result(command(staff, "/cases/" + caseId + "/versions", command));
+        assertThat(caseDetail().path("version").path(field).asString()).isEqualTo(content);
+        resolve("RESOLVED");
+        result(command(staff, "/cases/" + caseId + "/approvals", basic(2)));
+        var version = json(jdbc.queryForObject("SELECT content FROM knowledge_document_version WHERE source_metadata->>'caseId'=?",
+                String.class, caseId.toString()));
+        assertThat(version.path("approvedCase").path(field).asString()).isEqualTo(content);
+    }
+
+    @Test void 제한조건의_보충문자도_4000코드포인트를_보존한다() throws Exception {
+        var command = edit();
+        command.putArray("limitations").add("😀".repeat(4000));
+        result(command(staff, "/cases/" + caseId + "/versions", command));
+        assertThat(caseDetail().path("version").path("limitations").get(0).asString()).isEqualTo("😀".repeat(4000));
+    }
 }

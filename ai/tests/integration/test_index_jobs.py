@@ -372,6 +372,42 @@ async def test_case_content_boundary_matches_spring_code_points(
         await cleanup(request)
 
 
+@pytest.mark.parametrize(
+    "field,length,accepted",
+    [
+        ("title", 101, True),
+        ("title", 200, True),
+        ("title", 201, False),
+        ("appliesToSystemVersion", 51, True),
+        ("appliesToSystemVersion", 100, True),
+        ("appliesToSystemVersion", 101, False),
+    ],
+)
+async def test_case_title_and_applied_version_count_supplementary_code_points(
+    client, monkeypatch, field, length, accepted
+):
+    request = request_body()
+    content = "😀" * length
+    request["approvedCase"][field] = content
+    request["contentDigest"] = sha256(
+        canonical({key: request[key] for key in ("caseId", "caseVersion", "store", "approvedCase")})
+    )
+    calls = 0
+
+    async def apply(_settings, payload, _document):
+        nonlocal calls
+        calls += 1
+        assert payload["approvedCase"][field] == content
+
+    monkeypatch.setattr(index_jobs, "_apply", apply)
+    try:
+        response = await client.post("/internal/v2/index-jobs", json=request)
+        assert response.status_code == (202 if accepted else 422)
+        assert calls == int(accepted)
+    finally:
+        await cleanup(request)
+
+
 @pytest.mark.skipif(not os.getenv("HOPS_INDEX_VECTOR_TEST_DSN"), reason="격리 pgvector DB 미설정")
 async def test_real_pgvector_upsert_verifies_original_digest_and_avoids_reembedding():
     from hops_ai.services.indexing.pgvector import ApprovedDocumentVersion, PgVectorCaseIndex

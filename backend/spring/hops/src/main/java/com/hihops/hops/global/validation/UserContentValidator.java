@@ -14,6 +14,15 @@ import jakarta.validation.ConstraintValidatorContext;
 public class UserContentValidator implements ConstraintValidator<UserContent, String> {
 
     static final int MAX_CODE_POINTS = 4000;
+    private int maxCodePoints = MAX_CODE_POINTS;
+
+    @Override
+    public void initialize(UserContent constraint) {
+        maxCodePoints = constraint.max();
+        if (maxCodePoints < 1 || maxCodePoints > MAX_CODE_POINTS) {
+            throw new IllegalArgumentException("본문 상한은 1~4000 코드 포인트여야 합니다");
+        }
+    }
 
     @Override
     public boolean isValid(String value, ConstraintValidatorContext context) {
@@ -23,7 +32,7 @@ public class UserContentValidator implements ConstraintValidator<UserContent, St
         if (value.isEmpty() || value.indexOf('\u0000') >= 0 || hasLoneSurrogate(value)) {
             return false;
         }
-        return value.codePointCount(0, value.length()) <= MAX_CODE_POINTS
+        return value.codePointCount(0, value.length()) <= maxCodePoints
                 && !value.codePoints().allMatch(UserContentValidator::isContractWhitespace);
     }
 
