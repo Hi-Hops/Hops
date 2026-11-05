@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from hops_ai.services.indexing.approved_case import canonical, sha256, verified_case_body
+from hops_ai.services.indexing.chunks import case_chunks
 from hops_ai.services.indexing.neo4j import Neo4jCaseIndex
 from hops_ai.services.indexing.pgvector import OpenAICaseEmbedder
 from hops_ai.settings import Settings
@@ -45,6 +46,62 @@ async def test_embedder_uses_explicit_model_and_dimensions():
             0.0,
             0.0,
         ]
+
+
+async def test_embedder_batch_matches_input_order_by_index():
+    async def response(request):
+        import json
+
+        assert json.loads(request.content)["input"] == ["first", "second"]
+        return httpx.Response(
+            200,
+            json={
+                "model": "synthetic-model",
+                "data": [
+                    {"index": 1, "embedding": [0.0, 1.0]},
+                    {"index": 0, "embedding": [1.0, 0.0]},
+                ],
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(response), base_url="https://api.openai.com/v1/"
+    ) as client:
+        assert await OpenAICaseEmbedder(client, "synthetic-model", 2).many(["first", "second"]) == [
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ]
+
+
+def test_chunks_preserve_unicode_and_original_digest():
+    import tiktoken
+
+    content = canonical({"a": ("가😀 문장. \\n" * 2000), "b": "다른 필드" * 1000})
+    chunks = case_chunks(content, "text-embedding-3-small", 32)
+    encoding = tiktoken.encoding_for_model("text-embedding-3-small")
+    assert len(chunks) > 32
+    assert all(0 < len(encoding.encode_ordinary(chunk)) <= 32 for chunk in chunks)
+    assert "".join(chunks) == content
+    assert sha256("".join(chunks)) == sha256(content)
+    assert "�" not in "".join(chunks)
+
+
+@pytest.mark.parametrize("indices", [[0, 0], [0, True], [0, 2]])
+async def test_embedder_batch_rejects_invalid_result_indices(indices):
+    async def response(_request):
+        return httpx.Response(
+            200,
+            json={
+                "model": "synthetic-model",
+                "data": [{"index": index, "embedding": [1.0, 0.0]} for index in indices],
+            },
+        )
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(response), base_url="https://api.openai.com/v1/"
+    ) as client:
+        with pytest.raises(ValueError, match="일치하지"):
+            await OpenAICaseEmbedder(client, "synthetic-model", 2).many(["first", "second"])
 
 
 def graph_request():

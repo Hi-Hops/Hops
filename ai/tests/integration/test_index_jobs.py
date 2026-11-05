@@ -525,10 +525,10 @@ async def test_real_pgvector_upsert_verifies_original_digest_and_avoids_reembedd
     document_id, version_id = uuid4(), uuid4()
     calls = 0
 
-    async def embed(_content):
+    async def embed(contents):
         nonlocal calls
         calls += 1
-        return [1.0, 0.0, 0.0]  # 저장 경계용 합성 벡터. 실제 모델 품질 검사가 아니다.
+        return [[1.0, 0.0, 0.0] for _ in contents]  # 합성 벡터. 실제 모델 품질 검사가 아니다.
 
     async with await psycopg.AsyncConnection.connect(
         os.environ["HOPS_INDEX_VECTOR_TEST_DSN"], autocommit=True
@@ -545,7 +545,7 @@ async def test_real_pgvector_upsert_verifies_original_digest_and_avoids_reembedd
             (version_id, document_id, canonical(content), digest),
         )
         try:
-            store = PgVectorCaseIndex(connection, embed, 3)
+            store = PgVectorCaseIndex(connection, embed, 3, "text-embedding-3-small")
             document = ApprovedDocumentVersion(version_id, UUID(request["caseId"]), 1, digest)
             await store.apply(request, document)
             await store.apply(request, document)

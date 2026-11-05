@@ -148,8 +148,9 @@ async def _apply(settings: Settings, request: dict, document: ApprovedDocumentVe
             connection,
             OpenAICaseEmbedder(
                 client, settings.index_embedding_model, settings.index_embedding_dimensions
-            ),
+            ).many,
             settings.index_embedding_dimensions,
+            settings.index_embedding_model,
         ).apply(request, document)
 
 
