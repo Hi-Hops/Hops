@@ -25,6 +25,13 @@ import lombok.RequiredArgsConstructor;
 public class RelationSearchRepository {
     private final NamedParameterJdbcTemplate jdbc;
 
+    /**
+     * 읽는 주체. internalRead=true이면 내부 판단 읽기(옵션 프로필)라서 담당자 전용 항목의 주담당자 조건을 적용하지 않는다.
+     * 사용자에게 닿는 결과에는 쓰지 않는다.
+     */
+    public record Viewer(UUID memberId, boolean internalRead) {
+    }
+
     public record SymptomRow(UUID id, String catalogKey, String label, UUID systemId, UUID featureId, String featureCode,
             String accessLevel, UUID sourceVersionId) {
     }
@@ -56,7 +63,7 @@ public class RelationSearchRepository {
                 .stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public List<SymptomRow> findSymptoms(Collection<String> levels, Collection<UUID> systemIds, UUID memberId) {
+    public List<SymptomRow> findSymptoms(Collection<String> levels, Collection<UUID> systemIds, Viewer viewer) {
         if (levels.isEmpty() || systemIds.isEmpty()) {
             return List.of();
         }
@@ -66,10 +73,10 @@ public class RelationSearchRepository {
                 JOIN system_feature f ON f.id = s.system_feature_id AND f.deleted_at IS NULL
                 JOIN it_system sys ON sys.id = s.it_system_id AND sys.deleted_at IS NULL
                 WHERE s.deleted_at IS NULL AND s.review_status = 'APPROVED'
-                  AND s.access_level IN (:levels) AND (s.access_level = 'EMPLOYEE' OR sys.primary_owner_member_id = :memberId)
+                  AND s.access_level IN (:levels) AND (s.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))
                   AND sys.id IN (:systemIds)
                 ORDER BY s.catalog_key
-                """, new MapSqlParameterSource("levels", levels).addValue("memberId", memberId).addValue("systemIds", systemIds),
+                """, new MapSqlParameterSource("levels", levels).addValue("memberId", viewer.memberId()).addValue("internalRead", viewer.internalRead()).addValue("systemIds", systemIds),
                 (rs, row) -> new SymptomRow(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3), rs.getObject(4, UUID.class),
                         rs.getObject(5, UUID.class), rs.getString(6), rs.getString(7), rs.getObject(8, UUID.class)));
     }
@@ -78,12 +85,12 @@ public class RelationSearchRepository {
      * 증상의 후보 원인을 가르는 확인 항목. 원인과 연결은 승인된 것만 쓰며 공개 범위는 따지지 않는다(직원 전용 조회에서도 내부 계산에만 쓰고
      * 노출하지 않는다). 확인 항목은 직원 전용 조회이면 직원 공개 표시가 있어야 하고, 담당자 범위이면 직원 공개이거나 공개 범위·담당 조건을 만족해야 한다.
      */
-    public List<CheckRow> findCheckItems(Collection<UUID> symptomIds, boolean staff, Collection<String> levels, UUID memberId) {
+    public List<CheckRow> findCheckItems(Collection<UUID> symptomIds, boolean staff, Collection<String> levels, Viewer viewer) {
         if (symptomIds.isEmpty()) {
             return List.of();
         }
         String visible = staff
-                ? "(k.employee_disclosable OR (k.access_level IN (:levels) AND (k.access_level = 'EMPLOYEE' OR sys.primary_owner_member_id = :memberId)))"
+                ? "(k.employee_disclosable OR (k.access_level IN (:levels) AND (k.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))))"
                 : "k.employee_disclosable";
         return jdbc.query("""
                 SELECT sc.symptom_id, k.id, k.catalog_key, k.label, k.employee_disclosable, k.access_level, k.source_document_version_id,
@@ -96,18 +103,18 @@ public class RelationSearchRepository {
                 WHERE sc.deleted_at IS NULL AND sc.review_status = 'APPROVED' AND sc.symptom_id IN (:symptomIds) AND %s
                 GROUP BY sc.symptom_id, k.id, k.catalog_key, k.label, k.employee_disclosable, k.access_level, k.source_document_version_id
                 ORDER BY sc.symptom_id, count(DISTINCT c.id) DESC, k.catalog_key
-                """.formatted(visible), new MapSqlParameterSource("symptomIds", symptomIds).addValue("levels", levels).addValue("memberId", memberId),
+                """.formatted(visible), new MapSqlParameterSource("symptomIds", symptomIds).addValue("levels", levels).addValue("memberId", viewer.memberId()).addValue("internalRead", viewer.internalRead()),
                 (rs, row) -> new CheckRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getString(4),
                         rs.getBoolean(5), rs.getString(6), rs.getObject(7, UUID.class), rs.getInt(8)));
     }
 
     /** 확인 항목의 질문 문구. 직원 전용 조회는 직원 공개 표시와 EMPLOYEE 범위가 있는 승인된 문구만 돌려준다. */
-    public List<QuestionRow> findQuestions(Collection<UUID> checkItemIds, boolean staff, Collection<String> levels, UUID memberId) {
+    public List<QuestionRow> findQuestions(Collection<UUID> checkItemIds, boolean staff, Collection<String> levels, Viewer viewer) {
         if (checkItemIds.isEmpty()) {
             return List.of();
         }
         String visible = staff
-                ? "t.access_level IN (:levels) AND (t.access_level = 'EMPLOYEE' OR sys.primary_owner_member_id = :memberId)"
+                ? "t.access_level IN (:levels) AND (t.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))"
                 : "t.employee_disclosable AND k.employee_disclosable AND t.access_level = 'EMPLOYEE'";
         return jdbc.query("""
                 SELECT t.check_item_id, t.id, t.catalog_key, t.question_text, t.access_level, t.source_document_version_id
@@ -116,13 +123,13 @@ public class RelationSearchRepository {
                 JOIN it_system sys ON sys.id = k.it_system_id AND sys.deleted_at IS NULL
                 WHERE t.deleted_at IS NULL AND t.review_status = 'APPROVED' AND t.check_item_id IN (:checkItemIds) AND %s
                 ORDER BY t.check_item_id, t.catalog_key
-                """.formatted(visible), new MapSqlParameterSource("checkItemIds", checkItemIds).addValue("levels", levels).addValue("memberId", memberId),
+                """.formatted(visible), new MapSqlParameterSource("checkItemIds", checkItemIds).addValue("levels", levels).addValue("memberId", viewer.memberId()).addValue("internalRead", viewer.internalRead()),
                 (rs, row) -> new QuestionRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getString(4),
                         rs.getString(5), rs.getObject(6, UUID.class)));
     }
 
     /** 담당자 범위에서만 쓴다. 증상의 가능 원인 중 공개 범위·담당 조건을 만족하는 승인된 것. */
-    public List<CauseRow> findCauses(Collection<UUID> symptomIds, Collection<String> levels, UUID memberId) {
+    public List<CauseRow> findCauses(Collection<UUID> symptomIds, Collection<String> levels, Viewer viewer) {
         if (symptomIds.isEmpty() || levels.isEmpty()) {
             return List.of();
         }
@@ -132,10 +139,10 @@ public class RelationSearchRepository {
                 JOIN relation_cause c ON c.id = sc.cause_id AND c.deleted_at IS NULL AND c.review_status = 'APPROVED'
                 JOIN it_system sys ON sys.id = c.it_system_id AND sys.deleted_at IS NULL
                 WHERE sc.deleted_at IS NULL AND sc.review_status = 'APPROVED' AND sc.symptom_id IN (:symptomIds)
-                  AND sc.access_level IN (:levels) AND (sc.access_level = 'EMPLOYEE' OR sys.primary_owner_member_id = :memberId)
-                  AND c.access_level IN (:levels) AND (c.access_level = 'EMPLOYEE' OR sys.primary_owner_member_id = :memberId)
+                  AND sc.access_level IN (:levels) AND (sc.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))
+                  AND c.access_level IN (:levels) AND (c.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))
                 ORDER BY sc.symptom_id, c.catalog_key
-                """, new MapSqlParameterSource("symptomIds", symptomIds).addValue("levels", levels).addValue("memberId", memberId),
+                """, new MapSqlParameterSource("symptomIds", symptomIds).addValue("levels", levels).addValue("memberId", viewer.memberId()).addValue("internalRead", viewer.internalRead()),
                 (rs, row) -> new CauseRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getString(4),
                         rs.getString(5), rs.getObject(6, UUID.class)));
     }
@@ -152,7 +159,7 @@ public class RelationSearchRepository {
     }
 
     /** 증상을 다룬 승인 사례(ADDRESSES). 연결의 공개 범위·담당 조건만 보며 사례 문서의 현재 공개 판정은 호출 쪽이 다시 한다. */
-    public List<CaseLinkRow> findCaseLinks(Collection<UUID> symptomIds, Collection<String> levels, UUID memberId) {
+    public List<CaseLinkRow> findCaseLinks(Collection<UUID> symptomIds, Collection<String> levels, Viewer viewer) {
         if (symptomIds.isEmpty() || levels.isEmpty()) {
             return List.of();
         }
@@ -162,9 +169,9 @@ public class RelationSearchRepository {
                 JOIN resolved_case c ON c.id = cs.resolved_case_id AND c.deleted_at IS NULL AND c.case_status = 'APPROVED'
                 JOIN it_system sys ON sys.id = c.it_system_id AND sys.deleted_at IS NULL
                 WHERE cs.deleted_at IS NULL AND cs.review_status = 'APPROVED' AND cs.symptom_id IN (:symptomIds)
-                  AND cs.access_level IN (:levels) AND (cs.access_level = 'EMPLOYEE' OR sys.primary_owner_member_id = :memberId)
+                  AND cs.access_level IN (:levels) AND (cs.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))
                 ORDER BY cs.symptom_id, c.case_number
-                """, new MapSqlParameterSource("symptomIds", symptomIds).addValue("levels", levels).addValue("memberId", memberId),
+                """, new MapSqlParameterSource("symptomIds", symptomIds).addValue("levels", levels).addValue("memberId", viewer.memberId()).addValue("internalRead", viewer.internalRead()),
                 (rs, row) -> new CaseLinkRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getInt(3)));
     }
 }

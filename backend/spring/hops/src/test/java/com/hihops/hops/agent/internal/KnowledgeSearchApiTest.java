@@ -128,6 +128,21 @@ class KnowledgeSearchApiTest extends InternalRunApiTestBase {
         search(loginOnly).andExpect(jsonPath("$.outcome").value("DENIED")).andExpect(jsonPath("$.deniedReason").value("SYSTEM_NOT_ALLOWED"));
     }
 
+    @Test
+    void 내부_판단_경계가_꺼진_서버는_실행_입력에_retrievalScopes가_있어도_기본_프로필로만_읽는다() throws Exception {
+        // 설정이 꺼진 뒤에도 이어지는 실행이나 잘못 실린 값이 담당자 자료를 열지 못한다(기본 꺼짐, 실패 시 닫힘).
+        withRetrievalScopes("EMPLOYEE", "SYSTEM_STAFF");
+        String runbookTitle = jdbc.queryForObject("SELECT title FROM knowledge_document WHERE source_data ->> 'documentKey' = 'runbook-ea-document-not-listed'", String.class);
+
+        JsonNode response = search(body(runbookTitle)).andExpect(status().isOk()).andExpect(jsonPath("$.applied.internalJudgement").value(false))
+                .andExpect(jsonPath("$.applied.accessScopes[0]").value("EMPLOYEE")).andReturn().json();
+        assertThat(response.path("applied").path("accessScopes").size()).isEqualTo(1);
+        assertThat(documentKeys(response)).noneMatch(key -> key.startsWith("runbook-") || key.startsWith("SEED-C-"));
+        var runbookRequest = body(runbookTitle);
+        runbookRequest.put("kinds", List.of("RUNBOOK"));
+        search(runbookRequest).andExpect(jsonPath("$.outcome").value("DENIED")).andExpect(jsonPath("$.deniedReason").value("KIND_NOT_ALLOWED"));
+    }
+
     // ---- 선필터
 
     @Test

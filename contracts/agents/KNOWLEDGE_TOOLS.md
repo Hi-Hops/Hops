@@ -6,7 +6,7 @@ Knowledge는 Spring의 내부 REST로 승인된 지식 문서를 읽는다. 업�
 
 ## 구현 상태
 
-Spring의 지식 검색 API와 관계 조회 API를 구현했다. AI 쪽 `SpringKnowledgeSource`·`SpringRelationSource`(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)는 같은 PR의 커밋 ④에서 추가하므로 지금 AI는 이 API들을 호출하지 않는다. 관계 조회의 AI 쪽 사용(질문 생성·평가)은 #181 범위다.
+Spring의 지식 검색 API와 관계 조회 API, 내부 판단 경계(옵션, 기본 꺼짐)를 구현했다. AI 쪽 `SpringKnowledgeSource`·`SpringRelationSource`(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)는 같은 PR의 커밋 ④에서 추가하므로 지금 AI는 이 API들을 호출하지 않는다. 관계 조회의 AI 쪽 사용(질문 생성·평가)은 #181 범위다.
 
 ## 인증
 
@@ -22,7 +22,7 @@ Spring은 `runId`로 저장된 실행 입력(`input_snapshot`)을 읽어 문의�
 | `SYSTEM_STAFF` 포함 | `STAFF`도 포함 | `RUNBOOK`, `CASE`도 포함 |
 
 - 시스템 범위는 실행 입력의 `systemIds`다. 요청의 `systemIds`는 이 범위를 **좁히기만** 한다.
-- 담당자 전용 문서를 읽는 실행은 [AGENT_ARCHITECTURE 9절](../../docs/ai/AGENT_ARCHITECTURE.md)의 옵션 프로필이며 서버 설정으로만 켠다. 이 API는 실행 입력에 없는 범위를 어떤 요청으로도 넓히지 않는다.
+- 직원 상담 실행이 담당자 전용 문서를 읽는 것은 [AGENT_ARCHITECTURE 9절](../../docs/ai/AGENT_ARCHITECTURE.md)의 옵션 프로필(아래 "내부 판단 경계")이며 서버 설정으로만 켠다. 이 API는 실행 입력에 없는 범위를 어떤 요청으로도 넓히지 않는다.
 - 실행이 접수된 문의의 현재 실행이고 `QUEUED`·`RUNNING`이며 문의 버전이 같고 기한 전이어야 한다. 아니면 4절의 오류 응답이다.
 
 ## API
@@ -126,7 +126,7 @@ Spring 공통 ApiError. 400 INVALID_INPUT(형식·알 수 없는 필드·빈 검
 
 ## 검증
 
-`KnowledgeSearchApiTest`가 실제 PostgreSQL과 MockMvc로 다음을 확인한다: 직원 실행에서 담당자 문서 0건, 미승인·EVAL·삭제 제외, 시스템 범위와 좁히기, 종류·시스템 직접 요청의 `DENIED`, 결과 없음과 검색 실패(503)의 구분, 인증 실패, 실행·버전·기한 검증, `topK` 상한, 요청 본문으로 접근 범위를 넓히려는 시도 거부, CASE 공개 설정별 동작과 저장된 색인 상태 노출, 검색 근거가 현재 공개 검증을 통과함. 실제 AI 호출·모델 품질·프론트 E2E는 포함하지 않는다.
+`InternalJudgementOptionTest`(옵션 켜짐)와 `AnalysisInputFactoryAccessTest`·AI의 `test_internal_judgement_boundary.py`가 위 경계를, `KnowledgeSearchApiTest`가 실제 PostgreSQL과 MockMvc로 다음을 확인한다: 직원 실행에서 담당자 문서 0건, 미승인·EVAL·삭제 제외, 시스템 범위와 좁히기, 종류·시스템 직접 요청의 `DENIED`, 결과 없음과 검색 실패(503)의 구분, 인증 실패, 실행·버전·기한 검증, `topK` 상한, 요청 본문으로 접근 범위를 넓히려는 시도 거부, CASE 공개 설정별 동작과 저장된 색인 상태 노출, 검색 근거가 현재 공개 검증을 통과함. 실제 AI 호출·모델 품질·프론트 E2E는 포함하지 않는다.
 
 ## 관계 조회
 
@@ -180,6 +180,24 @@ symptoms: 점수 순(같으면 catalogKey 순)
 ### 검증
 
 `RelationSearchApiTest`가 실제 PostgreSQL로 다음을 확인한다: 직원 실행에서 원인·담당자 전용 확인 항목·확인 항목 이름이 어디에도 없고 질문 문구만 나가는 것, 직원 공개 표시가 없거나 미승인인 항목·질문의 제외, 근거 런북 키의 비공개, 0건과 503의 구분, 시스템·기능 범위와 좁히기와 `DENIED`, 인증·실행 검증, 알 수 없는 필드와 범위 확대 시도의 거부, 담당자 범위 실행에서 주담당자에게만 원인·사례가 나가는 것과 사례 공개 규칙. 실제 AI 호출·질문 생성·모델 품질은 포함하지 않는다.
+
+## 내부 판단 경계 (옵션, 기본 꺼짐)
+
+[AGENT_ARCHITECTURE 9절](../../docs/ai/AGENT_ARCHITECTURE.md)의 옵션 프로필이다. **SECURITY.md SEC-09·LLM02 개정과 보안 리뷰 전에는 켜지 않는다.** 이 절은 켰을 때의 경계를 정하며 켜는 결정은 아니다.
+
+**기본 프로필(꺼짐)**: 직원 상담 실행 입력은 `accessContext.allowedDocumentScopes=["EMPLOYEE"]`이고 `retrievalScopes` 키가 없다. 지식 검색·관계 조회는 직원 공개 자료와 직원 공개로 승인된 관계 항목만 돌려주고, AI의 `validate_evidence_scope`는 직원 상담에서 비직원 근거를 거부한다. 이 동작은 옵션 구현 전후로 같다.
+
+**켜는 방법**: Spring 서버 설정 `hops.agent.run.internal-judgement.enabled=true`뿐이다(기본 `false`). 요청 본문·모델 출력으로는 켤 수 없고(알 수 없는 필드는 400), 켜진 채 시작하면 Spring이 경고 로그를 남긴다.
+
+**켜졌을 때**:
+
+- Spring이 접수하는 상담 실행 입력에 `accessContext.retrievalScopes=["EMPLOYEE","SYSTEM_STAFF"]`(가산 필드, 꺼져 있으면 키 없음)를 싣는다. `allowedDocumentScopes`는 그대로 `["EMPLOYEE"]`이며 사용자에게 닿을 수 있는 범위를 넓히지 않는다.
+- 지식 검색·관계 조회는 `retrievalScopes`를 읽기 범위로 쓰고, 담당자 전용 자료를 **주담당자 조건 없이**(문의자가 해당 시스템 담당자가 아니어도) 돌려준다. 시스템 범위, 승인 상태, `RAG`, 삭제 제외, 사례 공개 규칙은 그대로 적용한다. 응답 `applied.internalJudgement=true`로 구분되고 Spring이 내부 판단 읽기 로그를 남긴다.
+- **설정이 꺼진 서버는 실행 입력에 `retrievalScopes`가 남아 있어도 무시한다**(기본 프로필로 읽음). 읽기 범위가 `allowedDocumentScopes`를 줄이거나 알 수 없는 값을 가진 입력은 403이다.
+- 사용자에게 닿는 경로는 열리지 않는다. 안내·티켓 근거의 현재 공개 검증(`TicketKnowledgeReader`)은 내부 판단 읽기를 모르고, 담당자 전용 근거는 주담당자가 아닌 문의자에게 통과하지 못한다. 직원에게 질문으로 나갈 수 있는 것은 직원 공개로 표시된 확인 항목과 승인된 `EMPLOYEE` 질문 문구뿐이며(관계 조회의 `employeeDisclosable`·`questions`) 기본 프로필과 같은 집합이다.
+- AI wire는 `retrievalScopes`를 선택 필드로 받고(`allowedDocumentScopes`를 모두 포함, 중복·빈 값·알 수 없는 값 거부), 직원 상담이 아닌 실행에는 두지 못한다. AI는 이 값으로 `validate_evidence_scope`나 검색 질의의 공개 범위를 넓히지 않는다. 내부 판단 근거를 평가에 쓰는 것은 별도 기능(#181)이며 그 전에는 AI 쪽에서 쓰이지 않는다.
+
+배포 순서: AI를 먼저 갱신해 선택 필드를 받게 한 뒤 Spring을 배포한다(AI는 알 수 없는 필드를 거부한다). 옵션이 꺼져 있으면 Spring은 새 필드를 보내지 않아 기존 AI와 호환된다.
 
 ## 한국어 검색 품질 확인
 

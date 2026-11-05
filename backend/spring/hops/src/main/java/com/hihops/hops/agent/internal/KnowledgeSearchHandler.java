@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.agent.dto.AiRunRequest;
+import com.hihops.hops.agent.service.AnalysisRunProperties;
 import com.hihops.hops.agent.internal.KnowledgeSearchRequest.Kind;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
@@ -38,6 +39,7 @@ class KnowledgeSearchHandler {
 
     private final InternalRunAccess runAccess;
     private final KnowledgeSearchService search;
+    private final AnalysisRunProperties runProperties;
 
     @Transactional(readOnly = true)
     KnowledgeSearchResponse search(UUID runId, KnowledgeSearchRequest request) {
@@ -45,13 +47,13 @@ class KnowledgeSearchHandler {
         AiRunRequest input = access.input();
         access.requireKnownProblem(request.problemRef());
 
-        RunScope scope = RunScope.of(input, access.inquiry().getRequester().getId());
+        RunScope scope = RunScope.of(input, access.inquiry().getRequester().getId(), runProperties.internalJudgement().enabled());
         Set<AccessLevel> levels = scope.levels();
         Set<Kind> allowedKinds = scope.includesStaff() ? EnumSet.allOf(Kind.class) : EMPLOYEE_KINDS;
         Set<UUID> accessibleSystems = scope.systemIds();
         int topK = request.effectiveTopK();
         var applied = new KnowledgeSearchResponse.Applied(scope.scopeNames(), allowedKinds.stream().map(Enum::name).toList(),
-                List.copyOf(accessibleSystems), topK);
+                List.copyOf(accessibleSystems), topK, scope.internalRead());
 
         Set<Kind> kinds = request.kinds() == null ? allowedKinds : EnumSet.copyOf(request.kinds());
         if (!allowedKinds.containsAll(kinds)) {
@@ -60,6 +62,9 @@ class KnowledgeSearchHandler {
         Set<UUID> systems = request.systemIds() == null ? accessibleSystems : new LinkedHashSet<>(request.systemIds());
         if (!accessibleSystems.containsAll(systems)) {
             return denied(runId, request, applied, "SYSTEM_NOT_ALLOWED");
+        }
+        if (scope.internalRead()) {
+            log.info("내부 판단 읽기 지식 검색 runId={}", runId);
         }
         List<String> tokens = KnowledgeQueryTokens.of(request.query());
         if (tokens.isEmpty()) {
@@ -71,7 +76,7 @@ class KnowledgeSearchHandler {
             hits = search.search(new KnowledgeSearchService.Query(tokens, levels,
                     kinds.stream().map(KnowledgeSearchHandler::documentType).collect(java.util.stream.Collectors.toCollection(
                             () -> EnumSet.noneOf(DocumentType.class))),
-                    systems, scope.memberId(), topK));
+                    systems, scope.memberId(), topK, scope.internalRead()));
         } catch (IntegrityException | DataAccessException exception) {
             // 검색어·본문은 로그에 남기지 않는다. 실패를 빈 결과로 바꾸지 않고 503으로 알린다.
             log.warn("지식 검색 실패 runId={} cause={}", runId, exception.getClass().getSimpleName());

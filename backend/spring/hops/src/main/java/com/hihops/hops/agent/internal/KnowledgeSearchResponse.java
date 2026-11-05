@@ -13,8 +13,11 @@ import com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceRespo
 public record KnowledgeSearchResponse(String contractVersion, UUID runId, String problemRef, String outcome,
         String deniedReason, Applied applied, List<Result> results) {
 
-    /** 서버가 실제로 적용한 범위. 요청이 아니라 실행 입력에서 정해진 값이다. */
-    public record Applied(List<String> accessScopes, List<String> kinds, List<UUID> systemIds, int topK) {
+    /**
+     * 서버가 실제로 적용한 범위. 요청이 아니라 실행 입력에서 정해진 값이다. internalJudgement=true이면 내부 판단 읽기(옵션 프로필)라서
+     * 결과에 담당자 전용 자료가 있을 수 있고, 이 결과를 사용자 응답에 쓰지 않는다.
+     */
+    public record Applied(List<String> accessScopes, List<String> kinds, List<UUID> systemIds, int topK, boolean internalJudgement) {
     }
 
     /** caseIndexStatus는 CASE만 있으며 저장된 색인 상태를 그대로 둔다. */

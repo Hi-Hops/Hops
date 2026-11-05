@@ -107,15 +107,15 @@ class RelationSearchApiTest extends InternalRunApiTestBase {
     @Test
     void 직원_전용_조회는_저장소에서부터_직원_공개_항목과_EMPLOYEE_질문만_고른다() {
         List<UUID> symptoms = jdbc.queryForList("SELECT id FROM relation_symptom", UUID.class);
-        var employeeChecks = repository.findCheckItems(symptoms, false, List.of("EMPLOYEE"), UUID.fromString(REQUESTER1));
+        var employeeChecks = repository.findCheckItems(symptoms, false, List.of("EMPLOYEE"), new RelationSearchRepository.Viewer(UUID.fromString(REQUESTER1), false));
         assertThat(employeeChecks).isNotEmpty().allMatch(RelationSearchRepository.CheckRow::employeeDisclosable);
         assertThat(employeeChecks).extracting(RelationSearchRepository.CheckRow::catalogKey).doesNotContain(STAFF_ONLY_CHECK);
         // 담당자 범위(주담당자가 아닌 문의자)도 직원 공개 항목만 얻고, 공개 범위가 STAFF인 담당자 전용 항목은 얻지 못한다.
-        assertThat(repository.findCheckItems(symptoms, true, List.of("EMPLOYEE", "STAFF"), UUID.fromString(REQUESTER1)))
+        assertThat(repository.findCheckItems(symptoms, true, List.of("EMPLOYEE", "STAFF"), new RelationSearchRepository.Viewer(UUID.fromString(REQUESTER1), false)))
                 .extracting(RelationSearchRepository.CheckRow::catalogKey).doesNotContain(STAFF_ONLY_CHECK);
 
         List<UUID> checkIds = jdbc.queryForList("SELECT id FROM relation_check_item", UUID.class);
-        var questions = repository.findQuestions(checkIds, false, List.of("EMPLOYEE"), UUID.fromString(REQUESTER1));
+        var questions = repository.findQuestions(checkIds, false, List.of("EMPLOYEE"), new RelationSearchRepository.Viewer(UUID.fromString(REQUESTER1), false));
         assertThat(questions).isNotEmpty().allMatch(question -> "EMPLOYEE".equals(question.accessLevel()));
         assertThat(questions).hasSize(20);
     }
@@ -174,6 +174,19 @@ class RelationSearchApiTest extends InternalRunApiTestBase {
         // 증상→원인 연결이 미승인이면 그 원인의 확인 항목은 찾지 못한다(원인 4개 중 상신 여부 원인만 끊는다).
         jdbc.update("UPDATE relation_symptom_cause SET deleted_at = now() WHERE cause_id = (SELECT id FROM relation_cause WHERE catalog_key = 'cause-ea-draft-not-submitted')");
         assertThat(keys(symptom(search(body("문서함에 문서가 안 보여요")).json(), EA_DOC_SYMPTOM).path("checkItems"))).doesNotContain("check-ea-submit-state");
+    }
+
+    @Test
+    void 내부_판단_경계가_꺼진_서버는_retrievalScopes가_있어도_직원_조회로만_답한다() throws Exception {
+        withRetrievalScopes("EMPLOYEE", "SYSTEM_STAFF");
+
+        JsonNode response = search(body("문서함에 문서가 안 보여요")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.applied.internalJudgement").value(false)).andReturn().json();
+        JsonNode symptom = symptom(response, EA_DOC_SYMPTOM);
+        assertThat(response.path("applied").path("accessScopes").size()).isEqualTo(1);
+        assertThat(symptom.has("causes")).isFalse();
+        assertThat(keys(symptom.path("checkItems"))).doesNotContain(STAFF_ONLY_CHECK);
+        assertThat(mapper.writeValueAsString(response)).doesNotContain("cause-").doesNotContain("runbook-");
     }
 
     // ---- 결과·응답
@@ -359,7 +372,7 @@ class RelationSearchApiTest extends InternalRunApiTestBase {
         jdbc.update("UPDATE it_system SET primary_owner_member_id = ?::uuid WHERE id = ?", REQUESTER1, eaSystem);
         UUID member = inquiries.findById(inquiry).orElseThrow().getRequester().getId();
         var query = new RelationSearchService.Query(List.of("문서함"), Set.of(), Set.of(AccessLevel.EMPLOYEE, AccessLevel.STAFF), true,
-                Set.of(eaSystem), member, 5);
+                Set.of(eaSystem), member, false, 5);
         var basic = new RelationSearchService(repository, versions, assembler, new KnowledgeVisibilityPolicy(CaseVisibility.APPROVED_SNAPSHOT));
         var indexed = new RelationSearchService(repository, versions, assembler, new KnowledgeVisibilityPolicy(CaseVisibility.INDEXED));
 

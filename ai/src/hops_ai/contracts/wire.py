@@ -89,6 +89,22 @@ class AccessContext(WireModel):
     # Spring이 확인한 권한 정책 버전
     policyRevision: Annotated[StrictInt, Field(gt=0, le=2_147_483_647)]
 
+    # 내부 판단 경계(옵션, 기본 꺼짐): Spring이 서버 설정으로만 채우는 가산 필드.
+    # 담당자 전용 자료를 내부 판단 입력으로만 읽을 수 있는 범위이며
+    # allowedDocumentScopes를 모두 포함한다. 없으면 기본 프로필이다.
+    # 이 값은 사용자에게 닿을 수 있는 자료 범위(allowedDocumentScopes)를 넓히지 않는다.
+    retrievalScopes: list[Literal["EMPLOYEE", "SYSTEM_STAFF"]] | None = None
+
+    @model_validator(mode="after")
+    def validate_retrieval_scopes(self) -> "AccessContext":
+        if self.retrievalScopes is None:
+            return self
+        if not self.retrievalScopes or len(set(self.retrievalScopes)) != len(self.retrievalScopes):
+            raise ValueError("retrievalScopes는 비어 있거나 중복될 수 없습니다")
+        if not set(self.allowedDocumentScopes) <= set(self.retrievalScopes):
+            raise ValueError("retrievalScopes는 allowedDocumentScopes를 모두 포함해야 합니다")
+        return self
+
 
 class ExistingWorkItem(WireModel):
     workItemId: WireUuid

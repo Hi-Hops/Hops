@@ -11,6 +11,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hihops.hops.agent.service.AnalysisRunProperties;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.knowledge.service.KnowledgeEvidenceAssembler.IntegrityException;
@@ -31,12 +32,13 @@ class RelationSearchHandler {
 
     private final InternalRunAccess runAccess;
     private final RelationSearchService search;
+    private final AnalysisRunProperties runProperties;
 
     @Transactional(readOnly = true)
     RelationSearchResponse search(UUID runId, RelationSearchRequest request) {
         var access = runAccess.active(runId, request.inquiryVersion());
         access.requireKnownProblem(request.problemRef());
-        RunScope scope = RunScope.of(access.input(), access.inquiry().getRequester().getId());
+        RunScope scope = RunScope.of(access.input(), access.inquiry().getRequester().getId(), runProperties.internalJudgement().enabled());
         List<String> tokens = request.keywords() == null ? List.of() : KnowledgeQueryTokens.of(String.join(" ", request.keywords()));
         Set<UUID> featureIds = request.featureIds() == null ? Set.of() : new LinkedHashSet<>(request.featureIds());
         if (tokens.isEmpty() && featureIds.isEmpty()) {
@@ -44,7 +46,10 @@ class RelationSearchHandler {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
         int limit = request.effectiveLimit();
-        var applied = new RelationSearchResponse.Applied(scope.scopeNames(), List.copyOf(scope.systemIds()), limit);
+        var applied = new RelationSearchResponse.Applied(scope.scopeNames(), List.copyOf(scope.systemIds()), limit, scope.internalRead());
+        if (scope.internalRead()) {
+            log.info("내부 판단 읽기 관계 조회 runId={}", runId);
+        }
 
         Set<UUID> systems = request.systemIds() == null ? scope.systemIds() : new LinkedHashSet<>(request.systemIds());
         if (!scope.systemIds().containsAll(systems)) {
@@ -58,7 +63,7 @@ class RelationSearchHandler {
                 }
             }
             var symptoms = search.search(new RelationSearchService.Query(tokens, featureIds, scope.levels(), scope.includesStaff(),
-                    systems, scope.memberId(), limit));
+                    systems, scope.memberId(), scope.internalRead(), limit));
             return new RelationSearchResponse(CONTRACT, runId, request.problemRef(), symptoms.isEmpty() ? "NO_RESULT" : "FOUND",
                     null, applied, symptoms);
         } catch (IntegrityException | DataAccessException exception) {

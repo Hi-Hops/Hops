@@ -39,7 +39,11 @@ public class KnowledgeSearchService {
 
     /** 검색 조건. 모든 값은 서버가 확정한 범위다. */
     public record Query(List<String> tokens, Set<AccessLevel> accessLevels, Set<DocumentType> documentTypes,
-            Set<UUID> systemIds, UUID memberId, int topK) {
+            Set<UUID> systemIds, UUID memberId, int topK, boolean internalRead) {
+        public Query(List<String> tokens, Set<AccessLevel> accessLevels, Set<DocumentType> documentTypes,
+                Set<UUID> systemIds, UUID memberId, int topK) {
+            this(tokens, accessLevels, documentTypes, systemIds, memberId, topK, false);
+        }
     }
 
     public record Hit(Assembled assembled, double score) {
@@ -55,7 +59,7 @@ public class KnowledgeSearchService {
         List<Hit> hits = new ArrayList<>();
         for (UUID id : ids) {
             // 반환 전 재검증: 현재 DB 기준의 공개 판정 한 가지를 모든 후보에 적용한다.
-            if (!versions.isCurrentlyVisible(id, query.memberId(), visibility.requireIndexedCase())) {
+            if (!versions.isCurrentlyVisible(id, query.memberId(), visibility.requireIndexedCase(), query.internalRead())) {
                 continue;
             }
             KnowledgeDocumentVersion version = versions.findById(id).orElse(null);

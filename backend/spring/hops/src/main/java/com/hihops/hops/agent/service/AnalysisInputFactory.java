@@ -75,10 +75,12 @@ public class AnalysisInputFactory {
         return jsonMapper.writeValueAsString(request);
     }
 
-    private static AccessContext accessOf(Inquiry inquiry, List<SupportedSystemResponse> systems) {
+    AccessContext accessOf(Inquiry inquiry, List<SupportedSystemResponse> systems) {
+        // 내부 판단 경계(옵션)는 서버 설정이 켰을 때만 retrievalScopes를 싣는다. 꺼져 있으면 키 자체가 없다.
+        List<String> retrievalScopes = properties.internalJudgement().enabled() ? List.of("EMPLOYEE", "SYSTEM_STAFF") : null;
         return new AccessContext(inquiry.getRequester().getId(), "EMPLOYEE_HELP",
                 systems.stream().map(SupportedSystemResponse::id).toList(), List.of("EMPLOYEE"),
-                inquiry.getRequester().getPolicyRevision());
+                inquiry.getRequester().getPolicyRevision(), retrievalScopes);
     }
 
     // 문제 연결은 서버가 확인해 payload.problemLinks에 둔 값이다 (docs/DATA.md 11.3)

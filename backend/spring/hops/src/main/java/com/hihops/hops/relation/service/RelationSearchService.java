@@ -49,7 +49,7 @@ public class RelationSearchService {
 
     /** 모든 값은 서버가 확정한 범위다. includesStaff가 false이면 직원 전용 조회다. */
     public record Query(List<String> tokens, Set<UUID> featureIds, Set<AccessLevel> levels, boolean includesStaff,
-            Set<UUID> systemIds, UUID memberId, int limit) {
+            Set<UUID> systemIds, UUID memberId, boolean internalRead, int limit) {
     }
 
     /** 기능이 속한 시스템(없거나 삭제된 기능은 빠진다). 요청의 기능 후보가 접근 범위 안인지 확인하는 데 쓴다. */
@@ -60,8 +60,9 @@ public class RelationSearchService {
     /** @throws KnowledgeEvidenceAssembler.IntegrityException 사례 문서의 저장된 digest가 어긋날 때. 결과 없음으로 바꾸지 않는다 */
     public List<Symptom> search(Query query) {
         List<String> levels = query.levels().stream().map(Enum::name).toList();
+        var viewer = new RelationSearchRepository.Viewer(query.memberId(), query.internalRead());
         List<Scored> scored = new ArrayList<>();
-        for (SymptomRow row : repository.findSymptoms(levels, query.systemIds(), query.memberId())) {
+        for (SymptomRow row : repository.findSymptoms(levels, query.systemIds(), viewer)) {
             double score = score(query, row);
             if (score > 0) {
                 scored.add(new Scored(row, score));
@@ -74,11 +75,11 @@ public class RelationSearchService {
         }
         List<UUID> symptomIds = top.stream().map(item -> item.row().id()).toList();
 
-        var checks = repository.findCheckItems(symptomIds, query.includesStaff(), levels, query.memberId());
-        var questions = repository.findQuestions(checks.stream().map(CheckRow::id).distinct().toList(), query.includesStaff(), levels, query.memberId());
-        var causes = query.includesStaff() ? repository.findCauses(symptomIds, levels, query.memberId()) : List.<RelationSearchRepository.CauseRow>of();
+        var checks = repository.findCheckItems(symptomIds, query.includesStaff(), levels, viewer);
+        var questions = repository.findQuestions(checks.stream().map(CheckRow::id).distinct().toList(), query.includesStaff(), levels, viewer);
+        var causes = query.includesStaff() ? repository.findCauses(symptomIds, levels, viewer) : List.<RelationSearchRepository.CauseRow>of();
         var causeChecks = repository.findCauseChecks(causes.stream().map(RelationSearchRepository.CauseRow::id).distinct().toList());
-        var caseLinks = repository.findCaseLinks(symptomIds, levels, query.memberId());
+        var caseLinks = repository.findCaseLinks(symptomIds, levels, viewer);
         Map<UUID, String> checkKeys = checks.stream().collect(Collectors.toMap(CheckRow::id, CheckRow::catalogKey, (a, b) -> a));
         Map<UUID, Basis> bases = new HashMap<>();
 
@@ -87,26 +88,26 @@ public class RelationSearchService {
             SymptomRow row = item.row();
             List<CheckItem> checkItems = checks.stream().filter(check -> check.symptomId().equals(row.id())).map(check -> new CheckItem(
                     check.id(), check.catalogKey(), query.includesStaff() ? check.label() : null, check.employeeDisclosable(),
-                    scope(check.accessLevel()), basis(bases, check.sourceVersionId(), query.memberId()),
+                    scope(check.accessLevel()), basis(bases, check.sourceVersionId(), viewer),
                     questions.stream().filter(question -> question.checkItemId().equals(check.id())).map(question -> new Question(
                             question.id(), question.catalogKey(), question.text(),
-                            basis(bases, question.sourceVersionId(), query.memberId()))).toList()))
+                            basis(bases, question.sourceVersionId(), viewer))).toList()))
                     // 직원 질문으로 나갈 수 있는 승인된 문구가 없는 확인 항목은 직원 응답에 나타나지 않는다.
                     .filter(check -> query.includesStaff() || !check.questions().isEmpty()).toList();
             List<Cause> causeItems = query.includesStaff()
                     ? causes.stream().filter(cause -> cause.symptomId().equals(row.id())).map(cause -> new Cause(cause.id(), cause.catalogKey(),
-                            cause.label(), scope(cause.accessLevel()), basis(bases, cause.sourceVersionId(), query.memberId()),
+                            cause.label(), scope(cause.accessLevel()), basis(bases, cause.sourceVersionId(), viewer),
                             causeChecks.stream().filter(link -> link.causeId().equals(cause.id())).map(link -> checkKeys.get(link.checkItemId()))
                                     .filter(java.util.Objects::nonNull).distinct().sorted().toList())).toList()
                     : null;
             List<CaseNeighbor> neighbors = new ArrayList<>();
             for (var link : caseLinks) {
                 if (link.symptomId().equals(row.id())) {
-                    neighbor(link.caseId(), link.caseVersion(), query.memberId()).ifPresent(neighbors::add);
+                    neighbor(link.caseId(), link.caseVersion(), viewer).ifPresent(neighbors::add);
                 }
             }
             result.add(new Symptom(row.id(), row.catalogKey(), row.label(), row.systemId(), row.featureId(), row.featureCode(),
-                    scope(row.accessLevel()), basis(bases, row.sourceVersionId(), query.memberId()), item.score(), checkItems, causeItems, neighbors));
+                    scope(row.accessLevel()), basis(bases, row.sourceVersionId(), viewer), item.score(), checkItems, causeItems, neighbors));
         }
         return result;
     }
@@ -126,17 +127,17 @@ public class RelationSearchService {
     }
 
     /** 승인 사례 이웃. 지식 검색과 같은 현재 공개 판정·조립 규칙을 쓴다. 공개할 수 없는 사례는 없는 것으로 본다. */
-    private java.util.Optional<CaseNeighbor> neighbor(UUID caseId, int caseVersion, UUID memberId) {
+    private java.util.Optional<CaseNeighbor> neighbor(UUID caseId, int caseVersion, RelationSearchRepository.Viewer viewer) {
         return versions.findCaseVersion(caseId.toString(), caseVersion)
-                .filter(version -> versions.isCurrentlyVisible(version.getId(), memberId, visibility.requireIndexedCase()))
+                .filter(version -> versions.isCurrentlyVisible(version.getId(), viewer.memberId(), visibility.requireIndexedCase(), viewer.internalRead()))
                 .flatMap(assembler::assemble)
                 .map(assembled -> new CaseNeighbor(assembled.documentKey(), assembled.evidence(), assembled.caseIndexStatus()));
     }
 
     /** 근거 문서 버전이 이 실행에 지금 공개 가능할 때만 문서 정보를 싣는다. 직원에게 담당자 런북의 ID·키를 알리지 않는다. */
-    private Basis basis(Map<UUID, Basis> cache, UUID versionId, UUID memberId) {
+    private Basis basis(Map<UUID, Basis> cache, UUID versionId, RelationSearchRepository.Viewer viewer) {
         return cache.computeIfAbsent(versionId, id -> {
-            if (!versions.isCurrentlyVisible(id, memberId, visibility.requireIndexedCase())) {
+            if (!versions.isCurrentlyVisible(id, viewer.memberId(), visibility.requireIndexedCase(), viewer.internalRead())) {
                 return Basis.hidden();
             }
             KnowledgeDocumentVersion version = versions.findById(id).orElse(null);

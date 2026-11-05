@@ -21,6 +21,7 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
      * 캐시된 Entity의 과거 승인·ACL 대신 현재 DB 조건으로 공개 가능 여부를 확인한다.
      *
      * @param requireIndexed CASE에 Vector·Neo4j 반영 SUCCEEDED를 요구할지. 설정은 {@code KnowledgeVisibilityPolicy}가 정한다
+     * @param internalRead   내부 판단 읽기(옵션 프로필)이면 담당자 전용 문서의 주담당자 조건을 적용하지 않는다. 사용자에게 닿는 근거에는 쓰지 않는다
      */
     @Query(value = """
             SELECT EXISTS (
@@ -31,7 +32,7 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
               AND d.review_status='APPROVED' AND v.review_status='APPROVED' AND d.data_split='RAG'
               AND ((d.it_system_id IS NULL AND d.document_type='POLICY') OR (s.id IS NOT NULL AND s.deleted_at IS NULL))
               AND (d.access_level='EMPLOYEE' OR (d.access_level='STAFF' AND (
-                s.primary_owner_member_id=:memberId OR (d.it_system_id IS NULL AND EXISTS (
+                :internalRead OR s.primary_owner_member_id=:memberId OR (d.it_system_id IS NULL AND EXISTS (
                   SELECT 1 FROM it_system owned WHERE owned.primary_owner_member_id=:memberId AND owned.deleted_at IS NULL)))))
               AND (d.document_type<>'CASE' OR EXISTS (
                 SELECT 1 FROM resolved_case c JOIN ticket_work_log w ON w.id=c.source_work_log_id
@@ -46,5 +47,10 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
                 AND t.responsible_system_id=c.it_system_id
                 AND w.log_type IN ('RESOLVED','IMPLEMENTED'))))
             """, nativeQuery = true)
-    boolean isCurrentlyVisible(UUID versionId, UUID memberId, boolean requireIndexed);
+    boolean isCurrentlyVisible(UUID versionId, UUID memberId, boolean requireIndexed, boolean internalRead);
+
+    /** 사용자에게 닿을 수 있는 근거의 공개 판정. 담당자 전용 문서는 해당 시스템 주담당자에게만 공개한다(내부 판단 읽기 아님). */
+    default boolean isCurrentlyVisible(UUID versionId, UUID memberId, boolean requireIndexed) {
+        return isCurrentlyVisible(versionId, memberId, requireIndexed, false);
+    }
 }

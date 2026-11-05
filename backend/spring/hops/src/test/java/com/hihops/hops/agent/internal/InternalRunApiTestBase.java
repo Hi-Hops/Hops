@@ -132,6 +132,12 @@ abstract class InternalRunApiTestBase {
         jdbc.update("UPDATE agent_run SET input_snapshot = jsonb_set(input_snapshot, '{accessContext,allowedDocumentScopes}', '[\"EMPLOYEE\",\"SYSTEM_STAFF\"]'::jsonb) WHERE id = ?", run);
     }
 
+    /** 내부 판단 경계(옵션)가 켜진 서버가 접수한 실행 입력처럼 retrievalScopes를 싣는다. 요청으로는 만들 수 없다. */
+    void withRetrievalScopes(String... scopes) throws Exception {
+        jdbc.update("UPDATE agent_run SET input_snapshot = jsonb_set(input_snapshot, '{accessContext,retrievalScopes}', ?::jsonb) WHERE id = ?",
+                mapper.writeValueAsString(List.of(scopes)), run);
+    }
+
     UUID system(String code) {
         return jdbc.queryForObject("SELECT id FROM it_system WHERE code = ?", UUID.class, code);
     }

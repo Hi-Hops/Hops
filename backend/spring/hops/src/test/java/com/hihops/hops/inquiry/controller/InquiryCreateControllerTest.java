@@ -173,6 +173,9 @@ class InquiryCreateControllerTest {
         assertThat(access.path("actorId").asString()).isEqualTo(memberId.toString());
         assertThat(access.path("purpose").asString()).isEqualTo("EMPLOYEE_HELP");
         assertThat(access.path("allowedDocumentScopes").get(0).asString()).isEqualTo("EMPLOYEE");
+        // 기본 프로필: 내부 판단 경계(옵션)는 꺼져 있어 직원 공개 범위만 싣고 retrievalScopes 키가 없다.
+        assertThat(access.path("allowedDocumentScopes").size()).isEqualTo(1);
+        assertThat(access.has("retrievalScopes")).isFalse();
         assertThat(access.path("policyRevision").asInt()).isEqualTo(1);
         assertThat(access.path("systemIds").toString()).contains(systemId.toString());
         JsonNode system = null;

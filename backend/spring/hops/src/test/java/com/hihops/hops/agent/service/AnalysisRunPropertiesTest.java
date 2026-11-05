@@ -46,4 +46,10 @@ class AnalysisRunPropertiesTest {
         assertThat(properties.limits().maxModelCalls()).isEqualTo(8);
         assertThat(properties.limits().maxRetries()).isEqualTo(2);
     }
+
+    @Test
+    void 내부_판단_경계는_기본으로_꺼져_있다() throws IOException {
+        // 켜려면 SECURITY.md 개정과 보안 리뷰가 먼저다. 기본값이 바뀌면 이 테스트가 막는다.
+        assertThat(load().internalJudgement().enabled()).isFalse();
+    }
 }
