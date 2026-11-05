@@ -147,6 +147,7 @@ public class CaseService {
             }
             var document = new KnowledgeDocument(value.getTitle(), DocumentType.CASE, value.getItSystem(), value.getAccessLevel(),
                     mapper.writeValueAsString(Map.of("caseId", id)), DataSplit.RAG);
+            document.recordCaseOrigin(value.getOriginType());
             document.approve();
             documents.saveAndFlush(document);
             var stored = new KnowledgeDocumentVersion(document, value.getVersionNo(), json.canonical(content),

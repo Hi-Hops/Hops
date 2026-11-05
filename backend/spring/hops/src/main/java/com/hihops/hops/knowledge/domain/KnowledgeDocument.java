@@ -77,6 +77,11 @@ public class KnowledgeDocument extends BaseEntity {
 
     public void approve() { reviewStatus = ReviewStatus.APPROVED; }
 
+    public void recordCaseOrigin(CaseOrigin origin) {
+        if (documentType != DocumentType.CASE) throw new IllegalStateException("해결 사례 문서가 아닙니다");
+        synthetic = java.util.Objects.requireNonNull(origin) != CaseOrigin.PRODUCTION;
+    }
+
     public DocumentType getDocumentType() {
         return documentType;
     }

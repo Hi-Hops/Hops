@@ -184,4 +184,19 @@ class CaseLifecycleControllerTest extends TicketCommandFixture {
         jdbc.update("UPDATE member SET policy_revision=policy_revision+1 WHERE id=?", staff);
         assertThatThrownBy(() -> authorizations.authorize(command)).isInstanceOf(com.hihops.hops.global.exception.BusinessException.class);
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "PRODUCTION,false,OPERATIONAL", "SYNTHETIC,true,SYNTHETIC", "DEMO_VERIFIED,true,DEMO_VERIFIED"
+    })
+    void 승인_문서의_합성여부는_사례출처와_일치한다(String origin, boolean synthetic, String wireOrigin) throws Exception {
+        jdbc.update("UPDATE resolved_case SET origin_type=? WHERE id=?", origin, caseId);
+        resolve("RESOLVED"); approve();
+        assertThat(jdbc.queryForObject("SELECT is_synthetic FROM knowledge_document WHERE source_data->>'caseId'=?",
+                Boolean.class, caseId.toString())).isEqualTo(synthetic);
+        var version = json(jdbc.queryForObject("SELECT content FROM knowledge_document_version WHERE source_metadata->>'caseId'=?",
+                String.class, caseId.toString()));
+        assertThat(version.path("approvedCase").path("origin").asString()).isEqualTo(wireOrigin);
+        assertThat(caseDetail().path("version").path("origin").asString()).isEqualTo(wireOrigin);
+    }
 }
