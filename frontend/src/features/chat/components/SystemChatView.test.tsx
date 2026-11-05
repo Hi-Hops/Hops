@@ -208,6 +208,19 @@ it('F005-DETAIL-05 접수 결과 모달은 티켓 번호·책임 시스템·담�
   expect(within(dialog).getByText(/1건은 저장하지 못했어요/)).toBeVisible();
 });
 
+it('F005-DETAIL-05 긴 티켓 번호는 앞자리 0을 줄여 표시하고 전체 번호를 title에 남긴다', async () => {
+  if (!problem.ticket) throw new Error('가상 티켓 없음');
+  const fullNumber = 'T-0000000000000123';
+  const long = { ...problem, ticket: { ...problem.ticket, ticketNumber: fullNumber } };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [long]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  const dialog = await screen.findByRole('dialog', { name: '티켓 접수 결과' });
+  expect(within(dialog).getByText('T-0123')).toHaveAttribute('title', fullNumber);
+  const panel = screen.getByRole('region', { name: '문제별 처리 결과', hidden: true });
+  expect(within(panel).getByText('T-0123')).toHaveAttribute('title', fullNumber);
+  expect(screen.queryByText(fullNumber)).not.toBeInTheDocument();
+});
+
 it('F005-DETAIL-02 보고 시스템과 책임 시스템이 다른 저장 티켓은 결과 카드에 두 시스템을 모두 표시한다', async () => {
   const [reported, responsible] = systems;
   if (!problem.ticket) throw new Error('가상 티켓 없음');

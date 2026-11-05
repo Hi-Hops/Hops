@@ -1,3 +1,4 @@
+import { displayTicketNumber } from '@/shared/lib/ticketNumber';
 import type { InquiryResult, Problem } from '@/shared/api/types/hopsSystem1';
 import { RouteModal } from '@/shared/ui/RouteModal';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
@@ -22,8 +23,8 @@ function ResultItem({ problem }: { problem: Problem }) {
   return (
     <li className={styles.item}>
       <div className={styles.itemHead}>
-        <span className={ticket ? styles.number : styles.noNumber}>
-          {ticket?.ticketNumber ?? '티켓 없음'}
+        <span className={ticket ? styles.number : styles.noNumber} title={ticket?.ticketNumber}>
+          {ticket ? displayTicketNumber(ticket.ticketNumber) : '티켓 없음'}
         </span>
         <StatusBadge {...outcomeBadge(problem)} />
       </div>

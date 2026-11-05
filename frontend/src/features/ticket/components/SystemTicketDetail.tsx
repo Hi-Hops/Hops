@@ -1,3 +1,4 @@
+import { displayTicketNumber } from '@/shared/lib/ticketNumber';
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -239,7 +240,9 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
     !subscription.denied &&
     (admin || !['connecting', 'disconnected'].includes(subscription.state));
   const heading =
-    data && query.isSuccess && visible ? data.ticketNumber + ' · ' + data.title : '티켓 상세';
+    data && query.isSuccess && visible
+      ? displayTicketNumber(data.ticketNumber) + ' · ' + data.title
+      : '티켓 상세';
   const content =
     !allowed || subscription.denied ? (
       <ErrorState title="이 시스템 티켓을 볼 권한이 없어요" />

@@ -1,3 +1,4 @@
+import { displayTicketNumber } from '@/shared/lib/ticketNumber';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -112,6 +113,7 @@ function CreationAction({ inquiry, problem }: { inquiry: InquiryResult; problem:
 type RowView = {
   tone: 'plain' | 'danger' | 'attention';
   lead: string;
+  leadTitle?: string;
   leadTone?: 'attention' | 'muted';
   title: string;
   aside?: ReactNode;
@@ -122,7 +124,8 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
   if (problem.ticket)
     return {
       tone: 'plain',
-      lead: problem.ticket.ticketNumber,
+      lead: displayTicketNumber(problem.ticket.ticketNumber),
+      leadTitle: problem.ticket.ticketNumber,
       title: problem.ticket.title,
       // 문의자가 신고한 보고 시스템과 실제 처리하는 책임 시스템을 함께 보여준다.
       aside: (
@@ -190,7 +193,10 @@ function ProblemRow({ inquiry, problem }: { inquiry: InquiryResult; problem: Pro
   return (
     <li className={`${styles.row} ${styles[view.tone]}`} aria-label={problem.summary}>
       <div className={styles.rowHead}>
-        <span className={`${styles.lead} ${view.leadTone ? styles[view.leadTone] : ''}`}>
+        <span
+          className={`${styles.lead} ${view.leadTone ? styles[view.leadTone] : ''}`}
+          title={view.leadTitle}
+        >
           {view.lead}
         </span>
         <strong className={styles.rowTitle}>{view.title}</strong>

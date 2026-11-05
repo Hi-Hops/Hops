@@ -1,3 +1,4 @@
+import { displayTicketNumber } from '@/shared/lib/ticketNumber';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -26,7 +27,9 @@ function TicketLink({ ticket, base, search }: TicketLinkProps) {
       state={{ ticketModalOrigin: 'list' }}
     >
       <div className={styles.cardTop}>
-        <span className={styles.ticketNumber}>{ticket.ticketNumber}</span>
+        <span className={styles.ticketNumber} title={ticket.ticketNumber}>
+          {displayTicketNumber(ticket.ticketNumber)}
+        </span>
         <span className={styles.type}>
           {processingLabels[ticket.processingType] ?? '유형 확인 필요'}
         </span>
@@ -292,7 +295,9 @@ export function SystemTicketBoard() {
                 <tbody>
                   {items.map((ticket) => (
                     <tr key={ticket.id}>
-                      <td className={styles.ticketNumber}>{ticket.ticketNumber}</td>
+                      <td className={styles.ticketNumber} title={ticket.ticketNumber}>
+                        {displayTicketNumber(ticket.ticketNumber)}
+                      </td>
                       <td>
                         <Link
                           id={'ticket-' + ticket.id}
