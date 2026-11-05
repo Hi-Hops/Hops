@@ -77,6 +77,12 @@
 .home .bar button {
   min-height: var(--control-height);
   padding: var(--space-2) var(--space-4);
+  background: var(--color-primary-strong);
+  border-color: var(--color-primary-strong);
+}
+.home .bar button:not(:disabled):hover {
+  background: var(--color-primary-strong);
+  filter: brightness(0.92);
 }
 .notice {
   padding: var(--space-3) var(--space-4);

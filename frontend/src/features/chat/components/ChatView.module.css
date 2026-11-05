@@ -1,6 +1,14 @@
-/* 제목·대화·입력창을 한 폭으로 가운데 모아 넓은 화면에서도 질문과 답변이 멀어지지 않게 한다. */
+/* 제목·대화·입력창을 한 폭으로 모으고, 처리 현황이 있어도 화면 가운데에 오도록 왼쪽 여백을 더 둔다.
+   폭이 모자라면 처리 현황에 닿지 않는 범위에서 가운데에 가장 가깝게 둔다. */
 .chat {
-  --chat-gutter: max(var(--space-7), calc((100% - var(--answer-width)) / 2));
+  --chat-gutter-end: max(
+    var(--space-7),
+    calc((100% - var(--rail-width) - var(--chat-column-width)) / 2)
+  );
+  --chat-gutter-start: max(
+    var(--space-7),
+    calc(100% - var(--chat-column-width) - var(--chat-gutter-end))
+  );
 
   display: flex;
   flex-direction: column;
@@ -8,20 +16,18 @@
   min-height: 600px;
 }
 .head {
+  flex: none;
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-3);
   align-items: center;
-  justify-content: space-between;
-  min-height: 83px;
-  padding: var(--space-5) var(--chat-gutter) var(--space-4);
+  min-height: var(--header-height);
+  padding: var(--space-2) var(--chat-gutter-end) var(--space-2) var(--chat-gutter-start);
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-.titleBlock {
-  min-width: 0;
+  background: var(--color-bg);
 }
 .head h1 {
-  font-size: var(--font-size-lg);
+  min-width: 0;
+  font-size: var(--font-size-body);
   line-height: 1.5;
   font-weight: var(--font-weight-bold);
   overflow: hidden;
@@ -29,24 +35,27 @@
   white-space: nowrap;
 }
 .metadata {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-1);
+  flex: none;
+  margin-left: auto;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-.newInquiry {
-  flex: none;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  padding: 6px var(--space-3);
-  font-size: var(--font-size-label);
-  font-weight: var(--font-weight-semibold);
+/* 대화는 처리 현황과 나란히 두고, 두 영역이 각자 스크롤한다. */
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
 }
+.conversation {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--color-surface);
+}
+/* 사이드바를 닫아 폭이 넓어져도 사용자·Hops 메시지와 입력창의 기준선을 한 열에 맞춘다. */
 .log {
-  padding: var(--space-6) var(--chat-gutter);
+  padding: var(--space-6) var(--chat-gutter-end) var(--space-6) var(--chat-gutter-start);
   overflow-y: auto;
   overflow-anchor: none;
   flex: 1;
@@ -54,6 +63,68 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+}
+.rail {
+  flex: 0 0 var(--rail-width);
+  width: var(--rail-width);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-nav);
+}
+.rail > h2 {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+.railEmpty {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: 1.6;
+}
+.statusContent {
+  display: grid;
+  gap: var(--space-3);
+}
+.statusBar {
+  display: none;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-6);
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-nav);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.statusBar[data-action] {
+  border-top-color: var(--color-attention-border);
+  background: var(--color-attention-bg);
+}
+.statusBar svg {
+  flex: none;
+  margin-left: auto;
+}
+.statusBarText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.statusBarText strong {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+}
+.statusBarText span {
+  color: var(--color-attention);
+  font-size: var(--font-size-sm);
 }
 .divider {
   position: absolute;
@@ -72,9 +143,10 @@
 }
 .userBubble {
   padding: 14px var(--space-4);
+  border: 1px solid var(--color-primary-border);
   border-radius: var(--radius-lg);
-  background: var(--color-text);
-  color: var(--color-on-ink);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
   font-size: var(--font-size-body);
   line-height: 1.65;
   white-space: pre-wrap;
@@ -102,7 +174,7 @@
   width: 20px;
   height: 20px;
   border-radius: var(--radius-sm);
-  background: var(--color-primary);
+  background: var(--color-primary-strong);
   color: var(--color-on-ink);
   font-size: 11px;
   font-weight: var(--font-weight-bold);
@@ -170,11 +242,7 @@
     animation: none;
   }
 }
-/* 결과 카드는 바로 위 AI 답변·진행 표시에 이어 붙여 대화 간격보다 좁게 둔다. */
-.attached {
-  margin-top: calc(var(--space-3) - var(--space-6));
-}
-/* 봇 답변은 카드 없이 글로만 두고, 카드는 결과 영역에만 쓴다. 시작 위치는 진행 단계 글자(.steps 표식 폭 1.2em)에 맞춘다. */
+/* 봇 답변은 카드 없이 글로만 두고, 카드는 처리 현황에만 쓴다. 시작 위치는 진행 단계 글자(.steps 표식 폭 1.2em)에 맞춘다. */
 .aiBubble {
   margin: 0;
   padding-left: calc(var(--font-size-label) * 1.2);
@@ -194,7 +262,7 @@
 .dock {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-3) var(--chat-gutter) var(--space-7);
+  padding: var(--space-3) var(--chat-gutter-end) var(--space-6) var(--chat-gutter-start);
 }
 .runError {
   width: min(var(--answer-width), 100%);
@@ -208,9 +276,20 @@
 .runError p {
   margin-top: var(--space-2);
 }
+@media (max-width: 1100px) {
+  .chat {
+    --chat-gutter-end: max(var(--space-7), calc((100% - var(--chat-column-width)) / 2));
+  }
+  .rail {
+    display: none;
+  }
+  .statusBar {
+    display: flex;
+  }
+}
 @media (max-width: 800px) {
   .head {
-    padding: var(--space-4) var(--space-6);
+    padding: var(--space-2) var(--space-6);
   }
   .log {
     padding: var(--space-6);
@@ -221,15 +300,18 @@
 }
 @media (max-width: 600px) {
   .head {
-    padding: var(--space-4);
+    padding: var(--space-2) var(--space-4);
+  }
+  .metadata {
+    display: none;
   }
   .log {
     padding: var(--space-4);
   }
+  .statusBar {
+    padding-inline: var(--space-4);
+  }
   .dock {
     padding: var(--space-3);
-  }
-  .metadata {
-    flex-wrap: wrap;
   }
 }

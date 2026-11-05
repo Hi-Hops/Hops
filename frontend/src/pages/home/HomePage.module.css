@@ -1,15 +1,27 @@
+.layout {
+  display: flex;
+  min-height: calc(100dvh - var(--header-height));
+}
 .page {
-  max-width: calc(var(--home-width) + var(--space-8));
-  margin: 0 auto;
-  padding: clamp(96px, 18vh, 184px) var(--space-6) var(--space-6);
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6);
+  background: var(--color-surface);
+}
+.column {
+  width: min(var(--home-width), 100%);
 }
 .page h1 {
   font-size: var(--font-size-hero);
   line-height: 1.3;
   letter-spacing: -0.6px;
   margin-bottom: var(--space-6);
+  text-wrap: balance;
 }
-.page > p {
+.column > p {
   max-width: 560px;
   font-size: var(--font-size-body);
   line-height: 1.65;
@@ -23,10 +35,67 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-@media (max-width: 800px) {
-  .page {
-    padding-top: var(--space-8);
+.rail {
+  flex: 0 0 var(--rail-width);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  border-left: 1px solid var(--color-border);
+  background: var(--color-nav);
+}
+.rail h2 {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+.rail > p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  line-height: 1.6;
+}
+.rail ol {
+  counter-reset: step;
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.rail li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: var(--space-6) minmax(0, 1fr);
+  gap: 2px var(--space-2);
+}
+.rail li::before {
+  content: counter(step);
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+.rail strong {
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+}
+.rail span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.55;
+}
+@media (max-width: 1100px) {
+  .rail {
+    display: none;
   }
+}
+@media (max-width: 800px) {
   .page h1 {
     font-size: var(--font-size-xl);
   }

@@ -4,4 +4,9 @@ export { SystemCommandButton } from './components/SystemCommandButton';
 export { systemStatus, ticketStates, editableInquiryStatus } from './model/systemStatus';
 export { SystemResultPanel, SystemConfirmations } from './components/SystemResultPanel';
 export { useResultNotice } from './hooks/useResultNotice';
-export { inquiryTitle, resultMetaParts } from './model/resultSummary';
+export {
+  QUESTION_LIMIT,
+  inquiryTitle,
+  problemActionLabel,
+  resultMetaParts,
+} from './model/resultSummary';

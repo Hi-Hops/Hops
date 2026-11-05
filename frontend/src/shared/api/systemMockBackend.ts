@@ -107,7 +107,7 @@ export class SystemMockBackend {
       problem.questionCount = 1;
       this.message(
         workspace,
-        '시연용으로 구성한 합성 문의예요. 아래 티켓과 처리 상태를 확인해 주세요.',
+        '시연용으로 구성한 합성 문의예요. 처리 현황에서 티켓과 진행 상태를 확인해 주세요.',
         'AI',
         null,
       );

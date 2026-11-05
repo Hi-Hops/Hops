@@ -15,7 +15,12 @@ import {
   linkProblemsCommand,
   retryCreationCommand,
 } from '../api/systemInquiryApi';
-import { QUESTION_LIMIT, isCreationFailed, resultCounts } from '../model/resultSummary';
+import {
+  QUESTION_LIMIT,
+  actionFirst,
+  isCreationFailed,
+  resultCounts,
+} from '../model/resultSummary';
 import { editableInquiryStatus, systemStatus, ticketStateLabel } from '../model/systemStatus';
 import styles from './ResultPanel.module.css';
 
@@ -148,7 +153,7 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
   }
   if (problem.state === 'WAITING_USER')
     return {
-      tone: 'plain',
+      tone: 'attention',
       lead: '추가 확인',
       leadTone: 'attention',
       title: problem.summary,
@@ -157,12 +162,12 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
     };
   if (problem.state === 'WAITING_SYSTEM')
     return {
-      tone: 'plain',
+      tone: 'attention',
       lead: '시스템 확인',
       leadTone: 'attention',
       title: problem.summary,
       aside: <span className={styles.count}>{questions}</span>,
-      note: '질문으로 시스템을 확인하지 못했어요. 입력창 위에서 지원 시스템을 선택해 주세요. 선택하지 않아도 확인 대기는 유지돼요.',
+      note: '질문으로 시스템을 확인하지 못했어요. 처리 현황에서 지원 시스템을 선택해 주세요. 선택하지 않아도 확인 대기는 유지돼요.',
     };
   if (problem.state === 'OUT_OF_SCOPE')
     return {
@@ -224,7 +229,7 @@ function bannerFor(result: InquiryResult) {
   if (c.tickets && c.resolved === c.tickets)
     return { text: '티켓이 모두 해결됐어요', tone: 'success' };
   if (c.tickets) return { text: '티켓을 만들고 담당 시스템에 배정했어요', tone: 'success' };
-  return { text: `문의 처리 현황 · 문제 ${String(result.problems.length)}개`, tone: 'neutral' };
+  return { text: `문제 ${String(result.problems.length)}건`, tone: 'neutral' };
 }
 function PendingTarget({ inquiry, messageId }: { inquiry: InquiryResult; messageId: string }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -262,7 +267,7 @@ function PendingTarget({ inquiry, messageId }: { inquiry: InquiryResult; message
     </section>
   );
 }
-// 보고 시스템 선택은 결과 카드가 아니라 입력창 위에 모아서 보여준다.
+// 보고 시스템 선택은 문제별 카드가 아니라 처리 현황 맨 위에 모아서 보여준다.
 export function SystemConfirmations({ inquiry }: { inquiry: InquiryResult }) {
   const targets = inquiry.problems.filter(needsSystem);
   if (!targets.length) return null;
@@ -276,29 +281,31 @@ export function SystemConfirmations({ inquiry }: { inquiry: InquiryResult }) {
     </section>
   );
 }
-// 결과 패널은 답변 위치에 따라 다시 마운트되므로, 모달 표시 상태는 상위 화면이 보관한다.
+// 좁은 화면의 처리 현황 모달은 같은 패널을 다시 그리므로, 접수 안내는 noticeOpen을 받은 패널에서만 연다.
 export function SystemResultPanel({
   result,
   noticeOpen,
   onNoticeClose,
 }: {
   result: InquiryResult;
-  noticeOpen: boolean;
-  onNoticeClose: () => void;
+  noticeOpen?: boolean | undefined;
+  onNoticeClose?: (() => void) | undefined;
 }) {
   const banner = bannerFor(result);
   return (
-    <section className={styles.panel} id="problem-confirmations" aria-label="문제별 처리 결과">
-      <h2 className={`${styles.banner} ${styles[banner.tone]}`}>{banner.text}</h2>
+    <section className={styles.panel} aria-label="문제별 처리 결과">
+      <h3 className={`${styles.banner} ${styles[banner.tone]}`}>{banner.text}</h3>
       <ul className={styles.rows}>
-        {result.problems.map((problem) => (
+        {actionFirst(result.problems).map((problem) => (
           <ProblemRow key={problem.id} inquiry={result} problem={problem} />
         ))}
       </ul>
       {result.pendingTargetMessageIds.map((id) => (
         <PendingTarget key={id} inquiry={result} messageId={id} />
       ))}
-      {noticeOpen && <TicketResultNotice result={result} banner={banner} onClose={onNoticeClose} />}
+      {noticeOpen && onNoticeClose && (
+        <TicketResultNotice result={result} banner={banner} onClose={onNoticeClose} />
+      )}
     </section>
   );
 }
