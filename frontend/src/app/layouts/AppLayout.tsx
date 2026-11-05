@@ -151,7 +151,9 @@ export function AppLayout() {
         </div>
       )}
       <div className={styles.body}>
-        <div className={styles.overlayRail}>
+        <div
+          className={`${styles.sidebarRail ?? ''} ${sidebarOpen ? (styles.railOpen ?? '') : ''}`}
+        >
           <button
             ref={openButton}
             type="button"
