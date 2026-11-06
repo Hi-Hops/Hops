@@ -124,7 +124,14 @@ class RecordingAgent:
                 )
             )
         elif isinstance(result, InquiryResult):
-            self._log.role_calls.append(RoleCall(self.role, analysis=self._analysis(result)))
+            self._log.role_calls.append(
+                RoleCall(
+                    self.role,
+                    analysis=self._analysis(result),
+                    question_source=result.questionSource,
+                    question_fallback=result.questionFallback,
+                )
+            )
         else:
             self._log.role_calls.append(RoleCall(self.role))
         return response

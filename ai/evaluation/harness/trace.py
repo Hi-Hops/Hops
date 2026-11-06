@@ -62,6 +62,9 @@ class RoleCall:
     analysis: tuple[AnalysisRecord, ...] = ()
     # 검색 역할이 낸 충분성 판정. 평가를 하지 않았거나 "평가 없음"이면 None이다.
     assessment: AssessmentRecord | None = None
+    # 질문 행동에서 문장을 누가 썼는지(FIXED, MODEL, FIXED_FALLBACK)와 대체 사유 코드.
+    question_source: str | None = None
+    question_fallback: str | None = None
 
 
 @dataclass(frozen=True)

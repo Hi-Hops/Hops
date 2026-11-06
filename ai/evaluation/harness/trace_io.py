@@ -41,6 +41,8 @@ def _role_call(call: RoleCall) -> dict[str, Any]:
             for item in call.analysis
         ],
         "assessment": _assessment_dict(call.assessment),
+        "question_source": call.question_source,
+        "question_fallback": call.question_fallback,
     }
 
 
@@ -127,6 +129,9 @@ def trace_from_dict(data: dict[str, Any]) -> RunTrace:
                 analysis=_analysis(call.get("analysis", [])),
                 # 판정을 기록하기 전에 저장한 trace에도 이 키가 없다.
                 assessment=_assessment(call.get("assessment")),
+                # 질문 문장의 출처를 기록하기 전에 저장한 trace에는 이 키가 없다.
+                question_source=call.get("question_source"),
+                question_fallback=call.get("question_fallback"),
             )
             for call in item["role_calls"]
         )

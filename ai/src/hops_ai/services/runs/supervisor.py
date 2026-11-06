@@ -58,6 +58,7 @@ class SupervisorPipeline:
                 execute_tickets=ticket_client is not None,
                 assess_evidence=assess_evidence,
                 defer_questions=assess_evidence,
+                generate_questions=assess_evidence,
             )
             if agents is None
             else agents

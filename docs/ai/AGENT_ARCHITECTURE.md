@@ -74,7 +74,7 @@ START → 1 상태 읽기(코드) → 2 합법 행동 계산(코드) → 3 행�
 | `analyze` | Inquiry 분석 | 1회 | problems(분석·양식), analysis | 인용 대조(P6), 모름 선언 대조, 문제 분리 규칙 |
 | `retrieve` | Knowledge 검색(재검색 포함) | 0회 | evidence, searches(상태·질의 지문) | 접근 범위·digest, 0건/오류 구분(P2), 같은 질의 반복 금지 |
 | `assess` | Knowledge 평가 | 1회(검색 결과가 1건 이상인 문제마다) | assessments | 근거 ID가 검색 결과에 있는지, 닫힌 어휘(7.2절) |
-| `ask` | Inquiry 질문 생성 | 1회(질문 문장을 모델이 쓰는 단계 전에는 0회: 양식 규칙의 고정 문구) | questions | 필드 제약, 반복·한도(P7·P8), 누출(P1) |
+| `ask` | Inquiry 질문 생성 | 1회(문장 생성을 켠 경우. 끄면 0회: 양식 규칙의 고정 문구. 실행 예산이 부족하거나 모델이 실패하거나 문장이 규칙을 어기면 호출 없이·호출 뒤 고정 문구로 대체) | questions | 필드 제약, 반복·한도(P7·P8), 누출(P1) |
 | `ticket` | Ticket | 1회 | ticketProposals, ticketCreationResults | Spring 도구 결과 |
 | `answer` | 답변 조립 | 0회(v1) | guide, answer | 직원 공개 근거만, 누출 검사(P1) |
 | `hold` | 시스템 확인 대기 결과 조립 | 0회 | problems(미확인 보존) | 질문·티켓을 만들지 않음, 누출 검사(P1) |

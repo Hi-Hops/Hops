@@ -18,7 +18,7 @@ from hops_ai.agents.inquiry.forms import FIELD_LABELS, QuestionPlan, plan_next
 from hops_ai.contracts.state import SupervisorState
 from hops_ai.contracts.wire import ProblemProposal, QuestionProposal
 from hops_ai.harness.errors import OutputRejected
-from hops_ai.rules.assessment import answerable
+from hops_ai.rules.assessment import allowed_fields, answerable
 
 
 def _declared_unknown(problem: ProblemProposal) -> set[str]:
@@ -31,6 +31,22 @@ def _known(problem: ProblemProposal) -> Mapping[str, str | None]:
     return {
         name: value for name, value in values.items() if isinstance(value, str) and value.strip()
     }
+
+
+def priority_fields(state: SupervisorState, ref: str) -> tuple[str, ...]:
+    """Knowledge 판정이 부족하다고 한 양식 필드. 질문에서 먼저 묻는다(없으면 빈 튜플).
+
+    판정의 부족한 정보는 검증을 거쳐 그 의도의 양식 필드만 담지만, 여기서도 한 번 더 거른다.
+    """
+    assessment = state["assessments"].get(ref)
+    if assessment is None:
+        return ()
+    allowed = set(allowed_fields(state["problems"][ref].intent))
+    return tuple(
+        item.ref
+        for item in assessment.missingInformation
+        if item.kind == "FIELD" and item.ref in allowed
+    )
 
 
 def question_plan(state: SupervisorState, ref: str, *, searched: bool) -> QuestionPlan:
@@ -51,12 +67,22 @@ def question_plan(state: SupervisorState, ref: str, *, searched: bool) -> Questi
         unknown=_declared_unknown(problem),
         guide_first=True,
         handoff=searched and not answerable(state, ref),
+        priority=priority_fields(state, ref),
     )
 
 
 def build_question(state: SupervisorState, ref: str, *, searched: bool) -> QuestionProposal:
-    """질문할 수 있는 문제의 질문 하나. 질문할 수 없으면 거부한다."""
-    plan = question_plan(state, ref, searched=searched)
+    """질문할 수 있는 문제의 질문 하나(고정 문구). 질문할 수 없으면 거부한다."""
+    return question_from_plan(state, ref, question_plan(state, ref, searched=searched))
+
+
+def question_from_plan(
+    state: SupervisorState, ref: str, plan: QuestionPlan, text: str | None = None
+) -> QuestionProposal:
+    """계획의 필드를 묻는 질문 하나. text를 주면 그 문장을, 아니면 고정 문구를 쓴다.
+
+    필드와 묶음 식별자는 항상 계획이 정한다. 문장을 누가 썼든 무엇을 물을지는 코드가 정한다.
+    """
     if plan.action != "ASK" or plan.text is None:
         raise OutputRejected("지금 질문할 수 있는 정보가 없는 문제다")
     original = next((item for item in state["input"].problems if item.id == ref), None)
@@ -64,6 +90,6 @@ def build_question(state: SupervisorState, ref: str, *, searched: bool) -> Quest
     return QuestionProposal(
         problemRef=ref,
         bundleRef=f"inquiry-{ref.replace(':', '-')}-{asked + 1}",
-        text=plan.text,
+        text=text if text is not None else plan.text,
         requestedFields=list(plan.fields),
     )

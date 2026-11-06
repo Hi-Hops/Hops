@@ -1,4 +1,4 @@
-"""행동 성질 검사기(B9~). `docs/knowledge/EVALUATION.md`의 행동 성질 표를 따른다.
+"""행동 성질 검사기(B7~B9). `docs/knowledge/EVALUATION.md`의 행동 성질 표를 따른다.
 
 안전 성질(`checks.py`)과 다르게 한 번 어겨도 실패가 아니다. 모델의 선택이 섞이므로 반복 통과율로
 본다. 그래서 안전 성질의 `CHECKS`에 넣지 않고 별도 목록으로 두며, 보고서에도 안전 위반과 따로
@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from evaluation.harness.checks import Violation
-from evaluation.harness.trace import RunTrace, TurnTrace
+from evaluation.harness.trace import AssessmentRecord, RunTrace, TurnTrace
 from hops_ai.contracts.domain import AgentRole
 
 # 검색이나 판정 없이 필요한 정보가 모이면 바로 담당자 티켓으로 가는 의도(정책 표를 가져오지 않고
@@ -66,7 +66,75 @@ def check_b9(trace: RunTrace) -> list[Violation]:
     return found
 
 
-BEHAVIOR_CHECKS: dict[str, Callable[[RunTrace], list[Violation]]] = {"B9": check_b9}
+def _last_assessments(turn: TurnTrace) -> dict[str, AssessmentRecord]:
+    """그 실행에서 문제마다 마지막으로 낸 판정(같은 문제를 다시 검색하면 나중 것이 이긴다)."""
+    latest: dict[str, AssessmentRecord] = {}
+    for call in turn.role_calls:
+        if call.role == AgentRole.KNOWLEDGE and call.assessment is not None:
+            latest[call.assessment.problem_ref] = call.assessment
+    return latest
+
+
+def check_b7(trace: RunTrace) -> list[Violation]:
+    """B7. 판정과 종결이 일관된다: 충분하면 안내로, 충분하지 않으면 안내로 끝나지 않는다.
+
+    마지막 판정이 `SUFFICIENT`인데 질문 없이 티켓으로 끝났거나, `SUFFICIENT`가 아닌데 안내가
+    나갔으면 관찰로 남긴다. 충분한데 꼭 필요한 정보가 비어 질문하는 경우는 합법이라 보지 않는다.
+    """
+    found: list[Violation] = []
+    for index, turn in enumerate(trace.turns):
+        result = turn.result
+        if result is None or result.status != "SUCCEEDED":
+            continue
+        ticketed = {ticket.problemRef for ticket in result.ticketProposals}
+        asked = {question.problemRef for question in result.questions}
+        guided = result.guide.problemRef if result.guide is not None else None
+        for ref, assessment in _last_assessments(turn).items():
+            if assessment.verdict == "SUFFICIENT" and ref in ticketed and ref not in asked:
+                found.append(
+                    BehaviorFinding("B7", index, "충분하다는 판정인데 안내 없이 티켓으로 끝났다")
+                )
+            if assessment.verdict != "SUFFICIENT" and ref == guided:
+                found.append(
+                    BehaviorFinding("B7", index, f"{assessment.verdict} 판정인데 안내가 나갔다")
+                )
+    return found
+
+
+def check_b8(trace: RunTrace) -> list[Violation]:
+    """B8. 생성된 질문이 판정이 부족하다고 한 정보를 겨냥한다.
+
+    판정의 부족한 정보(양식 필드)가 있는 문제에 질문이 나갔다면, 질문이 요청한 필드에 그 중 하나
+    이상이 있어야 한다. 이미 확보했거나 모른다고 한 필드는 질문에서 제외되므로 부족한 정보가 모두
+    그런 필드이면 겨냥할 수 없다(이 검사기는 그 경우도 관찰로 남긴다).
+    """
+    found: list[Violation] = []
+    for index, turn in enumerate(trace.turns):
+        result = turn.result
+        if result is None or result.status != "SUCCEEDED":
+            continue
+        assessments = _last_assessments(turn)
+        for question in result.questions:
+            assessment = assessments.get(question.problemRef)
+            missing = (
+                {ref for kind, ref in assessment.missing_information if kind == "FIELD"}
+                if assessment
+                else set()
+            )
+            if missing and not missing & set(question.requestedFields):
+                found.append(
+                    BehaviorFinding(
+                        "B8", index, "질문이 판정의 부족한 정보를 하나도 요청하지 않았다"
+                    )
+                )
+    return found
+
+
+BEHAVIOR_CHECKS: dict[str, Callable[[RunTrace], list[Violation]]] = {
+    "B7": check_b7,
+    "B8": check_b8,
+    "B9": check_b9,
+}
 
 
 def check_behavior(trace: RunTrace) -> list[Violation]:

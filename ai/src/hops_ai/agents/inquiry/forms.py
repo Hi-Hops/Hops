@@ -105,6 +105,8 @@ class QuestionPlan:
     fields: tuple[str, ...] = ()
     text: str | None = None
     unknown: tuple[str, ...] = ()
+    # ASK일 때 fields마다의 고정 질문 문구(같은 순서). 모델이 문장을 쓸 때 각 필드의 뜻 기준이다.
+    prompts: tuple[str, ...] = ()
 
 
 def required_fields(
@@ -162,6 +164,7 @@ def plan_next(
     unknown: Collection[str] = (),
     guide_first: bool = False,
     handoff: bool = False,
+    priority: Sequence[str] = (),
 ) -> QuestionPlan:
     """확보한 정보를 보고 다음 행동을 정한다.
 
@@ -174,6 +177,9 @@ def plan_next(
             작업·화면만 확보하면 COMPLETE가 되어 Knowledge 검색으로 넘어간다.
         handoff: 가이드를 찾지 못한 뒤인지. 참이면 담당자 전달용 항목을 확보하고 질문 문구도
             그에 맞게 쓴다.
+        priority: 먼저 물을 필드(Knowledge 판정이 부족하다고 한 정보). 질문이 필요한 상황(ASK)에서만
+            쓰이며 ASK인지 여부는 바꾸지 않는다. 이미 확보했거나 모른다고 했거나 이미 물은 필드,
+            양식에 없는 필드는 무시한다.
     """
     if intent == "OUT_OF_SCOPE":
         return QuestionPlan("OUT_OF_SCOPE")
@@ -193,6 +199,23 @@ def plan_next(
         return QuestionPlan("COMPLETE", unknown=tuple(f for f in unknown if f != SYSTEM))
 
     askable = [name for name in missing if name not in asked]
+    # 판정이 지목한 필드를 앞에 둔다. 필수 목록에 없어도 양식의 필드이고 아직 모르는 값이면 묻는다.
+    wanted = [
+        name
+        for name in dict.fromkeys(priority)
+        if name in FIELD_PROMPTS
+        and name not in asked
+        and name not in unknown
+        and not (known.get(name) or "").strip()
+    ]
+    # 시스템이 정해지지 않았으면 시스템을 가장 먼저 묻는 합의는 우선순위로도 바뀌지 않는다.
+    first = [name for name in askable if name == SYSTEM]
+    wanted = [name for name in wanted if name != SYSTEM]
+    askable = [
+        *first,
+        *wanted,
+        *(name for name in askable if name not in first and name not in wanted),
+    ]
     if question_count >= MAX_QUESTIONS_PER_PROBLEM or not askable:
         # 더 물을 수 없다. 모르는 값은 지어내지 않고 미확인으로 넘긴다.
         return QuestionPlan("HANDOFF", unknown=tuple(missing))
@@ -201,7 +224,10 @@ def plan_next(
     # 담당자 전달용 문구는 그 항목을 따로 정의한 의도에서만 쓴다.
     handoff_prompts = handoff and intent in HANDOFF_FIELDS
     return QuestionPlan(
-        "ASK", fields=fields, text=compose_question(fields, system_names, handoff=handoff_prompts)
+        "ASK",
+        fields=fields,
+        text=compose_question(fields, system_names, handoff=handoff_prompts),
+        prompts=tuple(_prompt(name, system_names, handoff=handoff_prompts) for name in fields),
     )
 
 

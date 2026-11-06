@@ -19,6 +19,7 @@ def build_registry(
     execute_tickets: bool = False,
     assess_evidence: bool = False,
     defer_questions: bool = False,
+    generate_questions: bool = False,
 ) -> Mapping[AgentRole, Agent]:
     """서버 실행에 쓰는 역할 조합.
 
@@ -35,6 +36,9 @@ def build_registry(
 
     defer_questions가 참이면 Inquiry가 분석에서 질문을 만들지 않는다(문제별 행동 경로는 질문을
     별도 행동으로 만든다). 기본은 거짓이라 분석이 질문까지 만든다.
+
+    generate_questions가 참이면 질문 행동의 문장을 모델이 쓴다(필드는 코드가 정하고, 실패하거나
+    규칙을 어기면 고정 문구로 대체한다). defer_questions와 함께 쓴다.
     """
     knowledge: Agent = (
         PendingAgent(AgentRole.KNOWLEDGE)
@@ -44,7 +48,9 @@ def build_registry(
     return MappingProxyType(
         {
             AgentRole.INQUIRY: ExtractionInquiryAgent(
-                guide_first=knowledge_source is not None, defer_questions=defer_questions
+                guide_first=knowledge_source is not None,
+                defer_questions=defer_questions,
+                generate_questions=generate_questions,
             ),
             AgentRole.KNOWLEDGE: knowledge,
             AgentRole.TICKET: ExecutingTicketAgent() if execute_tickets else ModelTicketAgent(),

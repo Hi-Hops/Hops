@@ -78,6 +78,11 @@ class InquiryResult(ContractModel):
     problems: list[ProblemProposal]
     questions: list[QuestionProposal]
     analysis: list[ProblemAnalysis] = Field(default_factory=list)
+    # 질문 행동에서 문장을 누가 썼는지. 평가가 모델 문장과 대체 문구를 구분하려고 남기는 기록이며
+    # 병합과 최종 결과에는 쓰지 않는다. 질문 행동이 아니면 비어 있다.
+    questionSource: Literal["FIXED", "MODEL", "FIXED_FALLBACK"] | None = None
+    # FIXED_FALLBACK일 때의 사유 코드(BUDGET, MODEL_ERROR, INVALID:<규칙>). 출력 내용은 담지 않는다.
+    questionFallback: str | None = None
 
 
 class MissingInformation(ContractModel):

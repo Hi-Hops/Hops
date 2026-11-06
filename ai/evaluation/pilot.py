@@ -87,6 +87,13 @@ def _turn_summary(index: int, turn: TurnTrace) -> dict[str, Any]:
     ]
     if failures:
         summary["roleFailures"] = failures
+    sources = [
+        {"source": call.question_source, "fallback": call.question_fallback}
+        for call in turn.role_calls
+        if call.question_source
+    ]
+    if sources:
+        summary["questionSources"] = sources
     if result is not None:
         summary["questions"] = [
             {"problemRef": q.problemRef, "fields": q.requestedFields, "text": q.text}
@@ -255,6 +262,16 @@ class FaultyKnowledgeSource:
         raise RetrievalUnavailable()
 
 
+def _count_questions(reports: list[dict[str, Any]], source: str) -> int:
+    return sum(
+        1
+        for report in reports
+        for turn in report["turns"]
+        for item in turn.get("questionSources", [])
+        if item["source"] == source
+    )
+
+
 def aggregate(total: CallCap, reports: list[dict[str, Any]]) -> dict[str, Any]:
     ran = [report for report in reports if "skipped" not in report]
     return {
@@ -268,6 +285,9 @@ def aggregate(total: CallCap, reports: list[dict[str, Any]]) -> dict[str, Any]:
             "outputTokens": sum(r["totals"]["outputTokens"] for r in ran),
             "seconds": round(sum(r["totals"]["seconds"] for r in ran), 2),
             "safetyViolations": sum(len(r["safetyViolations"]) for r in ran),
+            # 모델이 쓴 질문 문장 수와, 실패하거나 규칙을 어겨 고정 문구로 대체된 횟수
+            "modelQuestions": _count_questions(ran, "MODEL"),
+            "questionFallbacks": _count_questions(ran, "FIXED_FALLBACK"),
             "behaviorFindings": sum(len(r["behaviorFindings"]) for r in ran),
             "scenariosHittingTheirCap": [r["scenarioId"] for r in ran if r["callCap"]["exceeded"]],
             "scenariosTimedOut": [r["scenarioId"] for r in ran if "timedOut" in r],
@@ -333,7 +353,11 @@ async def run_batch(
 
 
 def _build_real(
-    model: str | None, *, judgment: bool = False, corpus: bool = False
+    model: str | None,
+    *,
+    judgment: bool = False,
+    corpus: bool = False,
+    fixed_questions: bool = False,
 ) -> tuple[LLMClient, Callable[[Scenario], Mapping[AgentRole, Agent]], str]:
     from hops_ai.agents.registry import build_registry
     from hops_ai.services.llm.openai import OpenAIClient
@@ -348,7 +372,11 @@ def _build_real(
     def agents_for(scenario: Scenario) -> Mapping[AgentRole, Agent]:
         # 판정 모드는 질문을 Inquiry가 미뤘다가 코드가 고른 행동으로 묻게 한다(defer_questions).
         # 역할 조합을 주입하면 파이프라인이 이 구성을 대신 해 주지 않으므로 여기서 맞춘다.
-        options = {"assess_evidence": True, "defer_questions": judgment}
+        options = {
+            "assess_evidence": True,
+            "defer_questions": judgment,
+            "generate_questions": judgment and not fixed_questions,
+        }
         if "RETRIEVAL_ERROR" in scenario.faults:
             return build_registry(FaultyKnowledgeSource(), **options)
         source = CorpusKnowledgeSource() if corpus else knowledge_source_for(settings)
@@ -394,6 +422,7 @@ def run_metadata(
     judgment: bool = False,
     corpus: bool = False,
     limits: Mapping[str, int] | None = None,
+    model_questions: bool = False,
 ) -> dict[str, Any]:
     """실행 조건 기록. 같은 조건끼리만 결과를 비교하려고 남긴다(EVALUATION.md 반복 실행 절).
 
@@ -417,6 +446,8 @@ def run_metadata(
         "model": model,
         "knowledgeSource": CORPUS_SOURCE_NAME if corpus else FIXTURE_SOURCE_NAME,
         "judgmentMode": judgment,
+        # 판정 모드에서 질문 문장을 모델이 쓰는지(꺼져 있으면 고정 문구)
+        "modelQuestions": model_questions,
         "runLimits": dict(limits or DEFAULT_LIMITS),
     }
 
@@ -471,6 +502,11 @@ def main(argv: list[str] | None = None) -> int:
         help="고정 자료 대신 docs/knowledge/corpus를 Spring 규칙으로 근사해 검색한다(평가 대역)",
     )
     parser.add_argument(
+        "--fixed-questions",
+        action="store_true",
+        help="판정 모드에서도 질문 문장을 모델이 쓰지 않고 고정 문구를 쓴다(비교용)",
+    )
+    parser.add_argument(
         "--max-model-calls",
         type=int,
         default=None,
@@ -486,14 +522,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     scenarios = select_scenarios(args.caseFamilies, args.split, allow_test=args.allow_test)
-    llm, agents_for, model = _build_real(args.model, judgment=args.judgment, corpus=args.corpus)
+    llm, agents_for, model = _build_real(
+        args.model,
+        judgment=args.judgment,
+        corpus=args.corpus,
+        fixed_questions=args.fixed_questions,
+    )
     limits = {
         **DEFAULT_LIMITS,
         **({"maxModelCalls": args.max_model_calls} if args.max_model_calls else {}),
     }
     config = RunConfig(limits=limits, judgment=args.judgment)
     done: list[dict[str, Any]] = []
-    run_info = run_metadata(model, judgment=args.judgment, corpus=args.corpus, limits=limits)
+    run_info = run_metadata(
+        model,
+        judgment=args.judgment,
+        corpus=args.corpus,
+        limits=limits,
+        model_questions=args.judgment and not args.fixed_questions,
+    )
 
     def save_partial(report: dict[str, Any]) -> None:
         done.append(report)

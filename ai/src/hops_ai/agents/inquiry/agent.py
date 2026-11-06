@@ -10,8 +10,9 @@
 """
 
 from collections.abc import Mapping, Sequence
+from typing import Literal
 
-from hops_ai.agents.inquiry.asking import build_question
+from hops_ai.agents.inquiry.asking import question_from_plan, question_plan
 from hops_ai.agents.inquiry.extraction import (
     DETAIL_FIELDS,
     MAX_OUTPUT_TOKENS,
@@ -24,10 +25,31 @@ from hops_ai.agents.inquiry.extraction import (
     ground,
     ground_unknown,
 )
-from hops_ai.agents.inquiry.forms import FIELD_LABELS, plan_next
+from hops_ai.agents.inquiry.forms import FIELD_LABELS, QuestionPlan, plan_next
+from hops_ai.agents.inquiry.question_text import (
+    MAX_OUTPUT_TOKENS as QUESTION_MAX_OUTPUT_TOKENS,
+)
+from hops_ai.agents.inquiry.question_text import (
+    PROMPT_VERSION as QUESTION_PROMPT_VERSION,
+)
+from hops_ai.agents.inquiry.question_text import (
+    RESERVED_CALLS as QUESTION_RESERVED_CALLS,
+)
+from hops_ai.agents.inquiry.question_text import (
+    SYSTEM_PROMPT as QUESTION_SYSTEM_PROMPT,
+)
+from hops_ai.agents.inquiry.question_text import (
+    QuestionDraft,
+    RejectedQuestion,
+    validate_text,
+)
+from hops_ai.agents.inquiry.question_text import (
+    build_user_payload as build_question_payload,
+)
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult, ProblemAnalysis
 from hops_ai.contracts.state import RoleRequest
+from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import (
     EvidenceStatement,
     InputProblem,
@@ -37,7 +59,7 @@ from hops_ai.contracts.wire import (
     QuestionProposal,
     RequestDetails,
 )
-from hops_ai.harness.errors import OutputRejected
+from hops_ai.harness.errors import OutputRejected, TransientError
 from hops_ai.rules.analysis import (
     allowed_feature_ids,
     normalize_keywords,
@@ -53,7 +75,13 @@ from hops_ai.services.shared import SharedServices
 class ExtractionInquiryAgent:
     role = AgentRole.INQUIRY
 
-    def __init__(self, *, guide_first: bool = False, defer_questions: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        guide_first: bool = False,
+        defer_questions: bool = False,
+        generate_questions: bool = False,
+    ) -> None:
         """guide_first: 승인 가이드를 먼저 찾을 수 있을 때(Knowledge 연결) 참으로 둔다.
 
         사용법 문의에서 검색에 필요한 정보(시스템, 하려는 작업·화면)만 확보하면 추가 질문 없이
@@ -61,12 +89,13 @@ class ExtractionInquiryAgent:
         """
         self._guide_first = guide_first
         self._defer_questions = defer_questions
+        self._generate_questions = generate_questions
 
     async def run(self, call: RoleRequest, services: SharedServices) -> InquiryResult:
 
         services.runtime.ensure_active()
         if call.action == "ASK":
-            return self._ask(call)
+            return await self._ask(call, services)
         request = call.state["input"]
         existing = list(request.problems)
         # Knowledge가 그 문제를 오류 없이 검색했지만 안내를 만들지 못했다면 사용법 문제는 안내 대신
@@ -127,17 +156,74 @@ class ExtractionInquiryAgent:
             analysis=analysis,
         )
 
-    def _ask(self, call: RoleRequest) -> InquiryResult:
-        """대상 문제 하나의 질문만 만든다. 모델을 부르지 않고 양식 규칙으로 정한다."""
+    async def _ask(self, call: RoleRequest, services: SharedServices) -> InquiryResult:
+        """대상 문제 하나의 질문을 만든다. 무엇을 물을지는 항상 양식 규칙이 정한다.
+
+        generate_questions가 켜져 있으면 문장을 모델이 쓰고, 실패하거나 규칙을 어기면 고정 문구를
+        쓴다. 예산·취소·기한 예외는 질문 실패가 아니라 실행 실패라서 그대로 전달한다.
+        """
         if len(call.targets) != 1:
             raise OutputRejected("질문 행동은 문제 하나를 대상으로 한다")
         ref = call.targets[0]
         # 검색했는지는 이번 실행의 검색 결과가 그 문제에 있는지로 안다.
         searched = ref in searched_queries(call.state)
-        question = build_question(call.state, ref, searched=searched)
+        plan = question_plan(call.state, ref, searched=searched)
+        text: str | None = None
+        source: Literal["FIXED", "MODEL", "FIXED_FALLBACK"] = "FIXED"
+        fallback: str | None = None
+        if self._generate_questions and plan.action == "ASK":
+            text, fallback = await self._write_question(call, ref, plan, services)
+            source = "MODEL" if text is not None else "FIXED_FALLBACK"
+        question = question_from_plan(call.state, ref, plan, text)
         return InquiryResult(
-            invocationId=call.invocation_id, problems=[], questions=[question], analysis=[]
+            invocationId=call.invocation_id,
+            problems=[],
+            questions=[question],
+            analysis=[],
+            questionSource=source,
+            questionFallback=fallback,
         )
+
+    @staticmethod
+    async def _write_question(
+        call: RoleRequest, ref: str, plan: QuestionPlan, services: SharedServices
+    ) -> tuple[str | None, str | None]:
+        """모델이 쓴 질문 문장과 대체 사유. 문장을 못 얻으면 (None, 사유 코드)다."""
+        state = call.state
+        budget = services.runtime.budget
+        remaining_output = state["input"].limits.maxOutputTokens - state["usage"]["outputTokens"]
+        if (
+            budget.max_llm_calls - budget.llm_calls_used < 1 + QUESTION_RESERVED_CALLS
+            or remaining_output <= 0
+        ):
+            return None, "BUDGET"
+        original = next((item for item in state["input"].problems if item.id == ref), None)
+        asked = original.questionCount if original is not None else 0
+        system_names = [system.name for system in state["input"].systems]
+        try:
+            response = await services.llm.generate(
+                LLMRequest(
+                    messages=[
+                        LLMMessage("system", QUESTION_SYSTEM_PROMPT),
+                        LLMMessage(
+                            "user",
+                            build_question_payload(
+                                state["problems"][ref], plan, system_names, QUESTION_LIMIT - asked
+                            ),
+                        ),
+                    ],
+                    response_model=QuestionDraft,
+                    max_output_tokens=min(QUESTION_MAX_OUTPUT_TOKENS, remaining_output),
+                    prompt_version=QUESTION_PROMPT_VERSION,
+                )
+            )
+        except (OutputRejected, TransientError):
+            return None, "MODEL_ERROR"
+        services.runtime.ensure_active()
+        try:
+            return validate_text(response.parsed.text, plan, system_names), None
+        except RejectedQuestion as rejected:
+            return None, f"INVALID:{rejected.code}"
 
     @staticmethod
     async def _extract(call: RoleRequest, services: SharedServices) -> InquiryExtraction:
