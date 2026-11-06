@@ -17,7 +17,7 @@ from hops_ai.contracts.wire import ProblemProposal
 from hops_ai.rules.assessment import allowed_fields
 from hops_ai.services.retrieval.knowledge_source import KnowledgeHit
 
-PROMPT_VERSION = "knowledge.assessment.v1"
+PROMPT_VERSION = "knowledge.assessment.v2"
 MAX_OUTPUT_TOKENS = 900
 # 근거 하나의 본문을 모델에 줄 때의 글자 상한. 한 번에 최대 5건이다.
 MAX_EVIDENCE_CHARS = 2000
@@ -36,6 +36,13 @@ SYSTEM_PROMPT = """\
    - PARTIAL: 관련이 있고 일부는 해결되지만 더 알아야 안내할 수 있다.
    - INSUFFICIENT: 주제는 관련 있으나 이 문제를 해결할 정보가 evidence에 없다.
    - NO_MATCH: evidence가 이 문제와 관련이 없다.
+   SUFFICIENT는 문제의 종류에 맞는 정보가 evidence에 직접 있을 때만 쓴다.
+   - 문의가 사용법·절차를 묻는 것이면 그 절차가 evidence에 적혀 있어야 한다.
+   - 문의가 증상이나 오류(원하는 대로 되지 않는 상황)이면 evidence가 그 증상의 원인이나 해결
+     방법을 직접 다뤄야 한다. 사용법 안내가 증상과 관련된 화면이나 기능을 설명하더라도 그
+     증상의 원인을 가려내지 못하면 PARTIAL이다.
+   - evidence가 자신이 다루는 범위의 한계를 밝히면(예: 이 안내는 ~만 다룬다, ~는 따로 문의한다)
+     그 한계 밖의 문제에는 SUFFICIENT를 쓰지 않는다.
 3. supportingEvidenceIds에는 판단에 쓴 evidence의 id만 적는다. NO_MATCH는 빈 목록이다.
    SUFFICIENT와 PARTIAL은 하나 이상 적는다. accessScope가 EMPLOYEE인 evidence가 SUFFICIENT의
    근거가 된다.

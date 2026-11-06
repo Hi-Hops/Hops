@@ -80,7 +80,7 @@ async def test_judgment_replay_runs_the_problem_action_path_and_records_it() -> 
     assert [item.prompt_version for item in llm.requests] == [
         "inquiry-extraction-v6",
         "supervisor.selection.v1",
-        "knowledge.assessment.v1",
+        "knowledge.assessment.v2",
     ]
     assert first.model_calls == 3
     # 분석 → 검색·판정 → 고른 질문 행동을 Inquiry가 코드로 질문으로 만든다(모델 호출 없음)

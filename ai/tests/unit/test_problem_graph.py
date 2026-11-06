@@ -71,7 +71,7 @@ async def test_an_answerable_how_to_ends_with_the_guide_and_no_selection_call() 
 
     assert result.status == "SUCCEEDED"
     assert result.guide is not None and result.questions == [] and result.ticketProposals == []
-    assert prompt_versions(llm) == ["inquiry-extraction-v6", "knowledge.assessment.v1"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v6", "knowledge.assessment.v2"]
 
 
 async def test_a_partial_verdict_with_something_to_ask_ends_in_the_question_not_the_guide() -> None:
@@ -155,7 +155,7 @@ async def test_the_model_picks_between_the_legal_actions_at_each_fork() -> None:
     assert prompt_versions(llm) == [
         "inquiry-extraction-v6",
         "supervisor.selection.v1",
-        "knowledge.assessment.v1",
+        "knowledge.assessment.v2",
         "supervisor.selection.v1",
     ]
     schema = llm.requests[1].response_schema["properties"]["decisions"]["properties"]

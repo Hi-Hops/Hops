@@ -13,7 +13,12 @@ from dataclasses import asdict
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from hops_ai.harness.errors import ComponentNotReady, OutputRejected, TransientError
+from hops_ai.harness.errors import (
+    ComponentNotReady,
+    MalformedOutput,
+    OutputRejected,
+    TransientError,
+)
 from hops_ai.services.llm.client import LLMRequest, LLMResponse, LLMUsage
 
 _BASE_URL = "https://api.openai.com/v1/"
@@ -120,7 +125,7 @@ class OpenAIClient:
         try:
             parsed = request.response_model.model_validate_json("".join(texts))
         except ValidationError as exc:
-            raise OutputRejected(
+            raise MalformedOutput(
                 f"모델 출력이 형식을 어겼습니다({_violations(exc)}, 출력 텍스트 {len(texts)}개)"
             ) from exc
         return LLMResponse(parsed=parsed, usage=usage, model_id=model_id)

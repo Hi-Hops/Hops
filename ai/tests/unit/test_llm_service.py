@@ -9,6 +9,7 @@ from hops_ai.harness.budget import RunBudget
 from hops_ai.harness.errors import (
     BudgetExceeded,
     LlmCallLimitExceeded,
+    MalformedOutput,
     OutputRejected,
     RunCancelled,
     TransientError,
@@ -323,3 +324,27 @@ async def test_input_token_limit_is_absent_when_the_run_has_none(clock, make_set
     await client.generate(make_request())
 
     assert fake.requests[0].max_input_tokens is None
+
+
+async def test_a_malformed_model_output_is_retried_through_the_budgeted_client(
+    clock, make_settings
+) -> None:
+    fake = FakeLLMClient(MalformedOutput("형식 위반"), Reply(text="ok"))
+    client, budget, _ = budgeted(fake, clock, make_settings)
+
+    response = await client.generate(make_request())
+
+    assert response.parsed == Reply(text="ok")
+    assert len(fake.requests) == 2 and budget.llm_calls_used == 2
+
+
+async def test_a_plain_output_rejection_is_not_retried_by_the_budgeted_client(
+    clock, make_settings
+) -> None:
+    fake = FakeLLMClient(OutputRejected("거부"), Reply(text="unused"))
+    client, budget, _ = budgeted(fake, clock, make_settings)
+
+    with pytest.raises(OutputRejected):
+        await client.generate(make_request())
+
+    assert len(fake.requests) == 1

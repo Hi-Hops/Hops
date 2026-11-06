@@ -8,6 +8,7 @@ from hops_ai.harness.errors import (
     CallTimeoutError,
     DeadlineExceeded,
     LlmCallLimitExceeded,
+    MalformedOutput,
     OutputRejected,
     PolicyDenied,
     RunCancelled,
@@ -307,3 +308,66 @@ async def test_run_wide_retry_limit_is_shared_across_calls(clock, make_settings,
     assert second.calls == 1
     assert budget.retries_used == 1
     assert budget.llm_calls_used == 3
+
+
+# --- 형식 위반(MalformedOutput)은 다시 시도하고, 다른 거부는 그대로 실패한다 ---
+
+
+async def test_a_malformed_output_is_retried_with_backoff_until_success(
+    clock, make_settings, sleeper
+) -> None:
+    budget = budget_for(clock, make_settings, max_auto_retries=2)
+    operation = Script(MalformedOutput("형식 위반"), "ok")
+
+    result = await call_with_retry(operation, budget, sleep=sleeper, rng=lambda: 1.0)
+
+    assert result == "ok" and operation.calls == 2
+    assert budget.llm_calls_used == 2 and budget.retries_used == 1
+    assert sleeper.delays == [0.5]  # 서버가 알려 준 대기가 없으니 백오프를 쓴다
+
+
+async def test_malformed_output_stops_at_the_retry_limit_and_stays_invalid_output(
+    clock, make_settings, sleeper
+) -> None:
+    budget = budget_for(clock, make_settings, max_auto_retries=2)
+    operation = Script(*[MalformedOutput("형식 위반")] * 3)
+
+    with pytest.raises(MalformedOutput) as caught:
+        await call_with_retry(operation, budget, sleep=sleeper, rng=lambda: 1.0)
+
+    assert operation.calls == 3
+    assert caught.value.code == "INVALID_OUTPUT" and caught.value.retryable is False
+
+
+async def test_malformed_output_cannot_retry_past_the_call_limit(
+    clock, make_settings, sleeper
+) -> None:
+    budget = budget_for(clock, make_settings, max_llm_calls=2, max_auto_retries=2)
+    operation = Script(MalformedOutput("a"), MalformedOutput("b"), "unused")
+
+    with pytest.raises(LlmCallLimitExceeded):
+        await call_with_retry(operation, budget, sleep=sleeper, rng=lambda: 1.0)
+
+    assert operation.calls == 2
+
+
+async def test_malformed_output_does_not_retry_when_retries_are_disabled(
+    clock, make_settings, sleeper
+) -> None:
+    budget = budget_for(clock, make_settings, max_auto_retries=0)
+    operation = Script(MalformedOutput("형식 위반"), "unused")
+
+    with pytest.raises(MalformedOutput):
+        await call_with_retry(operation, budget, sleep=sleeper)
+
+    assert operation.calls == 1
+
+
+async def test_a_plain_output_rejection_is_still_not_retried(clock, make_settings, sleeper) -> None:
+    budget = budget_for(clock, make_settings, max_auto_retries=2)
+    operation = Script(OutputRejected("거부"), "unused")
+
+    with pytest.raises(OutputRejected):
+        await call_with_retry(operation, budget, sleep=sleeper)
+
+    assert operation.calls == 1

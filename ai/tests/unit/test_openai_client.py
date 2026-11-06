@@ -6,7 +6,12 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-from hops_ai.harness.errors import ComponentNotReady, OutputRejected, TransientError
+from hops_ai.harness.errors import (
+    ComponentNotReady,
+    MalformedOutput,
+    OutputRejected,
+    TransientError,
+)
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.llm.openai import OpenAIClient
 
@@ -288,3 +293,16 @@ async def test_the_contract_error_still_uses_the_fixed_message_not_the_detail() 
     failure = describe_failure(error)
     assert failure.error.message == OutputRejected.safe_message
     assert "incomplete" not in failure.error.message
+
+
+async def test_only_a_format_violation_is_marked_as_retriable() -> None:
+    violation = await rejection(completed('{"unexpected": 1}'))
+    refusal_body = completed()
+    refusal_body["output"] = [{"type": "message", "content": [{"type": "refusal"}]}]
+    refusal = await rejection(refusal_body)
+    incomplete = await rejection({**completed(), "status": "incomplete"})
+    structure = await rejection({"status": "completed", "model": "m", "output": [], "usage": {}})
+
+    assert isinstance(violation, MalformedOutput)
+    for other in (refusal, incomplete, structure):
+        assert type(other) is OutputRejected
