@@ -25,6 +25,7 @@ from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult
 from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.rules.intent_policy import is_guide_type
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
@@ -99,7 +100,7 @@ def guidable_problem(state: SupervisorState) -> ProblemProposal | None:
         if item["outcome"] is not None:
             continue
         problem = state["problems"][item["problemRef"]]
-        if problem.processingType != "KNOWLEDGE_QA" or not problem.reportedSystemCandidateId:
+        if not is_guide_type(problem.processingType) or not problem.reportedSystemCandidateId:
             continue
         digests = searched.get(problem.problemRef, set())
         # 지문이 없는 결과는 어떤 질의였는지 알 수 없어 다시 검색하지 않는다.

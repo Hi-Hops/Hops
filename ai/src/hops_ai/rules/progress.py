@@ -12,11 +12,6 @@ from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import AiRunRequest, KnowledgeEvidence
 from hops_ai.harness.errors import OutputRejected
 
-# 담당자가 처리하는 유형. 사용법(KNOWLEDGE_QA)은 안내로, 범위 밖은 범위 안내로 끝난다.
-TICKETABLE_TYPES = frozenset(
-    {"SERVICE_REQUEST", "INVESTIGATION", "CHANGE_REQUEST", "REVIEW_REQUIRED"}
-)
-
 
 def get_problem_knowledge(
     state: "SupervisorState", problem_ref: str

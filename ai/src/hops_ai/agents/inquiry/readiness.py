@@ -10,7 +10,8 @@ from hops_ai.agents.inquiry.extraction import DETAIL_FIELDS
 from hops_ai.agents.inquiry.forms import FIELD_LABELS, missing_fields
 from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.state import SupervisorState
-from hops_ai.rules.progress import TICKETABLE_TYPES, get_problem_progress, problems_without_guide
+from hops_ai.rules.intent_policy import is_guide_type, is_ticketable
+from hops_ai.rules.progress import get_problem_progress, problems_without_guide
 
 
 class HandoffReadiness(TypedDict):
@@ -38,7 +39,7 @@ def get_handoff_readiness(state: SupervisorState) -> list[HandoffReadiness]:
         problem = state["problems"][item["problemRef"]]
         if (
             item["outcome"] is not None
-            or problem.processingType != "KNOWLEDGE_QA"
+            or not is_guide_type(problem.processingType)
             or item["problemRef"] not in no_guide
         ):
             continue
@@ -102,10 +103,7 @@ def inquiry_has_nothing_left_to_do(state: SupervisorState) -> bool:
         problem = state["problems"][item["problemRef"]]
         # 분석이 끝난 조사·신청 등의 다음 단계는 Ticket이다. 같은 입력을 다시 추출해도
         # 필요한 정보가 늘지 않는다. 미검색 사용법이나 시스템 미확인 문제는 제외하지 않는다.
-        if (
-            problem.processingType not in TICKETABLE_TYPES
-            or problem.reportedSystemCandidateId is None
-        ):
+        if not is_ticketable(problem.processingType) or problem.reportedSystemCandidateId is None:
             return False
         missing = missing_fields(
             problem.intent,

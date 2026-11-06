@@ -36,20 +36,10 @@ from hops_ai.contracts.wire import (
     RequestDetails,
 )
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.intent_policy import is_guide_type, policy_for
 from hops_ai.rules.progress import problems_without_guide
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
-
-# 의도에서 규칙으로 정하는 처리 유형. 모델이 정하지 않으며 새 장애(INCIDENT)는 확정하지 않는다.
-PROCESSING_TYPES: Mapping[str, ProcessingType] = {
-    "HOW_TO": "KNOWLEDGE_QA",
-    "ACCESS_REQUEST": "SERVICE_REQUEST",
-    "OBSERVED_SYMPTOM": "INVESTIGATION",
-    "FEATURE_REQUEST": "CHANGE_REQUEST",
-    "IMPROVEMENT_REQUEST": "CHANGE_REQUEST",
-    "UNKNOWN": "REVIEW_REQUIRED",
-    "OUT_OF_SCOPE": "OUT_OF_SCOPE",
-}
 
 
 class ExtractionInquiryAgent:
@@ -154,7 +144,8 @@ def _assemble(
         system_id = original.reportedSystemId or system_ids.get(extracted.systemCode or "")
     else:
         intent = extracted.intent
-        processing_type = PROCESSING_TYPES[intent]
+        # 처리 유형은 의도별 정책 표가 정한다. 모델이 정하지 않는다.
+        processing_type = policy_for(intent).processing_type
         system_id = system_ids.get(extracted.systemCode or "")
 
     if previous is not None and system_id is None:
@@ -170,7 +161,7 @@ def _assemble(
         question_count=original.questionCount if original is not None else 0,
         unknown=declared_unknown,
         guide_first=guide_first,
-        handoff=knowledge_empty and processing_type == "KNOWLEDGE_QA",
+        handoff=knowledge_empty and is_guide_type(processing_type),
     )
 
     facts = _carry_facts(

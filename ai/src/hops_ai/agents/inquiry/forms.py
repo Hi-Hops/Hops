@@ -22,6 +22,7 @@ from typing import Literal
 
 from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import Intent
+from hops_ai.rules.intent_policy import INTENT_POLICIES
 
 # 시스템은 RequestDetails 필드가 아니라 문제의 보고 시스템 후보로 확인한다.
 SYSTEM = "system"
@@ -30,28 +31,29 @@ SYSTEM = "system"
 MAX_QUESTIONS_PER_PROBLEM = QUESTION_LIMIT
 MAX_FIELDS_PER_QUESTION = 3
 
+# 아래 세 표의 값은 의도별 정책 표(rules.intent_policy)가 정본이다. 여기서는 의도 이름으로
+# 바로 찾을 수 있게 펼쳐 둘 뿐이며 값을 따로 정의하지 않는다.
+
 # 의도별로 처리에 꼭 필요한 정보. 앞에 있을수록 먼저 묻는다.
 REQUIRED_FIELDS: Mapping[str, tuple[str, ...]] = {
-    "HOW_TO": ("taskOrScreen", "currentWorkflow"),
-    "ACCESS_REQUEST": ("requestedAccess", "businessPurpose"),
-    "OBSERVED_SYMPTOM": ("taskOrScreen", "expectedBehavior", "actualBehavior", "occurredAt"),
-    "FEATURE_REQUEST": ("currentWorkflow", "desiredChange"),
-    "IMPROVEMENT_REQUEST": ("currentWorkflow", "desiredChange"),
-    # 의도를 모르면 무엇을 하려는지부터 확인한다.
-    "UNKNOWN": ("taskOrScreen",),
+    intent: policy.required_fields for intent, policy in INTENT_POLICIES.items()
 }
 
 # 승인된 가이드를 먼저 찾을 수 있을 때(Knowledge 연결) 안내 전에 확보할 정보.
 # 사용법은 PRD 기준으로 시스템과 하려는 작업·화면만 알면 검색을 시작할 수 있다.
 # 검색 결과가 없을 때 담당자 전달에 필요한 나머지 정보는 그 뒤에 확인한다.
 GUIDE_FIRST_FIELDS: Mapping[str, tuple[str, ...]] = {
-    "HOW_TO": ("taskOrScreen",),
+    intent: policy.guide_first_fields
+    for intent, policy in INTENT_POLICIES.items()
+    if policy.guide_first_fields is not None
 }
 
 # 승인된 가이드를 찾지 못해(Knowledge EMPTY) 담당자에게 넘길 수 있는 상태가 됐을 때 확보할 정보.
 # 사용법의 우선 확인 항목에 원하는 결과를 더한다. 계약에 없는 정보(사용자 역할 등)는 묻지 않는다.
 HANDOFF_FIELDS: Mapping[str, tuple[str, ...]] = {
-    "HOW_TO": ("taskOrScreen", "expectedBehavior"),
+    intent: policy.handoff_fields
+    for intent, policy in INTENT_POLICIES.items()
+    if policy.handoff_fields is not None
 }
 
 # 담당자 전달용 질문에서만 쓰는 문구. 사용법에 맞지 않는 기본 문구를 대신한다.

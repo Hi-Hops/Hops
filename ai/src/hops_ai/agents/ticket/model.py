@@ -15,8 +15,8 @@ from hops_ai.contracts.roles import TicketResult
 from hops_ai.contracts.state import RoleRequest, SupervisorState
 from hops_ai.contracts.wire import ProblemProposal, StandardRequestBody, TicketProposal
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.intent_policy import is_guide_type, is_ticketable
 from hops_ai.rules.progress import (
-    TICKETABLE_TYPES,
     get_problem_knowledge,
     get_problem_message_ids,
     get_problem_progress,
@@ -43,8 +43,8 @@ class ModelTicketAgent:
             if ref in pending
             and p.reportedSystemCandidateId is not None
             and (
-                p.processingType in TICKETABLE_TYPES
-                or (p.processingType == "KNOWLEDGE_QA" and ref in no_guide)
+                is_ticketable(p.processingType)
+                or (is_guide_type(p.processingType) and ref in no_guide)
             )
         }
 
@@ -148,7 +148,7 @@ class ModelTicketAgent:
                 title=decision.title,
                 processingType=(
                     "REVIEW_REQUIRED"
-                    if problem.processingType == "KNOWLEDGE_QA"
+                    if is_guide_type(problem.processingType)
                     else problem.processingType
                 ),
                 responsibleSystemCandidateId=system_id,
