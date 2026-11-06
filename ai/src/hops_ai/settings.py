@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from psycopg import ProgrammingError
 from psycopg.conninfo import conninfo_to_dict
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -84,6 +84,15 @@ class Settings(BaseSettings):
     # RunLedger 주기 작업 간격. 중단된 다른 인스턴스의 run 복구와 보존 기간이 지난 결과 상세 만료.
     ledger_recovery_interval_seconds: float = Field(default=60, gt=0)
     ledger_expiry_interval_seconds: float = Field(default=3600, gt=0)
+
+    @field_validator("spring_base_url", "spring_service_token", mode="before")
+    @classmethod
+    def _blank_spring_setting_is_unset(cls, value: object) -> object:
+        # Compose는 값이 없으면 빈 문자열을 넣는다. 빈 값은 "형식이 틀린 값"이 아니라
+        # "설정하지 않음"이며, real 모드에서 필요한데 비어 있으면 연결 시점에 설정 누락으로 알린다.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="after")
     def _call_timeout_fits_in_deadline(self) -> "Settings":

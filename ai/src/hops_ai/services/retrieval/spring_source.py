@@ -89,7 +89,10 @@ class _SpringReader:
 
     def __init__(self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None):
         if not settings.spring_base_url or not settings.spring_service_token:
-            raise ComponentNotReady("Spring 지식 검색 주소·인증")
+            raise ComponentNotReady(
+                "Spring 지식 검색 주소·인증",
+                missing="HOPS_AI_SPRING_BASE_URL, SPRING_SERVICE_TOKEN",
+            )
         self._settings = settings
         self._transport = transport
 
