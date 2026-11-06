@@ -279,8 +279,8 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
             <nav className={styles.tabs} aria-label="티켓 상세 탭">
               {[
                 ['request', '요청·관련 대화'],
-                ['work', '처리·검증'],
-                ['case', '사례'],
+                ['work', '문의 처리 기록'],
+                ['case', '해결 사례'],
               ].map(([value, label]) => (
                 <Link
                   key={value}
@@ -309,7 +309,7 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
                 <>
                   <WorkRecordEditor ticket={data} />
                   <section className={styles.requestCard}>
-                    <h3>처리 기록 이력</h3>
+                    <h3>문의 처리 기록 이력</h3>
                     {data.workRecords.length ? (
                       [...data.workRecords].reverse().map((record) => (
                         <article key={record.id} className={workflow.record}>
@@ -322,7 +322,7 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
                             · {record.author.name}
                           </strong>
                           <p>{record.action}</p>
-                          {record.verification && <p>검증: {record.verification}</p>}
+                          {record.verification && <p>동작 확인: {record.verification}</p>}
                           <p>
                             확인된 원인: {record.confirmedCause ?? '미확인'} · 적용 버전:{' '}
                             {record.appliesToSystemVersion ?? '미확인'}
@@ -331,7 +331,7 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
                         </article>
                       ))
                     ) : (
-                      <p>아직 저장된 처리 기록이 없어요.</p>
+                      <p>아직 저장된 문의 처리 기록이 없어요.</p>
                     )}
                   </section>
                   {data.activeResolutionRequest && (

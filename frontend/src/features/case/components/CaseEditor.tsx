@@ -149,7 +149,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
               }}
             />
           </FormField>
-          <FormField id="case-verification" label="검증 결과">
+          <FormField id="case-verification" label="동작 확인 결과">
             <textarea
               id="case-verification"
               value={values.verification ?? ''}
@@ -202,7 +202,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
         <p className={styles.hint}>
           출처:{' '}
           {version.origin === 'SYNTHETIC'
-            ? '가상 처리 기록'
+            ? '가상 문의 처리 기록'
             : version.origin === 'DEMO_VERIFIED'
               ? '데모 검증 기록'
               : version.origin === 'OPERATIONAL'
@@ -222,7 +222,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
                 <dd>{version.problemStatement}</dd>
                 <dt>조치</dt>
                 <dd>{version.action}</dd>
-                <dt>검증</dt>
+                <dt>동작 확인</dt>
                 <dd>{version.verification}</dd>
                 <dt>적용 조건</dt>
                 <dd>{version.applicability}</dd>
@@ -278,7 +278,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
           )}
           {source.isSuccess && resolution.isSuccess && !matchingSource && (
             <p role="alert">
-              원 처리 기록과 확인 요청의 연결을 검증하지 못했어요. 승인할 수 없어요.
+              원 문의 처리 기록과 확인 요청의 연결을 검증하지 못했어요. 승인할 수 없어요.
             </p>
           )}
           {editable && (
@@ -306,7 +306,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
                     setReviewed(e.target.checked);
                   }}
                 />
-                원문·실제 조치·검증·적용 조건·공개 범위와 민감정보를 확인했어요
+                원문·처리 내용·동작 확인·적용 조건·공개 범위와 민감정보를 확인했어요
               </label>
               <Button
                 disabled={

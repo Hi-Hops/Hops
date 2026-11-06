@@ -28,7 +28,7 @@ export function ResolutionControls({ request }: ResolutionControlsProps) {
         {request.source === 'GUIDE'
           ? '저장된 안내'
           : request.source === 'WORK_RECORD'
-            ? '담당자 검증 기록'
+            ? '담당자 문의 처리 기록'
             : '확인 출처 미확인'}{' '}
         ·
         {request.confirmationOrigin === 'SYNTHETIC_PRESET'

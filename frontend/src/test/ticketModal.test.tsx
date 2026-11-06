@@ -65,15 +65,15 @@ describe('F009 티켓 상세 모달', () => {
     const titleMatches = (name: string) => name.includes(ticket.title);
     await user.click(await screen.findByRole('link', { name: titleMatches }));
     const dialog = await screen.findByRole('dialog');
-    await user.click(await within(dialog).findByRole('link', { name: '처리·검증' }));
+    await user.click(await within(dialog).findByRole('link', { name: '문의 처리 기록' }));
     expect(screen.getByRole('dialog')).toBe(dialog);
     expect(router.state.location.pathname).toBe(`/tickets/${ticket.id}`);
-    await user.type(within(dialog).getByRole('textbox', { name: '실제 조치' }), '작성 중인 조치');
-    await user.click(within(dialog).getByRole('link', { name: '사례' }));
+    await user.type(within(dialog).getByRole('textbox', { name: '처리 내용' }), '작성 중인 조치');
+    await user.click(within(dialog).getByRole('link', { name: '해결 사례' }));
     await user.click(within(dialog).getByRole('link', { name: '요청·관련 대화' }));
     expect(await within(dialog).findByRole('heading', { name: '표준 요청' })).toBeVisible();
-    await user.click(within(dialog).getByRole('link', { name: '처리·검증' }));
-    expect(within(dialog).getByRole('textbox', { name: '실제 조치' })).toHaveValue(
+    await user.click(within(dialog).getByRole('link', { name: '문의 처리 기록' }));
+    expect(within(dialog).getByRole('textbox', { name: '처리 내용' })).toHaveValue(
       '작성 중인 조치',
     );
     await act(() => router.navigate(-1));
@@ -82,7 +82,7 @@ describe('F009 티켓 상세 모달', () => {
     expect(new URLSearchParams(router.state.location.search)).toEqual(new URLSearchParams(filters));
     await act(() => router.navigate(1));
     const reopened = await screen.findByRole('dialog');
-    expect(await within(reopened).findByRole('textbox', { name: '실제 조치' })).toHaveValue(
+    expect(await within(reopened).findByRole('textbox', { name: '처리 내용' })).toHaveValue(
       '작성 중인 조치',
     );
     await user.click(within(reopened).getByRole('button', { name: '상세 닫기' }));
@@ -107,7 +107,7 @@ describe('F009 티켓 상세 모달', () => {
       const user = userEvent.setup();
       await user.click(await screen.findByRole('link', { name: '원 티켓 보기' }));
       const dialog = await screen.findByRole('dialog');
-      await user.click(await within(dialog).findByRole('link', { name: '사례' }));
+      await user.click(await within(dialog).findByRole('link', { name: '해결 사례' }));
       if (close === 'Escape') await user.keyboard('{Escape}');
       else await user.click(within(dialog).getByRole('button', { name: '상세 닫기' }));
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -126,7 +126,7 @@ describe('F009 티켓 상세 모달', () => {
       const router = renderTickets(`/tickets/${ticket.id}?${filters}&tab=work`);
       const user = userEvent.setup();
       const dialog = await screen.findByRole('dialog');
-      expect(await within(dialog).findByRole('textbox', { name: '실제 조치' })).toBeVisible();
+      expect(await within(dialog).findByRole('textbox', { name: '처리 내용' })).toBeVisible();
       // 모달 뒤의 목록은 닫은 뒤 포커스를 돌려줄 대상으로 유지한다.
       expect(
         screen.getByRole('heading', { name: '담당 시스템 업무', hidden: true }),
@@ -148,15 +148,15 @@ describe('F009 티켓 상세 모달', () => {
     const user = userEvent.setup();
     const dialog = await screen.findByRole('dialog');
     await user.type(
-      await within(dialog).findByRole('textbox', { name: '실제 조치' }),
+      await within(dialog).findByRole('textbox', { name: '처리 내용' }),
       '접근 설정을 점검했어요.',
     );
-    await user.click(within(dialog).getByRole('button', { name: '처리 기록 저장' }));
+    await user.click(within(dialog).getByRole('button', { name: '문의 처리 기록 저장' }));
     expect(
       await within(dialog).findByText('접근 설정을 점검했어요.', { selector: 'p' }),
     ).toBeVisible();
     await waitFor(() =>
-      expect(within(dialog).getByRole('textbox', { name: '실제 조치' })).toHaveValue(''),
+      expect(within(dialog).getByRole('textbox', { name: '처리 내용' })).toHaveValue(''),
     );
     expect(screen.getByRole('dialog')).toBe(dialog);
   });
@@ -169,7 +169,7 @@ describe('F009 티켓 상세 모달', () => {
     renderTickets(`/admin/tickets/${ticket.id}?tab=work`);
     const dialog = await screen.findByRole('dialog');
     expect(await within(dialog).findByRole('heading', { name: '업무 메타데이터' })).toBeVisible();
-    expect(within(dialog).queryByRole('textbox', { name: '실제 조치' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('textbox', { name: '처리 내용' })).not.toBeInTheDocument();
     expect(
       within(dialog).queryByRole('navigation', { name: '티켓 상세 탭' }),
     ).not.toBeInTheDocument();

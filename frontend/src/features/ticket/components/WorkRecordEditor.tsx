@@ -50,9 +50,12 @@ export function WorkRecordEditor({ ticket }: WorkRecordEditorProps) {
       Boolean(values[key] && contentError(values[key])),
     );
   return (
-    <section className={styles.panel} aria-label="처리·검증 기록 입력">
-      <h2>처리·검증 기록</h2>
-      <p>실제 조치와 검증을 기록해 주세요. 검증 완료 기록은 문의자에게 해결 확인을 요청해요.</p>
+    <section className={styles.panel} aria-label="문의 처리 기록 입력">
+      <h2>문의 처리 기록</h2>
+      <p>
+        처리한 내용과 동작 확인 결과를 기록해 주세요. 처리 완료 기록은 문의자에게 해결 확인을
+        요청해요.
+      </p>
       {!permitted ? (
         <p role="status">현재 주담당자만 미완료 티켓에 기록할 수 있어요.</p>
       ) : (
@@ -78,7 +81,7 @@ export function WorkRecordEditor({ ticket }: WorkRecordEditorProps) {
           }}
         >
           <fieldset disabled={command.locked}>
-            <FormField id="work-action" label="실제 조치">
+            <FormField id="work-action" label="처리 내용">
               <textarea
                 id="work-action"
                 value={values.action ?? ''}
@@ -89,7 +92,7 @@ export function WorkRecordEditor({ ticket }: WorkRecordEditorProps) {
             </FormField>
             <FormField
               id="work-verification"
-              label={verified ? '검증 결과 (필수)' : '검증 결과 (선택)'}
+              label={verified ? '동작 확인 결과 (필수)' : '동작 확인 결과 (선택)'}
             >
               <textarea
                 id="work-verification"
@@ -151,7 +154,7 @@ export function WorkRecordEditor({ ticket }: WorkRecordEditorProps) {
           </fieldset>
           <p className={styles.hint}>
             각 항목은 4,000자까지 작성할 수 있어요. 진행·실패 시도는 이력만 저장해요. 확인 대기
-            중에는 새 검증 완료 기록으로 요청을 교체할 수 없어요.
+            중에는 새 처리 완료 기록으로 요청을 교체할 수 없어요.
           </p>
           {Object.values(values).some((value) => Boolean(value && contentError(value))) && (
             <p role="alert">
@@ -175,7 +178,7 @@ export function WorkRecordEditor({ ticket }: WorkRecordEditorProps) {
               (!command.pending && (invalid || !kindAllowed || draft.stale))
             }
           >
-            {command.label ?? (verified ? '기록 저장·해결 확인 요청' : '처리 기록 저장')}
+            {command.label ?? (verified ? '기록 저장·해결 확인 요청' : '문의 처리 기록 저장')}
           </Button>
           {command.error && <p role="alert">{command.error}</p>}
           {command.notice && <p role="status">{command.notice}</p>}

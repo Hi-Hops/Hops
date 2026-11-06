@@ -43,13 +43,13 @@ export function CaseList() {
       <header className={styles.pageHead}>
         <div>
           <h1 id="page-title" tabIndex={-1}>
-            사례 검토
+            해결 사례 검토
           </h1>
           <p>담당 시스템의 해결 사례 초안과 승인·검색 반영 상태를 확인하세요.</p>
         </div>
       </header>
       {!allowed ? (
-        <ErrorState title="사례 검토 권한이 없어요" />
+        <ErrorState title="해결 사례 검토 권한이 없어요" />
       ) : (
         <section className={styles.panel}>
           <div className={styles.toolbar}>
@@ -105,12 +105,12 @@ export function CaseList() {
           ) : !query.data.items.length ? (
             <div className={styles.empty}>
               <h2>검토할 사례가 없어요</h2>
-              <p>검증 완료 기록에서 준비된 사례가 여기에 표시돼요.</p>
+              <p>처리 완료 기록에서 준비된 사례가 여기에 표시돼요.</p>
             </div>
           ) : (
             <div className={styles.tableWrap}>
               <table>
-                <caption>담당 시스템 사례 검토 목록</caption>
+                <caption>담당 시스템 해결 사례 검토 목록</caption>
                 <thead>
                   <tr>
                     <th>사례 제목</th>
