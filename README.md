@@ -44,8 +44,8 @@ done
 #### 2. 필수 설정 입력
 
 - [Frontend 예시](frontend/.env.example): 공개 포트·`VITE_*` 설정과 가상 Mock 값.
-- [Backend 예시](backend/spring/hops/.env.example): PostgreSQL·Spring·JWT·CORS·쿠키 설정. `POSTGRES_PASSWORD`와 ASCII 32자 이상의 `HOPS_JWT_SECRET`을 입력합니다. Compose가 같은 DB 값을 PostgreSQL과 Spring datasource에 각각 매핑합니다.
-- [AI 예시](ai/.env.example): `HOPS_AI_*`와 기존 선택적인 OpenAI·Langfuse 설정. 주석 처리된 선택 항목은 필요한 경우에만 입력합니다. 외부 연동 자체는 아직 미구현입니다.
+- [Backend 예시](backend/spring/hops/.env.example): PostgreSQL·Spring·JWT·CORS·쿠키 설정. `POSTGRES_PASSWORD`와 ASCII 32자 이상의 `HOPS_JWT_SECRET`을 입력합니다. AI를 `real` 모드로 실행하면 AI→Spring 내부 API 토큰 `SPRING_SERVICE_TOKEN`도 필요합니다(만드는 법은 예시 파일 주석). Compose가 같은 DB 값을 PostgreSQL과 Spring datasource에 각각 매핑하고, 이 토큰은 AI 컨테이너에도 같은 값으로 전달합니다.
+- [AI 예시](ai/.env.example): `HOPS_AI_*`와 OpenAI·Langfuse 설정. 기본값 `HOPS_AI_MODE=scaffold`는 추가 입력 없이 시작합니다. `real` 모드는 OpenAI 키와 내부 API 설정, 위 `SPRING_SERVICE_TOKEN`이 필요하며 항목은 [AI 실행 안내](ai/README.md)의 `real` 절을 따릅니다. 주석 처리된 항목은 해당 모드나 기능을 쓸 때만 입력합니다.
 
 #### 3. 전체 서비스 실행
 
@@ -119,7 +119,7 @@ docker compose down
 
 #### 기존 루트 설정에서 전환
 
-루트 `.env`의 `VITE_*`·`FRONTEND_PORT`는 Frontend 파일, `POSTGRES_*`·Spring·JWT·CORS·쿠키·`BACKEND_PORT`는 Backend 파일, `HOPS_AI_*`·`AI_SERVICE_TOKEN`·OpenAI·Langfuse·`AI_PORT`는 AI 파일로 옮깁니다. 루트 `.env`의 `COMPOSE_ENV_FILES` 설정도 더 이상 필요하지 않습니다. 루트 `.env`나 셸에 남아 있는 같은 이름의 변수는 서비스별 파일보다 우선하므로, 이전 값을 정리하고 실제 비밀값을 Git에 올리지 않습니다. 값에 `$`나 `#`가 있으면 작은따옴표로 감싸 리터럴 값으로 입력합니다.
+루트 `.env`의 `VITE_*`·`FRONTEND_PORT`는 Frontend 파일, `POSTGRES_*`·Spring·JWT·CORS·쿠키·`BACKEND_PORT`는 Backend 파일, `HOPS_AI_*`·`AI_SERVICE_TOKEN`·OpenAI·Langfuse·`AI_PORT`는 AI 파일로 옮깁니다. AI→Spring 토큰 `SPRING_SERVICE_TOKEN`은 받는 쪽인 Backend 파일에 둡니다(Compose가 AI에도 전달하며, `HOPS_AI_SPRING_BASE_URL`은 Compose에서 설정하지 않습니다). 루트 `.env`의 `COMPOSE_ENV_FILES` 설정도 더 이상 필요하지 않습니다. 루트 `.env`나 셸에 남아 있는 같은 이름의 변수는 서비스별 파일보다 우선하므로, 이전 값을 정리하고 실제 비밀값을 Git에 올리지 않습니다. 값에 `$`나 `#`가 있으면 작은따옴표로 감싸 리터럴 값으로 입력합니다.
 
 - 기존 DB 볼륨의 이름·계정·비밀번호를 Backend 파일에 그대로 유지합니다. `.env` 변경만으로 기존 DB 계정 비밀번호가 바뀌지 않으며 볼륨을 삭제해 재설정하지 않습니다.
 - Frontend의 API URL과 Backend의 CORS를 비우면 기존처럼 공개 포트에 맞춰 기본값을 구성합니다. 별도 주소가 필요할 때만 입력합니다. 컨테이너끼리는 `postgres:5432`, `redis:6379`, `ai:8000`을 사용합니다.

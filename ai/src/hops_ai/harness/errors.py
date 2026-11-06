@@ -143,5 +143,7 @@ def describe_failure(error: BaseException) -> Failure:
 class ComponentNotReady(RuntimeError):
     """미구현 요소를 성공·빈 결과·Fake 응답으로 대체하지 않는다."""
 
-    def __init__(self, component: str) -> None:
-        super().__init__(f"{component}: 아직 구현·연결되지 않았다")
+    def __init__(self, component: str, *, missing: str | None = None) -> None:
+        # missing: 구현이 아니라 설정이 비어 있어 연결하지 못할 때 설정해야 할 항목을 알린다.
+        reason = f"설정이 필요하다 ({missing})" if missing else "아직 구현·연결되지 않았다"
+        super().__init__(f"{component}: {reason}")

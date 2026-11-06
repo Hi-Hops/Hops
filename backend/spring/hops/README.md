@@ -4,7 +4,7 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 
 Docker 설정은 이 폴더의 [.env.example](.env.example)을 `.env`로 복사해 관리합니다. PostgreSQL 설정도 같은 파일에 두고 Compose가 `POSTGRES_*`를 DB 컨테이너와 Spring datasource에 각각 매핑합니다. 필수 값은 `POSTGRES_PASSWORD`와 `HOPS_JWT_SECRET`이며 기존 개인 파일·DB 값은 유지합니다. 루트 Compose가 서비스별 파일 세 개를 자동으로 읽으므로 저장소 루트에서 `docker compose up -d`로 실행합니다.
 
-Gradle·IntelliJ 직접 실행은 `.env`를 자동으로 읽지 않습니다. 아래 기존 `application-db.local.properties`와 프로세스 환경변수 설정 방식을 따릅니다.
+Gradle·IntelliJ 직접 실행은 `.env`를 자동으로 읽지 않습니다. 아래 기존 `application-db.local.properties`와 프로세스 환경변수 설정 방식을 따릅니다. AI를 `real` 모드로 쓰면 `SPRING_SERVICE_TOKEN`(AI→Spring 내부 API 토큰, 비어 있으면 내부 API는 모두 401)도 같은 방식으로 주입하고 AI에도 같은 값을 설정합니다. 예시의 나머지 항목은 `HOPS_AGENT_BASEURL`(Spring이 부르는 AI 서버 주소, Compose 기본 `http://ai:8000`), `HOPS_CORS_ALLOWEDORIGINS`(허용할 프론트 Origin, 비우면 `FRONTEND_PORT` 기준 `localhost`·`127.0.0.1`)입니다.
 
 > **PRD 1.44 전환:** 아래 부서·시드·SSE·API 내용은 현재 구현 설명이다. 새 목표의 시스템별 주담당자 배정·처리·확인·사례 승인·검색 반영은 이 문서 변경으로 구현되지 않았다. [PRD](../../../docs/PRD.md), [API](../../../docs/API.md), [데이터](../../../docs/DATA.md)를 기준으로 별도 계약·migration·구현이 필요하다.
 
