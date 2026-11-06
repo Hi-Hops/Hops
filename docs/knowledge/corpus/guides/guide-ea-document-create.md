@@ -6,6 +6,7 @@ systemCode: ELECTRONIC_APPROVAL
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

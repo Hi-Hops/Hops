@@ -37,6 +37,7 @@ systemCode: ELECTRONIC_APPROVAL            # ELECTRONIC_APPROVAL | COMMON_LOGIN 
 accessScope: EMPLOYEE                      # RUNBOOK은 SYSTEM_STAFF만
 version: 1
 appliesToSystemVersion: null               # 기능 버전을 구분할 때만
+applicability: "..."                       # 필수. 이 문서를 어디에 쓰고 어디에 쓰지 않는지 한두 문장(500자 이하)
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: PENDING                      # 사람이 검수하면 APPROVED

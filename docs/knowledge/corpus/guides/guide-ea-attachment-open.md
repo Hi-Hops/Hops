@@ -6,6 +6,7 @@ systemCode: ELECTRONIC_APPROVAL
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

@@ -6,6 +6,7 @@ systemCode: COMMON_LOGIN
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "사내 시스템을 이용하려는 모든 임직원의 시스템 이용 권한 신청에 적용한다. 읽기·쓰기·관리 권한의 승인 기준을 정하며 파일 공유의 폴더·파일 단위 접근 권한은 파일 공유 범위 정책을 따른다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

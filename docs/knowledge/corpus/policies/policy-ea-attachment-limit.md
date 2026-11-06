@@ -6,6 +6,7 @@ systemCode: ELECTRONIC_APPROVAL
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "전자결재 문서에 파일을 첨부하거나 첨부 파일을 보는 모든 임직원에게 적용한다. 첨부 파일의 크기·개수·형식과 내려받기 규칙을 정한다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

@@ -6,6 +6,7 @@ systemCode: ELECTRONIC_APPROVAL
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

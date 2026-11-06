@@ -6,6 +6,7 @@ systemCode: ELECTRONIC_APPROVAL
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

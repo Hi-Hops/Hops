@@ -6,6 +6,7 @@ systemCode: FILE_SHARING
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "파일 공유를 쓰는 모든 임직원에게 적용한다. 공유 대상(사내 임직원), 공유 방식·만료, 폴더 접근 권한을 정하며 시스템 이용 권한(공통 로그인의 접근 권한 신청)과는 다르다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

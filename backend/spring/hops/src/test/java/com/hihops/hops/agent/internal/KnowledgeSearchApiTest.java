@@ -212,6 +212,20 @@ class KnowledgeSearchApiTest extends InternalRunApiTestBase {
             assertThat(evidence.path("applicability").asString()).isNotBlank();
             assertThat(result.path("caseIndexStatus").isNull()).isTrue();
         }
+        // 시드 문서의 적용 조건은 코퍼스 front matter의 값이다(조립한 문구가 아니다).
+        JsonNode guide = first.path("results").valueStream().filter(r -> r.path("documentKey").asString().equals("guide-ea-document-search")).findFirst().orElseThrow();
+        assertThat(guide.path("evidence").path("applicability").asString()).contains("조회 기간은 기안일에 적용되고");
+    }
+
+    @Test
+    void 적용_조건이_메타데이터에_없는_문서는_구조화된_값으로만_조립한다() throws Exception {
+        // 이전 시드로 적재된 DB의 문서처럼 메타데이터에 applicability가 없을 때의 대체 동작이다.
+        jdbc.update("UPDATE knowledge_document_version SET source_metadata = source_metadata - 'applicability' WHERE knowledge_document_id IN "
+                + "(SELECT id FROM knowledge_document WHERE source_data ->> 'documentKey' = 'guide-ea-document-search')");
+        entityManager.clear();
+        JsonNode result = search(body(EA_QUERY)).andExpect(status().isOk()).andReturn().json();
+        JsonNode guide = result.path("results").valueStream().filter(r -> r.path("documentKey").asString().equals("guide-ea-document-search")).findFirst().orElseThrow();
+        assertThat(guide.path("evidence").path("applicability").asString()).isEqualTo("전자결재 직원 가이드. 시스템 버전 미지정");
     }
 
     @Test

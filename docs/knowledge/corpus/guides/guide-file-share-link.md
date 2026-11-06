@@ -6,6 +6,7 @@ systemCode: FILE_SHARING
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "파일 공유에 올라온 파일을 다른 임직원과 공유하거나 공유 링크를 만드는 방법에 적용한다. 사외 공유는 지원하지 않고 공유 범위의 세부 규칙은 파일 공유 범위 정책을 따른다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

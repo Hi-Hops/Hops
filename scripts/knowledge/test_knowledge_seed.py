@@ -27,6 +27,7 @@ def front_matter(**overrides: object) -> str:
         "accessScope": "EMPLOYEE",
         "version": 1,
         "appliesToSystemVersion": "null",
+        "applicability": "예시 문서의 적용 조건",
         "dataSplit": "RAG",
         "origin": "SYNTHETIC",
         "reviewStatus": "APPROVED",
@@ -110,6 +111,22 @@ def test_valid_sample_has_no_errors(tmp_path: Path) -> None:
 )
 def test_rejects_invalid_values(tmp_path: Path, overrides: dict, expected: str) -> None:
     assert any(expected in error for error in errors_for(tmp_path, **overrides))
+
+
+@pytest.mark.parametrize("value", [None, '""', "x" * 501], ids=["missing", "empty", "too-long"])
+def test_applicability_is_required_and_bounded(tmp_path: Path, value: str | None) -> None:
+    errors = errors_for(tmp_path, applicability=value)
+    assert any("applicability" in error for error in errors)
+
+
+def test_rejects_staff_only_terms_in_employee_applicability(tmp_path: Path) -> None:
+    errors = errors_for(tmp_path, applicability="쿠키 차단 원인에 쓴다")
+    assert any("applicability" in error and "쿠키" in error for error in errors)
+
+
+def test_applicability_is_written_to_the_version_metadata(tmp_path: Path) -> None:
+    docs = load_one(tmp_path)
+    assert '"applicability": "예시 문서의 적용 조건"' in builder.render_sql(docs)
 
 
 def test_rejects_filename_that_differs_from_key(tmp_path: Path) -> None:

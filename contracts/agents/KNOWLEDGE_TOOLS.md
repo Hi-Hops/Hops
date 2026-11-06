@@ -87,7 +87,7 @@ caseIndexStatus: CASE만 { vector, graph }. 저장된 색인 상태 그대로
 
 - `documentId`·`documentVersion`: GUIDE·POLICY·RUNBOOK은 `knowledge_document.id`와 버전 번호, **CASE는 `resolved_case.id`와 사례 버전**이다(기존 근거 재검증이 CASE를 이 키로 찾는다).
 - `digestBasis=CONTENT`이면 `contentDigest`는 `content`의 UTF-8 SHA-256이다. AI가 모델 입력 전에 직접 대조한다. `APPROVED_SNAPSHOT`(CASE)이면 승인 거래가 만든 사례 스냅샷의 digest이며 AI는 다시 계산할 수 없다. Spring이 응답 전에 스냅샷에서 다시 계산해 대조한다.
-- `applicability`: 문서 메타데이터에 있으면 그대로, CASE는 사례의 적용 조건을 쓴다. 메타데이터에 없는 가이드·정책·런북은 시스템·종류·시스템 버전 같은 **구조화된 값으로만** "전자결재 직원 가이드. 시스템 버전 미지정" 형태를 조립한다. 절차나 사실을 지어내지 않는다. 적용 조건이 없는 CASE는 공개하지 않는다.
+- `applicability`: 문서 메타데이터(코퍼스 front matter의 필수 필드 `applicability`)의 값을 그대로, CASE는 사례의 적용 조건을 쓴다. 이 필드가 없는 문서 버전(필드 추가 전 시드로 적재된 기존 DB)에 한해 시스템·종류·시스템 버전 같은 **구조화된 값으로만** "전자결재 직원 가이드. 시스템 버전 미지정" 형태를 대신 조립한다. 절차나 사실을 지어내지 않는다. 적용 조건이 없는 CASE는 공개하지 않는다. 기존 DB가 코퍼스의 적용 조건을 받으려면 DB를 초기화해 다시 적재해야 한다(반복 시드는 기존 행을 바꾸지 않는다).
 - 같은 근거 조립 규칙을 저장된 근거의 현재 공개 검증(`TicketKnowledgeReader`)도 쓴다.
 
 ## 선필터와 반환 전 재검증

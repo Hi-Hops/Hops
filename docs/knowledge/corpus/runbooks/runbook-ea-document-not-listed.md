@@ -6,6 +6,7 @@ systemCode: ELECTRONIC_APPROVAL
 accessScope: SYSTEM_STAFF
 version: 1
 appliesToSystemVersion: null
+applicability: "전자결재 문서 조회에서 문서가 목록에 보이지 않는 경우에만 쓴다. 결재 상태 확인이나 첨부 열람 문제, 로그인 반복에는 쓰지 않으며 확인 결과가 후보에 맞지 않으면 이 런북으로 원인을 정하지 않는다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

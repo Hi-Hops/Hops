@@ -6,6 +6,7 @@ systemCode: FILE_SHARING
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "파일 공유의 공유 폴더에서 파일을 찾아 열고 내려받는 정상 절차에만 적용한다. 접근 권한이 있는 폴더만 보이고, 열리지 않는 문제의 확인은 IT 문의로 접수한다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED
