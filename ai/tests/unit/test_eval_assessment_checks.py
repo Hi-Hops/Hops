@@ -106,7 +106,7 @@ def test_p11_accepts_form_field_names() -> None:
     [
         (("FIELD", "어느 화면에서 그러셨나요"),),  # 자유 문장
         (("FIELD", "system"),),  # 양식 필드가 아니다
-        (("CHECK_ITEM", "item-1"),),  # 관계 자료가 연결되기 전에는 허용된 항목이 없다
+        (("CHECK_ITEM", "item-1"),),  # 관계를 조회하지 않은 호출에는 허용된 항목이 없다
         (("OTHER", "taskOrScreen"),),
     ],
 )
@@ -114,6 +114,40 @@ def test_p11_flags_missing_information_outside_the_closed_vocabulary(missing) ->
     found = check_p11(trace_of(call_with(record("PARTIAL", missing=missing))))
 
     assert ids(found) == ["P11"]
+
+
+def call_with_relations(item, *check_ids: str) -> RoleCall:
+    return RoleCall(
+        AgentRole.KNOWLEDGE,
+        problem_ref=PROBLEM,
+        search_state="FOUND",
+        evidence=(GUIDE,),
+        assessment=item,
+        relation_state="FOUND",
+        relation_check_ids=tuple(check_ids),
+    )
+
+
+def test_p11_accepts_check_items_the_same_call_looked_up() -> None:
+    item = record("PARTIAL", missing=(("CHECK_ITEM", "check-a"), ("FIELD", "occurredAt")))
+
+    assert check_p11(trace_of(call_with_relations(item, "check-a", "check-b"))) == []
+
+
+def test_p11_flags_a_check_item_the_call_did_not_look_up() -> None:
+    item = record("PARTIAL", missing=(("CHECK_ITEM", "check-z"),))
+
+    found = check_p11(trace_of(call_with_relations(item, "check-a")))
+
+    assert ids(found) == ["P11"] and "check-z" in found[0].message
+
+
+def test_p11_does_not_accept_a_field_name_as_a_check_item_or_the_reverse() -> None:
+    as_item = record("PARTIAL", missing=(("CHECK_ITEM", "occurredAt"),))
+    as_field = record("PARTIAL", missing=(("FIELD", "check-a"),))
+
+    assert ids(check_p11(trace_of(call_with_relations(as_item, "check-a")))) == ["P11"]
+    assert ids(check_p11(trace_of(call_with_relations(as_field, "check-a")))) == ["P11"]
 
 
 def test_both_checkers_run_by_default_and_by_name() -> None:

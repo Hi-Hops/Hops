@@ -6,8 +6,9 @@
 - 근거 ID는 이번 검색의 검증된 근거 안에서만 고른다.
 - SUFFICIENT는 직원 공개(EMPLOYEE) 근거 ID를 가져야 한다. 안내를 만들 수 없는 판정은 거부한다.
 - missingInformation은 닫힌 어휘다. 양식 필드 이름(그 의도가 묻는 필드)이거나 허용된 관계
-  확인 항목 ID만 받고 자유 문장은 받지 않는다. 관계 자료가 아직 연결되지 않은 동안에는 허용된
-  확인 항목이 없으므로 CHECK_ITEM과 nextChecks는 비어 있어야 한다.
+  확인 항목 ID만 받고 자유 문장은 받지 않는다. 허용된 확인 항목은 이번 검색과 함께 조회한 직원 공개
+  승인 항목(`check_item_ids`)이다. 조회하지 않았거나 항목이 없으면 CHECK_ITEM은 비어 있어야 한다.
+  nextChecks도 같은 허용 항목 안이어야 한다(프롬프트는 직원 프로필에서 빈 목록을 요구한다).
 - candidateCauses는 항상 confirmed=false이고 근거를 가진다. 과거 사례·관계 의존을 현재 원인으로
   확정하지 않는다.
 - rationale은 내부용이다. 사용자 응답·질문·티켓에 쓰지 않는다.
@@ -15,7 +16,7 @@
 
 from collections.abc import Iterable, Sequence
 
-from hops_ai.contracts.roles import Assessment
+from hops_ai.contracts.roles import Assessment, RelationNeighbors
 from hops_ai.contracts.state import SupervisorState
 from hops_ai.contracts.wire import Intent, KnowledgeEvidence
 from hops_ai.harness.errors import OutputRejected
@@ -37,6 +38,13 @@ def allowed_fields(intent: Intent) -> tuple[str, ...]:
             if name not in names:
                 names.append(name)
     return tuple(names)
+
+
+def check_item_ids(relations: RelationNeighbors | None) -> frozenset[str]:
+    """조회한 관계에서 판정이 지목할 수 있는 확인 항목 ID(직원 공개로 승인된 항목)."""
+    if relations is None:
+        return frozenset()
+    return frozenset(check.id for symptom in relations.symptoms for check in symptom.checkItems)
 
 
 def no_match_assessment(problem_ref: str) -> Assessment:

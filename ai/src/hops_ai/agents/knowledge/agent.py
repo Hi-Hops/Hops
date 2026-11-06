@@ -59,7 +59,7 @@ from hops_ai.contracts.roles import (
 from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
-from hops_ai.rules.assessment import no_match_assessment, validate_assessment
+from hops_ai.rules.assessment import check_item_ids, no_match_assessment, validate_assessment
 from hops_ai.rules.intent_policy import is_guide_type, policy_for, search_kinds
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
@@ -122,6 +122,8 @@ class SearchKnowledgeAgent:
         services.runtime.ensure_active()
 
         evidence = tuple(hit.evidence for hit in hits)
+        # 관계를 먼저 조회한다: 판정이 확인 항목을 부족한 정보로 지목할 수 있게 입력으로 준다.
+        relations = await self._look_up_relations(call, target, services)
         result = KnowledgeResult(
             invocationId=call.invocation_id,
             search=(
@@ -132,8 +134,8 @@ class SearchKnowledgeAgent:
             guide=_guide_for(state, call, target, hits),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
-            assessment=await self._assess(target, hits, services),
-            relations=await self._look_up_relations(call, target, services),
+            assessment=await self._assess(target, hits, relations, services),
+            relations=relations,
         )
         return RoleResponse(
             result=result,
@@ -142,7 +144,11 @@ class SearchKnowledgeAgent:
         )
 
     async def _assess(
-        self, target: ProblemProposal, hits: list[KnowledgeHit], services: SharedServices
+        self,
+        target: ProblemProposal,
+        hits: list[KnowledgeHit],
+        relations: RelationNeighbors | None,
+        services: SharedServices,
     ) -> Assessment | None:
         """검색 근거의 충분성 판정. 만들지 못하면 None(평가 없음)이며 흐름을 막지 않는다.
 
@@ -161,7 +167,7 @@ class SearchKnowledgeAgent:
                 LLMRequest(
                     messages=[
                         LLMMessage("system", SYSTEM_PROMPT),
-                        LLMMessage("user", build_user_payload(target, hits)),
+                        LLMMessage("user", build_user_payload(target, hits, relations)),
                     ],
                     response_model=AssessmentDraft,
                     max_output_tokens=MAX_OUTPUT_TOKENS,
@@ -178,6 +184,7 @@ class SearchKnowledgeAgent:
                 intent=target.intent,
                 search_state="FOUND",
                 evidence=[hit.evidence for hit in hits],
+                allowed_check_items=check_item_ids(relations),
             )
         except (ValidationError, OutputRejected):
             return None

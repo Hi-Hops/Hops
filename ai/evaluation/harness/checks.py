@@ -316,8 +316,8 @@ def check_p10(trace: RunTrace) -> list[Violation]:
 def check_p11(trace: RunTrace) -> list[Violation]:
     """P11. 판정의 부족한 정보는 닫힌 어휘 안이다.
 
-    양식 필드 이름만 허용한다. 관계 확인 항목(CHECK_ITEM)은 관계 자료가 연결되기 전에는
-    허용된 항목이 없으므로 나오면 위반이다. 연결한 뒤에는 이 검사기가 허용 항목을 알아야 한다.
+    양식 필드 이름이거나, 그 판정을 낸 호출이 함께 조회한 관계 확인 항목(CHECK_ITEM)의 ID만
+    허용한다. 관계를 조회하지 않았거나 그 밖의 ID이면 위반이다.
     """
     found: list[Violation] = []
     for index, turn in enumerate(trace.turns):
@@ -326,7 +326,10 @@ def check_p11(trace: RunTrace) -> list[Violation]:
             if call.role != AgentRole.KNOWLEDGE or item is None:
                 continue
             for kind, ref in item.missing_information:
-                if kind != "FIELD" or ref not in FORM_FIELDS:
+                allowed = (
+                    ref in FORM_FIELDS if kind == "FIELD" else ref in call.relation_check_ids
+                ) and kind in ("FIELD", "CHECK_ITEM")
+                if not allowed:
                     found.append(
                         Violation(
                             "P11", index, f"부족한 정보가 닫힌 어휘 밖이다: {kind} {ref[:40]}"

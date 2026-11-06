@@ -23,7 +23,7 @@ from hops_ai.contracts.wire import (
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
 from hops_ai.rules.analysis import validate_analysis
-from hops_ai.rules.assessment import validate_assessment
+from hops_ai.rules.assessment import check_item_ids, validate_assessment
 from hops_ai.rules.progress import (
     validate_evidence_scope,
 )
@@ -304,6 +304,7 @@ def merge_knowledge_result(
             intent=problem.intent,
             search_state=result.search.state,
             evidence=result.search.evidence,
+            allowed_check_items=check_item_ids(result.relations),
         )
         assessments[result.problemRef] = result.assessment.model_copy(deep=True)
     relations = dict(state["relations"])

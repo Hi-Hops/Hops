@@ -11,19 +11,27 @@ import json
 from collections.abc import Sequence
 from typing import Literal
 
-from hops_ai.contracts.roles import Assessment, CandidateCause, MissingInformation, NextCheck
+from hops_ai.contracts.roles import (
+    Assessment,
+    CandidateCause,
+    MissingInformation,
+    NextCheck,
+    RelationNeighbors,
+)
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import ProblemProposal
 from hops_ai.rules.assessment import allowed_fields
 from hops_ai.services.retrieval.knowledge_source import KnowledgeHit
 
-PROMPT_VERSION = "knowledge.assessment.v2"
+PROMPT_VERSION = "knowledge.assessment.v3"
 MAX_OUTPUT_TOKENS = 900
 # 근거 하나의 본문을 모델에 줄 때의 글자 상한. 한 번에 최대 5건이다.
 MAX_EVIDENCE_CHARS = 2000
 # 평가를 하려면 평가 자신 말고도 남겨 둘 모델 호출 수. Supervisor의 다음 판단과 그다음 한 번이다.
 # 평가가 실행 예산을 다 써서 필수 호출(판단·질문·티켓)을 못 하게 만들지 않으려는 값이다.
 RESERVED_CALLS = 2
+# 한 번에 모델에게 보여 주는 확인 항목 수의 상한
+MAX_CHECK_ITEMS = 12
 
 SYSTEM_PROMPT = """\
 너는 사내 IT 헬프데스크에서 검색한 근거가 문의를 해결하기에 충분한지 판정하는 도구다.
@@ -46,9 +54,13 @@ SYSTEM_PROMPT = """\
 3. supportingEvidenceIds에는 판단에 쓴 evidence의 id만 적는다. NO_MATCH는 빈 목록이다.
    SUFFICIENT와 PARTIAL은 하나 이상 적는다. accessScope가 EMPLOYEE인 evidence가 SUFFICIENT의
    근거가 된다.
-4. missingInformation은 판정하려면 사용자에게 더 알아야 하는 정보다. kind는 항상 "FIELD"이고
-   ref는 allowedFields에 있는 이름만 쓴다. 이미 confirmed에 있거나 unknown에 있는 정보는
-   적지 않는다. 필요한 정보가 없으면 빈 목록이다.
+4. missingInformation은 판정하려면 사용자에게 더 알아야 하는 정보다. 두 종류만 쓴다.
+   - kind "FIELD": ref는 allowedFields에 있는 이름만 쓴다.
+   - kind "CHECK_ITEM": 문의가 증상이고 evidence가 그 증상의 원인이나 해결을 직접 다루지 못할 때,
+     사용자의 답이 원인을 가르는 데 도움이 되는 항목이다. ref는 checkItems의 id만 쓰고 최대 3개다.
+     각 항목의 ask는 사용자에게 물을 승인된 질문이다.
+   이미 confirmed나 summary에 답이 있는 정보, unknown에 있는 정보는 적지 않는다. SUFFICIENT이거나
+   필요한 정보가 없으면 빈 목록이다. checkItems가 비어 있으면 CHECK_ITEM은 쓰지 않는다.
 5. candidateCauses는 evidence에 적힌 가능한 원인이다. 현재 문의의 원인으로 단정하지 않으므로
    confirmed는 항상 false이고, 원인을 적은 evidence의 id를 evidenceIds에 반드시 적는다.
    evidence에 없는 원인은 적지 않는다. 최대 3개, 각 200자 이내이며 없으면 빈 목록이다.
@@ -84,8 +96,26 @@ class AssessmentDraft(ContractModel):
     rationale: str
 
 
-def build_user_payload(problem: ProblemProposal, hits: Sequence[KnowledgeHit]) -> str:
-    """모델에 보내는 입력. 확인한 사실과 검증된 근거 본문만 담고 접근 범위는 근거에 표시한다."""
+def check_item_payload(relations: RelationNeighbors | None) -> list[dict[str, str]]:
+    """모델에게 보이는 확인 항목: id와 승인된 직원용 질문 하나. 같은 항목은 한 번만 낸다."""
+    if relations is None:
+        return []
+    items: dict[str, str] = {}
+    for symptom in relations.symptoms:
+        for check in symptom.checkItems:
+            if check.questions:
+                items.setdefault(check.id, check.questions[0].text)
+    return [{"id": key, "ask": text} for key, text in items.items()][:MAX_CHECK_ITEMS]
+
+
+def build_user_payload(
+    problem: ProblemProposal,
+    hits: Sequence[KnowledgeHit],
+    relations: RelationNeighbors | None = None,
+) -> str:
+    """모델에 보내는 입력. 확인한 사실과 검증된 근거 본문만 담고 접근 범위는 근거에 표시한다.
+
+    checkItems는 증상의 원인을 가르는, 직원 공개로 승인된 확인 항목이다(없으면 빈 목록)."""
     details = problem.details.model_dump(mode="json", exclude={"acceptanceCriteria"})
     return json.dumps(
         {
@@ -96,6 +126,7 @@ def build_user_payload(problem: ProblemProposal, hits: Sequence[KnowledgeHit]) -
                 "unknown": list(problem.unknowns),
             },
             "allowedFields": list(allowed_fields(problem.intent)),
+            "checkItems": check_item_payload(relations),
             "evidence": [
                 {
                     "id": hit.evidence.id,
