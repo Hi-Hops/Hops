@@ -28,9 +28,11 @@ from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
+    SEARCH_KNOWLEDGE,
     KnowledgeHit,
     KnowledgeQuery,
     KnowledgeSource,
+    RunLink,
 )
 from hops_ai.services.shared import SharedServices
 
@@ -51,7 +53,7 @@ class SearchKnowledgeAgent:
         if state["input"].kind != RunKind.INQUIRY_ANALYSIS:
             raise OutputRejected("이 Knowledge 구현은 상담 실행의 안내만 다룬다")
         target = _guide_target(state)
-        query = _build_query(state, target)
+        query = _build_query(state, target, services)
         try:
             hits = list(await self._source.search(query))
         except RetrievalUnavailable:
@@ -118,7 +120,9 @@ def _guide_target(state: SupervisorState) -> ProblemProposal:
     return target
 
 
-def _build_query(state: SupervisorState, target: ProblemProposal) -> KnowledgeQuery:
+def _build_query(
+    state: SupervisorState, target: ProblemProposal, services: SharedServices | None = None
+) -> KnowledgeQuery:
     request = state["input"]
     access = request.accessContext
     # 그 문제 자신의 정보: 확인한 상세 값(사용자 인용으로 검증됨)과 요약. 새 사실이 더해지면
@@ -141,7 +145,23 @@ def _build_query(state: SupervisorState, target: ProblemProposal) -> KnowledgeQu
         system_ids=frozenset(system_ids),
         system_ids_by_code={system.code: system.id for system in request.systems},
         top_k=MAX_TOP_K,
+        run=_run_link(request, target, services),
     )
+
+
+def _run_link(request, target: ProblemProposal, services: SharedServices | None) -> RunLink | None:
+    """Spring 내부 API 검색에 쓸 실행 문맥. 한 번 부를 때마다 도구 호출 한도 1회를 소비한다."""
+    if services is None:
+        return None
+    runtime = services.runtime
+
+    def reserve_call() -> float:
+        runtime.ensure_active()
+        runtime.tool_policy.authorize(AgentRole.KNOWLEDGE, SEARCH_KNOWLEDGE)
+        runtime.budget.start_tool_call()
+        return runtime.budget.remaining_seconds()
+
+    return RunLink(request.runId, request.inquiryVersion, target.problemRef, reserve_call)
 
 
 def _detail_values(problem: ProblemProposal) -> list[str]:

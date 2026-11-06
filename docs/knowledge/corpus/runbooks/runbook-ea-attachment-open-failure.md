@@ -6,6 +6,7 @@ systemCode: ELECTRONIC_APPROVAL
 accessScope: SYSTEM_STAFF
 version: 1
 appliesToSystemVersion: null
+applicability: "전자결재 문서의 첨부 열람 문제에만 쓴다. 파일 공유의 파일이 열리지 않는 문제나 로그인 반복에는 쓰지 않으며, 한쪽의 원인으로 다른 쪽을 확정하지 않는다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

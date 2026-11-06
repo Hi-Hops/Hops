@@ -76,6 +76,8 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 
 생성 요청·결과 확인·제한된 재시도는 [Ticket 도구 REST 계약](TICKET_TOOLS.md)을 따른다. Ticket이 실행을 조율하고 Spring이 저장·배정을 확정한다. Spring API와 후속 Python 연결의 구현 상태는 해당 문서에서 구분한다.
 
+Knowledge가 승인 지식 문서를 읽는 내부 검색과 증상→확인 항목→질문 문구 관계 조회는 [지식 검색 REST 계약](KNOWLEDGE_TOOLS.md)을 따른다. 접근 범위·CASE 공개 규칙은 Spring이 실행(runId)에서 확정하고, 검색 실패를 빈 결과로 바꾸지 않는다. Spring API와 AI 연결의 구현 상태는 해당 문서에서 구분한다.
+
 Python 업무 도구·RoleResponse 검증 자료·State.ticketCreationResults 및 AiResult의 가산 필드 ticketCreationResults도 해당 도구 계약을 따른다. 순수 제안과 실제 서버 확인 결과를 구분하며 모델이 ticketId·배정 성공을 구성하지 않는다. Inquiry·Ticket의 runtime 경로와 Spring 업무 도구는 연결됐으며 Knowledge·Curator의 실제 검색/모델 역할·실행 SSE·전체 서비스 E2E는 별도로 검증한다.
 
 - **입력:** 문제별 표준 요청, 확인 사실·미확인 항목·허용 근거, 지원 시스템 목록과 서버가 제공한 기존 작업/티켓 결과.
@@ -143,7 +145,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 | 타입 | 필수 필드 | 의미 |
 |---|---|---|
 | AiRunRequest | contractVersion,runId,kind,inquiryId,inquiryVersion,answerMessageId,problemIds,messages,problems,systems,accessContext,existingWorkItems,workRecord,expiresAt,limits | contractVersion=hops-system-1. INQUIRY_ANALYSIS의 answerMessageId는 Spring 발급 UUID·workRecord=null. CASE_DRAFT는 answerMessageId=null·workRecord 필수 |
-| AccessContext | actorId,purpose,systemIds,allowedDocumentScopes,policyRevision | Spring이 만든 최소 권한. purpose=EMPLOYEE_HELP 또는 SYSTEM_WORK 또는 CASE_DRAFT. 모델이 확장하지 못함 |
+| AccessContext | actorId,purpose,systemIds,allowedDocumentScopes,policyRevision,retrievalScopes? | Spring이 만든 최소 권한. purpose=EMPLOYEE_HELP 또는 SYSTEM_WORK 또는 CASE_DRAFT. 모델이 확장하지 못함. `retrievalScopes`는 내부 판단 경계(옵션, 기본 꺼짐)의 가산 필드이며 [지식 검색 계약](KNOWLEDGE_TOOLS.md)을 따른다 |
 | ExecutionLimits | maxModelCalls,maxInputTokens,maxOutputTokens,maxToolCalls,maxRetries | 양의 정수, maxRetries만 0 허용. 전체 실행의 누적 한도 형식이며 구체 수치는 서버 실행 설정에서 관리 |
 | AiAccepted | contractVersion,runId,status,eventsPath | status=QUEUED. 경로는 허용된 AI 서버 origin 안의 상대 경로만 허용 |
 | AiRunSnapshot | contractVersion,runId,status,lastSeq,result,error | result/error는 조건부 nullable. status=QUEUED/RUNNING/SUCCEEDED/FAILED/TIMED_OUT/SUPERSEDED/UNKNOWN |
@@ -232,7 +234,7 @@ AiEvent는 contractVersion/runId/seq/eventType/payload envelope다. progress pay
 | InputMessage | 원 messageId/revision/sequenceNo·sender·허용된 content·problemIds·시각. CASE_DRAFT는 관련 구간만 투영 |
 | InputProblem | DB problemId·의도·처리 유형·보고 시스템/기능·상태·질문 수·표준 요청 스냅샷. questionCount는 Spring 값 |
 | WorkRecordContext | 실제 기록 ID·티켓/문제/시스템·종류·조치/검증·확인 요청/상태. Curator에게 해결 확인 전 PENDING도 전달 가능 |
-| AccessContext | actorId·purpose·systemIds·allowedDocumentScopes·policyRevision. Spring이 생성하며 모델은 수정 불가 |
+| AccessContext | actorId·purpose·systemIds·allowedDocumentScopes·policyRevision(·retrievalScopes 선택). Spring이 생성하며 모델은 수정 불가 |
 
 메시지 목록이 길면 원문 저장을 자르지 않고 실행용 범위를 서버가 선택한다. 표준 요청과 출처 ID를 유지하고 토큰 한도를 넘으면 안전한 실패로 반환한다. AI가 접근 범위를 넓혀 과거 원문을 임의 조회하지 않는다.
 
@@ -254,7 +256,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | DTO | 필수 필드·자료형 |
 |---|---|
 | AiError | code:INVALID_OUTPUT / SEARCH_UNAVAILABLE / TOOL_UNAVAILABLE / MODEL_UNAVAILABLE / DEADLINE_EXCEEDED / BUDGET_EXCEEDED / AUTH_CONTEXT_INVALID / SUPERSEDED / INDEX_UNAVAILABLE / UPSTREAM_PROTOCOL_ERROR / NOT_FOUND / CONFLICT / INVALID_REQUEST / RATE_LIMITED / SERVICE_UNAVAILABLE, message:string, retryable:boolean |
-| AccessContext | actorId:Uuid, purpose:EMPLOYEE_HELP / SYSTEM_WORK / CASE_DRAFT, systemIds:Uuid[], allowedDocumentScopes:EMPLOYEE / SYSTEM_STAFF[], policyRevision:int |
+| AccessContext | actorId:Uuid, purpose:EMPLOYEE_HELP / SYSTEM_WORK / CASE_DRAFT, systemIds:Uuid[], allowedDocumentScopes:EMPLOYEE / SYSTEM_STAFF[], policyRevision:int, retrievalScopes?:EMPLOYEE / SYSTEM_STAFF[] (옵션, 없으면 기본 프로필) |
 | ExecutionLimits | maxModelCalls:int, maxInputTokens:int, maxOutputTokens:int, maxToolCalls:int, maxRetries:int |
 | InputMessage | id:Uuid, revision:int, sequenceNo:int, sender:USER / AI, content:string, problemIds:Uuid[], createdAt:time |
 | StandardRequestBody | summary:string, confirmedFacts:EvidenceStatement[], assumptions:EvidenceStatement[], unknowns:string[], responsibleSystemCandidateId:Uuid 또는 null, responsibilityEvidenceIds:Uuid[], details:RequestDetails, knowledge:KnowledgeEvidence[] |

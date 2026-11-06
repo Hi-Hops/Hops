@@ -6,6 +6,7 @@ systemCode: COMMON_LOGIN
 accessScope: SYSTEM_STAFF
 version: 1
 appliesToSystemVersion: null
+applicability: "로그인에 성공한 뒤 로그인 화면이 반복되는 경우에만 쓴다. 인증 실패, 계정 잠금, 세션 만료, 이용 권한 없음에는 쓰지 않는다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

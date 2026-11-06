@@ -16,7 +16,7 @@ from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMClient
-from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
+from hops_ai.services.retrieval.knowledge_source import KNOWLEDGE_TOOLS, KnowledgeSource
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tickets import TICKET_TOOLS, TicketHTTPClient
 from hops_ai.services.tools.base import ToolGateway
@@ -51,18 +51,35 @@ class SupervisorPipeline:
             else agents
         )
         self._ticket_client = ticket_client
+        self._knowledge_connected = agents is None and knowledge_source is not None
         self._tracing = tracing or RunTracing()
-        self._llm = TracedLLMClient(llm, self._tracing) if self._tracing.client else llm
+        self._raw_llm = llm
         self._tools = tools or DisabledToolGateway()
         self._supervisor = Supervisor(registry, restrict_roles=True)
 
+    def _tracing_for(self, request: AiRunRequest) -> RunTracing:
+        """이 실행에 쓸 추적 설정. 내부 판단 경계(옵션) 실행은 내용을 외부 추적에 남기지 않는다.
+
+        담당자 전용 자료가 모델 입력에 들어갈 수 있으므로 추적 서비스(Langfuse)에 메시지·출력 본문을
+        기록하는 설정(langfuse_capture_content)이 켜져 있어도 이 실행에서는 끈다(SEC-02, LLM02).
+        """
+        if request.accessContext.retrievalScopes is not None and self._tracing.capture_content:
+            return RunTracing(self._tracing.client, capture_content=False)
+        return self._tracing
+
     async def run(self, request: AiRunRequest, context: RunContext) -> AiResult:
+        tracing = self._tracing_for(request)
+        llm = TracedLLMClient(self._raw_llm, tracing) if tracing.client else self._raw_llm
+        allowed = dict(context.tool_policy.allowed_by_role)
         if self._ticket_client is not None:
-            context.tool_policy = ToolPolicy.of(
-                {**context.tool_policy.allowed_by_role, AgentRole.TICKET: TICKET_TOOLS}
-            )
+            allowed[AgentRole.TICKET] = TICKET_TOOLS
+        if self._knowledge_connected:
+            # Spring 내부 읽기 API 호출은 Knowledge 역할만 하며 실행 전체의 toolCalls를 소비한다.
+            allowed[AgentRole.KNOWLEDGE] = KNOWLEDGE_TOOLS
+        if allowed != context.tool_policy.allowed_by_role:
+            context.tool_policy = ToolPolicy.of(allowed)
         ticket_tools = self._ticket_client.bind(request, context) if self._ticket_client else None
-        with self._tracing.observe(
+        with tracing.observe(
             "hops.ai.run",
             {"kind": request.kind, "messageCount": len(request.messages)},
         ) as span:
@@ -70,9 +87,9 @@ class SupervisorPipeline:
                 request,
                 SharedServices(
                     runtime=context,
-                    llm=self._llm,
+                    llm=llm,
                     tools=self._tools,
-                    tracing=self._tracing,
+                    tracing=tracing,
                     ticket_tools=ticket_tools,
                 ),
             )
@@ -83,7 +100,7 @@ class SupervisorPipeline:
                     "ticketProposalCount": len(result.ticketProposals),
                     "errorCode": result.error.code if result.error else None,
                 }
-                if self._tracing.capture_content:
+                if tracing.capture_content:
                     output["answer"] = result.answer
                 span.update(output=output)
             return result

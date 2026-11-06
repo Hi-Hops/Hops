@@ -6,6 +6,7 @@ systemCode: FILE_SHARING
 accessScope: SYSTEM_STAFF
 version: 1
 appliesToSystemVersion: null
+applicability: "파일 공유의 파일·폴더 열람 문제에만 쓴다. 전자결재 첨부와 증상이 비슷해도 원인과 확인 항목이 다르므로 한쪽의 원인으로 다른 쪽을 확정하지 않는다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

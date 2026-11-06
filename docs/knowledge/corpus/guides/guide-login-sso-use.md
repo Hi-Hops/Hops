@@ -6,6 +6,7 @@ systemCode: COMMON_LOGIN
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "사내 포털 로그인과 한 번 로그인으로 전자결재·파일 공유를 이어 쓰는 방식에 적용한다. 로그인 성공이 모든 시스템·문서·파일의 열람 권한을 뜻하지는 않으며, 로그인 화면이 반복되는 문제의 확인은 IT 문의로 접수한다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

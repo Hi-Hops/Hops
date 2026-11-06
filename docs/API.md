@@ -6,6 +6,8 @@
 
 AI→Spring 내부 티켓 생성·조회·제한 재시도는 [Ticket 도구 REST 계약](../contracts/agents/TICKET_TOOLS.md)을 따른다. 공개 work-item API와 인증·호출 주체를 구분한다.
 
+AI→Spring 내부 지식 검색·관계 조회는 [지식 검색 REST 계약](../contracts/agents/KNOWLEDGE_TOOLS.md)을 따른다. 같은 서비스 토큰 인증을 쓰며 접근 범위는 요청이 아니라 실행에서 Spring이 확정한다.
+
 | 내용 | 정본 |
 |---|---|
 | 필드·자료형·필수/null·enum·요청 본문 | [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1) |

@@ -474,32 +474,41 @@ class TicketControllerTest {
         mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isServiceUnavailable());
     }
 
-    @Test void 사례_근거는_동일_승인_버전의_양쪽_색인_성공_후에만_공개한다() throws Exception {
+    /**
+     * 1차 SQL 검색의 공개 규칙(hops.knowledge.case-visibility=APPROVED_SNAPSHOT, 기본): 승인된 현재 사례 버전이면 색인 상태와 무관하게 공개한다.
+     * 계약 원안(INDEXED, 양쪽 SUCCEEDED)은 KnowledgeSearchApiTest가 같은 reader로 확인한다.
+     * 사례 문서 버전은 실제 승인 거래(CaseApprovalWriter)와 같은 형식이다: digest는 승인 스냅샷의 정규 JSON SHA-256이다.
+     */
+    @Test void 사례_근거는_승인된_현재_버전이면_색인_상태와_무관하게_공개한다() throws Exception {
         UUID workRecord = jdbc.queryForObject("SELECT id FROM ticket_work_log WHERE ticket_id=?", UUID.class, TICKET);
         UUID caseId = UUID.randomUUID();
         UUID document = UUID.randomUUID();
         jdbc.update("UPDATE ticket SET ticket_status='RESOLVED',resolved_at=now() WHERE id=?", TICKET);
         jdbc.update("""
                 INSERT INTO resolved_case(id,case_number,source_work_log_id,it_system_id,case_type,title,problem_statement,
-                action_detail,verification_result,access_level,origin_type,case_status,approved_by_member_id,approved_at,vector_status,graph_status)
-                VALUES (?,'CASE-QUERY',?,?,'RESOLUTION','승인 사례','문서 오류','조치','검증','STAFF','SYNTHETIC','APPROVED',?,now(),'SUCCEEDED','PENDING')
+                action_detail,verification_result,applicability,access_level,origin_type,case_status,approved_by_member_id,approved_at,vector_status,graph_status)
+                VALUES (?,'CASE-QUERY',?,?,'RESOLUTION','승인 사례','문서 오류','조치','검증','문서 조회','STAFF','SYNTHETIC','APPROVED',?,now(),'SUCCEEDED','PENDING')
                 """, caseId, workRecord, SYSTEM, STAFF);
         jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'승인 사례','CASE',?,'STAFF','RAG','APPROVED')", document, SYSTEM);
+        String approvedCase = "{\"title\":\"승인 사례\"}";
+        String snapshot = "{\"approvedCase\":" + approvedCase + ",\"caseId\":\"" + caseId + "\",\"caseVersion\":1}";
         String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
-                .digest("사례 본문".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                .digest(snapshot.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         jdbc.update("""
                 INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status)
                 VALUES (?,1,'사례 본문',?,?::jsonb,'APPROVED')
                 """, document, digest, """
-                {"caseId":"%s","caseVersion":1,"origin":"SYNTHETIC","applicability":"문서 조회"}
-                """.formatted(caseId));
+                {"caseId":"%s","caseVersion":1,"indexRequests":{"VECTOR":{"approvedCase":%s}}}
+                """.formatted(caseId, approvedCase));
         jdbc.update("UPDATE standard_request SET related_knowledge=?::jsonb WHERE inquiry_problem_id=?", """
                 [{"id":"%s","documentId":"%s","documentVersion":1,"kind":"CASE","title":"승인 사례","excerpt":"사례 본문",
                 "systemId":"%s","appliesToSystemVersion":null,"applicability":"문서 조회","accessScope":"SYSTEM_STAFF","origin":"SYNTHETIC"}]
                 """.formatted(UUID.randomUUID(), caseId, SYSTEM), PROBLEM);
-        mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk()).andExpect(jsonPath("$.standardRequest.knowledge").isEmpty());
-        jdbc.update("UPDATE resolved_case SET graph_status='SUCCEEDED' WHERE id=?", caseId);
+        // 한쪽만 색인된 상태에서도 승인된 현재 버전이면 공개한다. 색인 상태는 그대로 PENDING이다.
         mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk()).andExpect(jsonPath("$.standardRequest.knowledge.length()").value(1));
+        jdbc.update("UPDATE resolved_case SET vector_status='PENDING', graph_status='PENDING' WHERE id=?", caseId);
+        mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk()).andExpect(jsonPath("$.standardRequest.knowledge.length()").value(1));
+        // 사례 버전이 바뀌면 저장된 근거의 버전과 달라져 공개하지 않는다.
         jdbc.update("UPDATE resolved_case SET version_no=2 WHERE id=?", caseId);
         mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk()).andExpect(jsonPath("$.standardRequest.knowledge").isEmpty());
     }

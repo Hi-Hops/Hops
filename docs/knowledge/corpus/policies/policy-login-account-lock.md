@@ -6,6 +6,7 @@ systemCode: COMMON_LOGIN
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "사내 포털에 로그인하는 모든 임직원 계정에 적용한다. 비밀번호 오류에 따른 계정 잠금·해제와 비밀번호 규칙을 정한다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

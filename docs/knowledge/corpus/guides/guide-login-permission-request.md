@@ -6,6 +6,7 @@ systemCode: COMMON_LOGIN
 accessScope: EMPLOYEE
 version: 1
 appliesToSystemVersion: null
+applicability: "공통 로그인에서 전자결재·파일 공유 같은 시스템의 이용 권한을 신청하는 방법에 적용한다. 시스템 이용 권한만 다루며 파일 공유의 폴더 접근 권한은 폴더에서 별도로 요청하고, 승인 기준은 권한 신청 승인 정책을 따른다."
 dataSplit: RAG
 origin: SYNTHETIC
 reviewStatus: APPROVED

@@ -62,7 +62,7 @@ VALUES ('bf36cb48-7ca0-5c68-97be-8826f13751c6', 'bc670240-53a6-54a5-9a07-ca01e36
 - 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.
 $kb$,
         '18bd99147bdd898d8d3df3064b447d48fa6e7732af28fb2812eab597f1b10d1f',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-ea-approval-status", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.", "appliesToSystemVersion": null, "documentKey": "guide-ea-approval-status", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- guide-ea-attachment-open (v1)
@@ -101,7 +101,7 @@ VALUES ('58fa4162-7fd5-51e6-878a-28fd27b9fb6b', 'e796e500-ea3b-5f28-98a0-cfeb6f9
 - 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.
 $kb$,
         '21d7333443ecc285cd0ddbe47e254e0ca783bfdf537265ac19814e891557eaea',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-ea-attachment-open", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.", "appliesToSystemVersion": null, "documentKey": "guide-ea-attachment-open", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- guide-ea-document-create (v1)
@@ -145,7 +145,7 @@ VALUES ('b99e5dfe-858b-5f5b-b5fb-0f490528938c', 'ac6cd4ba-e868-58e4-943f-d67fea7
 - 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.
 $kb$,
         'c395c6adc22ce28e2a1c24118dcbf81638223ed8b570408848542b587743fd1b',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-ea-document-create", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.", "appliesToSystemVersion": null, "documentKey": "guide-ea-document-create", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- guide-ea-document-search (v1)
@@ -189,7 +189,7 @@ VALUES ('15961bb4-503d-5804-8a71-7ec838de1832', 'ce09363e-9aa8-5557-a49f-90ba9a3
 - 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.
 $kb$,
         'a8e3e9fbfcbbc6bd228d8adc87bd150c8646e0df486ee6418f596a366ee179c7',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-ea-document-search", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.", "appliesToSystemVersion": null, "documentKey": "guide-ea-document-search", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- guide-file-open-download (v1)
@@ -229,7 +229,7 @@ VALUES ('8b6d2e6b-df25-58d7-bb56-94a4c41b5d26', 'd37e0bc2-07bc-54af-941f-acb6a7e
 - 이 안내는 정상적인 열기·내려받기만 다룹니다. 열리지 않는 문제의 확인은 IT 문의로 접수합니다.
 $kb$,
         '486570d3618710cd733558f68b153af14e881821f8779e747fc3accbc5f66b1d',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-file-open-download", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "파일 공유의 공유 폴더에서 파일을 찾아 열고 내려받는 정상 절차에만 적용한다. 접근 권한이 있는 폴더만 보이고, 열리지 않는 문제의 확인은 IT 문의로 접수한다.", "appliesToSystemVersion": null, "documentKey": "guide-file-open-download", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- guide-file-share-link (v1)
@@ -273,7 +273,7 @@ VALUES ('3e819993-1d88-5980-9955-ffd81ec2548c', '903a4755-2b61-55e7-ba16-1a6b9c1
 - 공유 범위의 세부 규칙은 파일 공유 범위 정책을 따릅니다.
 $kb$,
         '9f4926921d9bd0ec1f325554fc0fa2710aa668a55c8d35796d8b48a61a65ce95',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-file-share-link", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "파일 공유에 올라온 파일을 다른 임직원과 공유하거나 공유 링크를 만드는 방법에 적용한다. 사외 공유는 지원하지 않고 공유 범위의 세부 규칙은 파일 공유 범위 정책을 따른다.", "appliesToSystemVersion": null, "documentKey": "guide-file-share-link", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- guide-login-permission-request (v1)
@@ -323,7 +323,7 @@ VALUES ('af4dca7c-0888-5c70-861a-2dc0380e8f6a', '3b058948-6b80-524b-8dce-4966435
 - 이 신청은 시스템 이용 권한입니다. 파일 공유의 폴더 접근 권한은 폴더에서 별도로 요청합니다.
 $kb$,
         'e64395d6226599f53efde1a9ce5a41d4a6f9c6626a2511206b26ce2684afdc9a',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-login-permission-request", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "공통 로그인에서 전자결재·파일 공유 같은 시스템의 이용 권한을 신청하는 방법에 적용한다. 시스템 이용 권한만 다루며 파일 공유의 폴더 접근 권한은 폴더에서 별도로 요청하고, 승인 기준은 권한 신청 승인 정책을 따른다.", "appliesToSystemVersion": null, "documentKey": "guide-login-permission-request", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- guide-login-sso-use (v1)
@@ -363,7 +363,7 @@ VALUES ('d6fe685c-1cb0-5057-a167-63fb91b1b874', '63f4c618-4f17-566e-a51e-32c9382
 - 로그인 후 로그인 화면이 반복되는 문제의 확인은 IT 문의로 접수합니다.
 $kb$,
         '1bbb9232797504307af5c8635df591f5de04add6c09e867b3f03d4bf2c32e40f',
-        '{"appliesToSystemVersion": null, "documentKey": "guide-login-sso-use", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "사내 포털 로그인과 한 번 로그인으로 전자결재·파일 공유를 이어 쓰는 방식에 적용한다. 로그인 성공이 모든 시스템·문서·파일의 열람 권한을 뜻하지는 않으며, 로그인 화면이 반복되는 문제의 확인은 IT 문의로 접수한다.", "appliesToSystemVersion": null, "documentKey": "guide-login-sso-use", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- policy-ea-attachment-limit (v1)
@@ -400,7 +400,7 @@ VALUES ('d2330635-4b0d-5fae-84e6-3709523e0f56', 'ed8667cd-fb92-5710-8191-e102011
 가상 업무 규정입니다. 제한을 어기면 "파일 크기는 20MB 이하여야 합니다" 또는 "허용하지 않는 파일 형식입니다"가 표시됩니다.
 $kb$,
         'b39c1d1b8939ceccf9f81c72cf51c4b25a2ad8e411a78ea009d6222652d9b934',
-        '{"appliesToSystemVersion": null, "documentKey": "policy-ea-attachment-limit", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "전자결재 문서에 파일을 첨부하거나 첨부 파일을 보는 모든 임직원에게 적용한다. 첨부 파일의 크기·개수·형식과 내려받기 규칙을 정한다.", "appliesToSystemVersion": null, "documentKey": "policy-ea-attachment-limit", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- policy-file-share-scope (v1)
@@ -443,7 +443,7 @@ VALUES ('3afb416a-8f6c-5cea-aff7-af3a354d31b6', '2efb6969-888d-5da8-81a2-0a4dec2
 가상 업무 규정입니다. 폴더·파일 단위 접근 권한은 파일 공유 담당자가 관리합니다.
 $kb$,
         'f6241a061eb50e1fc8fe982cbaf630f2b56857901e6fd9231a5ebbdf3c563565',
-        '{"appliesToSystemVersion": null, "documentKey": "policy-file-share-scope", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "파일 공유를 쓰는 모든 임직원에게 적용한다. 공유 대상(사내 임직원), 공유 방식·만료, 폴더 접근 권한을 정하며 시스템 이용 권한(공통 로그인의 접근 권한 신청)과는 다르다.", "appliesToSystemVersion": null, "documentKey": "policy-file-share-scope", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- policy-login-account-lock (v1)
@@ -480,7 +480,7 @@ VALUES ('5b273fbc-867b-542b-a505-caee954e8984', '7261865e-9733-596d-a6bd-91793fe
 가상 업무 규정입니다.
 $kb$,
         'a3be098e0130695f9fbc72294812a0bf48d1815b71797148a5b52634bac8b1e2',
-        '{"appliesToSystemVersion": null, "documentKey": "policy-login-account-lock", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "사내 포털에 로그인하는 모든 임직원 계정에 적용한다. 비밀번호 오류에 따른 계정 잠금·해제와 비밀번호 규칙을 정한다.", "appliesToSystemVersion": null, "documentKey": "policy-login-account-lock", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- policy-login-permission-approval (v1)
@@ -521,7 +521,7 @@ VALUES ('1bac2f3d-b47a-5cdc-91c1-b9408f02c4c7', '011c3688-63cd-572b-8009-c6cf9d4
 가상 업무 규정입니다. 신청 접수와 진행은 공통 로그인 담당자가 관리합니다.
 $kb$,
         '1cd0d18a6fa493a89f8afc85bafa0f93cd3364e05c03db0161f8a974a9f1a02f',
-        '{"appliesToSystemVersion": null, "documentKey": "policy-login-permission-approval", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "사내 시스템을 이용하려는 모든 임직원의 시스템 이용 권한 신청에 적용한다. 읽기·쓰기·관리 권한의 승인 기준을 정하며 파일 공유의 폴더·파일 단위 접근 권한은 파일 공유 범위 정책을 따른다.", "appliesToSystemVersion": null, "documentKey": "policy-login-permission-approval", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- runbook-ea-attachment-open-failure (v1)
@@ -570,7 +570,7 @@ VALUES ('cf830c91-fe02-5749-b73b-5d929a95af6a', 'c01d7886-57d8-5365-884e-afdb000
 - 로그인이 반복되는 문제는 공통 로그인 담당이다.
 $kb$,
         '1ae45d39d24cf027aaf10c830da00b0116c63f185df4526035dfe1cd22501413',
-        '{"appliesToSystemVersion": null, "documentKey": "runbook-ea-attachment-open-failure", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "전자결재 문서의 첨부 열람 문제에만 쓴다. 파일 공유의 파일이 열리지 않는 문제나 로그인 반복에는 쓰지 않으며, 한쪽의 원인으로 다른 쪽을 확정하지 않는다.", "appliesToSystemVersion": null, "documentKey": "runbook-ea-attachment-open-failure", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- runbook-ea-document-not-listed (v1)
@@ -622,7 +622,7 @@ VALUES ('ad95ebbc-909d-5b37-a74c-3e75a82371ca', '31604baa-d46c-5303-996b-e05bea5
 - 확인 결과가 위 후보에 모두 맞지 않으면 이 런북으로 원인을 정하지 않는다.
 $kb$,
         '00fe9f71c0828eba7f31d469f040c15dff6f9196a85c6fe8d5e9f112ffe3d58d',
-        '{"appliesToSystemVersion": null, "documentKey": "runbook-ea-document-not-listed", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "전자결재 문서 조회에서 문서가 목록에 보이지 않는 경우에만 쓴다. 결재 상태 확인이나 첨부 열람 문제, 로그인 반복에는 쓰지 않으며 확인 결과가 후보에 맞지 않으면 이 런북으로 원인을 정하지 않는다.", "appliesToSystemVersion": null, "documentKey": "runbook-ea-document-not-listed", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- runbook-file-open-denied (v1)
@@ -674,7 +674,7 @@ VALUES ('6698dff8-74f2-52a5-9223-802608959695', 'af32da54-e352-58b8-8546-3d26202
 - 정상 로그인에 성공했다는 사실만으로 모든 파일의 열람 권한이 있다고 판단하지 않는다.
 $kb$,
         '2eb5f9f9763e646e27b6b18e30082e642c99db7ed2caebd4251d822a4cc155ee',
-        '{"appliesToSystemVersion": null, "documentKey": "runbook-file-open-denied", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "파일 공유의 파일·폴더 열람 문제에만 쓴다. 전자결재 첨부와 증상이 비슷해도 원인과 확인 항목이 다르므로 한쪽의 원인으로 다른 쪽을 확정하지 않는다.", "appliesToSystemVersion": null, "documentKey": "runbook-file-open-denied", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;
 
 -- runbook-login-sso-loop (v1)
@@ -731,5 +731,5 @@ SSO 세션은 브라우저의 포털 도메인 쿠키에 저장되고, 전자결
 - 로그인에 성공했다는 사실만으로 모든 문서·파일의 열람 권한이 있다고 판단하지 않는다.
 $kb$,
         'd1bb85bdb4e43b3e00e0ae9050ce878ae42b05f8a483026c0240ac1b59f20797',
-        '{"appliesToSystemVersion": null, "documentKey": "runbook-login-sso-loop", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
+        '{"applicability": "로그인에 성공한 뒤 로그인 화면이 반복되는 경우에만 쓴다. 인증 실패, 계정 잠금, 세션 만료, 이용 권한 없음에는 쓰지 않는다.", "appliesToSystemVersion": null, "documentKey": "runbook-login-sso-loop", "origin": "SYNTHETIC", "source": {"reference": null, "type": "AUTHORED"}}'::jsonb, 'APPROVED')
 ON CONFLICT DO NOTHING;

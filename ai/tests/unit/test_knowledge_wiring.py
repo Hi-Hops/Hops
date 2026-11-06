@@ -14,8 +14,10 @@ from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest
+from hops_ai.harness.errors import ComponentNotReady
 from hops_ai.services.retrieval.factory import knowledge_source_for
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
+from hops_ai.services.retrieval.spring_source import SpringKnowledgeSource
 from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
@@ -28,6 +30,7 @@ from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import MESSAGE, SYSTEM, make_request
 
 HOW_TO_TEXT = "전자결재 문서 조회 방법을 알려주세요"
+SERVICE_TOKEN = "dGVzdC10b2tlbi1mb3ItdGlja2V0LWNyZWF0aW9uLWFwaQ"
 
 
 def how_to_first_message() -> AiRunRequest:
@@ -207,5 +210,25 @@ async def test_pipeline_offers_knowledge_only_once_a_guidable_problem_exists() -
 
 @pytest.mark.parametrize("kind", list(KnowledgeSourceKind))
 def test_every_setting_value_is_handled(kind) -> None:
-    source = knowledge_source_for(Settings(_env_file=None, knowledge_source=kind))
-    assert (source is not None) == (kind is KnowledgeSourceKind.FIXTURE)
+    source = knowledge_source_for(
+        Settings(
+            _env_file=None,
+            knowledge_source=kind,
+            spring_base_url="http://spring.test",
+            spring_service_token=SERVICE_TOKEN,
+        )
+    )
+    assert (source is not None) == (kind is not KnowledgeSourceKind.NONE)
+    assert isinstance(
+        source,
+        {
+            KnowledgeSourceKind.NONE: type(None),
+            KnowledgeSourceKind.FIXTURE: FixtureKnowledgeSource,
+            KnowledgeSourceKind.SPRING: SpringKnowledgeSource,
+        }[kind],
+    )
+
+
+def test_spring_source_requires_the_spring_address_and_service_token() -> None:
+    with pytest.raises(ComponentNotReady):
+        knowledge_source_for(Settings(_env_file=None, knowledge_source=KnowledgeSourceKind.SPRING))

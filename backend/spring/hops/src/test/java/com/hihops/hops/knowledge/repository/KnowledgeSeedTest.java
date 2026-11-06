@@ -17,6 +17,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hihops.hops.knowledge.domain.ReadRule;
+
 /**
  * 개발용 지식 문서 seed(R__seed_dev_knowledge.sql)를 실제로 적재해 정본 카탈로그(VIRTUAL_COMPANY.md 6절)와 같은지 확인한다.
  * 이 파일은 docs/knowledge/corpus에서 자동 생성된다. 원본과 SQL이 어긋났는지는 scripts/knowledge의 검사가 맡고,
@@ -98,15 +100,15 @@ class KnowledgeSeedTest {
         UUID runbook = versionId("runbook-ea-document-not-listed");
         UUID loginRunbook = versionId("runbook-login-sso-loop");
 
-        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(REQUESTER))).isTrue();
-        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(LOGIN_OWNER))).isTrue();
+        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(REQUESTER), ReadRule.user(false))).isTrue();
+        assertThat(versions.isCurrentlyVisible(guide, UUID.fromString(LOGIN_OWNER), ReadRule.user(false))).isTrue();
 
-        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(EA_OWNER))).isTrue();
-        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(LOGIN_OWNER))).isFalse();
-        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(REQUESTER))).isFalse();
+        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(EA_OWNER), ReadRule.user(false))).isTrue();
+        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(LOGIN_OWNER), ReadRule.user(false))).isFalse();
+        assertThat(versions.isCurrentlyVisible(runbook, UUID.fromString(REQUESTER), ReadRule.user(false))).isFalse();
 
-        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(LOGIN_OWNER))).isTrue();
-        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(EA_OWNER))).isFalse();
+        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(LOGIN_OWNER), ReadRule.user(false))).isTrue();
+        assertThat(versions.isCurrentlyVisible(loginRunbook, UUID.fromString(EA_OWNER), ReadRule.user(false))).isFalse();
     }
 
     @Test

@@ -13,7 +13,7 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 항목 | 상태 |
 |---|---|
 | FastAPI | `GET /healthz`는 프로세스 생존 200. `GET /readyz`는 실행 접수가 열려 있고 RunLedger 소유 세션이 응답할 때만 200, 그 외 503 |
-| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`일 때만 개발용 고정 자료로 실행하고 기본(`none`)은 연결 전 자리. 역할 조합을 만드는 함수는 `build_registry` 하나이며 Knowledge 연결 여부는 `knowledge_source` 인자로, Ticket의 Spring 생성 실행 여부는 `execute_tickets` 인자로 정한다. 역할을 주입하지 않은 `Supervisor()`는 모든 역할이 연결 전 자리(`pending_agents()`)다 |
+| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`(개발용 고정 자료) 또는 `spring`(Spring 내부 API로 DB의 승인 문서)일 때만 실행하고 기본(`none`)은 연결 전 자리. 역할 조합을 만드는 함수는 `build_registry` 하나이며 Knowledge 연결 여부는 `knowledge_source` 인자로, Ticket의 Spring 생성 실행 여부는 `execute_tickets` 인자로 정한다. 역할을 주입하지 않은 `Supervisor()`는 모든 역할이 연결 전 자리(`pending_agents()`)다 |
 | OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j 검색은 아직 구현하지 않았고 연결 자리 코드도 두지 않는다. 2차에 `KnowledgeSource` 뒤에서 교체한다 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결. real 모드 Supervisor 파이프라인 사용 |
@@ -170,7 +170,7 @@ python3 -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token
 
 ### Knowledge 개발용 고정 자료
 
-`ai/.env`에 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`를 추가하면 `real` 모드에서 Knowledge 역할이 켜진다(Compose도 같은 이름으로 AI 컨테이너에 전달한다). 기본값 `none`에서는 Knowledge가 연결 전 자리로 남고 Inquiry도 기존 양식 규칙을 그대로 쓴다. 설정을 바꾸면 AI를 다시 시작해야 한다.
+`ai/.env`에 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`를 추가하면 `real` 모드에서 Knowledge 역할이 켜진다(Compose도 같은 이름으로 AI 컨테이너에 전달한다). `spring`이면 Spring 내부 API(`/internal/v2/runs/{runId}/knowledge-searches`)로 DB의 승인 문서를 읽는다. `HOPS_AI_SPRING_BASE_URL`과 `SPRING_SERVICE_TOKEN`이 없으면 시작을 거부하고, 접근 범위는 요청이 아니라 Spring이 실행에서 확정한다. 검색 0건은 빈 결과, 검색 실패·접근 범위 초과(`DENIED`)는 검색 오류(`RetrievalUnavailable`)이며 빈 결과로 바꾸지 않는다. 호출마다 실행 전체 도구 호출 한도(`toolCalls`)를 소비하고 제한 시간은 `HOPS_AI_KNOWLEDGE_HTTP_TIMEOUT_SECONDS`(기본 5초)와 남은 기한 중 짧은 쪽이다. 관계 조회용 `SpringRelationSource`(증상→확인 항목→질문 문구)는 클라이언트까지만 있고 상담 흐름에는 연결하지 않았다. `fixture`는 테스트·오프라인용이다. 기본값 `none`에서는 Knowledge가 연결 전 자리로 남고 Inquiry도 기존 양식 규칙을 그대로 쓴다. 설정을 바꾸면 AI를 다시 시작해야 한다.
 
 - 자료는 코드에 들어 있는 합성 가이드·점검 문서 몇 건이며 `origin=SYNTHETIC`으로 표시된다. 사용법 안내 흐름을 확인하는 용도이고, 검색 품질이나 운영 지식을 뜻하지 않는다. 실제 pgvector·Neo4j 검색과 Spring 권한 서버 연동은 이 설정에 포함되지 않는다.
 - 검색은 서버가 허용한 문서 범위와 문제의 보고 시스템으로 먼저 좁힌 뒤 키워드 일치 수로 순위를 매긴다. 질의는 그 문제 자신의 정보로 만든다. 문제가 하나뿐일 때는 요약, 확인한 상세 값, 최근 사용자 원문을 함께 쓰고, 문제가 여럿이면 다른 문제의 단어가 섞이지 않게 원문과 모델이 쓴 요약을 쓰지 않고 사용자 인용으로 검증된 상세 값만 쓴다. 직원 대상 가이드(`EMPLOYEE`)만 사용자 안내가 되며 담당자 전용 문서는 안내로 쓰지 않는다.

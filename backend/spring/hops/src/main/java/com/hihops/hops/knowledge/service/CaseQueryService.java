@@ -58,6 +58,7 @@ public class CaseQueryService {
     private final KnowledgeDocumentVersionRepository documentVersions;
     private final TicketProgressReader progress;
     private final TicketStoredData data;
+    private final KnowledgeVisibilityPolicy visibility;
 
     /** 현재 사용자가 주담당자인 시스템의 사례만. 다른 시스템 지정과 담당 시스템 없음은 티켓 목록과 같이 403이다. */
     public PageResponse<CaseSummaryResponse> list(Jwt jwt, CaseListRequest request) {
@@ -87,7 +88,15 @@ public class CaseQueryService {
         boolean searchable = searchable(resolved);
         return new CaseDetailResponse(version(resolved), approval, indexes(resolved),
                 new PublicationResponse(resolved.getId(), resolved.getVersionNo(), searchable ? "SEARCHABLE" : "PRIVATE",
-                        searchable));
+                        searchable, visibility.caseVisibility().name(), visibleToSearch(resolved, member)));
+    }
+
+    /** 지식 검색의 공개 규칙(설정)에서 이 사용자 권한으로 지금 검색에 나오는지. 검색·근거 검증과 같은 판정을 쓴다. */
+    private boolean visibleToSearch(ResolvedCase resolved, Member member) {
+        if (resolved.getCaseStatus() != CaseStatus.APPROVED) return false;
+        return documentVersions.findCaseVersion(resolved.getId().toString(), resolved.getVersionNo())
+                .map(stored -> documentVersions.isCurrentlyVisible(stored.getId(), member.getId(), visibility.userRule()))
+                .orElse(false);
     }
 
     /**

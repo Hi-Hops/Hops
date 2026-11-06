@@ -33,7 +33,7 @@ SYSTEM_FEATURES = {
 
 REQUIRED_FIELDS = (
     "documentKey", "kind", "title", "accessScope", "version", "appliesToSystemVersion",
-    "dataSplit", "origin", "reviewStatus", "source",
+    "applicability", "dataSplit", "origin", "reviewStatus", "source",
 )
 DATA_SPLITS = {"RAG", "DEV", "EVAL"}
 REVIEW_STATUSES = {"PENDING", "APPROVED"}
@@ -173,6 +173,14 @@ def _validate_document(doc: Document) -> list[str]:
         bad(f"systemCode {system!r}를 알 수 없습니다.")
     if not str(meta["title"]).strip() or len(str(meta["title"])) > 200:
         bad("title은 비어 있지 않고 200자 이하여야 합니다.")
+    applicability = meta["applicability"]
+    if not isinstance(applicability, str) or not applicability.strip() or len(applicability) > 500:
+        bad("applicability는 비어 있지 않은 500자 이하 문자열이어야 합니다(이 문서를 어디에 쓰고 어디에 쓰지 않는지).")
+    elif meta["accessScope"] == "EMPLOYEE":
+        # 적용 조건도 AI의 근거로 직원 응답까지 닿을 수 있으므로 본문과 같은 금지어 검사를 한다.
+        for term in EMPLOYEE_FORBIDDEN_TERMS:
+            if term in applicability:
+                bad(f"직원 문서의 applicability에 담당자 전용 문구({term!r})가 있습니다.")
 
     headings = re.findall(r"^## (.+)$", doc.content, re.MULTILINE)
     if headings != BODY_HEADINGS[kind]:

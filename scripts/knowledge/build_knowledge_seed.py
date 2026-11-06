@@ -68,6 +68,7 @@ def render_document(doc: Document) -> str:
         "documentKey": doc.key,
         "origin": meta["origin"],
         "appliesToSystemVersion": meta["appliesToSystemVersion"],
+        "applicability": meta["applicability"],
         "source": meta["source"],
     }
     return f"""\

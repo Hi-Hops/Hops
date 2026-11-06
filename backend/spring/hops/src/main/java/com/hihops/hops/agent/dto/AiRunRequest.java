@@ -7,6 +7,8 @@ import java.util.UUID;
 
 import org.jspecify.annotations.Nullable;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 import com.hihops.hops.ticket.dto.StandardRequestResponse.EvidenceStatementResponse;
@@ -58,9 +60,20 @@ public record AiRunRequest(String contractVersion, UUID runId, String kind, UUID
             @Nullable UUID ticketId) {
     }
 
-    /** Spring이 만든 최소 권한. 모델이 넓히지 못한다. */
+    /**
+     * Spring이 만든 최소 권한. 모델이 넓히지 못한다.
+     *
+     * <p>{@code allowedDocumentScopes}는 사용자에게 닿을 수 있는 자료 범위다. {@code retrievalScopes}는 **내부 판단 경계(옵션, 기본 꺼짐)**에서
+     * 서버 설정이 켰을 때만 채우는 가산 필드로, 담당자 전용 자료를 내부 판단 입력으로만 읽을 수 있는 범위다(allowedDocumentScopes를 모두 포함).
+     * 꺼져 있으면 null이고 JSON에도 나타나지 않는다. 읽은 담당자 전용 자료가 사용자 응답에 닿는 경로는 열지 않는다
+     * (docs/ai/AGENT_ARCHITECTURE.md 9절, contracts/agents/KNOWLEDGE_TOOLS.md).
+     */
     public record AccessContext(UUID actorId, String purpose, List<UUID> systemIds, List<String> allowedDocumentScopes,
-            int policyRevision) {
+            int policyRevision, @JsonInclude(JsonInclude.Include.NON_NULL) @Nullable List<String> retrievalScopes) {
+        public AccessContext(UUID actorId, String purpose, List<UUID> systemIds, List<String> allowedDocumentScopes,
+                int policyRevision) {
+            this(actorId, purpose, systemIds, allowedDocumentScopes, policyRevision, null);
+        }
     }
 
     /** 실행 전체의 누적 한도. maxRetries만 0을 허용한다. */

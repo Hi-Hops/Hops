@@ -67,6 +67,13 @@ def validate_request(request: AiRunRequest) -> None:
         and "SYSTEM_STAFF" in request.accessContext.allowedDocumentScopes
     ):
         raise InputRejected("직원 상담에 담당자 내부 자료 범위를 포함할 수 없다")
+    if (
+        request.accessContext.retrievalScopes is not None
+        and request.accessContext.purpose != "EMPLOYEE_HELP"
+    ):
+        # 내부 판단 경계(옵션)는 직원 상담에서만 쓴다.
+        # 다른 목적은 allowedDocumentScopes가 읽기 범위다.
+        raise InputRejected("직원 상담이 아닌 실행에 내부 판단 범위를 둘 수 없다")
     for message in request.messages:
         if len(message.problemIds) != len(set(message.problemIds)):
             raise InputRejected("메시지의 문제 참조가 중복됐다")
