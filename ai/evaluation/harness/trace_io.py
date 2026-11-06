@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evaluation.harness.trace import RoleCall, RunTrace, TurnTrace
+from evaluation.harness.trace import AnalysisRecord, RoleCall, RunTrace, TurnTrace
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest, KnowledgeEvidence
 
@@ -23,7 +23,30 @@ def _role_call(call: RoleCall) -> dict[str, Any]:
         "search_state": call.search_state,
         "evidence": [item.model_dump(mode="json") for item in call.evidence],
         "failed_with": call.failed_with,
+        "analysis": [
+            {
+                "problem_ref": item.problem_ref,
+                "keywords": list(item.keywords),
+                "feature_candidates": list(item.feature_candidates),
+                "raw_keywords": list(item.raw_keywords),
+                "raw_feature_candidates": list(item.raw_feature_candidates),
+            }
+            for item in call.analysis
+        ],
     }
+
+
+def _analysis(items: list[dict[str, Any]]) -> tuple[AnalysisRecord, ...]:
+    return tuple(
+        AnalysisRecord(
+            problem_ref=item["problem_ref"],
+            keywords=tuple(item["keywords"]),
+            feature_candidates=tuple(item["feature_candidates"]),
+            raw_keywords=tuple(item["raw_keywords"]),
+            raw_feature_candidates=tuple(item["raw_feature_candidates"]),
+        )
+        for item in items
+    )
 
 
 def _turn(turn: TurnTrace) -> dict[str, Any]:
@@ -64,6 +87,8 @@ def trace_from_dict(data: dict[str, Any]) -> RunTrace:
                 search_state=call["search_state"],
                 evidence=tuple(KnowledgeEvidence.model_validate(e) for e in call["evidence"]),
                 failed_with=call["failed_with"],
+                # 검색 힌트를 기록하기 전에 저장한 trace에는 이 키가 없다. 형식 번호는 그대로다.
+                analysis=_analysis(call.get("analysis", [])),
             )
             for call in item["role_calls"]
         )

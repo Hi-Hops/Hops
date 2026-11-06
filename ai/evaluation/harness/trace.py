@@ -14,8 +14,23 @@ type SearchState = Literal["FOUND", "EMPTY", "ERROR"]
 
 
 @dataclass(frozen=True)
+class AnalysisRecord:
+    """Inquiry가 문제 하나에 낸 검색 힌트. 모델이 낸 원본과 규칙이 정리한 결과를 함께 남긴다.
+
+    원본과 정리 결과를 비교하면 규칙이 얼마나 걸러냈는지, 모델이 쓸 만한 키워드를 냈는지
+    사람이 볼 수 있다. 검사기는 이 값을 판정에 쓰지 않는다.
+    """
+
+    problem_ref: str
+    keywords: tuple[str, ...]
+    feature_candidates: tuple[str, ...]
+    raw_keywords: tuple[str, ...] = ()
+    raw_feature_candidates: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class RoleCall:
-    """한 번의 역할 호출. 검색 역할이면 검색 상태와 근거를 함께 남긴다."""
+    """한 번의 역할 호출. 검색 역할은 검색 상태·근거를, 문의 분석 역할은 검색 힌트를 남긴다."""
 
     role: AgentRole
     # 검색이 다룬 문제. 알 수 없으면 None이다(예외로 끝난 호출 등).
@@ -24,6 +39,8 @@ class RoleCall:
     evidence: tuple[KnowledgeEvidence, ...] = ()
     # 역할이 결과 없이 예외로 끝났다면 예외 이름.
     failed_with: str | None = None
+    # 문의 분석 역할이 문제마다 낸 검색 힌트. 다른 역할은 비어 있다.
+    analysis: tuple[AnalysisRecord, ...] = ()
 
 
 @dataclass(frozen=True)

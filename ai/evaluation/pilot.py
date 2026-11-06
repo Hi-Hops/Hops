@@ -89,8 +89,39 @@ def _turn_summary(index: int, turn: TurnTrace) -> dict[str, Any]:
         summary["ticketProposals"] = len(result.ticketProposals)
         summary["evidenceCount"] = len(result.evidence)
         summary["error"] = result.error.model_dump(mode="json") if result.error else None
+    hints = _search_hints(turn)
+    if hints:
+        summary["searchHints"] = hints
     summary["userReply"] = turn.user_reply
     return summary
+
+
+def _search_hints(turn: TurnTrace) -> list[dict[str, Any]]:
+    """문의 분석이 낸 검색 힌트를 사람이 읽기 쉽게 정리한다. 키워드 품질을 눈으로 확인하는 데 쓴다.
+
+    모델 원본에서 규칙이 버린 값(없는 단어·허용 밖 기능 등)을 함께 보여 규칙이 얼마나 걸러냈는지
+    알 수 있다. 기능은 ID 대신 이름으로 적는다.
+    """
+    names = {
+        feature.id: feature.name for system in turn.request.systems for feature in system.features
+    }
+    hints = []
+    for call in turn.role_calls:
+        for item in call.analysis:
+            hints.append(
+                {
+                    "problemRef": item.problem_ref,
+                    "keywords": list(item.keywords),
+                    "droppedKeywords": [k for k in item.raw_keywords if k not in item.keywords],
+                    "features": [names.get(f, f) for f in item.feature_candidates],
+                    "droppedFeatures": [
+                        names.get(f, f)
+                        for f in item.raw_feature_candidates
+                        if f not in item.feature_candidates
+                    ],
+                }
+            )
+    return hints
 
 
 def summarize(trace: RunTrace, cap: CallCap) -> dict[str, Any]:
