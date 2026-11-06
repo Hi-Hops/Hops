@@ -70,7 +70,7 @@ describe('F009 티켓 상세 모달', () => {
     expect(router.state.location.pathname).toBe(`/tickets/${ticket.id}`);
     await user.type(within(dialog).getByRole('textbox', { name: '처리 내용' }), '작성 중인 조치');
     await user.click(within(dialog).getByRole('link', { name: '해결 사례' }));
-    await user.click(within(dialog).getByRole('link', { name: '요청·관련 대화' }));
+    await user.click(within(dialog).getByRole('link', { name: '요청 내역' }));
     expect(await within(dialog).findByRole('heading', { name: '표준 요청' })).toBeVisible();
     await user.click(within(dialog).getByRole('link', { name: '문의 처리 기록' }));
     expect(within(dialog).getByRole('textbox', { name: '처리 내용' })).toHaveValue(
@@ -159,6 +159,76 @@ describe('F009 티켓 상세 모달', () => {
       expect(within(dialog).getByRole('textbox', { name: '처리 내용' })).toHaveValue(''),
     );
     expect(screen.getByRole('dialog')).toBe(dialog);
+  });
+
+  it('F009-DETAIL-05 진행 기록은 처리 내용만 받고 완료 기록은 저장 전에 전달 내용을 보여준다', async () => {
+    const ticket = await firstTicket();
+    renderTickets(`/tickets/${ticket.id}?tab=work`);
+    const user = userEvent.setup();
+    const dialog = await screen.findByRole('dialog');
+    const view = within(dialog);
+    await user.type(await view.findByRole('textbox', { name: '처리 내용' }), '저장 경로를 복구');
+    expect(view.queryByRole('textbox', { name: /동작 확인 결과/ })).not.toBeInTheDocument();
+    expect(view.queryByRole('textbox', { name: /확인된 원인/ })).not.toBeInTheDocument();
+
+    await user.selectOptions(view.getByRole('combobox', { name: '기록 유형' }), '처리 완료');
+    await user.type(view.getByRole('textbox', { name: '동작 확인 결과 (필수)' }), '정상 열람 확인');
+    await user.type(view.getByRole('textbox', { name: '확인된 원인 (선택)' }), '경로 설정 누락');
+    const preview = within(view.getByRole('region', { name: '저장 전 미리보기' }));
+    expect(preview.getAllByText('저장 경로를 복구')).toHaveLength(2);
+    expect(preview.getByText('정상 열람 확인')).toBeVisible();
+    expect(preview.getByText('경로 설정 누락')).toBeVisible();
+    expect(preview.getByText('미확인')).toBeVisible();
+
+    await user.selectOptions(view.getByRole('combobox', { name: '기록 유형' }), '진행 기록');
+    expect(view.queryByRole('region', { name: '저장 전 미리보기' })).not.toBeInTheDocument();
+    await user.click(view.getByRole('button', { name: '문의 처리 기록 저장' }));
+    await waitFor(() => expect(view.getByRole('textbox', { name: '처리 내용' })).toHaveValue(''));
+    const saved = await view.findByText('저장 경로를 복구', { selector: 'p' });
+    expect(saved.closest('article')).toHaveTextContent('진행 기록');
+    expect(saved.closest('article')).not.toHaveTextContent('경로 설정 누락');
+    expect(saved.closest('article')).not.toHaveTextContent('정상 열람 확인');
+  });
+
+  it('F009-DETAIL-03 요청 내역은 확인된 사실과 채팅 내역을 먼저 보여주고 표준 요청은 접어 둔다', async () => {
+    vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
+    systemMockBackend.reset();
+    await login(TEST_LOGINS.network);
+    const tickets = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
+    const ticket = tickets.items.find((item) => item.title.includes('세션 오류 조사'));
+    if (!ticket) throw new Error('대화가 있는 예시 티켓 필요');
+    renderTickets(`/tickets/${ticket.id}`);
+    const user = userEvent.setup();
+    const view = within(await screen.findByRole('dialog'));
+    expect(await view.findByRole('heading', { name: '확인된 사실' })).toBeVisible();
+    const fold = view.getByText('표준 요청').closest('details');
+    expect(fold).not.toHaveAttribute('open');
+    await user.click(view.getByText('표준 요청'));
+    expect(fold).toHaveAttribute('open');
+
+    const chat = (await view.findByText('문의자')).closest('article');
+    expect(chat).toHaveAttribute('data-sender', 'USER');
+    expect(view.getByText('Hops').closest('article')).toHaveAttribute('data-sender', 'AI');
+
+    const history = view.getByRole('heading', { name: '관련 과거 해결 사례' }).closest('section');
+    if (!history) throw new Error('사례 영역 필요');
+    expect(within(history).getByText(/첨부파일 표시 오류 복구/u)).toBeVisible();
+    const documents = within(history).getByText('참고 문서 1건').closest('details');
+    expect(documents).not.toHaveAttribute('open');
+    expect(documents).toHaveTextContent('장애 점검 안내');
+  });
+
+  it('F009-DETAIL-03 처리 기록 탭에서 요청 내용을 펼쳐 볼 수 있다', async () => {
+    const ticket = await firstTicket();
+    renderTickets(`/tickets/${ticket.id}?tab=work`);
+    const user = userEvent.setup();
+    const dialog = await screen.findByRole('dialog');
+    const view = within(dialog);
+    const summary = await view.findByText('요청 내역 참고');
+    expect(view.queryByRole('heading', { name: '표준 요청' })).not.toBeInTheDocument();
+    await user.click(summary);
+    expect(await view.findByRole('heading', { name: '표준 요청' })).toBeVisible();
+    expect(view.getByRole('textbox', { name: '처리 내용' })).toBeVisible();
   });
 
   it('F007-CONTRACT-01 관리자 직접 진입에서는 처리 입력 대신 제한 상세 모달을 표시한다', async () => {

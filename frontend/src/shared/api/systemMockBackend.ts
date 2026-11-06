@@ -18,6 +18,33 @@ type Journal = { digest: string; userId: string; createdAt: number; receipt: D.C
 type MockSession = { userId: string; expiresAt: number; preview: boolean };
 const now = () => new Date().toISOString();
 const clone = <T>(value: T): T => structuredClone(value);
+/** 시연 예시 티켓의 요청 내역에 표시할 합성 지식 근거. */
+const mockKnowledge = (systemId: string): D.KnowledgeEvidence[] =>
+  (
+    [
+      {
+        kind: 'CASE',
+        title: '[예시] 첨부파일 표시 오류 복구 사례',
+        excerpt: '저장 경로 설정을 다시 지정하고 서비스를 재시작해 첨부파일 표시를 복구했어요.',
+        applicability: '문서 열기는 되지만 첨부파일이 표시되지 않는 경우',
+      },
+      {
+        kind: 'RUNBOOK',
+        title: '[예시] 장애 점검 안내',
+        excerpt: '오류가 발생한 시간대와 접근 정책을 먼저 확인해요.',
+        applicability: '서비스 오류를 처음 점검하는 경우',
+      },
+    ] as const
+  ).map((item) => ({
+    ...item,
+    id: crypto.randomUUID(),
+    documentId: crypto.randomUUID(),
+    documentVersion: 1,
+    systemId,
+    appliesToSystemVersion: 'demo-1.0',
+    accessScope: 'SYSTEM_STAFF',
+    origin: 'SYNTHETIC',
+  }));
 export class SystemMockBackend {
   private sessions = new Map<string, MockSession>();
   private refresh: MockSession | null = null;
@@ -390,7 +417,7 @@ export class SystemMockBackend {
         desiredChange: null,
         acceptanceCriteria: [],
       },
-      knowledge: [],
+      knowledge: problem.summary.startsWith('[예시]') ? mockKnowledge(responsible.id) : [],
     };
     this.details.set(ticket.id, {
       ...ticket,

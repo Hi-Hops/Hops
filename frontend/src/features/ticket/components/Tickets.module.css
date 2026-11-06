@@ -201,14 +201,10 @@
   color: var(--color-text-secondary);
 }
 .cardMeta,
-.boardHint,
 .columnFoot {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: 1.5;
-}
-.boardHint {
-  margin: var(--space-2) 0 var(--space-4);
 }
 .columnEmpty {
   display: grid;
@@ -364,6 +360,73 @@
 .properties h3 {
   font-size: var(--font-size-md);
   margin: 0 0 var(--space-4);
+}
+/* 표준 요청은 필요할 때만 펼쳐 확인된 사실과 채팅 내역을 먼저 읽게 한다. */
+.requestFold {
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  min-width: 0;
+}
+.requestFold summary {
+  cursor: pointer;
+}
+.requestFold summary h3 {
+  display: inline;
+  font-size: var(--font-size-md);
+}
+.requestFold[open] summary {
+  margin-bottom: var(--space-4);
+}
+.requestFold h4 {
+  font-size: var(--font-size-label);
+  margin: var(--space-5) 0 var(--space-2);
+}
+.requestFold p {
+  font-size: var(--font-size-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+.chatLog {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.chatMessage {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  max-width: 85%;
+  min-width: 0;
+}
+.chatMessage[data-sender='USER'] {
+  justify-self: end;
+  justify-items: end;
+}
+.chatMeta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  font-size: var(--font-size-sm);
+}
+.chatMeta time {
+  color: var(--color-text-muted);
+}
+.chatMessage[data-sender='USER'] .chatText {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-primary-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-soft);
+}
+.documents {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-label);
+}
+.documents summary {
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
 }
 .requestCard h4 {
   font-size: var(--font-size-label);

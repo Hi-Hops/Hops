@@ -350,7 +350,7 @@ export class SystemMockWorkflow {
             sourceVersion: 1,
             requestRevision: 1,
             state: 'PENDING',
-            resultSummary: record.action + '\n동작 확인: ' + (record.verification ?? ''),
+            resultSummary: record.action,
             confirmationOrigin: 'HOPS_USER',
             createdAt: now(),
             respondedAt: null,

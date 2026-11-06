@@ -34,10 +34,9 @@ export function CaseGenerationPanel({ generation }: CaseGenerationPanelProps) {
     );
   return (
     <section className={styles.info} aria-label="해결 사례 초안">
-      <strong>해결 사례 초안은 별도로 준비돼요</strong>
-      <p>초안 생성 실패가 저장된 문의 처리 기록이나 해결 확인 요청을 취소하지 않아요.</p>
+      <strong>해결 사례 초안</strong>
       {!data ? (
-        <p>처리 완료 기록을 저장하면 초안 생성을 요청해요.</p>
+        <p>아직 초안이 없어요.</p>
       ) : data.state === 'SUCCEEDED' && data.caseId ? (
         <Link to={paths.case(data.caseId)}>사례 초안 확인</Link>
       ) : data.state === 'FAILED' ? (
