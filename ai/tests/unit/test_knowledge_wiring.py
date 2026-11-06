@@ -58,6 +58,8 @@ def how_to_extraction(*, task: str | None = "문서 조회") -> InquiryExtractio
                 businessPurpose=None,
                 desiredChange=None,
                 unknownFields=[],
+                keywords=[],
+                featureCandidates=[],
             )
         ]
     )

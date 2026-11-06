@@ -79,6 +79,7 @@ def create_initial_state(request: AiRunRequest) -> SupervisorState:
         activeRole=None,
         nextAction=None,
         problems={problem.id: _problem_from_input(problem) for problem in snapshot.problems},
+        analysis={},
         questions={},
         evidence=evidence,
         guide=None,

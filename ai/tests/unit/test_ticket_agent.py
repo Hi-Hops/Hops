@@ -167,6 +167,8 @@ async def test_supervisor_ends_a_complete_inquiry_with_a_ticket_proposal() -> No
         businessPurpose=None,
         desiredChange=None,
         unknownFields=[],
+        keywords=[],
+        featureCandidates=[],
     )
     llm = FakeLLMClient(
         SupervisorDecision(

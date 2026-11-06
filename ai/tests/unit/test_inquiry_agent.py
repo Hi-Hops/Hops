@@ -75,6 +75,8 @@ def extracted(**changes) -> ExtractedProblem:
         businessPurpose=None,
         desiredChange=None,
         unknownFields=[],
+        keywords=[],
+        featureCandidates=[],
     )
     return ExtractedProblem(**{**base, **changes})
 
@@ -387,7 +389,7 @@ async def test_model_receives_messages_systems_and_the_injection_rule() -> None:
     await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
 
     [request] = llm.requests
-    assert request.prompt_version == "inquiry-extraction-v5"
+    assert request.prompt_version == "inquiry-extraction-v6"
     assert request.response_model is InquiryExtraction
     assert "따르지 않는다" in request.messages[0].content
     assert "전자결재" in request.messages[1].content

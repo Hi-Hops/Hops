@@ -11,6 +11,7 @@ from hops_ai.contracts.roles import (
     CuratorResult,
     InquiryResult,
     KnowledgeResult,
+    ProblemAnalysis,
     RoleResult,
     TicketResult,
 )
@@ -21,6 +22,7 @@ from hops_ai.contracts.wire import (
     TicketExecution,
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.rules.analysis import validate_analysis
 from hops_ai.rules.progress import (
     validate_evidence_scope,
 )
@@ -177,9 +179,35 @@ def merge_inquiry_result(state: SupervisorState, result: InquiryResult) -> Super
         if key in questions and questions[key] != question:
             raise OutputRejected("같은 질문 묶음의 내용이 달라졌다")
         questions[key] = question
-    candidate = {**state, "problems": problems, "questions": questions}
+    analysis = dict(state["analysis"])
+    analyzed: set[str] = set()
+    for item in result.analysis:
+        if item.problemRef not in seen or item.problemRef in analyzed:
+            raise OutputRejected("분석이 이번 결과의 문제와 다르거나 같은 문제가 중복됐다")
+        analyzed.add(item.problemRef)
+        validate_analysis(state, item, problems[item.problemRef])
+        analysis[item.problemRef] = _preserve_analysis(analysis.get(item.problemRef), item)
+    candidate = {**state, "problems": problems, "questions": questions, "analysis": analysis}
     validate_questions(candidate)
     return _complete_merge(candidate, result)
+
+
+def _preserve_analysis(
+    previous: ProblemAnalysis | None, latest: ProblemAnalysis
+) -> ProblemAnalysis:
+    """최신 분석으로 대체하되, 빈 목록은 삭제가 아니라 누락으로 보고 이전 값을 유지한다.
+
+    모델은 호출마다 다시 추출하므로 한 번의 빈 응답이 앞서 얻은 검색 힌트를 지우면 안 된다.
+    """
+    if previous is None:
+        return latest.model_copy(deep=True)
+    return latest.model_copy(
+        update={
+            "keywords": latest.keywords or previous.keywords,
+            "featureCandidates": latest.featureCandidates or previous.featureCandidates,
+        },
+        deep=True,
+    )
 
 
 def merge_knowledge_result(

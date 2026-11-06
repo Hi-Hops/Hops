@@ -16,7 +16,7 @@ from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import InputMessage, Intent, SupportedSystem
 
-PROMPT_VERSION = "inquiry-extraction-v5"
+PROMPT_VERSION = "inquiry-extraction-v6"
 # 사용자가 직접 모른다고 말한 구절로 인정하는 표현. 인식하지 못하면 필수 질문이 유지되는
 # 쪽(안전한 쪽)으로 실패하므로 표현을 넓히는 것은 평가 데이터가 생긴 뒤에 한다.
 UNKNOWN_EXPRESSION = re.compile(
@@ -82,6 +82,12 @@ SYSTEM_PROMPT = """\
 8. summary는 그 문제 하나만 한 문장으로 요약하되 원문에 없는 사실을 더하지 않는다.
    문제를 나눴다면 각 summary에 다른 문제의 내용을 넣지 않는다. 한 문제의 summary에 다른
    문제를 함께 적지 말고, 그 문제의 필드(taskOrScreen 등)와 같은 범위만 요약한다.
+9. keywords는 그 문제의 지식을 검색할 때 쓸 핵심어 3~5개다. 사용자 메시지에 실제로 있는 단어를
+   그대로 쓴다. 공백 없는 한 단어를 우선하고 조사·어미는 뗀다(예: 원문 "첨부파일이"는 "첨부파일").
+   동의어나 원문에 없는 말을 만들지 않는다. 2~20자이며 근거가 부족하면 적게 쓰고 없으면 빈 목록이다.
+10. featureCandidates는 그 문제와 관련된 기능의 id다. systems 목록의 systemCode가 가리키는
+    시스템 안의 features에 있는 id만, 가장 관련 있는 것부터 최대 2개 적는다.
+    그 문제의 systemCode를 정하지 못했거나 확실하지 않으면 빈 목록이다.
 """
 
 
@@ -113,6 +119,10 @@ class ExtractedProblem(ContractModel):
     businessPurpose: QuotedValue | None
     desiredChange: QuotedValue | None
     unknownFields: list[UnknownClaim]
+    # 검색 힌트. 사실이 아니라서 원문 인용을 받지 않으며, 규칙(rules.analysis)이 정리한다.
+    # 구조화 출력(strict)에 맞춰 필수 필드로 두고 없으면 빈 목록으로 받는다.
+    keywords: list[str]
+    featureCandidates: list[str]
 
 
 class InquiryExtraction(ContractModel):
@@ -127,7 +137,16 @@ def build_user_payload(
     """모델에 보내는 입력. existing은 (id, summary, intent) 순서의 기존 문제다."""
     return json.dumps(
         {
-            "systems": [{"code": item.code, "name": item.name} for item in systems],
+            "systems": [
+                {
+                    "code": item.code,
+                    "name": item.name,
+                    "features": [
+                        {"id": feature.id, "name": feature.name} for feature in item.features
+                    ],
+                }
+                for item in systems
+            ],
             "existingProblems": [
                 {"id": ref, "summary": summary, "intent": intent}
                 for ref, summary, intent in existing

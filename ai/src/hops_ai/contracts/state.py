@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import AuthorizedKnowledgeRef, RoleResult
+from hops_ai.contracts.roles import AuthorizedKnowledgeRef, ProblemAnalysis, RoleResult
 from hops_ai.contracts.wire import (
     AiError,
     AiResult,
@@ -55,6 +55,8 @@ class SupervisorState(TypedDict):
         Literal["CALL_ROLE", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS", "FINISH"] | None
     )
     problems: dict[str, ProblemProposal]
+    # 문제별 검색 힌트(키워드·기능 후보). 내부 전용이며 AiResult에 싣지 않는다.
+    analysis: dict[str, ProblemAnalysis]
     questions: dict[tuple[str, str], QuestionProposal]
     evidence: dict[str, KnowledgeEvidence]
     guide: GuideProposal | None

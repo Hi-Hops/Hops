@@ -266,4 +266,9 @@ def _role_span_output(
                     "preservedFacts": preserved,
                     "addedFacts": added,
                 }
+        # 검색 힌트의 품질을 측정에서 확인할 수 있게 남긴다. 사용자 응답에는 쓰지 않는다.
+        output["analysisByProblem"] = {
+            ref: {"keywords": item.keywords, "featureCandidates": item.featureCandidates}
+            for ref, item in merged["analysis"].items()
+        }
     return output

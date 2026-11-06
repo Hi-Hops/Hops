@@ -1,7 +1,8 @@
 """Inquiry 역할: 문의 원문에서 사실을 추출하고 부족한 정보를 질문으로 만든다.
 
-모델이 하는 일은 원문 구절 추출뿐이다(extraction.py). 확보한 정보가 무엇인지는
-원문 대조로, 무엇을 더 물을지는 양식 규칙(forms.py)으로 코드가 정한다.
+모델이 하는 일은 원문 구절 추출과 검색 힌트(키워드·기능 후보) 제안이다(extraction.py).
+확보한 정보가 무엇인지는 원문 대조로, 무엇을 더 물을지는 양식 규칙(forms.py)으로 코드가 정한다.
+검색 힌트는 사실이 아니라서 규칙(rules.analysis)으로 정리하고 질문·안내에 쓰지 않는다.
 모델이 질문 내용·시스템·처리 유형을 정하지 못하므로 모델이나 프롬프트를 바꿔도
 같은 규칙과 검증이 적용된다.
 
@@ -24,7 +25,7 @@ from hops_ai.agents.inquiry.extraction import (
 )
 from hops_ai.agents.inquiry.forms import FIELD_LABELS, plan_next
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import InquiryResult
+from hops_ai.contracts.roles import InquiryResult, ProblemAnalysis
 from hops_ai.contracts.state import RoleRequest
 from hops_ai.contracts.wire import (
     EvidenceStatement,
@@ -36,6 +37,12 @@ from hops_ai.contracts.wire import (
     RequestDetails,
 )
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.analysis import (
+    allowed_feature_ids,
+    normalize_keywords,
+    select_feature_candidates,
+    user_texts,
+)
 from hops_ai.rules.intent_policy import is_guide_type, policy_for
 from hops_ai.rules.progress import problems_without_guide
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
@@ -71,6 +78,8 @@ class ExtractionInquiryAgent:
         system_ids = {system.code: system.id for system in request.systems}
         problems: list[ProblemProposal] = []
         questions: list[QuestionProposal] = []
+        analysis: list[ProblemAnalysis] = []
+        texts = user_texts(request)
         for index, extracted in enumerate(extraction.problems[:MAX_PROBLEMS]):
             original = existing[index] if index < len(existing) else None
             ref = original.id if original is not None else f"new:{index + 1}"
@@ -91,8 +100,25 @@ class ExtractionInquiryAgent:
             problems.append(problem)
             if question is not None:
                 questions.append(question)
+            # 검색 힌트는 사실이 아니라서 인용 대조 대신 규칙으로 정리한다. 기능 후보는 코드가 정한
+            # 문제의 시스템(서버 확인값 포함)을 기준으로 거른다. 모델이 시스템을 바꾸지 못한다.
+            analysis.append(
+                ProblemAnalysis(
+                    problemRef=ref,
+                    keywords=list(normalize_keywords(extracted.keywords, texts)),
+                    featureCandidates=list(
+                        select_feature_candidates(
+                            extracted.featureCandidates,
+                            allowed_feature_ids(request, problem.reportedSystemCandidateId),
+                        )
+                    ),
+                )
+            )
         return InquiryResult(
-            invocationId=call.invocation_id, problems=problems, questions=questions
+            invocationId=call.invocation_id,
+            problems=problems,
+            questions=questions,
+            analysis=analysis,
         )
 
     @staticmethod

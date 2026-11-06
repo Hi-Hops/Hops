@@ -58,12 +58,26 @@ class SearchResult(ContractModel):
         return self
 
 
+class ProblemAnalysis(ContractModel):
+    """문제 하나의 검색 힌트. 사실이 아니며 사용자 응답·질문·티켓에 쓰지 않는다.
+
+    keywords: 검색에 쓸 핵심어. 사용자 메시지에 실제로 있는 구절이다.
+    featureCandidates: 관련 기능 ID. 문제의 시스템이 확정됐을 때 그 시스템의 기능만이다.
+    개수·길이·출처 규칙은 rules.analysis가 에이전트 정리와 병합 검증에 함께 쓴다.
+    """
+
+    problemRef: ProblemRef
+    keywords: list[WireText]
+    featureCandidates: list[WireUuid]
+
+
 class InquiryResult(ContractModel):
-    """문의 분석에서 제안한 문제와 질문 묶음."""
+    """문의 분석에서 제안한 문제와 질문 묶음, 문제별 검색 힌트."""
 
     invocationId: WireText
     problems: list[ProblemProposal]
     questions: list[QuestionProposal]
+    analysis: list[ProblemAnalysis] = Field(default_factory=list)
 
 
 class KnowledgeResult(ContractModel):
