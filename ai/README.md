@@ -56,7 +56,7 @@ tests/
 
 Supervisor는 공통 `contracts/wire.py`의 요청·제안·결과 타입을 재사용한다. `contracts/roles.py`는 역할별 내부 결과와 검색 권한 확인 참조를 정의한다. 기본 함수는 `policy.py` → `state.py` → `merge.py` → `finalize.py` 순서로 읽는다. 예약된 역할 호출의 결과를 검증한 뒤 새 State로 반환하며 동일 호출 재전달·질문 한도·근거 충돌·기존 작업·종료 후 변경을 검사한다.
 
-Supervisor가 사용자 메시지의 처리 방향을 먼저 판단한다. IT 문의나 보완이 있으면 인사가 섞여 있어도 Inquiry에 분석을 맡기고, 인사만 있으면 `REPLY`/`GREETING`, 의도를 알 수 없으면 `REPLY`/`CLARIFY`로 고정 문구를 답한다. 모델이 인사라고 판단해도 아직 분석하지 않은 사용자 메시지가 코드가 확인한 인사 표현만이 아니면 되묻기로 낮춘다(`supervisor/validation.py`). 잘못 분류된 문의를 인사로 조용히 끝내지 않기 위한 보수적인 처리이며, 목록 밖의 단순 인사도 되묻기가 될 수 있다. Inquiry는 문의 분석만 하며, 문제를 찾지 못하면 빈 결과를 돌려주고 Supervisor가 다시 묻는다. 같은 실행에서 Inquiry를 다시 호출하지 않는다.
+Supervisor가 사용자 메시지의 처리 방향을 먼저 판단한다. IT 문의나 보완이 있으면 인사가 섞여 있어도 Inquiry에 분석을 맡기고, 인사만 있으면 `REPLY`/`GREETING`, 의도를 알 수 없으면 `REPLY`/`CLARIFY`로 고정 문구를 답한다. 모델이 인사라고 판단해도 아직 분석하지 않은 사용자 메시지가 코드가 확인한 인사 표현만이 아니면 되묻기로 낮춘다(`supervisor/validation.py`). 잘못 분류된 문의를 인사로 조용히 끝내지 않기 위한 보수적인 처리이며, 목록 밖의 단순 인사도 되묻기가 될 수 있다. Inquiry는 문의 분석만 하며, 문제를 찾지 못하면 빈 결과를 돌려주고 Supervisor가 다시 묻는다. 같은 실행에서 Inquiry를 다시 호출하지 않는다. 아직 분석하지 않은 사용자 메시지가 확인된 인사 표현뿐이면 처리 중인 기존 문제가 있어도 선택지에서 Inquiry를 빼서(`supervisor/choices.py`) 이전 질문을 반복하지 않고 인사로 답한다.
 
 `REPLY`처럼 사용자 입력을 기다리는 대화 응답은 `AiResult.requiresFollowUp=true`를 보낸다. Spring은 이를 검증해 문의 완료 집계를 보류한다. 다른 결과의 `false`가 질문이 없음을 의미하지는 않으며 기존 질문 처리는 별도다. 이전 생산자의 필드 생략과 서비스 교체 순서는 [AiResult 전송 계약](../contracts/agents/README.md#s2-외부-wire-형식)을 따른다.
 

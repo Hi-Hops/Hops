@@ -151,9 +151,9 @@ async def test_greeting_mixed_with_an_inquiry_is_analyzed_by_inquiry() -> None:
 
 
 async def test_empty_inquiry_result_is_clarified_instead_of_failing() -> None:
-    """Supervisor가 인사를 Inquiry로 보냈고 문제가 없으면 실패 대신 되묻는다."""
+    """Inquiry가 문제를 찾지 못하면 실패 대신 되묻는다."""
     result, llm = await analyze(
-        first_message_request("안녕하세요"),
+        first_message_request("혹시 시간 괜찮으세요?"),
         call_inquiry(),
         InquiryExtraction(problems=[]),
         reply("CLARIFY"),
@@ -205,3 +205,34 @@ def test_case_draft_cannot_reply() -> None:
 )
 def test_only_greetings_accepts_listed_expressions(text, expected) -> None:
     assert only_greetings(text) is expected
+
+
+def allowed_roles(llm) -> list[str]:
+    return json.loads(llm.requests[0].messages[1].content)["allowedRoles"]
+
+
+async def test_confirmed_greeting_with_a_pending_problem_cannot_call_inquiry() -> None:
+    """처리 중인 문제가 있어도 인사만 오면 Inquiry가 이전 질문을 반복하지 않는다."""
+    request = with_extra_user_message(make_request(), "안녕하세요", problemIds=[])
+
+    result, llm = await analyze(request, reply("GREETING"))
+
+    assert "INQUIRY" not in allowed_roles(llm)
+    assert result.answer == FOLLOW_UP_GREETING_ANSWER
+
+
+@pytest.mark.parametrize(
+    "request_",
+    [
+        first_message_request("안녕하세요, 로그인이 안 돼요"),
+        with_extra_user_message(
+            first_message_request("로그인이 안 돼요", extra_ai_message=True), "안녕하세요"
+        ),
+        with_extra_user_message(make_request(), "오늘 2시 반부터 그랬어요", problemIds=[]),
+    ],
+    ids=["mixed", "unanalyzed-before-greeting", "supplement"],
+)
+async def test_inquiry_stays_available_when_there_is_content_to_analyze(request_) -> None:
+    _, llm = await analyze(request_, reply("CLARIFY"))
+
+    assert "INQUIRY" in allowed_roles(llm)
