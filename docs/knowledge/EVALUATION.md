@@ -97,7 +97,7 @@ Knowledge 연결 이후 상담 경로와 검색을 어떻게 평가할지 정한
 - `acceptedIntents`·`allowedFinalActions`·`responsibleSystemCodes`·`acceptedVerdicts`는 **허용 집합**이다. 하나의 정확한 값이나 순서가 아니라 "이 중 하나면 된다"를 뜻한다. 보고 시스템과 책임 시스템이 다를 수 있는 문제(로그인 반복 등)는 `responsibleSystemCodes`에 둘 다 둔다.
 - `allowedFinalActions` 어휘: `ANSWER_GUIDE`(안내로 종결), `PROPOSE_TICKET`(담당자 검토 제안), `AWAIT_SYSTEM`(시스템 확인 대기), `NOTICE_OUT_OF_SCOPE`(범위 안내), `FAIL_RETRYABLE`(재시도 가능한 실패로 끝남. 검색 오류를 근거 없음으로 바꾸지 않는 안전한 종결이며, 현재 구조는 검색 오류에서 이렇게 끝난다).
 - `requiredFields`·`mustNotAskFields`·`missingInformation`은 질문 필드 이름(`system`, `taskOrScreen` 등)을 쓴다. 사용자가 모른다고 한 필수 필드는 `missingInformation`에 있어야 한다.
-- `assessment`는 Knowledge 충분성 판정([AI 에이전트 구조](../ai/AGENT_ARCHITECTURE.md))의 허용 판정이다. 판정을 기대하지 않는 문제(시스템 미확인·범위 밖·검색 오류 주입)는 `null`이다. 판정은 #181에서 구현됐지만(설정 `HOPS_AI_KNOWLEDGE_ASSESSMENT`) 현재 검색은 사용법 문제만 하므로, 이 형식의 `assessment` 채점은 검색 결과가 있는 문제에만 할 수 있다. 검색을 사용법 밖의 의도로 넓히기 전까지 나머지 문제는 채점하지 않는다.
+- `assessment`는 Knowledge 충분성 판정([AI 에이전트 구조](../ai/AGENT_ARCHITECTURE.md))의 허용 판정이다. 판정을 기대하지 않는 문제(시스템 미확인·범위 밖·검색 오류 주입)는 `null`이다. 판정은 #181에서 구현됐다(설정 `HOPS_AI_KNOWLEDGE_ASSESSMENT`, 기본 꺼짐). 문제별 행동 경로에서는 사용법·권한 신청·증상 문의를 검색하므로 `assessment` 채점은 검색 결과가 있는 문제에 할 수 있다. 검색 0건의 `NO_MATCH`는 코드가 확정한 값이라 모델 판단의 채점에는 쓰지 않는다. 기능 추가·개선 요청은 검색하지 않아 판정이 없다.
 - `relevantEvidence`는 직원에게 인용해도 되는 문서, `forbiddenEvidence`는 직원 응답에 나오면 안 되는 문서(담당자 전용 런북, 방해 문서)다. 담당자 전용 문서는 `relevantEvidence`에 둘 수 없다. 검색 오류를 주입한 시나리오는 근거를 기대하지 않는다.
 - `afterFollowUp`(선택): 시나리오에 `followUp`이 있을 때 그 뒤의 허용 종결 행동과, 다시 쓰면 안 되는 근거(`mustNotRepeatEvidence`)다.
 - `behaviorProperties`는 그 시나리오에서 특히 확인할 행동 성질(B1~B6)이다. 안전 성질 P1~P11은 모든 시나리오에 항상 적용되므로 적지 않는다.
