@@ -1,0 +1,195 @@
+{
+ "format": 1,
+ "scenario_id": "S-retrieval-fault-001",
+ "extra_forbidden_phrases": [],
+ "truncated": false,
+ "turns": [
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "b34ef569-b628-5c33-bbed-74efb4b19ecb",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "8f8cdbba-eeb5-5a8f-8331-4b687e2e89d3",
+    "inquiryVersion": 1,
+    "answerMessageId": "4821bd22-d446-52d2-bff6-c423a0c8c9e1",
+    "problemIds": [],
+    "messages": [
+     {
+      "id": "7110af08-eabd-5bb4-bbbc-3cd7529d1fe0",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 임시 저장한 문서는 어디서 확인하나요?",
+      "problemIds": [],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     }
+    ],
+    "problems": [],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "d2bc62ac-0c22-5f07-9dce-c674c0696836",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T11:05:46.840346Z",
+    "limits": {
+     "maxModelCalls": 20,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "b34ef569-b628-5c33-bbed-74efb4b19ecb",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "8f8cdbba-eeb5-5a8f-8331-4b687e2e89d3",
+    "inquiryVersion": 1,
+    "status": "FAILED",
+    "answer": null,
+    "problemProposals": [],
+    "questions": [],
+    "guide": null,
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [],
+    "error": {
+     "code": "SEARCH_UNAVAILABLE",
+     "message": "검색 서비스를 사용할 수 없다",
+     "retryable": true
+    },
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [
+      {
+       "problem_ref": "new:1",
+       "keywords": [
+        "전자결재",
+        "임시",
+        "저장",
+        "문서",
+        "확인"
+       ],
+       "feature_candidates": [
+        "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "임시",
+        "저장",
+        "문서",
+        "확인"
+       ],
+       "raw_feature_candidates": [
+        "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e"
+       ]
+      }
+     ],
+     "assessment": null
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "new:1",
+     "search_state": "ERROR",
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null
+    }
+   ],
+   "model_calls": 1,
+   "error": null,
+   "user_reply": null,
+   "unknown_after": [],
+   "ref_map": [],
+   "input_tokens": 2140,
+   "output_tokens": 233,
+   "elapsed_seconds": 6.215377958025783
+  }
+ ]
+}
