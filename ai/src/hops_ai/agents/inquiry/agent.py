@@ -11,6 +11,7 @@
 
 from collections.abc import Mapping, Sequence
 
+from hops_ai.agents.inquiry.asking import build_question
 from hops_ai.agents.inquiry.extraction import (
     DETAIL_FIELDS,
     MAX_OUTPUT_TOKENS,
@@ -44,7 +45,7 @@ from hops_ai.rules.analysis import (
     user_texts,
 )
 from hops_ai.rules.intent_policy import is_guide_type, policy_for
-from hops_ai.rules.progress import problems_without_guide
+from hops_ai.rules.progress import problems_without_guide, searched_queries
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
 
@@ -52,17 +53,20 @@ from hops_ai.services.shared import SharedServices
 class ExtractionInquiryAgent:
     role = AgentRole.INQUIRY
 
-    def __init__(self, *, guide_first: bool = False) -> None:
+    def __init__(self, *, guide_first: bool = False, defer_questions: bool = False) -> None:
         """guide_first: 승인 가이드를 먼저 찾을 수 있을 때(Knowledge 연결) 참으로 둔다.
 
         사용법 문의에서 검색에 필요한 정보(시스템, 하려는 작업·화면)만 확보하면 추가 질문 없이
         Knowledge로 넘어간다. 거짓이면 기존 양식 질문을 그대로 한다.
         """
         self._guide_first = guide_first
+        self._defer_questions = defer_questions
 
     async def run(self, call: RoleRequest, services: SharedServices) -> InquiryResult:
 
         services.runtime.ensure_active()
+        if call.action == "ASK":
+            return self._ask(call)
         request = call.state["input"]
         existing = list(request.problems)
         # Knowledge가 그 문제를 오류 없이 검색했지만 안내를 만들지 못했다면 사용법 문제는 안내 대신
@@ -98,7 +102,9 @@ class ExtractionInquiryAgent:
                 previous=previous,
             )
             problems.append(problem)
-            if question is not None:
+            # 질문을 미루면(문제별 행동 경로) 분석은 문제와 검색 힌트만 만든다. 질문은 ASK 행동이
+            # 고른 뒤에 만든다.
+            if question is not None and not self._defer_questions:
                 questions.append(question)
             # 검색 힌트는 사실이 아니라서 인용 대조 대신 규칙으로 정리한다. 기능 후보는 코드가 정한
             # 문제의 시스템(서버 확인값 포함)을 기준으로 거른다. 모델이 시스템을 바꾸지 못한다.
@@ -119,6 +125,18 @@ class ExtractionInquiryAgent:
             problems=problems,
             questions=questions,
             analysis=analysis,
+        )
+
+    def _ask(self, call: RoleRequest) -> InquiryResult:
+        """대상 문제 하나의 질문만 만든다. 모델을 부르지 않고 양식 규칙으로 정한다."""
+        if len(call.targets) != 1:
+            raise OutputRejected("질문 행동은 문제 하나를 대상으로 한다")
+        ref = call.targets[0]
+        # 검색했는지는 이번 실행의 검색 결과가 그 문제에 있는지로 안다.
+        searched = ref in searched_queries(call.state)
+        question = build_question(call.state, ref, searched=searched)
+        return InquiryResult(
+            invocationId=call.invocation_id, problems=[], questions=[question], analysis=[]
         )
 
     @staticmethod

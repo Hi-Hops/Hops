@@ -18,6 +18,7 @@ def build_registry(
     *,
     execute_tickets: bool = False,
     assess_evidence: bool = False,
+    defer_questions: bool = False,
 ) -> Mapping[AgentRole, Agent]:
     """서버 실행에 쓰는 역할 조합.
 
@@ -31,6 +32,9 @@ def build_registry(
 
     assess_evidence가 참이면 Knowledge가 검색 뒤에 근거의 충분성 판정을 만든다(문제당 모델 1회).
     판정을 읽는 쪽(Supervisor의 행동 선택)이 연결되기 전까지는 기본 거짓이다.
+
+    defer_questions가 참이면 Inquiry가 분석에서 질문을 만들지 않는다(문제별 행동 경로는 질문을
+    별도 행동으로 만든다). 기본은 거짓이라 분석이 질문까지 만든다.
     """
     knowledge: Agent = (
         PendingAgent(AgentRole.KNOWLEDGE)
@@ -39,7 +43,9 @@ def build_registry(
     )
     return MappingProxyType(
         {
-            AgentRole.INQUIRY: ExtractionInquiryAgent(guide_first=knowledge_source is not None),
+            AgentRole.INQUIRY: ExtractionInquiryAgent(
+                guide_first=knowledge_source is not None, defer_questions=defer_questions
+            ),
             AgentRole.KNOWLEDGE: knowledge,
             AgentRole.TICKET: ExecutingTicketAgent() if execute_tickets else ModelTicketAgent(),
             AgentRole.CURATOR: ModelCuratorAgent(),

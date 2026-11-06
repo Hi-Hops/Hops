@@ -22,6 +22,9 @@ type Action = Literal["SEARCH", "RESEARCH", "ASSESS", "ANSWER", "ASK", "TICKET",
 type SearchState = Literal["FOUND", "EMPTY", "ERROR"]
 type Verdict = Literal["SUFFICIENT", "PARTIAL", "INSUFFICIENT", "NO_MATCH"]
 
+# 문제당 재검색 횟수 상한(첫 검색은 세지 않는다). 설계 문서 5.1절의 안이며 측정으로 확정한다.
+RESEARCH_LIMIT = 2
+
 NON_TERMINAL: frozenset[Action] = frozenset({"SEARCH", "RESEARCH", "ASSESS"})
 TERMINAL: frozenset[Action] = frozenset({"ANSWER", "ASK", "TICKET", "HOLD", "CLOSE"})
 

@@ -60,6 +60,9 @@ class SupervisorState(TypedDict):
     # 문제별 검색 근거의 충분성 판정(문제당 가장 최근의 유효한 판정). 내부 전용이며 AiResult에
     # 싣지 않는다. 판정이 없는 문제는 키가 없다(검색 생략·오류·평가 실패·예산 부족).
     assessments: dict[str, Assessment]
+    # 문제별로 고른 종료 행동(ANSWER·ASK·TICKET·HOLD·CLOSE). 문제별 행동 경로에서만 채우며
+    # 비어 있으면 역할 단위 경로다. 채워진 문제의 결과는 산출물의 존재가 아니라 이 선택이 정한다.
+    decisions: dict[str, str]
     questions: dict[tuple[str, str], QuestionProposal]
     evidence: dict[str, KnowledgeEvidence]
     guide: GuideProposal | None
@@ -91,6 +94,9 @@ class RoleRequest:
     # 이번 호출이 다룰 문제 참조. 비어 있으면 역할이 대상을 스스로 고른다(역할 단위 결정 경로).
     # 문제별 행동 경로에서만 채운다. 실행기가 State의 문제인지 확인한 뒤 전달한다.
     targets: tuple[str, ...] = ()
+    # 역할 안의 행동 이름. 없으면 역할의 기본 동작이다. 문제별 행동 경로의 Inquiry는 "ASK"로 질문만
+    # 만든다(모델 호출 없음).
+    action: str | None = None
 
 
 @dataclass(frozen=True)

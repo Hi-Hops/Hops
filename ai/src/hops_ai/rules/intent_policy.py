@@ -27,6 +27,8 @@ class IntentPolicy:
     guide_first_fields: 승인 가이드를 먼저 찾을 수 있을 때 안내 전에 확보할 정보. 없으면 None.
     handoff_fields: 가이드를 찾지 못해 담당자에게 넘길 때 확보할 정보. 없으면 None.
     ticketable: 이 처리 유형을 담당자가 티켓으로 처리하는지.
+    ticket_when_ready: 평가나 검색 없이 필수 정보만 갖추면 바로 티켓으로 가는 의도인지(권한 신청·
+        기능 추가·개선 요청). 설계 문서 5.3절 티켓 (a)다.
     answers_with_guide: 이 처리 유형이 승인된 가이드 안내로 끝나는지. 참이면 가이드를 찾지
         못한 경우에 한해 담당자 검토(REVIEW_REQUIRED) 티켓을 허용한다.
     knowledge_kinds: 검색할 지식 종류의 **기본값**(초안). 비어 있으면 검색하지 않는 것이 기본이다.
@@ -37,6 +39,7 @@ class IntentPolicy:
     processing_type: ProcessingType
     required_fields: tuple[str, ...]
     ticketable: bool
+    ticket_when_ready: bool = False
     answers_with_guide: bool = False
     guide_first_fields: tuple[str, ...] | None = None
     handoff_fields: tuple[str, ...] | None = None
@@ -58,6 +61,7 @@ INTENT_POLICIES: Mapping[Intent, IntentPolicy] = MappingProxyType(
             processing_type="SERVICE_REQUEST",
             required_fields=("requestedAccess", "businessPurpose"),
             ticketable=True,
+            ticket_when_ready=True,
             knowledge_kinds=frozenset({"GUIDE", "POLICY"}),
         ),
         "OBSERVED_SYMPTOM": IntentPolicy(
@@ -70,11 +74,13 @@ INTENT_POLICIES: Mapping[Intent, IntentPolicy] = MappingProxyType(
             processing_type="CHANGE_REQUEST",
             required_fields=("currentWorkflow", "desiredChange"),
             ticketable=True,
+            ticket_when_ready=True,
         ),
         "IMPROVEMENT_REQUEST": IntentPolicy(
             processing_type="CHANGE_REQUEST",
             required_fields=("currentWorkflow", "desiredChange"),
             ticketable=True,
+            ticket_when_ready=True,
         ),
         # 의도를 모르면 무엇을 하려는지부터 확인한다. 새 장애(INCIDENT)는 확정하지 않는다.
         "UNKNOWN": IntentPolicy(

@@ -62,6 +62,16 @@ def searched_queries(state: "SupervisorState") -> dict[str, set[str | None]]:
     return searched
 
 
+# 문제별 행동 경로가 고른 종료 행동이 만드는 문제의 결과.
+DECISION_OUTCOMES: dict[str, str] = {
+    "ANSWER": "PROVIDE_GUIDE",
+    "ASK": "ASK_USER",
+    "TICKET": "PROPOSE_TICKET",
+    "HOLD": "WAITING_SYSTEM",
+    "CLOSE": "OUT_OF_SCOPE",
+}
+
+
 class ProblemProgress(TypedDict):
     """문제별 준비 상태의 읽기 전용 투영. 업무 DB 상태를 새로 확정하지 않는다."""
 
@@ -121,7 +131,11 @@ def get_problem_progress(state: "SupervisorState") -> list[ProblemProgress]:
         work = work_items.get(ref)
         work_outcome = work.outcome if work and work.outcome != "NOT_CREATED" else None
         outcome = None
-        if ref in questions:
+        decided = state.get("decisions", {}).get(ref)
+        if decided is not None:
+            # 문제별 행동 경로: 모델과 코드가 고른 종료 행동이 결과를 정한다.
+            outcome = DECISION_OUTCOMES[decided]
+        elif ref in questions:
             outcome = "ASK_USER"
         elif state["guide"] is not None and state["guide"].problemRef == ref:
             outcome = "PROVIDE_GUIDE"

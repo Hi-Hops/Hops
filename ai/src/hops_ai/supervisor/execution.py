@@ -37,6 +37,7 @@ async def execute_role(
     agents: Mapping[AgentRole, Agent],
     *,
     targets: tuple[str, ...] = (),
+    action: str | None = None,
 ) -> SupervisorState:
     """허용된 전문 역할 하나를 호출하고 해당 역할의 병합 검증을 적용한다.
 
@@ -52,6 +53,7 @@ async def execute_role(
         agents: 서버가 등록한 역할 구현체. 모델이 등록 항목을 추가할 수 없다.
         targets: 이번 호출이 다룰 문제 참조(문제별 행동 경로). 모두 State의 문제여야 하며
             비어 있으면 역할이 대상을 스스로 고른다.
+        action: 역할 안의 행동 이름(문제별 행동 경로). 없으면 역할의 기본 동작이다.
 
     Returns:
         검증된 역할 결과를 반영하고 호출 예약을 해제한 새 State.
@@ -83,7 +85,9 @@ async def execute_role(
     reserved = {**state, "activeRole": role, "pendingCalls": {invocation_id}}
     for ref in targets:
         validate_problem_ref(reserved, ref)
-    request = RoleRequest(invocation_id=invocation_id, state=deepcopy(reserved), targets=targets)
+    request = RoleRequest(
+        invocation_id=invocation_id, state=deepcopy(reserved), targets=targets, action=action
+    )
     response = await agent.run(request, services)
 
     # 취소·기한 뒤 늦게 도착한 결과를 병합하기 전에 다시 차단한다.
