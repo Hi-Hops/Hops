@@ -39,7 +39,6 @@ export function ResolutionControls({ request }: ResolutionControlsProps) {
       </p>
       {pending || command.pending ? (
         <>
-          <p>이 문제만 확인해요. 응답하지 않으면 확인 대기를 유지해요.</p>
           <div className={styles.confirmActions}>
             {command.pending ? (
               <Button

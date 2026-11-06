@@ -105,7 +105,6 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                 void older();
             }}
           >
-            <p className={styles.divider}>이 문의의 대화 · 작성 내용은 저장 확인 후 반영돼요</p>
             {chat.messages.hasNextPage && (
               <Button
                 variant="ghost"

@@ -45,7 +45,6 @@ export function CaseList() {
           <h1 id="page-title" tabIndex={-1}>
             해결 사례 검토
           </h1>
-          <p>담당 시스템의 해결 사례 초안과 승인·검색 반영 상태를 확인하세요.</p>
         </div>
       </header>
       {!allowed ? (
@@ -105,7 +104,6 @@ export function CaseList() {
           ) : !query.data.items.length ? (
             <div className={styles.empty}>
               <h2>검토할 사례가 없어요</h2>
-              <p>처리 완료 기록에서 준비된 사례가 여기에 표시돼요.</p>
             </div>
           ) : (
             <div className={styles.tableWrap}>

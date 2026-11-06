@@ -1,12 +1,11 @@
 import { paths } from '@/shared/config/paths';
 import { connectionMode } from '@/shared/config/connection';
 import { NavLink, Outlet, useNavigate } from 'react-router';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { logout, refreshSession, useSession } from '@/features/auth';
 import { RealtimeBoundary } from '@/features/realtime';
 import { RecentInquiries } from '@/features/inquiry';
-import { getSystems } from '@/features/ticket';
 import { Button } from '@/shared/ui/Button';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
 import styles from './AppLayout.module.css';
@@ -46,11 +45,6 @@ export function AppLayout() {
   const closeButton = useRef<HTMLButtonElement>(null);
   const client = useQueryClient();
   const navigate = useNavigate();
-  const catalog = useQuery({
-    queryKey: ['hops-system-1', 'systems', user?.id],
-    queryFn: ({ signal }) => getSystems(signal),
-    enabled: Boolean(user),
-  });
   useEffect(
     () =>
       onSessionEvent(() => {
@@ -217,9 +211,6 @@ export function AppLayout() {
               )}
             </nav>
             <RecentInquiries />
-            <footer className={styles.sidebarFooter}>
-              <p>{catalog.data?.map((system) => system.name).join(' · ')}</p>
-            </footer>
             <button
               ref={closeButton}
               type="button"

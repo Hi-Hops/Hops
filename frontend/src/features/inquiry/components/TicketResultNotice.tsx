@@ -55,13 +55,7 @@ export function TicketResultNotice({
   onClose: () => void;
 }) {
   return (
-    <RouteModal
-      title="티켓 접수 결과"
-      description="서버에 저장된 문제별 접수·배정 결과예요. 해결 완료와는 구분해요."
-      onClose={onClose}
-      returnFocusId="chat-title"
-      size="narrow"
-    >
+    <RouteModal title="티켓 접수 결과" onClose={onClose} returnFocusId="chat-title" size="narrow">
       <div className={styles.notice}>
         <p className={`${styles.banner} ${styles[banner.tone] ?? ''}`}>{banner.text}</p>
         <ul className={styles.items}>
