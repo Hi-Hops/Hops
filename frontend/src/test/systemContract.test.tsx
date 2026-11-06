@@ -202,9 +202,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
     expect(await screen.findByRole('heading', { name: new RegExp(full.title, 'u') })).toBeVisible();
     expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: '관련 대화 · 보완 정보' }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '채팅 내역' })).not.toBeInTheDocument();
   });
   it('F003-CONTRACT-04 저장 후 응답 유실을 원 키로 확인하면 문의·메시지·실행이 중복 생성되지 않는다', async () => {
     await login(TEST_LOGINS.requester);

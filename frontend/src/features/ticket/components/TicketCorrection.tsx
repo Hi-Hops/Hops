@@ -69,7 +69,6 @@ export function TicketCorrection({ ticket, kind, onClose }: TicketCorrectionProp
   return (
     <RouteModal
       title={assignment ? '책임 시스템 정정' : '처리 유형 정정'}
-      description="정정 사유와 직접 확인한 근거를 남겨 주세요. 저장 후 서버가 최신 배정과 버전을 확인해요."
       onClose={onClose}
       footer={null}
       size="compact"

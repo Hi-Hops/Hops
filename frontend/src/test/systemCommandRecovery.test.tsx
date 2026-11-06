@@ -68,9 +68,9 @@ describe('F003·F009 비계약 4xx 이후 원 명령 복구', () => {
       const fetch = storedWithProxyError(status, { type: 'TICKET', id });
       const user = userEvent.setup();
       renderWithProviders(<WorkRecordEditor ticket={ticket} />);
-      const input = screen.getByRole('textbox', { name: '실제 조치' });
+      const input = screen.getByRole('textbox', { name: '처리 내용' });
       await user.type(input, '장애 점검 중');
-      await user.click(screen.getByRole('button', { name: '처리 기록 저장' }));
+      await user.click(screen.getByRole('button', { name: '문의 처리 기록 저장' }));
       const confirm = await screen.findByRole('button', { name: '같은 요청 결과 확인' });
       expect(input).toHaveValue('장애 점검 중');
       expect(input).toBeDisabled();

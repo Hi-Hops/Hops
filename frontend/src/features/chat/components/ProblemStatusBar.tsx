@@ -44,7 +44,6 @@ export function ProblemStatusBar({ inquiry, analyzing }: ProblemStatusBarProps) 
       {open && (
         <RouteModal
           title="처리 현황"
-          description="문제별 진행 상태와 확인이 필요한 항목이에요."
           returnFocusId={barId}
           size="compact"
           onClose={() => {

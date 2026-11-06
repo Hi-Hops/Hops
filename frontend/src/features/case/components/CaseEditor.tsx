@@ -149,7 +149,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
               }}
             />
           </FormField>
-          <FormField id="case-verification" label="검증 결과">
+          <FormField id="case-verification" label="동작 확인 결과">
             <textarea
               id="case-verification"
               value={values.verification ?? ''}
@@ -202,7 +202,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
         <p className={styles.hint}>
           출처:{' '}
           {version.origin === 'SYNTHETIC'
-            ? '가상 처리 기록'
+            ? '가상 문의 처리 기록'
             : version.origin === 'DEMO_VERIFIED'
               ? '데모 검증 기록'
               : version.origin === 'OPERATIONAL'
@@ -222,7 +222,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
                 <dd>{version.problemStatement}</dd>
                 <dt>조치</dt>
                 <dd>{version.action}</dd>
-                <dt>검증</dt>
+                <dt>동작 확인</dt>
                 <dd>{version.verification}</dd>
                 <dt>적용 조건</dt>
                 <dd>{version.applicability}</dd>
@@ -254,11 +254,6 @@ export function CaseEditor({ detail }: CaseEditorProps) {
             label={confirmed ? '문의자 해결 확인됨' : '문의자 해결 확인 전'}
             tone={confirmed ? 'success' : 'attention'}
           />
-          <p>
-            {version.confirmationOrigin === 'SYNTHETIC_PRESET'
-              ? '가상 시나리오의 확인 설정이에요.'
-              : 'Hops에서 저장된 문의자 응답을 확인해요.'}
-          </p>
           <dl>
             <dt>검토자</dt>
             <dd>{user?.name} · 해당 시스템 주담당자</dd>
@@ -278,7 +273,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
           )}
           {source.isSuccess && resolution.isSuccess && !matchingSource && (
             <p role="alert">
-              원 처리 기록과 확인 요청의 연결을 검증하지 못했어요. 승인할 수 없어요.
+              원 문의 처리 기록과 확인 요청의 연결을 검증하지 못했어요. 승인할 수 없어요.
             </p>
           )}
           {editable && (
@@ -306,7 +301,7 @@ export function CaseEditor({ detail }: CaseEditorProps) {
                     setReviewed(e.target.checked);
                   }}
                 />
-                원문·실제 조치·검증·적용 조건·공개 범위와 민감정보를 확인했어요
+                원문·처리 내용·동작 확인·적용 조건·공개 범위와 민감정보를 확인했어요
               </label>
               <Button
                 disabled={
@@ -327,11 +322,9 @@ export function CaseEditor({ detail }: CaseEditorProps) {
               >
                 {approve.label ?? '확인한 버전 승인'}
               </Button>
-              <p className={styles.hint}>
-                {draft.dirty
-                  ? '작성 중인 수정 내용을 먼저 저장해 주세요.'
-                  : '자기 승인을 허용해요. 문의자 확인 전에는 승인할 수 없어요.'}
-              </p>
+              {draft.dirty && (
+                <p className={styles.hint}>작성 중인 수정 내용을 먼저 저장해 주세요.</p>
+              )}
             </>
           )}
           {approve.error && <p role="alert">{approve.error}</p>}
@@ -372,10 +365,6 @@ export function CaseEditor({ detail }: CaseEditorProps) {
               <strong>
                 {published ? '현재 승인 버전이 검색에 공개됐어요' : '양쪽 검색에서 비공개예요'}
               </strong>
-              <p>
-                같은 승인 버전의 Vector·Neo4j 반영이 모두 성공하고 현재 접근 권한이 확인돼야 검색에
-                공개돼요.
-              </p>
             </section>
             <CaseIndexStatus detail={detail} store="VECTOR" allowed={allowed} />
             <CaseIndexStatus detail={detail} store="NEO4J" allowed={allowed} />

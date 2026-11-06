@@ -161,7 +161,6 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
       leadTone: 'attention',
       title: problem.summary,
       aside: <span className={styles.count}>{questions}</span>,
-      note: `질문에 답해 주시면 담당 시스템과 처리 방법을 판단해요. 질문은 최대 ${String(QUESTION_LIMIT)}번이에요.`,
     };
   if (problem.state === 'WAITING_SYSTEM')
     return {
@@ -170,7 +169,7 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
       leadTone: 'attention',
       title: problem.summary,
       aside: <span className={styles.count}>{questions}</span>,
-      note: '질문으로 시스템을 확인하지 못했어요. 처리 현황에서 지원 시스템을 선택해 주세요. 선택하지 않아도 확인 대기는 유지돼요.',
+      note: '질문으로 시스템을 확인하지 못했어요. 처리 현황에서 지원 시스템을 선택해 주세요.',
     };
   if (problem.state === 'OUT_OF_SCOPE')
     return {
@@ -280,7 +279,6 @@ export function SystemConfirmations({ inquiry }: { inquiry: InquiryResult }) {
   return (
     <section className={styles.systemDock} aria-label="보고 시스템 선택">
       <strong>어느 시스템에서 생긴 문제인지 선택해 주세요</strong>
-      <p className={styles.meta}>선택하지 않아도 확인 대기 상태는 유지돼요.</p>
       {targets.map((problem) => (
         <SystemSelect key={problem.id} inquiry={inquiry} problem={problem} />
       ))}

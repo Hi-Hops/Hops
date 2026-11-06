@@ -32,13 +32,13 @@ export function CaseDetailView({ id }: CaseDetailViewProps) {
       <header className={styles.pageHead}>
         <div>
           <h1 id="page-title" tabIndex={-1}>
-            {query.isSuccess && visible ? query.data.version.title : '사례 검토'}
+            {query.isSuccess && visible ? query.data.version.title : '해결 사례 검토'}
           </h1>
-          <p>
-            {query.isSuccess && visible
-              ? '사례 문서 v' + String(query.data.version.caseVersion) + ' · 원 처리 기록 기반'
-              : '현재 담당 시스템의 사례를 확인하세요.'}
-          </p>
+          {query.isSuccess && visible && (
+            <p>
+              {'사례 문서 v' + String(query.data.version.caseVersion) + ' · 원 문의 처리 기록 기반'}
+            </p>
+          )}
         </div>
         <div className={styles.actions}>
           <Link
