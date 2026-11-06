@@ -49,7 +49,7 @@ describe('F003/F006 사이드바 이동', () => {
       await login(TEST_LOGINS[role]);
       renderLayout();
       const menu = within(screen.getByRole('navigation', { name: '주 메뉴' }));
-      expect(menu.getByRole('link', { name: '+ 새 문의' })).toHaveAttribute('href', '/');
+      expect(menu.getByRole('link', { name: '새 문의' })).toHaveAttribute('href', '/');
       expect(menu.getByRole('link', { name: '내 문의' })).toHaveAttribute('href', '/inquiries');
       expect(Boolean(menu.queryByRole('link', { name: '담당 시스템 업무' }))).toBe(staff);
       expect(Boolean(menu.queryByRole('heading', { name: '업무' }))).toBe(staff);
@@ -59,6 +59,20 @@ describe('F003/F006 사이드바 이동', () => {
       await screen.findByLabelText('문의 내용');
     },
   );
+  it('F006-AC10 눌러서 이동하는 메뉴에만 아이콘을 붙이고 구역 제목에는 붙이지 않는다', async () => {
+    await login(TEST_LOGINS.network);
+    renderLayout();
+    const menu = within(screen.getByRole('navigation', { name: '주 메뉴' }));
+    for (const name of ['새 문의', '내 문의', '담당 시스템 업무', '해결 사례 검토'])
+      expect(menu.getByRole('link', { name }).querySelector('svg')).toBeInTheDocument();
+    expect(menu.getByRole('heading', { name: '업무' }).querySelector('svg')).toBeNull();
+    expect(
+      within(screen.getByRole('region', { name: '채팅 세션' }))
+        .getByRole('heading', { name: '채팅 세션' })
+        .querySelector('svg'),
+    ).toBeNull();
+    await screen.findByLabelText('문의 내용');
+  });
   it('F006-AC10 채팅 화면에서는 채팅 세션만 선택되고 내 문의는 목록 화면에서만 선택된다', async () => {
     await login(TEST_LOGINS.requester);
     const { items } = await systemGet('/inquiries?page=0&size=20', readInquiries);
@@ -117,19 +131,19 @@ describe('F003/F006 사이드바 이동', () => {
     });
     await user.type(screen.getByLabelText('메시지 입력'), '이전 문의의 미전송 내용');
     const menu = within(screen.getByRole('navigation', { name: '주 메뉴' }));
-    await user.click(menu.getByRole('link', { name: '+ 새 문의' }));
+    await user.click(menu.getByRole('link', { name: '새 문의' }));
     expect(await screen.findByLabelText('문의 내용')).toHaveFocus();
     expect((await systemGet('/inquiries?page=0&size=20', readInquiries)).totalElements).toBe(
       initial.totalElements,
     );
     await user.type(screen.getByLabelText('문의 내용'), '전자결재 새 문의');
-    await user.click(menu.getByRole('link', { name: '+ 새 문의' }));
+    await user.click(menu.getByRole('link', { name: '새 문의' }));
     expect(screen.getByLabelText('문의 내용')).toHaveValue('전자결재 새 문의');
     const history = within(screen.getByRole('region', { name: '채팅 세션' }));
     await user.click(await history.findByRole('link', { name: new RegExp(`^${seed.title}`, 'u') }));
     expect(await screen.findByLabelText('메시지 입력')).toHaveValue('이전 문의의 미전송 내용');
     if (screen.queryByRole('dialog')) await user.keyboard('{Escape}');
-    await user.click(menu.getByRole('link', { name: '+ 새 문의' }));
+    await user.click(menu.getByRole('link', { name: '새 문의' }));
     expect(await screen.findByLabelText('문의 내용')).toHaveValue('전자결재 새 문의');
     await user.click(screen.getByRole('button', { name: '질문하기 ↑' }));
     await screen.findByLabelText('메시지 입력');

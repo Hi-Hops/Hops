@@ -52,6 +52,11 @@ describe('F006 사이드바 채팅 세션', () => {
     );
     for (const label of ['진행 중', '사용자 응답 대기', '해결 완료', '지원 범위 밖 안내 종료'])
       expect(within(list).getAllByText(new RegExp(`^${label} ·`, 'u')).length).toBeGreaterThan(0);
+    for (const link of within(list).getAllByRole('link'))
+      expect(link.querySelector('svg')).toBeInTheDocument();
+    expect(
+      within(list).getByRole('heading', { name: '채팅 세션' }).querySelector('svg'),
+    ).toBeNull();
   });
   it('F006-AC11 추가 조회 실패에도 목록을 유지하고 같은 페이지를 재시도하며 중복을 제거한다', async () => {
     let complete: ((value: Page<InquirySummary>) => void) | undefined;
