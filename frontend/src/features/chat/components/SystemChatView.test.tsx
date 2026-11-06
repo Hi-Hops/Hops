@@ -103,7 +103,7 @@ function chatState(resultRevision: number, active: boolean, problems = [problem]
   } as unknown as ReturnType<typeof useSystemChat>;
 }
 
-// 결과 카드 이동을 rerender로 재현하므로 Provider를 wrapper로 유지한다.
+// 분석 상태 변화를 rerender로 재현하므로 Provider를 wrapper로 유지한다.
 function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
     () => new QueryClient({ defaultOptions: { queries: { retry: false } } }),
@@ -129,15 +129,15 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.mocked(useSystemChat).mockReset();
+  localStorage.clear();
 });
 
-it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨도 닫은 접수 결과의 접수 결과 모달은 다시 열지 않는다', async () => {
+it('F005-CONTRACT-03 분석이 시작·종료돼도 닫은 접수 결과의 모달은 다시 열지 않는다', async () => {
   vi.mocked(useSystemChat).mockReturnValue(chatState(1, false));
   const view = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
   await userEvent.click(await screen.findByRole('button', { name: '닫기' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-  // 분석이 시작되면 결과 카드는 진행 표시 아래로, 끝나면 다시 답변 아래로 옮겨진다.
   vi.mocked(useSystemChat).mockReturnValue(chatState(1, true));
   view.rerender(<SystemChatView inquiryId={inquiryId} />);
   vi.mocked(useSystemChat).mockReturnValue(chatState(1, false));
@@ -164,6 +164,65 @@ it('F005-CONTRACT-03 결과 카드가 분석 시작·종료로 자리를 옮겨�
   expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
 });
 
+it('F005-CONTRACT-03 안내한 접수 결과의 모달은 새로고침·재진입해도 다시 열지 않는다', async () => {
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false));
+  const first = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
+
+  // 닫지 않고 새로고침해도 이미 안내한 결과로 기록돼 있다.
+  first.unmount();
+  const second = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(await screen.findByRole('region', { name: '문제별 처리 결과' })).toBeInTheDocument();
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+  // 다른 소유자의 기록과는 분리한다.
+  second.unmount();
+  useSession.setState((state) => ({
+    user: state.user ? { ...state.user, id: 'other-user' } : null,
+  }));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(await screen.findByRole('dialog', { name: '티켓 접수 결과' })).toBeVisible();
+});
+
+it('F005-DETAIL-05 접수 결과 모달은 티켓 번호·책임 시스템·담당자와 미생성 항목을 구분해 보여준다', async () => {
+  const failed: Problem = {
+    ...problem,
+    id: crypto.randomUUID(),
+    summary: '가상 미생성 문제',
+    ticket: null,
+    creationResult: problem.creationResult && {
+      ...problem.creationResult,
+      outcome: 'NOT_CREATED',
+      ticketId: null,
+    },
+  };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [problem, failed]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  const dialog = await screen.findByRole('dialog', { name: '티켓 접수 결과' });
+  const [stored, missing] = within(dialog).getAllByRole('listitem');
+  if (!stored || !missing) throw new Error('결과 항목 없음');
+  expect(within(stored).getByText('TK-TEST')).toBeVisible();
+  expect(within(stored).getByText('처리 대기')).toBeVisible();
+  expect(within(stored).getByText(person.name)).toBeVisible();
+  expect(within(missing).getByText('미생성 확인')).toBeVisible();
+  expect(within(dialog).getByText(/1건은 저장하지 못했어요/)).toBeVisible();
+  const panel = screen.getByRole('region', { name: '문제별 처리 결과', hidden: true });
+  expect(within(panel).getByText('티켓 없음')).toBeInTheDocument();
+});
+
+it('F005-DETAIL-05 긴 티켓 번호는 앞자리 0을 줄여 표시하고 전체 번호를 title에 남긴다', async () => {
+  if (!problem.ticket) throw new Error('가상 티켓 없음');
+  const fullNumber = 'T-0000000000000123';
+  const long = { ...problem, ticket: { ...problem.ticket, ticketNumber: fullNumber } };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [long]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  const dialog = await screen.findByRole('dialog', { name: '티켓 접수 결과' });
+  expect(within(dialog).getByText('T-0123')).toHaveAttribute('title', fullNumber);
+  const panel = screen.getByRole('region', { name: '문제별 처리 결과', hidden: true });
+  expect(within(panel).getByText('T-0123')).toHaveAttribute('title', fullNumber);
+  expect(screen.queryByText(fullNumber)).not.toBeInTheDocument();
+});
+
 it('F005-DETAIL-02 보고 시스템과 책임 시스템이 다른 저장 티켓은 결과 카드에 두 시스템을 모두 표시한다', async () => {
   const [reported, responsible] = systems;
   if (!problem.ticket) throw new Error('가상 티켓 없음');
@@ -180,6 +239,47 @@ it('F005-DETAIL-02 보고 시스템과 책임 시스템이 다른 저장 티켓�
   );
   expect(within(row).getByText(new RegExp(`보고 시스템 ${reported.name}`, 'u'))).toBeVisible();
   expect(within(row).getByText(`책임 ${responsible.name}`)).toBeVisible();
+});
+
+it('F003-DETAIL-11 처리 현황은 대화와 분리되고 문의자가 처리할 문제를 먼저 표시한다', async () => {
+  const waiting: Problem = {
+    ...problem,
+    id: crypto.randomUUID(),
+    summary: '가상 공유 폴더 접근 불가',
+    state: 'WAITING_USER',
+    questionCount: 1,
+    creationResult: null,
+    ticket: null,
+  };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(0, false, [problem, waiting]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  await userEvent.click(await screen.findByRole('button', { name: '닫기' }));
+  const rail = screen.getByRole('complementary', { name: '처리 현황' });
+  const conversation = screen.getByRole('region', { name: '대화' });
+  expect(within(conversation).queryByText('TK-TEST')).not.toBeInTheDocument();
+  const [first, second] = within(rail).getAllByRole('listitem');
+  if (!first || !second) throw new Error('문제 항목 없음');
+  expect(first).toHaveAccessibleName(waiting.summary);
+  expect(second).toHaveAccessibleName(problem.summary);
+
+  // 패널이 들어가지 않는 좁은 화면의 요약 줄은 같은 내용을 모달로 연다.
+  await userEvent.click(
+    within(conversation).getByRole('button', { name: /처리 현황 · 문제 2건.*질문 1\/5/u }),
+  );
+  const dialog = await screen.findByRole('dialog', { name: '처리 현황' });
+  expect(within(dialog).getByText('TK-TEST')).toBeVisible();
+  expect(within(dialog).getByText('질문 1/5')).toBeVisible();
+});
+
+it('F003-DETAIL-11 문제가 나뉘기 전에는 처리 현황에 빈 상태를 안내하고 요약 줄을 표시하지 않는다', () => {
+  vi.mocked(useSystemChat).mockReturnValue(chatState(0, true, []));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(
+    within(screen.getByRole('complementary', { name: '처리 현황' })).getByText(
+      '문제를 확인하면 진행 상태가 여기에 표시돼요.',
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('button', { name: /처리 현황/u })).not.toBeInTheDocument();
 });
 
 it('분석이 끝나 답변이 저장돼도 진행 단계는 해당 답변 위에 완료 기록으로 남는다', () => {

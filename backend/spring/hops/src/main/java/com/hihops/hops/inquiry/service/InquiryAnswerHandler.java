@@ -100,7 +100,6 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         var guide = guides.apply(run, inquiry, answerMessageId, input, result);
         // 저장한 AI 답변을 문의 구독에 알린다. 결과 반영 거래가 commit된 뒤에만 전달된다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), answerMessageId, null));
-        inquiry.recordAnalysisResult();
         completeResolvedInquiry(inquiry, result);
         return validationOf(result, guide);
     }

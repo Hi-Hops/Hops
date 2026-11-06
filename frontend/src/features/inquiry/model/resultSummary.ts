@@ -6,6 +6,23 @@ export const isCreationFailed = (p: Problem) =>
   Boolean(p.creationResult && !p.ticket && p.creationResult.outcome !== 'STORED');
 export const needsAnswer = (p: Problem) => ['WAITING_USER', 'WAITING_SYSTEM'].includes(p.state);
 
+export const needsAction = (p: Problem) =>
+  needsAnswer(p) || isCreationFailed(p) || p.activeResolutionRequest?.state === 'PENDING';
+// 문의자가 해야 할 일이 있는 문제를 먼저 보여주고, 나머지는 서버 순서를 유지한다.
+export const actionFirst = (problems: Problem[]) =>
+  [...problems].sort((a, b) => Number(needsAction(b)) - Number(needsAction(a)));
+
+// 좁은 화면의 처리 현황 요약 줄에 표시할, 가장 먼저 처리할 일이다.
+export function problemActionLabel(inquiry: InquiryResult) {
+  const target = actionFirst(inquiry.problems)[0];
+  if (!target || !needsAction(target)) return null;
+  if (target.state === 'WAITING_SYSTEM') return '시스템 선택이 필요해요';
+  if (target.state === 'WAITING_USER')
+    return `추가 확인 · 질문 ${String(target.questionCount)}/${String(QUESTION_LIMIT)}`;
+  if (isCreationFailed(target)) return '접수 결과 확인이 필요해요';
+  return '해결 확인이 필요해요';
+}
+
 export function inquiryTitle(inquiry: InquiryResult, firstMessage?: string) {
   const [first, ...rest] = inquiry.problems;
   // 문제 분리 전에는 첫 사용자 메시지의 첫 줄을 제목으로 쓴다.

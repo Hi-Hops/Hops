@@ -22,7 +22,7 @@ import jakarta.persistence.Table;
  * AI 실행은 시작할 때의 버전을 기록하고, 결과가 늦게 와서 버전이 다르면 그 결과를 버린다.
  * JPA {@code @Version}(동시 수정 방지 잠금)과는 다른 업무 값이라 일반 컬럼으로 둔다.
  *
- * <p>currentRun은 지금 이 문의를 분석 중인(마지막으로 시작한) 상담 실행이고, resultRevision은 AI 결과를 적용할 때마다 늘린다.
+ * <p>currentRun은 지금 이 문의를 분석 중인(마지막으로 시작한) 상담 실행이고, resultRevision은 티켓 생성 결과나 해결 응답이 바뀔 때 늘린다.
  * 늦게 온 결과는 문의 버전과 현재 실행이 둘 다 맞아야 적용한다 (docs/ERD.md 6.1절).
  */
 @Entity
@@ -114,7 +114,7 @@ public class Inquiry extends BaseEntity {
         return summaryUpdatedAt;
     }
 
-    /** AI 상담 결과를 반영했음을 알린다. 화면은 이 값이 바뀌면 문의 결과를 다시 읽는다. */
+    /** 문제별 티켓 생성 결과가 바뀌었음을 알린다. AI 답변 저장만으로는 호출하지 않는다. */
     public void recordAnalysisResult() {
         resultRevision++;
     }

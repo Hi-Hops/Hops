@@ -34,6 +34,7 @@
   --color-primary: #ea580c;
   --color-primary-soft: #fff4ed;
   --color-primary-strong: #c2410c;
+  --color-primary-border: #fed7aa;
   --color-progress-bg: #eff6ff;
   --color-progress: #1d4ed8;
   --color-progress-border: #bfdbfe;
@@ -84,6 +85,8 @@
   --login-width: 420px;
   --message-width: 520px;
   --answer-width: 760px;
+  --chat-column-width: 880px;
+  --rail-width: 320px;
   --control-height: 40px;
   --control-height-sm: 32px;
 }

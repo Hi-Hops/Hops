@@ -16,10 +16,12 @@ import { AppLayout } from './AppLayout';
 beforeEach(() => {
   systemMockBackend.reset();
   useSession.getState().logout();
+  localStorage.removeItem('hops:sidebar-open');
 });
 afterEach(() => {
   realtime.disconnect();
   systemMockBackend.reset();
+  localStorage.removeItem('hops:sidebar-open');
 });
 function renderLayout(path = '/') {
   return renderWithProviders(
@@ -54,6 +56,30 @@ describe('F003/F006 사이드바 이동', () => {
       await screen.findByLabelText('문의 내용');
     },
   );
+  it('F006-AC11 사이드바는 버튼으로 여닫고 포커스와 열림 상태를 유지한다', async () => {
+    await login(TEST_LOGINS.requester);
+    const user = userEvent.setup();
+    const view = renderLayout();
+    const opener = screen.getByRole('button', { name: '사이드바 열기' });
+    expect(opener).toHaveAttribute('aria-expanded', 'false');
+    expect(opener).toHaveAttribute('aria-controls', 'app-sidebar');
+
+    await user.click(opener);
+    expect(opener).toHaveAttribute('aria-expanded', 'true');
+    const closer = screen.getByRole('button', { name: '사이드바 닫기' });
+    expect(closer).toHaveFocus();
+    expect(localStorage.getItem('hops:sidebar-open')).toBe('true');
+
+    view.unmount();
+    renderLayout();
+    expect(screen.getByRole('button', { name: '사이드바 열기' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: '사이드바 닫기' }));
+    expect(screen.getByRole('button', { name: '사이드바 열기' })).toHaveFocus();
+    expect(localStorage.getItem('hops:sidebar-open')).toBe('false');
+  });
   it('F003-CONTRACT-04/F006-AC10 화면 이동 시 초안을 유지하고 첫 저장 뒤 새 세션을 추가한다', async () => {
     await login(TEST_LOGINS.requester);
     const initial = await systemGet('/inquiries?page=0&size=20', readInquiries);
