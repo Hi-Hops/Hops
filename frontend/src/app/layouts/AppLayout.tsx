@@ -173,36 +173,26 @@ export function AppLayout() {
             className={`${styles.sidebar ?? ''} ${sidebarOpen ? '' : (styles.closed ?? '')}`}
           >
             <nav aria-label="주 메뉴">
-              <div className={styles.navTop}>
-                <NavLink
-                  end
-                  to="/"
-                  className={({ isActive }) => (isActive ? styles.active : styles.link)}
-                >
-                  + 새 문의
-                </NavLink>
-                <Button
-                  ref={closeButton}
-                  variant="ghost"
-                  className={styles.sidebarClose}
-                  aria-label="사이드바 닫기"
-                  title="사이드바 닫기"
-                  onClick={() => {
-                    toggleSidebar(false);
-                  }}
-                >
-                  <Chevron direction="left" />
-                </Button>
-              </div>
               <NavLink
+                end
+                to="/"
+                className={({ isActive }) => (isActive ? styles.active : styles.link)}
+              >
+                + 새 문의
+              </NavLink>
+              {/* 채팅 경로도 /inquiries로 시작하므로 내 문의 목록에서만 선택 표시한다. */}
+              <NavLink
+                end
                 to={paths.inquiries}
                 className={({ isActive }) => (isActive ? styles.active : styles.link)}
               >
                 내 문의
               </NavLink>
               {user.primarySystemIds.length > 0 && (
-                <>
-                  <p className={styles.group}>업무</p>
+                <section className={styles.navSection} aria-labelledby="work-nav-title">
+                  <h2 id="work-nav-title" className={styles.group}>
+                    업무
+                  </h2>
                   <NavLink
                     to={paths.tickets}
                     className={({ isActive }) => (isActive ? styles.active : styles.link)}
@@ -213,9 +203,9 @@ export function AppLayout() {
                     to={paths.cases}
                     className={({ isActive }) => (isActive ? styles.active : styles.link)}
                   >
-                    사례 검토
+                    해결 사례 검토
                   </NavLink>
-                </>
+                </section>
               )}
               {user.roles.includes('BIZ_ADMIN') && (
                 <NavLink
@@ -230,6 +220,18 @@ export function AppLayout() {
             <footer className={styles.sidebarFooter}>
               <p>{catalog.data?.map((system) => system.name).join(' · ')}</p>
             </footer>
+            <button
+              ref={closeButton}
+              type="button"
+              className={styles.sidebarClose}
+              aria-label="사이드바 닫기"
+              title="사이드바 닫기"
+              onClick={() => {
+                toggleSidebar(false);
+              }}
+            >
+              <Chevron direction="left" />
+            </button>
           </aside>
         </div>
         <div className={styles.content}>
