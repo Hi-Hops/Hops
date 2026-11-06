@@ -156,12 +156,12 @@ async def test_decision_uses_structured_llm_and_remaining_output_tokens():
     assert state == before
     sent = llm.requests[0]
     assert sent.response_model is SupervisorDecision
-    assert sent.prompt_version == "supervisor.decision.v6"
+    assert sent.prompt_version == "supervisor.decision.v10"
     assert sent.max_output_tokens == 500
     context = json.loads(sent.messages[1].content)
     assert context["allowedRoles"] == ["INQUIRY", "KNOWLEDGE", "TICKET"]
     assert context["problems"][0]["remainingQuestions"] == 5
-    assert context["allowedActions"] == ["CALL_ROLE"]
+    assert context["allowedActions"] == ["CALL_ROLE", "REPLY"]
 
 
 async def test_routing_prompt_omits_staff_knowledge_and_analysis_body():
@@ -224,14 +224,14 @@ def test_investigation_ticket_can_finish_with_unknown_cause():
 def test_existing_work_can_be_reported_without_recreating_ticket(outcome):
     """Spring이 전달한 저장 완료·확인 중·미확인 결과는 기존 결과 안내로 끝낼 수 있다."""
     state = running_state(make_request(outcome=outcome))
-    assert _decision_context(state)["allowedActions"] == ["CALL_ROLE", "FINISH"]
+    assert _decision_context(state)["allowedActions"] == ["CALL_ROLE", "FINISH", "REPLY"]
     validate_supervisor_decision(state, decision())
 
 
 def test_confirmed_not_created_work_is_still_unhandled():
     """미생성 확인은 처리 완료가 아니므로 필요한 역할 실행을 이어간다."""
     state = running_state(make_request(outcome="NOT_CREATED"))
-    assert _decision_context(state)["allowedActions"] == ["CALL_ROLE"]
+    assert _decision_context(state)["allowedActions"] == ["CALL_ROLE", "REPLY"]
     with pytest.raises(OutputRejected):
         validate_supervisor_decision(state, decision())
 

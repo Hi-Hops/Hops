@@ -35,7 +35,6 @@ from hops_ai.contracts.wire import (
     QuestionProposal,
     RequestDetails,
 )
-from hops_ai.harness.errors import OutputRejected
 from hops_ai.rules.progress import problems_without_guide
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
@@ -74,7 +73,9 @@ class ExtractionInquiryAgent:
         extraction = await self._extract(call, services)
         services.runtime.ensure_active()
         if not extraction.problems:
-            raise OutputRejected("추출 결과에 문제가 없다")
+            # 문의로 볼 내용을 찾지 못했다. 문제를 지어내지 않고 빈 결과를 돌려주면
+            # Supervisor가 대화 응답(REPLY)으로 사용자에게 다시 묻는다.
+            return InquiryResult(invocationId=call.invocation_id, problems=[], questions=[])
 
         messages = {message.id: message for message in request.messages}
         system_names = [system.name for system in request.systems]

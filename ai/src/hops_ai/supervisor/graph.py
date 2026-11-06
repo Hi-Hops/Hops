@@ -176,10 +176,11 @@ class Supervisor:
                     output={
                         "nextAction": decision.nextAction,
                         "role": decision.role.value if decision.role else None,
+                        "replyKind": decision.replyKind,
                     }
                 )
         state = runtime.sync_state(state)
-        state = {**state, "nextAction": decision.nextAction}
+        state = {**state, "nextAction": decision.nextAction, "replyKind": decision.replyKind}
         # 모델의 공개 요약도 검증되지 않은 문구다. 최종 답변은 최종화 단계에서
         # 준비된 제안과 서버가 제공한 기존 상태를 기준으로 한 번만 구성한다.
         return _GraphState(state=state, decision=decision, choices=choices)

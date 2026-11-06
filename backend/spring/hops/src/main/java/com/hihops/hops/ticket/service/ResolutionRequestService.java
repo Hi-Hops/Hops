@@ -28,6 +28,7 @@ import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.ProblemStatus;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
+import com.hihops.hops.inquiry.service.FollowUpWait;
 import com.hihops.hops.realtime.dto.TicketChangedEvent;
 import com.hihops.hops.ticket.domain.ActorType;
 import com.hihops.hops.ticket.domain.TicketEvent;
@@ -67,6 +68,7 @@ public class ResolutionRequestService {
     private final Clock clock;
     private final ApplicationEventPublisher publisher;
     private final EntityManager entityManager;
+    private final FollowUpWait followUpWait;
 
     public ResolutionRequestResponse get(Jwt jwt, UUID id) {
         return reader.get(jwt, id);
@@ -129,7 +131,7 @@ public class ResolutionRequestService {
         }
         // 대상 문제만 변경하고, 문의 집계에서는 다른 문제의 상태를 그대로 유지한다.
         tickets.flush(); problems.flush();
-        inquiry.updateResolution(problems.countUnresolved(inquiry.getId()) == 0);
+        inquiry.updateResolution(problems.countUnresolved(inquiry.getId()) == 0 && !followUpWait.awaiting(inquiry));
         return new ResourceRef(ResourceType.RESOLUTION_REQUEST, id);
     }
 

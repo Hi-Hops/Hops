@@ -18,7 +18,6 @@ from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiRunRequest
-from hops_ai.harness.errors import OutputRejected
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tools.disabled import DisabledToolGateway
 from hops_ai.settings import Settings
@@ -372,9 +371,11 @@ async def test_at_most_three_problems_are_taken() -> None:
     assert len(result.problems) == 3
 
 
-async def test_no_problem_from_the_model_is_rejected() -> None:
-    with pytest.raises(OutputRejected):
-        await run_agent(first_message_request())
+async def test_no_problem_from_the_model_returns_an_empty_result() -> None:
+    """문제를 찾지 못하면 지어내지 않고 빈 결과로 돌려준다. 되묻기는 Supervisor가 정한다."""
+    result = await run_agent(first_message_request())
+
+    assert result.problems == [] and result.questions == []
 
 
 async def test_model_receives_messages_systems_and_the_injection_rule() -> None:

@@ -78,6 +78,7 @@ def create_initial_state(request: AiRunRequest) -> SupervisorState:
         phase="QUEUED",
         activeRole=None,
         nextAction=None,
+        replyKind=None,
         problems={problem.id: _problem_from_input(problem) for problem in snapshot.problems},
         questions={},
         evidence=evidence,
