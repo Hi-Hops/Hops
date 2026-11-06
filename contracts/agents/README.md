@@ -51,6 +51,7 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 
 - **입력:** 현재 문의·문제의 상태, 허용된 다음 행동, 각 전문 역할 결과와 Spring의 저장·권한 검증 결과.
 - **판단:** 필요한 경우 Inquiry·Knowledge·Ticket을 선택하고, 답변·질문·담당자 연결·종료 등의 허용된 다음 행동을 모델 판단으로 제안한다. 역할 간 결과는 실행기가 검증 후 조합한다.
+- **대화 의도:** 사용자 메시지를 어떻게 처리할지 먼저 판단한다. IT 문의나 기존 문의의 보완이 조금이라도 있으면 인사가 함께 있어도 Inquiry에 분석을 맡긴다. 인사만 있으면 `REPLY`/`GREETING`, 의도를 알 수 없으면 `REPLY`/`CLARIFY`로 답하며 답변 문구는 코드가 고정한다. 확실하지 않으면 Inquiry로 보낸다. 모델이 인사로 판단해도 아직 분석하지 않은 사용자 메시지가 코드가 확인한 인사 표현만이 아니면 `CLARIFY`로 낮춘다. `REPLY`는 질문·안내·티켓 제안이 없고 Inquiry가 문제를 찾지 못한 상담에서만 허용하며 `requiresFollowUp=true`로 끝난다. 진행 상황·해결 시점은 추측하여 답하지 않는다.
 - **제한:** 모든 문의에 모든 역할을 호출하지 않는다. 실행기는 허용 경로·전체 시간·호출·토큰·재시도를 강제한다. 무제한 상호 호출과 허용되지 않은 도구 접근을 막는다.
 - **검증:** 실행 성공이나 모델의 문장만으로 저장·배정·해결·공개를 확정하지 않는다. 최신 버전, 실제 Spring 결과와 접근 범위를 반영한다.
 
@@ -60,6 +61,7 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 - **결과 제안:** 문제별 의도·처리 유형 후보, 보고 시스템/기능 후보, 확인 사실·추정·미확인, 추가 질문 묶음, 독립 문제 분리와 사용자 해결 응답 해석.
 - **분기:** 같은 문제에 최대 5회 질문 묶음을 보낸다. 사용자가 알 수 없는 값을 채우지 않고 이미 확인한 것을 반복하지 않는다. 보고 시스템을 끝내 확인하지 못하면 시스템 선택 대기를 제안한다.
 - **검증:** 독립 완료 조건만 별도 문제로 나눈다. 한 현상의 여러 원인 후보를 별도 문제로 단정하지 않는다. 사용자 해결 응답의 대상이 불명확하면 임의로 다른 티켓을 완료하지 않는다.
+- **범위:** 인사·되묻기 같은 대화 처리 방향은 Supervisor가 정한다. Inquiry는 전달받은 대화에서 IT 문제를 분석하며, 문의로 볼 내용을 찾지 못하면 문제를 지어내지 않고 빈 결과를 돌려준다.
 
 문의 의도는 사용자가 무엇을 원하는지, 내부 처리 유형은 조직이 어떤 업무로 처리할지를 뜻한다. 예를 들어 파일이 열리지 않는 문의는 OBSERVED_SYMPTOM/INVESTIGATION, 일괄 다운로드 기능 추가는 FEATURE_REQUEST/CHANGE_REQUEST로 구분한다. AI가 사용자의 '장애' 표현만으로 INCIDENT를 확정하지 않는다. 의도·처리 유형의 코드 목록은 [공통 데이터 계약](../../specs/contracts/DATA_TYPES.md#enum)을 따른다.
 
@@ -159,7 +161,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 | 역할 | 입력·출력의 구체 경계 | 검증 |
 |---|---|---|
-| Supervisor | 현재 허용 행동과 전문 결과 → nextAction=CALL_ROLE/ASK_USER/PROVIDE_GUIDE/PROPOSE_TICKETS/FINISH, role nullable, 공개 요약 | 전문 역할은 INQUIRY/KNOWLEDGE/TICKET/CURATOR. runtime이 kind별 허용 경로·전체 예산 강제 |
+| Supervisor | 현재 허용 행동과 전문 결과 → nextAction=CALL_ROLE/ASK_USER/PROVIDE_GUIDE/PROPOSE_TICKETS/FINISH/REPLY, role nullable, replyKind=GREETING/CLARIFY nullable(REPLY에만), 공개 요약 | 전문 역할은 INQUIRY/KNOWLEDGE/TICKET/CURATOR. runtime이 kind별 허용 경로·전체 예산 강제 |
 | Inquiry | ProblemProposal(problemRef,summary,intent,processingType,reportedSystemCandidateId,facts,assumptions,unknowns,details), QuestionProposal(problemRef,bundleRef,text,requestedFields) | 기존 문제는 UUID, 신규는 new: 접두 참조. bundleRef는 같은 출력의 재전달에도 유지. remainingQuestions를 넘는 질문 거부 |
 | Knowledge | 검색 목적·권한·표준 요청 → SearchResult와 조건부 원인 후보·다음 확인 항목 | EMPTY와 ERROR 구분. 확인되지 않은 원인을 사실·장애로 확정하지 않음 |
 | Ticket | TicketProposal(problemRef,title,processingType,responsibleSystemCandidateId,evidenceIds,standardRequestSnapshot) | 담당자·티켓 번호·저장 성공 필드 없음. Spring이 PRIMARY와 유일 작업 검증 |
@@ -304,7 +306,8 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | input | AiRunRequest·초기 입력 고정 | ingress 검증기만 생성. 모든 역할에서 읽기 전용 |
 | phase | QUEUED/RUNNING/FINALIZING/SUCCEEDED/FAILED/TIMED_OUT/SUPERSEDED | 실행기만 허용 전이로 변경 |
 | activeRole | SUPERVISOR/INQUIRY/KNOWLEDGE/TICKET/CURATOR 또는 null | 실행기만 변경, 역할 완료 후 null |
-| nextAction | CALL_ROLE/ASK_USER/PROVIDE_GUIDE/PROPOSE_TICKETS/FINISH 또는 null | Supervisor 제안 → 실행기 검증 후 반영 |
+| nextAction | CALL_ROLE/ASK_USER/PROVIDE_GUIDE/PROPOSE_TICKETS/FINISH/REPLY 또는 null | Supervisor 제안 → 실행기 검증 후 반영 |
+| replyKind | GREETING/CLARIFY 또는 null·초기 null | REPLY 결정에만 기록. 인사 표현이 확인되지 않은 GREETING은 실행기가 CLARIFY로 낮춤 |
 | problems | Map<problemRef,ProblemProposal>·기존 문제에서 초기화 | Inquiry 출력 검증기. UUID는 기존 유지, 신규는 new: 참조 |
 | questions | Map<(problemRef,bundleRef),QuestionProposal>·빈 map | Inquiry 출력 검증기. 동일 키·같은 내용은 no-op, 다른 내용은 오류 |
 | evidence | Map<evidenceId,KnowledgeEvidence>·허용 스냅샷 | Knowledge 검증기. 같은 ID 다른 내용/버전은 오류·별도 ID 요구 |

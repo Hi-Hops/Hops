@@ -16,7 +16,7 @@ from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import InputMessage, Intent, SupportedSystem
 
-PROMPT_VERSION = "inquiry-extraction-v6"
+PROMPT_VERSION = "inquiry-extraction-v5"
 # 사용자가 직접 모른다고 말한 구절로 인정하는 표현. 인식하지 못하면 필수 질문이 유지되는
 # 쪽(안전한 쪽)으로 실패하므로 표현을 넓히는 것은 평가 데이터가 생긴 뒤에 한다.
 UNKNOWN_EXPRESSION = re.compile(
@@ -44,10 +44,6 @@ SYSTEM_PROMPT = """\
 너는 사내 IT 헬프데스크 문의에서 사실을 추출하는 도구다. 답변을 쓰거나 문제를 해결하지 않는다.
 
 규칙
-0. kind는 PROBLEMS 또는 GREETING이다. 요청 없이 인사만 한 경우 GREETING과 빈
-   problems를 반환한다. 기존 문제가 없으면 전체 USER 메시지에 인사만 있어야 하고,
-   기존 문제가 있으면 마지막 USER 메시지가 인사만 해야 한다. 인사와 문의·보완이
-   함께 있거나 불확실하면 PROBLEMS로 분석한다.
 1. 사용자(USER) 메시지에 실제로 있는 내용만 추출한다. 각 필드는 그 메시지에서 해당 내용을
    말한 구절을 한 글자도 바꾸지 말고 quote에 그대로 옮기고, 그 메시지의 messageId를
    함께 적는다. 근거가 없으면 null이다.
@@ -120,7 +116,6 @@ class ExtractedProblem(ContractModel):
 
 
 class InquiryExtraction(ContractModel):
-    kind: Literal["PROBLEMS", "GREETING"]
     problems: list[ExtractedProblem]
 
 

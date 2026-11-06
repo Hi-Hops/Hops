@@ -172,7 +172,7 @@ async def test_supervisor_ends_a_complete_inquiry_with_a_ticket_proposal() -> No
         SupervisorDecision(
             nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="확인합니다."
         ),
-        InquiryExtraction(kind="PROBLEMS", problems=[complete]),
+        InquiryExtraction(problems=[complete]),
         SupervisorDecision(
             nextAction="CALL_ROLE", role=AgentRole.TICKET, publicSummary="정리합니다."
         ),

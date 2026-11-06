@@ -1,5 +1,6 @@
 """병합 함수가 함께 사용하는 작은 검증 함수. 실제 최신 권한 조회는 어댑터에서 수행한다."""
 
+import re
 from datetime import UTC, datetime
 
 from hops_ai.contracts.roles import InquiryResult
@@ -16,24 +17,74 @@ from hops_ai.harness.errors import (
 from hops_ai.rules.progress import get_problem_progress
 from hops_ai.rules.proposals import validate_problem_ref
 
+# 코드가 단순 인사로 인정하는 표현. 목록 밖의 인사는 되묻기로 처리되는 안전한 쪽으로 실패한다.
+_GREETING_WORDS = (
+    "안녕하십니까",
+    "안녕하세요",
+    "안녕하셔요",
+    "안녕",
+    "반갑습니다",
+    "반가워요",
+    "hello",
+    "hi",
+    "hey",
+)
 
-def has_conversation_result(state: "SupervisorState") -> bool:
-    """검증된 Inquiry 대화 응답이 단독으로 병합된 상담인지 확인한다."""
+
+def only_greetings(text: str) -> bool:
+    """확인된 인사 표현만으로 이뤄진 문장인지. 미확인 표현에는 문의 내용이 있을 수 있다."""
+    remaining = re.sub(r"[\s.,!?~…，。！？～]+", "", text).casefold()
+    if not remaining:
+        return False
+    while remaining:
+        greeting = next((word for word in _GREETING_WORDS if remaining.startswith(word)), None)
+        if greeting is None:
+            return False
+        remaining = remaining[len(greeting) :]
+    return True
+
+
+def greeting_confirmed(state: "SupervisorState") -> bool:
+    """아직 분석하지 않은 사용자 메시지가 모두 확인된 인사 표현인지.
+
+    기존 문제가 없으면 전체 사용자 메시지를, 있으면 문제에 연결되지 않은 메시지와 마지막
+    사용자 메시지를 본다. 앞서 분석되지 못한 문의가 인사 뒤에 묻히지 않게 한다.
+    """
+    request = state["input"]
+    user_messages = [message for message in request.messages if message.sender == "USER"]
+    latest = max(user_messages, key=lambda message: message.sequenceNo, default=None)
+    relevant = [
+        message
+        for message in user_messages
+        if not request.problems or not message.problemIds or message == latest
+    ]
+    return bool(relevant) and all(only_greetings(message.content) for message in relevant)
+
+
+def reply_allowed(state: "SupervisorState") -> bool:
+    """역할 제안 없이 대화 응답(REPLY)으로 끝낼 수 있는 상담 State인지.
+
+    아직 역할이 실행되지 않았거나, 실행된 Inquiry가 문제를 하나도 찾지 못한 경우만 허용한다.
+    질문·안내·티켓이 준비됐다면 그 제안을 최종화해야 하므로 대화 응답으로 덮지 않는다.
+    """
     return (
         state["input"].kind == "INQUIRY_ANALYSIS"
+        and any(message.sender == "USER" for message in state["input"].messages)
         and not state["questions"]
         and not state["ticketProposals"]
         and not state["ticketCreationResults"]
         and state["guide"] is None
-        and len(state["roleResults"]) == 1
-        and any(
-            isinstance(result, InquiryResult)
-            and result.kind != "PROBLEMS"
-            and not result.problems
-            and not result.questions
+        and state["problems"].keys() == {problem.id for problem in state["input"].problems}
+        and all(
+            isinstance(result, InquiryResult) and not result.problems and not result.questions
             for result in state["roleResults"].values()
         )
     )
+
+
+def is_reply(state: "SupervisorState") -> bool:
+    """검증된 REPLY 결정으로 끝나는 상담인지."""
+    return state["nextAction"] == "REPLY" and state["replyKind"] is not None
 
 
 def validate_completion(state: "SupervisorState") -> None:
@@ -54,7 +105,9 @@ def validate_completion(state: "SupervisorState") -> None:
         if state["caseProposal"] is None:
             raise OutputRejected("사례 제안이 준비되기 전에 종료할 수 없다")
         return
-    if has_conversation_result(state):
+    if is_reply(state):
+        if not reply_allowed(state):
+            raise OutputRejected("역할 제안이 준비된 상담을 대화 응답으로 끝낼 수 없다")
         return
     progress = get_problem_progress(state)
     if not progress or any(item["outcome"] is None for item in progress):

@@ -131,19 +131,6 @@ def merge_inquiry_result(state: SupervisorState, result: InquiryResult) -> Super
         raise OutputRejected("역할 결과의 형식이 계약과 다르다") from None
     if not _prepare_merge(state, AgentRole.INQUIRY, result):
         return state
-    if result.kind != "PROBLEMS":
-        if (
-            result.problems
-            or result.questions
-            or state["roleResults"]
-            or state["questions"]
-            or state["ticketProposals"]
-            or state["ticketCreationResults"]
-            or state["guide"] is not None
-            or not any(message.sender == "USER" for message in state["input"].messages)
-        ):
-            raise OutputRejected("대화 응답 결과는 다른 제안이나 역할 결과와 함께 사용할 수 없다")
-        return _complete_merge(state, result)
     problems = dict(state["problems"])
     seen: set[str] = set()
     systems = {system.id for system in state["input"].systems}

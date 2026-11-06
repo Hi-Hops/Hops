@@ -163,7 +163,7 @@ def scripted_llm(request: AiRunRequest) -> FakeLLMClient:
         SupervisorDecision(
             nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="문의 확인"
         ),
-        InquiryExtraction(kind="PROBLEMS", problems=[extracted]),
+        InquiryExtraction(problems=[extracted]),
         SupervisorDecision(
             nextAction="CALL_ROLE", role=AgentRole.KNOWLEDGE, publicSummary="안내 검색"
         ),

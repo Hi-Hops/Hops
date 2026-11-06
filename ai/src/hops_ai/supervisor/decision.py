@@ -19,7 +19,13 @@ from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.policy import get_allowed_roles, validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
-from hops_ai.supervisor.validation import ensure_active, validate_completion, validate_questions
+from hops_ai.supervisor.validation import (
+    ensure_active,
+    greeting_confirmed,
+    reply_allowed,
+    validate_completion,
+    validate_questions,
+)
 
 if TYPE_CHECKING:
     from hops_ai.supervisor.choices import Choices
@@ -32,17 +38,25 @@ class SupervisorDecision(ContractModel):
     이미 병합된 질문·안내·티켓 또는 사례를 최종화하는 선택이므로 role은 null이다.
     publicSummary에는 공개 가능한 짧은 행동 설명만 넣고 내부 판단 과정은 넣지 않는다.
     이 문구를 최종 answer로 사용하지 않으며, 최종 본문은 검증된 State로 구성한다.
+
+    REPLY는 문의 분석 없이 대화로 답하는 행동이다. replyKind는 인사만 받은 GREETING 또는
+    의도를 알 수 없어 되묻는 CLARIFY이며 REPLY에만 둔다. 답변 문구는 코드가 고정한다.
     """
 
-    nextAction: Literal["CALL_ROLE", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS", "FINISH"]
+    nextAction: Literal[
+        "CALL_ROLE", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS", "FINISH", "REPLY"
+    ]
     role: AgentRole | None
     publicSummary: WireText
+    replyKind: Literal["GREETING", "CLARIFY"] | None = None
 
     @model_validator(mode="after")
     def check_action_role(self) -> "SupervisorDecision":
-        """역할 호출 행동에만 role을 허용하여 애매한 지시를 거부한다."""
+        """역할 호출 행동에만 role을, 대화 응답에만 replyKind를 허용하여 애매한 지시를 거부한다."""
         if (self.nextAction == "CALL_ROLE") != (self.role is not None):
             raise ValueError("CALL_ROLE에만 전문 역할이 필요하다")
+        if (self.nextAction == "REPLY") != (self.replyKind is not None):
+            raise ValueError("REPLY에만 대화 응답 종류가 필요하다")
         return self
 
 
@@ -57,6 +71,11 @@ def decision_schema(allowed_roles: Sequence[str]) -> dict[str, Any]:
     if allowed_roles:
         role = {"anyOf": [{"type": "string", "enum": list(allowed_roles)}, {"type": "null"}]}
     schema["properties"]["role"] = role
+    # 구조화 출력은 모든 속성을 필수로 요구한다. 기본값이 있는 replyKind도 null로 명시하게 한다.
+    schema["properties"]["replyKind"] = {
+        "anyOf": [{"type": "string", "enum": ["GREETING", "CLARIFY"]}, {"type": "null"}]
+    }
+    schema["required"] = list(schema["properties"])
     # 더 이상 참조하지 않는 역할 정의는 남기지 않는다.
     schema.pop("$defs", None)
     return schema
@@ -102,6 +121,10 @@ def validate_supervisor_decision(state: SupervisorState, decision: SupervisorDec
     if checked.nextAction == "CALL_ROLE":
         validate_role_for_run(kind, checked.role)
         return
+    if checked.nextAction == "REPLY":
+        if not reply_allowed(state):
+            raise OutputRejected("대화 응답은 역할 제안이 없는 상담에서만 선택할 수 있다")
+        return
 
     # 행동 이름과 무관하게 전체 대상의 처리 결과가 준비돼야 현재 run을 끝낼 수 있다.
     # 같은 검사를 최종화에서도 수행하여 그래프 밖의 직접 호출에도 적용한다.
@@ -134,8 +157,13 @@ def allowed_actions(state: SupervisorState) -> list[str]:
     CALL_ROLE의 구체 역할은 supervisor.choices가 계산한 합법한 역할로 따로 제한한다.
     """
     actions = ["CALL_ROLE"]
-    for action in ("FINISH", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS"):
-        candidate = SupervisorDecision(nextAction=action, role=None, publicSummary="행동 검사")
+    for action in ("FINISH", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS", "REPLY"):
+        candidate = SupervisorDecision(
+            nextAction=action,
+            role=None,
+            publicSummary="행동 검사",
+            replyKind="CLARIFY" if action == "REPLY" else None,
+        )
         try:
             validate_supervisor_decision(state, candidate)
         except OutputRejected:
@@ -256,7 +284,13 @@ async def decide_next_action(
                     "추가 질문은 문제별 남은 횟수를 지킨다. "
                     "problems는 Inquiry가 문의를 분석해야 생긴다. problems가 비어 있으면 아직 "
                     "분석 전이므로 문제를 대상으로 하는 검색·티켓 제안은 성립하지 않는다. "
-                    "인사만 있는 메시지를 포함하여 새 사용자 메시지는 INQUIRY에서 분석한다. "
+                    "먼저 사용자 메시지의 의도를 판단한다. IT 문의 내용이나 기존 문의의 보완이 "
+                    "조금이라도 있으면 인사가 함께 있어도 INQUIRY로 분석한다. 문의·보완 없이 "
+                    "인사만 있으면 REPLY와 replyKind=GREETING, 무엇을 원하는지 알 수 없으면 "
+                    "REPLY와 replyKind=CLARIFY를 선택한다. 확실하지 않으면 INQUIRY로 분석한다. "
+                    "Inquiry가 문제를 찾지 못했으면 같은 분석을 반복하지 않고 REPLY로 되묻는다. "
+                    "REPLY가 아닌 행동의 replyKind는 null이다. 진행 상황이나 해결 시점을 "
+                    "추측하여 답하지 않는다. "
                     "사용법 문제에서 Knowledge 검색 결과가 없으면(completedCalls의 "
                     "searchState가 EMPTY) 안내할 근거가 없는 것이다. 남은 질문 횟수와 "
                     "이미 확보한 정보를 보고, 담당자 전달에 필요한 정보가 더 필요하면 "
@@ -277,7 +311,7 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v7",
+        prompt_version="supervisor.decision.v8",
         response_schema=decision_schema(context["allowedRoles"]),
     )
     response = await services.llm.generate(request)
@@ -292,4 +326,15 @@ async def decide_next_action(
     validate_supervisor_decision(state, decision)
     if decision.role is not None and decision.role.value not in context["allowedRoles"]:
         raise OutputRejected("등록되지 않은 역할을 호출할 수 없다")
+    return confirm_reply(state, decision)
+
+
+def confirm_reply(state: SupervisorState, decision: SupervisorDecision) -> SupervisorDecision:
+    """모델이 인사로 판단해도 코드가 확인한 인사 표현이 아니면 되묻기로 낮춘다.
+
+    인사로 잘못 판단한 문의를 조용히 끝내지 않고 사용자에게 다시 확인하기 위한 보수적 처리다.
+    목록 밖의 단순 인사도 되묻기가 될 수 있다.
+    """
+    if decision.replyKind == "GREETING" and not greeting_confirmed(state):
+        return decision.model_copy(update={"replyKind": "CLARIFY"})
     return decision

@@ -1,7 +1,6 @@
 """검증된 State를 외부 AiResult로 확정한다. 업무 저장 성공을 만들지 않는다."""
 
 from hops_ai.contracts.execution import RunKind
-from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiResult
 from hops_ai.harness.errors import OutputRejected
 from hops_ai.rules.progress import get_problem_progress, validate_evidence_scope
@@ -14,7 +13,7 @@ from hops_ai.rules.proposals import (
 from hops_ai.supervisor.state import SupervisorState, transition_phase
 from hops_ai.supervisor.validation import (
     ensure_active,
-    has_conversation_result,
+    is_reply,
     validate_completion,
     validate_questions,
 )
@@ -45,9 +44,8 @@ def compose_public_answer(state: SupervisorState) -> str:
     if state["input"].kind != RunKind.INQUIRY_ANALYSIS:
         raise OutputRejected("사례 초안 실행에는 상담 본문을 만들 수 없다")
     validate_completion(state)
-    if has_conversation_result(state):
-        result = next(r for r in state["roleResults"].values() if isinstance(r, InquiryResult))
-        if result.kind == "CLARIFICATION":
+    if is_reply(state):
+        if state["replyKind"] == "CLARIFY":
             return "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
         if state["input"].problems:
             return "안녕하세요. 이어서 문의 내용을 알려 주세요."
@@ -230,18 +228,14 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
             inquiryVersion=request.inquiryVersion,
             status="SUCCEEDED",
             answer=body,
-            problemProposals=(
-                [] if has_conversation_result(candidate) else list(candidate["problems"].values())
-            ),
+            problemProposals=([] if is_reply(candidate) else list(candidate["problems"].values())),
             questions=list(candidate["questions"].values()),
             guide=candidate["guide"],
             ticketProposals=list(candidate["ticketProposals"].values()),
             caseProposal=None,
-            evidence=[]
-            if has_conversation_result(candidate)
-            else list(candidate["evidence"].values()),
+            evidence=[] if is_reply(candidate) else list(candidate["evidence"].values()),
             error=None,
-            requiresFollowUp=has_conversation_result(candidate),
+            requiresFollowUp=is_reply(candidate),
             ticketCreationResults=list(candidate["ticketCreationResults"].values()),
         )
     else:

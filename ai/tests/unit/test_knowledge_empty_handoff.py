@@ -213,7 +213,6 @@ def decision(action: str, role: AgentRole | None = None) -> SupervisorDecision:
 
 def how_to_extraction(*, desired: QuotedValue | None = None) -> InquiryExtraction:
     return InquiryExtraction(
-        kind="PROBLEMS",
         problems=[
             ExtractedProblem(
                 summary="전자결재 도장 이미지 등록 방법 문의",
@@ -229,7 +228,7 @@ def how_to_extraction(*, desired: QuotedValue | None = None) -> InquiryExtractio
                 desiredChange=None,
                 unknownFields=[],
             )
-        ],
+        ]
     )
 
 
@@ -286,7 +285,7 @@ async def test_supervisor_may_hand_the_unanswerable_how_to_to_staff() -> None:
     assert any(call.get("searchState") == "EMPTY" for call in context["completedCalls"])
     guidance = after_empty.messages[0].content
     assert "EMPTY" in guidance and "Inquiry로 질문" in guidance and "Ticket으로" in guidance
-    assert after_empty.prompt_version == "supervisor.decision.v7"
+    assert after_empty.prompt_version == "supervisor.decision.v8"
 
 
 async def test_supervisor_may_instead_ask_more_before_handing_over() -> None:

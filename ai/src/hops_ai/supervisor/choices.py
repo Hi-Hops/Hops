@@ -17,6 +17,7 @@ from hops_ai.agents.knowledge.agent import guidable_problem
 from hops_ai.agents.ticket.model import ModelTicketAgent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
+from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.state import SupervisorState
 from hops_ai.supervisor.decision import allowed_actions
 from hops_ai.supervisor.policy import get_allowed_roles
@@ -50,10 +51,17 @@ def _inquiry_has_work(state: SupervisorState) -> bool:
       질문과 충돌할 위험만 있다.
     - 조사·신청 등 티켓 대상의 필수 정보가 갖춰졌거나 질문 한도에 도달했다면 같은 원문을
       다시 추출하지 않고 Ticket으로 전달한다. 다른 미처리 문제가 있으면 호출을 유지한다.
+    - 이번 실행의 Inquiry가 문제를 하나도 찾지 못했다면 같은 원문을 다시 분석하지 않는다.
+      Supervisor가 대화 응답(REPLY)으로 사용자에게 되묻는다.
     사용자가 새 메시지로 답한 다음 실행은 새 State라서 다시 호출할 수 있다.
     """
     if state["input"].kind != RunKind.INQUIRY_ANALYSIS:
         return True
+    if any(
+        isinstance(result, InquiryResult) and not result.problems
+        for result in state["roleResults"].values()
+    ):
+        return False
     return not (all_unfinished_ready_for_handoff(state) or inquiry_has_nothing_left_to_do(state))
 
 

@@ -305,7 +305,6 @@ async def test_run_at_the_question_limit_ends_in_a_review_ticket() -> None:
     llm = FakeLLMClient(
         decision("CALL_ROLE", AgentRole.INQUIRY),
         InquiryExtraction(
-            kind="PROBLEMS",
             problems=[
                 _extracted(
                     "도장 이미지 등록 방법 문의",
@@ -313,7 +312,7 @@ async def test_run_at_the_question_limit_ends_in_a_review_ticket() -> None:
                     "ELECTRONIC_APPROVAL",
                     task="도장 이미지 등록",
                 )
-            ],
+            ]
         ),
         decision("CALL_ROLE", AgentRole.KNOWLEDGE),
         decision("CALL_ROLE", AgentRole.TICKET),

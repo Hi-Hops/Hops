@@ -210,7 +210,7 @@ def scripted_llm(request, *, compound=False):
         SupervisorDecision(
             nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="문의 확인"
         ),
-        InquiryExtraction(kind="PROBLEMS", problems=problems),
+        InquiryExtraction(problems=problems),
         SupervisorDecision(
             nextAction="CALL_ROLE", role=AgentRole.TICKET, publicSummary="티켓 처리"
         ),
