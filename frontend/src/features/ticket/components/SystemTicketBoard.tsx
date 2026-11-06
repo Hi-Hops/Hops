@@ -115,11 +115,6 @@ export function SystemTicketBoard() {
           <h1 id="page-title" tabIndex={-1}>
             {admin ? '업무 관리' : '담당 시스템 업무'}
           </h1>
-          <p>
-            {admin
-              ? '관리 권한이 허용한 업무 메타데이터를 확인하세요.'
-              : '내 담당 시스템에 배정된 티켓입니다. 책임 시스템과 상태로 업무를 확인하세요.'}
-          </p>
         </div>
         <span className={styles.readOnly}>{admin ? '업무 메타데이터' : '주담당자 자동 배정'}</span>
       </header>
@@ -272,10 +267,6 @@ export function SystemTicketBoard() {
                   })}
                 </div>
               </div>
-              <p className={styles.boardHint}>
-                컬럼 숫자는 현재 페이지 건수예요. 카드를 선택하면 상세 모달이 열려요. 보드에서
-                드래그로 상태를 바꾸지 않아요.
-              </p>
             </>
           ) : view === 'list' ? (
             <div className={styles.tableWrap}>

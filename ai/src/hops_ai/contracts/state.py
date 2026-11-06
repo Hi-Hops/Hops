@@ -61,8 +61,11 @@ class SupervisorState(TypedDict):
     phase: RunPhase
     activeRole: AgentRole | Literal["SUPERVISOR"] | None
     nextAction: (
-        Literal["CALL_ROLE", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS", "FINISH"] | None
+        Literal["CALL_ROLE", "ASK_USER", "PROVIDE_GUIDE", "PROPOSE_TICKETS", "FINISH", "REPLY"]
+        | None
     )
+    # REPLY로 끝나는 대화 응답의 종류. 다른 행동에서는 None이다.
+    replyKind: Literal["GREETING", "THANKS", "CLARIFY"] | None
     problems: dict[str, ProblemProposal]
     # 문제별 검색 힌트(키워드·기능 후보). 내부 전용이며 AiResult에 싣지 않는다.
     analysis: dict[str, ProblemAnalysis]

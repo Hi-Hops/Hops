@@ -11,8 +11,8 @@ export const processingLabels: Record<string, string> = {
 export const workKinds: Record<WorkRecordKind, string> = {
   PROGRESS: '진행 기록',
   FAILED_ATTEMPT: '실패한 시도',
-  VERIFIED_RESOLUTION: '검증 완료',
-  IMPLEMENTED_VERIFIED: '구현·검증 완료',
+  VERIFIED_RESOLUTION: '처리 완료',
+  IMPLEMENTED_VERIFIED: '구현 완료',
 };
 export function isWorkKind(value: string): value is WorkRecordKind {
   return Object.hasOwn(workKinds, value);

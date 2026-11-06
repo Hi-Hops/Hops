@@ -546,11 +546,17 @@ class AiResult(WireModel):
     caseProposal: CaseProposal | None
     evidence: list[KnowledgeEvidence]
     error: AiError | None
+    # 이전 생산자의 생략은 false다. 이 제안만으로 업무 상태를 확정하지 않는다.
+    requiresFollowUp: StrictBool = False
     # 이전 생산자의 제안 전용 결과를 읽을 수 있는 가산 필드. 신규 출력에는 항상 포함한다.
     ticketCreationResults: list[TicketExecution] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_result(self) -> "AiResult":
+        if self.requiresFollowUp and (
+            self.kind != "INQUIRY_ANALYSIS" or self.status != "SUCCEEDED"
+        ):
+            raise ValueError("추가 응답 대기는 성공한 상담 결과에서만 허용합니다")
         refs = [item.problemRef for item in self.ticketCreationResults]
         if len(refs) != len(set(refs)) or any(
             item.result is not None

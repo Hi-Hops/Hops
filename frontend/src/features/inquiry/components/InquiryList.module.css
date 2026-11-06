@@ -2,6 +2,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
 }
 .sessions {
   overflow-y: auto;
@@ -26,32 +28,33 @@
 .recentLink,
 .current {
   display: grid;
-  grid-template-columns: var(--space-2) minmax(0, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   margin-bottom: var(--space-1);
   border-radius: var(--radius-md);
+}
+.recentLink:hover {
+  background: var(--color-sunken);
 }
 .sessionText {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
-.dot {
-  width: var(--space-2);
-  height: var(--space-2);
-  margin-top: 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-text-muted);
+/* 세션도 눌러서 여는 항목이므로 메뉴와 같은 아이콘을 쓰고, 색으로 상태를 함께 표시한다. */
+.sessionIcon {
+  margin-top: 1px;
+  color: var(--color-text-muted);
 }
-.dot[data-tone='progress'] {
-  background: var(--color-progress);
+.sessionIcon[data-tone='progress'] {
+  color: var(--color-progress);
 }
-.dot[data-tone='attention'] {
-  background: var(--color-attention);
+.sessionIcon[data-tone='attention'] {
+  color: var(--color-attention);
 }
-.dot[data-tone='success'] {
-  background: var(--color-success);
+.sessionIcon[data-tone='success'] {
+  color: var(--color-success);
 }
 .recent strong {
   font-size: var(--font-size-label);

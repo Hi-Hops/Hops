@@ -79,6 +79,7 @@ def create_initial_state(request: AiRunRequest, *, judgment: bool = False) -> Su
         phase="QUEUED",
         activeRole=None,
         nextAction=None,
+        replyKind=None,
         problems={problem.id: _problem_from_input(problem) for problem in snapshot.problems},
         analysis={},
         assessments={},

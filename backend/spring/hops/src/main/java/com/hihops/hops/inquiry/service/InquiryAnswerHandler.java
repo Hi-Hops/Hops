@@ -90,6 +90,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         // 늦은 결과는 위에서 SUPERSEDED로 걸러졌다. 현재 결과라면 쓰기 직전에 권한 세대를 다시 확인한다.
         checkAccess(inquiry, input);
 
+        boolean requiresFollowUp = requiresFollowUp(result);
         String answer = answerOf(result);
         UUID answerMessageId = reservedAnswerMessageId(input);
         if (messageRepository.existsById(answerMessageId)) {
@@ -100,8 +101,17 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         var guide = guides.apply(run, inquiry, answerMessageId, input, result);
         // 저장한 AI 답변을 문의 구독에 알린다. 결과 반영 거래가 commit된 뒤에만 전달된다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), answerMessageId, null));
-        completeResolvedInquiry(inquiry, result);
-        return validationOf(result, guide);
+        if (!requiresFollowUp) completeResolvedInquiry(inquiry, result);
+        return validationOf(result, guide, requiresFollowUp);
+    }
+
+    private static boolean requiresFollowUp(JsonNode result) {
+        var field = result.path("requiresFollowUp");
+        if (field.isMissingNode()) return false;
+        if (!field.isBoolean()) {
+            throw new AgentResultRejectedException("INVALID_OUTPUT", "추가 응답 대기 표시가 올바르지 않습니다");
+        }
+        return field.asBoolean();
     }
 
     private void completeResolvedInquiry(Inquiry inquiry, JsonNode result) {
@@ -134,7 +144,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     }
 
     // 반영한 것과 받았지만 아직 저장하지 않는 AI 제안을 구분해 남긴다.
-    private String validationOf(JsonNode result, GuideResultWriter.Applied guide) {
+    private String validationOf(JsonNode result, GuideResultWriter.Applied guide, boolean requiresFollowUp) {
         List<String> unapplied = new ArrayList<>();
         for (String field : LIST_FIELDS) {
             if (result.path(field).isArray() && !result.path(field).isEmpty()) {
@@ -151,6 +161,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         }
         var validation = jsonMapper.createObjectNode();
         validation.putArray("applied").add("answer");
+        if (requiresFollowUp) validation.put("requiresFollowUp", true);
         if (guide != null) {
             ((tools.jackson.databind.node.ArrayNode) validation.path("applied")).add("guide");
             if (result.path("problemProposals").size() == 1)

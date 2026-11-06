@@ -214,7 +214,7 @@ export class SystemMockWorkflow {
       if (outcome === 'FAILED') {
         value.error = {
           code: 'MODEL_UNAVAILABLE',
-          message: 'Mock 초안 생성 실패예요. 처리 기록은 유지돼요.',
+          message: 'Mock 초안 생성 실패예요. 문의 처리 기록은 유지돼요.',
           requestId: crypto.randomUUID(),
           retryable: true,
           fieldErrors: [],
@@ -325,7 +325,7 @@ export class SystemMockWorkflow {
               ? kind !== 'IMPLEMENTED_VERIFIED'
               : kind !== 'VERIFIED_RESOLUTION'))
         )
-          mockError(409, 'INVALID_STATE', '새 검증 기록을 저장할 수 없는 상태예요.');
+          mockError(409, 'INVALID_STATE', '새 처리 완료 기록을 저장할 수 없는 상태예요.');
         const verification = verified ? text(body, 'verification') : optional(body, 'verification');
         const record: D.WorkRecord = {
           id: crypto.randomUUID(),
@@ -350,7 +350,7 @@ export class SystemMockWorkflow {
             sourceVersion: 1,
             requestRevision: 1,
             state: 'PENDING',
-            resultSummary: record.action + '\n검증: ' + (record.verification ?? ''),
+            resultSummary: record.action,
             confirmationOrigin: 'HOPS_USER',
             createdAt: now(),
             respondedAt: null,
@@ -573,7 +573,7 @@ export class SystemMockWorkflow {
         return { found: true, value: detail };
       }
       if (!user.primarySystemIds.length)
-        mockError(403, 'ACCESS_DENIED', '사례 검토 권한이 없어요.');
+        mockError(403, 'ACCESS_DENIED', '해결 사례 검토 권한이 없어요.');
       const systemId = search.get('systemId');
       const state = search.get('state');
       if (systemId && !user.primarySystemIds.includes(systemId))

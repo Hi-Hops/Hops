@@ -1,0 +1,316 @@
+"""Supervisor가 문의 분석 없이 대화로 답하는 REPLY 경로.
+
+Supervisor가 메시지의 의도를 판단한다. 인사만 있으면 GREETING, 의도를 알 수 없으면 CLARIFY로
+답하고, 문의가 있으면 Inquiry에 분석을 맡긴다. 모델이 인사라고 해도 코드가 확인한 인사 표현이
+아니면 되묻기로 낮춰 문의를 조용히 끝내지 않는다. 모델은 Fake이므로 실제 분류 정확도는
+여기서 검증하지 않는다.
+"""
+
+import json
+
+import pytest
+
+from hops_ai.agents.inquiry import ExtractionInquiryAgent
+from hops_ai.agents.inquiry.extraction import InquiryExtraction, QuotedValue
+from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.wire import AiRunRequest
+from hops_ai.harness.errors import OutputRejected
+from hops_ai.supervisor.decision import SupervisorDecision, validate_supervisor_decision
+from hops_ai.supervisor.execution import RoleRequest
+from hops_ai.supervisor.graph import Supervisor
+from hops_ai.supervisor.merge import merge_inquiry_result
+from hops_ai.supervisor.validation import courtesy_kind
+from tests.supervisor_fixtures import make_request, reserve, running_state
+from tests.unit.test_inquiry_agent import (
+    EA_SYMPTOM,
+    extracted,
+    first_message_request,
+    services_for,
+)
+
+GREETING_ANSWER = "안녕하세요. 어떤 IT 관련 문의가 있으신가요? 내용을 알려 주세요."
+FOLLOW_UP_GREETING_ANSWER = "안녕하세요. 이어서 문의 내용을 알려 주세요."
+THANKS_ANSWER = "감사합니다. 다른 IT 문의가 있으시면 언제든 알려 주세요."
+CLARIFY_ANSWER = "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
+
+
+def reply(kind: str) -> SupervisorDecision:
+    return SupervisorDecision(
+        nextAction="REPLY", role=None, publicSummary="대화 응답", replyKind=kind
+    )
+
+
+def call_inquiry() -> SupervisorDecision:
+    return SupervisorDecision(nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="분석")
+
+
+async def analyze(request: AiRunRequest, *outcomes):
+    services, llm = services_for(request, *outcomes)
+    supervisor = Supervisor({AgentRole.INQUIRY: ExtractionInquiryAgent()}, restrict_roles=True)
+    return await supervisor.analyze(request, services), llm
+
+
+def with_extra_user_message(request: AiRunRequest, content: str, **changes) -> AiRunRequest:
+    fields = request.model_dump(mode="json")
+    last = fields["messages"][-1]
+    fields["messages"].append(
+        {
+            **fields["messages"][0],
+            "id": "00000000-0000-0000-0000-000000000098",
+            "sequenceNo": last["sequenceNo"] + 1,
+            "content": content,
+            **changes,
+        }
+    )
+    return AiRunRequest.model_validate(fields)
+
+
+@pytest.mark.parametrize(
+    "message", ["안녕하세요", "안녕하세요!", "안녕", "안녕하세요, 반갑습니다", "Hello!"]
+)
+async def test_greeting_is_answered_by_the_supervisor_without_inquiry(message) -> None:
+    result, llm = await analyze(first_message_request(message), reply("GREETING"))
+
+    assert result.status == "SUCCEEDED"
+    assert result.answer == GREETING_ANSWER
+    assert result.problemProposals == [] and result.questions == []
+    assert result.ticketProposals == [] and result.guide is None
+    assert result.requiresFollowUp is False
+    # Supervisor 판단 한 번으로 끝나고 Inquiry 모델은 호출하지 않는다.
+    assert len(llm.requests) == 1
+
+
+async def test_greeting_with_existing_problem_keeps_it_unchanged() -> None:
+    fields = make_request().model_dump(mode="json")
+    fields["messages"][0]["content"] = "안녕하세요"
+    request = AiRunRequest.model_validate(fields)
+
+    result, _ = await analyze(request, reply("GREETING"))
+
+    assert result.answer == FOLLOW_UP_GREETING_ANSWER
+    assert result.problemProposals == [] and result.questions == [] and result.evidence == []
+    assert result.requiresFollowUp is False
+
+
+@pytest.mark.parametrize(
+    "message", ["안녕하세요 로그인이 안 돼요", "안녕하세요! 도움이 필요해요", "점심 메뉴 추천해줘"]
+)
+async def test_wrong_greeting_decision_is_lowered_to_clarify(message) -> None:
+    result, _ = await analyze(first_message_request(message), reply("GREETING"))
+
+    assert result.answer == CLARIFY_ANSWER
+    assert not result.problemProposals and not result.questions
+    assert result.requiresFollowUp is True
+
+
+async def test_greeting_does_not_hide_an_earlier_unanalyzed_message() -> None:
+    request = with_extra_user_message(
+        first_message_request("로그인이 안 돼요", extra_ai_message=True), "안녕하세요"
+    )
+
+    result, _ = await analyze(request, reply("GREETING"))
+
+    assert result.answer == CLARIFY_ANSWER
+
+
+async def test_greeting_does_not_hide_an_unlinked_message_when_a_problem_exists() -> None:
+    fields = make_request().model_dump(mode="json")
+    fields["messages"][0].update(content="로그인도 안 돼요", problemIds=[])
+    request = with_extra_user_message(AiRunRequest.model_validate(fields), "안녕하세요")
+
+    result, _ = await analyze(request, reply("GREETING"))
+
+    assert result.answer == CLARIFY_ANSWER
+
+
+async def test_unclear_message_is_clarified() -> None:
+    result, _ = await analyze(first_message_request("음..."), reply("CLARIFY"))
+
+    assert result.answer == CLARIFY_ANSWER
+    assert result.requiresFollowUp is True
+
+
+async def test_greeting_mixed_with_an_inquiry_is_analyzed_by_inquiry() -> None:
+    text = f"안녕하세요, {EA_SYMPTOM}"
+    request = first_message_request(text)
+    problem = extracted(
+        actualBehavior=QuotedValue(messageId=request.messages[0].id, quote="결재 문서가 안 보여요")
+    )
+
+    result, llm = await analyze(
+        request,
+        call_inquiry(),
+        InquiryExtraction(problems=[problem]),
+        SupervisorDecision(nextAction="ASK_USER", role=None, publicSummary="추가 정보 요청"),
+    )
+
+    assert result.status == "SUCCEEDED"
+    assert result.problemProposals[0].intent == "OBSERVED_SYMPTOM"
+    assert result.questions
+    assert result.requiresFollowUp is False
+    assert text in llm.requests[1].messages[1].content
+
+
+async def test_empty_inquiry_result_is_clarified_instead_of_failing() -> None:
+    """Inquiry가 문제를 찾지 못하면 실패 대신 되묻는다."""
+    result, llm = await analyze(
+        first_message_request("혹시 시간 괜찮으세요?"),
+        call_inquiry(),
+        InquiryExtraction(problems=[]),
+        reply("CLARIFY"),
+    )
+
+    assert result.status == "SUCCEEDED"
+    assert result.answer == CLARIFY_ANSWER
+    assert result.requiresFollowUp is True
+    # 문제가 없었으므로 다음 판단에서는 Inquiry를 다시 고를 수 없다.
+    assert "INQUIRY" not in json.loads(llm.requests[2].messages[1].content)["allowedRoles"]
+
+
+async def test_reply_is_rejected_after_inquiry_found_a_problem() -> None:
+    request = first_message_request()
+    state = reserve(running_state(request), AgentRole.INQUIRY, "inv-1")
+    services, _ = services_for(request, InquiryExtraction(problems=[extracted()]))
+    result = await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
+    merged = merge_inquiry_result(state, result)
+
+    with pytest.raises(OutputRejected, match="대화 응답"):
+        validate_supervisor_decision(merged, reply("GREETING"))
+
+
+def test_reply_kind_belongs_only_to_reply() -> None:
+    with pytest.raises(ValueError):
+        SupervisorDecision(nextAction="REPLY", role=None, publicSummary="응답")
+    with pytest.raises(ValueError):
+        SupervisorDecision(
+            nextAction="FINISH", role=None, publicSummary="종료", replyKind="GREETING"
+        )
+
+
+def test_case_draft_cannot_reply() -> None:
+    state = running_state(make_request(kind="CASE_DRAFT"))
+
+    with pytest.raises(OutputRejected):
+        validate_supervisor_decision(state, reply("CLARIFY"))
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("안녕하세요", "GREETING"),
+        ("hi~", "GREETING"),
+        ("감사합니다!", "THANKS"),
+        ("안녕하세요 감사합니다", "THANKS"),
+        ("Thank you", "THANKS"),
+        ("", None),
+        ("안녕하세요 로그인", None),
+        ("하이", None),
+        ("감사합니다 그런데 또 안 돼요", None),
+        ("안녕히 계세요", None),
+    ],
+)
+def test_courtesy_kind_accepts_only_listed_expressions(text, expected) -> None:
+    assert courtesy_kind(text) == expected
+
+
+def allowed_roles(llm) -> list[str]:
+    return json.loads(llm.requests[0].messages[1].content)["allowedRoles"]
+
+
+def pending_problem_conversation(*user_messages: str) -> AiRunRequest:
+    """Spring이 실제로 보내는 형태: 첫 메시지는 문제에 연결되지 않은 채 남고 AI가 질문했다."""
+    fields = make_request().model_dump(mode="json")
+    first = fields["messages"][0]
+    first["problemIds"] = []
+    fields["messages"].append(
+        {
+            **first,
+            "id": "00000000-0000-0000-0000-000000000099",
+            "sequenceNo": 2,
+            "sender": "AI",
+            "content": "언제부터 그랬나요?",
+        }
+    )
+    for index, content in enumerate(user_messages):
+        fields["messages"].append(
+            {
+                **first,
+                "id": f"00000000-0000-0000-0000-0000000000{90 + index}",
+                "sequenceNo": 3 + index,
+                "content": content,
+            }
+        )
+    return AiRunRequest.model_validate(fields)
+
+
+async def test_confirmed_greeting_with_a_pending_problem_cannot_call_inquiry() -> None:
+    """처리 중인 문제가 있어도 인사만 오면 Inquiry가 이전 질문을 반복하지 않는다.
+
+    이미 분석한 첫 메시지가 문제에 연결되지 않았더라도 마지막 AI 답변 이전이므로 보지 않는다.
+    """
+    result, llm = await analyze(pending_problem_conversation("안녕하세요"), reply("GREETING"))
+
+    assert "INQUIRY" not in allowed_roles(llm)
+    assert result.answer == FOLLOW_UP_GREETING_ANSWER
+
+
+@pytest.mark.parametrize(
+    "messages", [("오늘 2시부터요", "안녕하세요"), ("안녕하세요 오늘 2시부터요",)]
+)
+async def test_unanswered_supplement_keeps_inquiry_available(messages) -> None:
+    result, llm = await analyze(pending_problem_conversation(*messages), reply("GREETING"))
+
+    assert "INQUIRY" in allowed_roles(llm)
+    assert result.answer == CLARIFY_ANSWER
+
+
+@pytest.mark.parametrize(
+    "request_",
+    [
+        first_message_request("안녕하세요, 로그인이 안 돼요"),
+        with_extra_user_message(
+            first_message_request("로그인이 안 돼요", extra_ai_message=True), "안녕하세요"
+        ),
+        with_extra_user_message(make_request(), "오늘 2시 반부터 그랬어요", problemIds=[]),
+    ],
+    ids=["mixed", "unanalyzed-before-greeting", "supplement"],
+)
+async def test_inquiry_stays_available_when_there_is_content_to_analyze(request_) -> None:
+    _, llm = await analyze(request_, reply("CLARIFY"))
+
+    assert "INQUIRY" in allowed_roles(llm)
+
+
+@pytest.mark.parametrize("kind", ["THANKS", "CLARIFY", "GREETING"])
+async def test_thanks_after_a_pending_problem_is_answered_without_waiting(kind) -> None:
+    """감사 인사에는 감사로 답한다. 모델이 고른 종류와 무관하게 코드가 확인한 표현을 따른다."""
+    result, llm = await analyze(pending_problem_conversation("감사합니다!"), reply(kind))
+
+    assert "INQUIRY" not in allowed_roles(llm)
+    assert result.answer == THANKS_ANSWER
+    assert result.problemProposals == [] and result.questions == []
+    assert result.requiresFollowUp is False
+
+
+async def test_only_clarify_waits_for_the_user() -> None:
+    result, _ = await analyze(first_message_request("음..."), reply("THANKS"))
+
+    assert result.answer == CLARIFY_ANSWER
+    assert result.requiresFollowUp is True
+
+
+def allowed_actions(llm) -> list[str]:
+    return json.loads(llm.requests[0].messages[1].content)["allowedActions"]
+
+
+async def test_thanks_after_resolution_can_only_reply() -> None:
+    """해결된 문제에 감사 인사가 오면 기존 결과 안내(FINISH) 대신 감사로 답한다."""
+    fields = pending_problem_conversation("고맙습니다").model_dump(mode="json")
+    fields["problems"][0]["state"] = "RESOLVED"
+    request = AiRunRequest.model_validate(fields)
+
+    result, llm = await analyze(request, reply("THANKS"))
+
+    assert allowed_actions(llm) == ["REPLY"]
+    assert result.answer == THANKS_ANSWER
+    assert result.requiresFollowUp is False

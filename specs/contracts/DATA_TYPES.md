@@ -11,6 +11,8 @@
 
 상태: PRD 1.44 hops-system-1 계약·필드/상태/명령 정의. 이 절은 `/api/v2`용이며 아래의 전환 전 타입과 이름이 같아도 상호 교환하지 않는다. 의미·전이는 [TARGET_CONTRACT](TARGET_CONTRACT.md), 전송은 [WIRE_CONTRACT 12절](WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따른다. 현재 프론트 런타임 타입·Mock은 이 절을 구현한다. Spring·AI의 전체 업무 DTO 연결은 별도다.
 
+Spring–AI 내부 `AiResult`의 필드와 가산 필드 호환은 [에이전트 전송 계약](../../contracts/agents/README.md)을 따른다. 이 내부 필드는 프론트 `/api/v2` 응답 필드가 아니다.
+
 ### 공통 표현과 버전
 
 - `Uuid`는 소문자 하이픈 UUID, `time`은 UTC RFC 3339 `Z` 시각, `int`는 JSON 정수다. JSON 필드는 camelCase다. 양의 정수 버전·순번은 1~2,147,483,647이며 page·질문 수는 0부터다.

@@ -132,7 +132,11 @@ def test_valid_final_result_is_preserved_in_snapshot(client, ledger) -> None:
     ledger.snapshot = RunSnapshot(run_id, "a" * 64, "SUCCEEDED", 1, result)
     response = client.get(f"/internal/v2/runs/{run_id}", headers=auth())
     assert response.status_code == 200
-    assert response.json()["result"] == {**result, "ticketCreationResults": []}
+    assert response.json()["result"] == {
+        **result,
+        "ticketCreationResults": [],
+        "requiresFollowUp": False,
+    }
     assert response.json()["error"] is None
 
 

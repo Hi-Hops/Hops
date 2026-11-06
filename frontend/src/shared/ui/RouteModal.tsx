@@ -6,7 +6,7 @@ type RouteModalProps = {
   title: string;
   /** 제목을 줄여 표시할 때 마우스를 올리면 보여줄 전체 값. */
   titleHint?: string | undefined;
-  description: string;
+  description?: string;
   onClose: () => void;
   returnFocusId?: string;
   children: ReactNode;
@@ -36,6 +36,7 @@ export function RouteModal({
         <Dialog.Overlay className={styles.overlay} />
         <Dialog.Content
           className={(styles.content ?? '') + (size === 'wide' ? '' : ' ' + (styles[size] ?? ''))}
+          {...(description ? {} : { 'aria-describedby': undefined })}
           onCloseAutoFocus={(event) => {
             if (returnFocusId) {
               event.preventDefault();
@@ -47,7 +48,7 @@ export function RouteModal({
           <header className={styles.header}>
             <div>
               <Dialog.Title title={titleHint}>{title}</Dialog.Title>
-              <Dialog.Description>{description}</Dialog.Description>
+              {description && <Dialog.Description>{description}</Dialog.Description>}
             </div>
             <Dialog.Close asChild>
               <Button variant="ghost" aria-label="상세 닫기">
