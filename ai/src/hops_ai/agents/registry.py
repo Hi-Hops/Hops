@@ -17,6 +17,7 @@ def build_registry(
     knowledge_source: KnowledgeSource | None = None,
     *,
     execute_tickets: bool = False,
+    assess_evidence: bool = False,
 ) -> Mapping[AgentRole, Agent]:
     """서버 실행에 쓰는 역할 조합.
 
@@ -27,11 +28,14 @@ def build_registry(
 
     Ticket은 execute_tickets=False면 제안만 만드는 ModelTicketAgent, True면 Spring 업무 도구로
     생성·확인까지 수행하는 ExecutingTicketAgent다. 어느 쪽인지 호출 측이 명시한다.
+
+    assess_evidence가 참이면 Knowledge가 검색 뒤에 근거의 충분성 판정을 만든다(문제당 모델 1회).
+    판정을 읽는 쪽(Supervisor의 행동 선택)이 연결되기 전까지는 기본 거짓이다.
     """
     knowledge: Agent = (
         PendingAgent(AgentRole.KNOWLEDGE)
         if knowledge_source is None
-        else SearchKnowledgeAgent(knowledge_source)
+        else SearchKnowledgeAgent(knowledge_source, assess_evidence=assess_evidence)
     )
     return MappingProxyType(
         {

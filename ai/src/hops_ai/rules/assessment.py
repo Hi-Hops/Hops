@@ -1,0 +1,129 @@
+"""검색 근거 충분성 판정(Assessment)의 검증. State를 수정하지 않는다.
+
+모델은 판정을 제안만 한다. Knowledge 에이전트가 모델 출력을 받을 때와 Supervisor가 병합할 때 같은
+규칙을 적용하며, 어느 쪽 패키지도 불러오지 않는다(설계 문서 7.2절).
+
+- 근거 ID는 이번 검색의 검증된 근거 안에서만 고른다.
+- SUFFICIENT는 직원 공개(EMPLOYEE) 근거 ID를 가져야 한다. 안내를 만들 수 없는 판정은 거부한다.
+- missingInformation은 닫힌 어휘다. 양식 필드 이름(그 의도가 묻는 필드)이거나 허용된 관계
+  확인 항목 ID만 받고 자유 문장은 받지 않는다. 관계 자료가 아직 연결되지 않은 동안에는 허용된
+  확인 항목이 없으므로 CHECK_ITEM과 nextChecks는 비어 있어야 한다.
+- candidateCauses는 항상 confirmed=false이고 근거를 가진다. 과거 사례·관계 의존을 현재 원인으로
+  확정하지 않는다.
+- rationale은 내부용이다. 사용자 응답·질문·티켓에 쓰지 않는다.
+"""
+
+from collections.abc import Iterable, Sequence
+
+from hops_ai.contracts.roles import Assessment
+from hops_ai.contracts.wire import Intent, KnowledgeEvidence
+from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.intent_policy import policy_for
+
+# 판정 하나가 담을 수 있는 항목 수와 문장 길이. 모델이 길게 쓴 값은 거부한다.
+MAX_MISSING_INFORMATION = 5
+MAX_CANDIDATE_CAUSES = 3
+MAX_CAUSE_TEXT = 200
+MAX_RATIONALE = 500
+
+
+def allowed_fields(intent: Intent) -> tuple[str, ...]:
+    """그 의도의 양식이 묻는 필드 이름(필수·가이드 우선·인계 필드의 합, 순서 유지)."""
+    policy = policy_for(intent)
+    names: list[str] = []
+    for group in (policy.required_fields, policy.guide_first_fields, policy.handoff_fields):
+        for name in group or ():
+            if name not in names:
+                names.append(name)
+    return tuple(names)
+
+
+def no_match_assessment(problem_ref: str) -> Assessment:
+    """검색 결과가 0건일 때 코드가 확정하는 판정. 모델을 부르지 않는다."""
+    return Assessment(
+        problemRef=problem_ref,
+        verdict="NO_MATCH",
+        supportingEvidenceIds=[],
+        missingInformation=[],
+        candidateCauses=[],
+        nextChecks=[],
+        rationale="검색 결과가 없다",
+    )
+
+
+def _unique(values: Iterable[str]) -> bool:
+    items = list(values)
+    return len(items) == len(set(items))
+
+
+def validate_assessment(
+    assessment: Assessment,
+    *,
+    intent: Intent,
+    search_state: str,
+    evidence: Sequence[KnowledgeEvidence],
+    allowed_check_items: frozenset[str] = frozenset(),
+) -> None:
+    """판정이 이번 검색 결과와 어휘 규칙에 맞는지 확인한다.
+
+    Args:
+        intent: 판정 대상 문제의 의도. 묻을 수 있는 양식 필드를 정한다.
+        search_state: 이번 검색의 상태. ERROR는 평가 대상이 아니다.
+        evidence: 이번 검색의 검증된 근거. 판정이 인용할 수 있는 근거의 전부다.
+        allowed_check_items: 이번 실행에서 허용된(직원 공개로 승인된) 관계 확인 항목 ID.
+
+    Raises:
+        OutputRejected: 규칙을 어긴 경우.
+    """
+    if search_state == "ERROR":
+        raise OutputRejected("검색 오류는 평가하지 않는다")
+    by_id = {item.id: item for item in evidence}
+    supporting = assessment.supportingEvidenceIds
+    if search_state == "EMPTY":
+        if (
+            assessment.verdict != "NO_MATCH"
+            or supporting
+            or assessment.candidateCauses
+            or assessment.missingInformation
+            or assessment.nextChecks
+        ):
+            raise OutputRejected("검색 0건은 근거 없는 NO_MATCH만 허용한다")
+    if not _unique(supporting) or not set(supporting) <= by_id.keys():
+        raise OutputRejected("판정의 근거 ID가 이번 검색 결과에 없거나 중복됐다")
+    if assessment.verdict == "NO_MATCH" and supporting:
+        raise OutputRejected("NO_MATCH는 근거 ID를 가질 수 없다")
+    if assessment.verdict in ("SUFFICIENT", "PARTIAL") and not supporting:
+        raise OutputRejected("SUFFICIENT·PARTIAL은 근거 ID가 필요하다")
+    if assessment.verdict == "SUFFICIENT" and not any(
+        by_id[evidence_id].accessScope == "EMPLOYEE" for evidence_id in supporting
+    ):
+        raise OutputRejected("SUFFICIENT는 직원 공개 근거 ID가 필요하다")
+
+    missing = assessment.missingInformation
+    if len(missing) > MAX_MISSING_INFORMATION or not _unique(f"{m.kind}:{m.ref}" for m in missing):
+        raise OutputRejected("부족한 정보의 개수가 많거나 중복됐다")
+    fields = set(allowed_fields(intent))
+    for item in missing:
+        vocabulary = fields if item.kind == "FIELD" else allowed_check_items
+        if item.ref not in vocabulary:
+            raise OutputRejected("부족한 정보가 닫힌 어휘 밖이다")
+
+    causes = assessment.candidateCauses
+    if len(causes) > MAX_CANDIDATE_CAUSES:
+        raise OutputRejected("가능 원인의 개수가 많다")
+    for cause in causes:
+        if (
+            cause.confirmed
+            or not cause.text.strip()
+            or len(cause.text) > MAX_CAUSE_TEXT
+            or not cause.evidenceIds
+            or not _unique(cause.evidenceIds)
+            or not set(cause.evidenceIds) <= by_id.keys()
+        ):
+            raise OutputRejected("가능 원인이 확정됐거나 근거가 없거나 규칙을 어겼다")
+
+    checks = [item.checkItemId for item in assessment.nextChecks]
+    if not _unique(checks) or not set(checks) <= allowed_check_items:
+        raise OutputRejected("다음 확인 항목이 허용된 관계 확인 항목이 아니다")
+    if not assessment.rationale.strip() or len(assessment.rationale) > MAX_RATIONALE:
+        raise OutputRejected("판정 이유가 비었거나 길다")

@@ -1,6 +1,6 @@
 """Knowledge 역할: 허용된 지식을 검색해 근거와 직원 안내를 제안한다.
 
-이 구현은 모델을 호출하지 않는다. 질의는 그 문제 자신의 정보로 규칙에 따라 만든다. 문제 하나가
+검색은 모델을 호출하지 않는다. 질의는 그 문제 자신의 정보로 규칙에 따라 만든다. 문제 하나가
 문의 전체의 주제일 때만 요약과 사용자 원문을 함께 쓰고, 한 문의에 다른 문제가 함께 있으면 그
 문제의 단어로 검색이 오염되므로 원문과 모델이 쓴 요약은 쓰지 않고 검증된 상세 값만 쓴다.
 검색 범위(공개 범위·시스템)는 서버가 확정한 접근 문맥에서만 가져온다. 안내문은 근거 문서의
@@ -10,8 +10,13 @@
 - 검색 0건(EMPTY)에는 안내를 만들지 않고, 검색 오류(ERROR)를 0건으로 바꾸지 않는다.
 - 안내는 직원 공개 GUIDE 근거가 있을 때만 제안한다. 담당자 전용 자료는 근거에 포함될 수
   있어도 안내문에 쓰지 않는다.
-- 이 역할은 현재 상담 실행에서 사용법(KNOWLEDGE_QA) 문제 하나의 안내만 다룬다. 원인 후보나
-  관계 조회(Neo4j)는 포함하지 않는다.
+- 이 역할은 현재 상담 실행에서 안내로 끝나는 유형(사용법) 문제 하나의 안내만 다룬다. 관계
+  조회(Neo4j)는 포함하지 않는다.
+- assess_evidence를 켜면 검색 뒤에 근거의 충분성 판정(Assessment)을 한 번 더 만든다. 결과가
+  1건 이상일 때만 모델을 부르고(문제당 1회), 0건은 코드가 NO_MATCH로 확정한다. 검색 오류는
+  평가하지 않는다. 모델 오류·검증 거부·예산 부족은 "평가 없음"으로 두고 검색 결과와 안내는
+  그대로 돌려준다. 안내는 판정과 무관하게 지금처럼 승인 본문으로 조립한다(판정을 읽는 것은
+  Supervisor의 행동 선택이다).
 
 반환하는 결과는 제안이다. 권한 확인과 digest 확인은 검색 자료가 마쳤다고 알린 값이며,
 Supervisor 병합 단계가 현재 접근 범위와 다시 대조한다.
@@ -19,14 +24,27 @@ Supervisor 병합 단계가 현재 접근 범위와 다시 대조한다.
 
 from uuid import uuid4
 
+from pydantic import ValidationError
+
+from hops_ai.agents.knowledge.assessment import (
+    MAX_OUTPUT_TOKENS,
+    PROMPT_VERSION,
+    RESERVED_CALLS,
+    SYSTEM_PROMPT,
+    AssessmentDraft,
+    build_user_payload,
+    to_assessment,
+)
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
-from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult
+from hops_ai.contracts.roles import Assessment, KnowledgeResult, SearchError, SearchResult
 from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
-from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
+from hops_ai.rules.assessment import no_match_assessment, validate_assessment
 from hops_ai.rules.intent_policy import is_guide_type
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
+from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
     SEARCH_KNOWLEDGE,
@@ -44,8 +62,10 @@ MAX_QUERY_MESSAGES = 5
 class SearchKnowledgeAgent:
     role = AgentRole.KNOWLEDGE
 
-    def __init__(self, source: KnowledgeSource) -> None:
+    def __init__(self, source: KnowledgeSource, *, assess_evidence: bool = False) -> None:
+        """assess_evidence가 참이면 검색 결과의 충분성 판정을 함께 만든다(문제당 모델 1회)."""
         self._source = source
+        self._assess_evidence = assess_evidence
 
     async def run(self, call: RoleRequest, services: SharedServices) -> RoleResponse:
 
@@ -75,12 +95,55 @@ class SearchKnowledgeAgent:
             guide=_guide(target, hits),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
+            assessment=await self._assess(target, hits, services),
         )
         return RoleResponse(
             result=result,
             authorized_refs=tuple(hit.reference for hit in hits),
             verified_evidence=evidence,
         )
+
+    async def _assess(
+        self, target: ProblemProposal, hits: list[KnowledgeHit], services: SharedServices
+    ) -> Assessment | None:
+        """검색 근거의 충분성 판정. 만들지 못하면 None(평가 없음)이며 흐름을 막지 않는다.
+
+        예산·취소·기한 예외(BudgetExceeded 등)는 평가 실패가 아니라 실행 실패이므로 그대로 전달한다.
+        """
+        if not self._assess_evidence:
+            return None
+        if not hits:
+            return no_match_assessment(target.problemRef)
+        budget = services.runtime.budget
+        # 평가가 실행 예산을 다 써서 이후의 필수 호출(판단·질문·티켓)을 막지 않게 한다.
+        if budget.max_llm_calls - budget.llm_calls_used < 1 + RESERVED_CALLS:
+            return None
+        try:
+            response = await services.llm.generate(
+                LLMRequest(
+                    messages=[
+                        LLMMessage("system", SYSTEM_PROMPT),
+                        LLMMessage("user", build_user_payload(target, hits)),
+                    ],
+                    response_model=AssessmentDraft,
+                    max_output_tokens=MAX_OUTPUT_TOKENS,
+                    prompt_version=PROMPT_VERSION,
+                )
+            )
+        except (OutputRejected, TransientError):
+            return None
+        services.runtime.ensure_active()
+        try:
+            assessment = to_assessment(target.problemRef, response.parsed)
+            validate_assessment(
+                assessment,
+                intent=target.intent,
+                search_state="FOUND",
+                evidence=[hit.evidence for hit in hits],
+            )
+        except (ValidationError, OutputRejected):
+            return None
+        return assessment
 
 
 def guidable_problem(state: SupervisorState) -> ProblemProposal | None:

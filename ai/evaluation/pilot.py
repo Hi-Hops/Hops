@@ -297,8 +297,8 @@ def _build_real(
 
     def agents_for(scenario: Scenario) -> Mapping[AgentRole, Agent]:
         if "RETRIEVAL_ERROR" in scenario.faults:
-            return build_registry(FaultyKnowledgeSource())
-        return build_registry(knowledge_source_for(settings))
+            return build_registry(FaultyKnowledgeSource(), assess_evidence=True)
+        return build_registry(knowledge_source_for(settings), assess_evidence=True)
 
     return (
         OpenAIClient(key, model or settings.supervisor_model),

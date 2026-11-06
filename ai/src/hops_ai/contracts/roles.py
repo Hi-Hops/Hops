@@ -80,12 +80,52 @@ class InquiryResult(ContractModel):
     analysis: list[ProblemAnalysis] = Field(default_factory=list)
 
 
+class MissingInformation(ContractModel):
+    """판정에 더 필요한 정보. 닫힌 어휘다: 양식 필드 이름 또는 관계 확인 항목 ID만 담는다."""
+
+    kind: Literal["FIELD", "CHECK_ITEM"]
+    ref: WireText
+
+
+class CandidateCause(ContractModel):
+    """근거에 적힌 가능 원인. 현재 문의의 원인으로 확정하지 않는다(confirmed는 항상 거짓)."""
+
+    text: WireText
+    evidenceIds: list[WireUuid]
+    confirmed: bool
+
+
+class NextCheck(ContractModel):
+    """다음에 확인할 관계 확인 항목."""
+
+    checkItemId: WireText
+
+
+class Assessment(ContractModel):
+    """한 문제에 대한 검색 근거의 충분성 판정. 모델의 제안이며 내부 전용이다.
+
+    직원 응답·질문·티켓에 그대로 쓰지 않는다. rationale은 사용자에게 보이지 않는다.
+    개수·출처·공개 범위 규칙은 rules.assessment가 에이전트와 병합 단계에서 함께 검증한다.
+    """
+
+    problemRef: ProblemRef
+    verdict: Literal["SUFFICIENT", "PARTIAL", "INSUFFICIENT", "NO_MATCH"]
+    supportingEvidenceIds: list[WireUuid]
+    missingInformation: list[MissingInformation]
+    candidateCauses: list[CandidateCause]
+    nextChecks: list[NextCheck]
+    rationale: WireText
+
+
 class KnowledgeResult(ContractModel):
     """검색 결과와 선택 가능한 안내. 내부 자료를 공개 안내로 자동 변환하지 않는다."""
 
     invocationId: WireText
     search: SearchResult
     guide: GuideProposal | None
+    # 검색 근거의 충분성 판정. 평가를 하지 않았거나 실패·거부됐으면 None이다(평가 없음).
+    # 평가 없음이 안내·티켓 경로를 막지 않는다. problemRef가 있는 결과에만 붙는다.
+    assessment: Assessment | None = None
     # 이 검색이 다룬 문제. 비어 있으면 어느 문제의 결과인지 알 수 없어 문제별 판단(안내를 만들지
     # 못한 뒤의 담당자 전달 등)에 쓰지 않는다. 검색한 문제에만 그 결과가 적용된다.
     problemRef: ProblemRef | None = None

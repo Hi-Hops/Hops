@@ -35,18 +35,24 @@ class SupervisorPipeline:
         knowledge_source: KnowledgeSource | None = None,
         tracing: RunTracing | None = None,
         ticket_client: TicketHTTPClient | None = None,
+        assess_evidence: bool = False,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
         도구를 주지 않으면 거부 게이트웨이를 쓴다.
         knowledge_source는 기본 역할 조합(agents를 주지 않은 경우)에서만 Knowledge를 연결하며,
-        없으면 Knowledge는 연결 전 자리로 남는다.
+        없으면 Knowledge는 연결 전 자리로 남는다. assess_evidence는 같은 경우에 Knowledge가
+        검색 근거의 충분성 판정을 만들지 정한다.
         """
         if agents is not None and ticket_client is not None:
             # 주입한 역할 조합의 TICKET을 몰래 바꾸지 않는다. 호출 측이 직접 넣는다.
             raise ValueError("agents와 ticket_client를 함께 줄 수 없다")
         registry = dict(
-            build_registry(knowledge_source, execute_tickets=ticket_client is not None)
+            build_registry(
+                knowledge_source,
+                execute_tickets=ticket_client is not None,
+                assess_evidence=assess_evidence,
+            )
             if agents is None
             else agents
         )

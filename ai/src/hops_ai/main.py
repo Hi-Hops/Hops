@@ -61,6 +61,7 @@ def create_app(
             knowledge_source=knowledge_source_for(resolved),
             tracing=tracing,
             ticket_client=TicketHTTPClient(resolved) if resolved.ticket_tools_enabled else None,
+            assess_evidence=resolved.knowledge_assessment,
         )
     resolved_ledger = ledger
     if resolved.internal_api_enabled and resolved_ledger is None:

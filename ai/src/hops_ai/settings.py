@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     ticket_poll_interval_seconds: float = Field(default=0.25, ge=0, le=2)
     # none이면 Knowledge 역할은 연결 전으로 남아 Supervisor가 고르지 못한다.
     knowledge_source: KnowledgeSourceKind = KnowledgeSourceKind.NONE
+    # 켜면 Knowledge가 검색 뒤에 근거의 충분성 판정을 만든다(검색 결과가 있는 문제마다 모델 1회).
+    # 판정을 읽는 행동 선택이 연결되기 전에는 비용만 들고 동작은 바뀌지 않으므로 기본은 끈다.
+    knowledge_assessment: bool = False
     # Spring 지식 검색·관계 조회 요청 한 번의 제한 시간. 남은 실행 기한보다 길게 기다리지 않는다.
     knowledge_http_timeout_seconds: float = Field(default=5, gt=0, le=30)
     langfuse_public_key: SecretStr | None = Field(

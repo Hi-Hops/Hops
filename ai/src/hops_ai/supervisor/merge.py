@@ -23,6 +23,7 @@ from hops_ai.contracts.wire import (
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
 from hops_ai.rules.analysis import validate_analysis
+from hops_ai.rules.assessment import validate_assessment
 from hops_ai.rules.progress import (
     validate_evidence_scope,
 )
@@ -291,7 +292,21 @@ def merge_knowledge_result(
         # 모델이 재작성한 객체 대신 별도로 전달받은 검증 객체의 독립 복사본을 보존한다.
         evidence[item.id] = verified_by_id[item.id].model_copy(deep=True)
     guide = result.guide if result.guide is not None else state["guide"]
-    candidate = {**state, "evidence": evidence, "guide": guide}
+    assessments = dict(state["assessments"])
+    if result.assessment is not None:
+        problem = state["problems"].get(result.problemRef or "")
+        if problem is None or result.assessment.problemRef != result.problemRef:
+            raise OutputRejected("판정이 검색한 문제와 다른 문제를 가리킨다")
+        # 판정은 이번 검색의 검증된 근거와 닫힌 어휘 규칙에 맞아야 한다. 에이전트가 이미 걸렀으므로
+        # 어긋나면 에이전트의 결함이라 거부한다. 문제당 가장 최근의 유효한 판정만 보존한다.
+        validate_assessment(
+            result.assessment,
+            intent=problem.intent,
+            search_state=result.search.state,
+            evidence=result.search.evidence,
+        )
+        assessments[result.problemRef] = result.assessment.model_copy(deep=True)
+    candidate = {**state, "evidence": evidence, "guide": guide, "assessments": assessments}
     if guide is not None:
         if state["input"].kind == RunKind.CASE_DRAFT:
             raise OutputRejected("사례 초안 실행은 상담 안내를 반환하지 않는다")

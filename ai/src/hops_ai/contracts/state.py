@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import AuthorizedKnowledgeRef, ProblemAnalysis, RoleResult
+from hops_ai.contracts.roles import Assessment, AuthorizedKnowledgeRef, ProblemAnalysis, RoleResult
 from hops_ai.contracts.wire import (
     AiError,
     AiResult,
@@ -57,6 +57,9 @@ class SupervisorState(TypedDict):
     problems: dict[str, ProblemProposal]
     # 문제별 검색 힌트(키워드·기능 후보). 내부 전용이며 AiResult에 싣지 않는다.
     analysis: dict[str, ProblemAnalysis]
+    # 문제별 검색 근거의 충분성 판정(문제당 가장 최근의 유효한 판정). 내부 전용이며 AiResult에
+    # 싣지 않는다. 판정이 없는 문제는 키가 없다(검색 생략·오류·평가 실패·예산 부족).
+    assessments: dict[str, Assessment]
     questions: dict[tuple[str, str], QuestionProposal]
     evidence: dict[str, KnowledgeEvidence]
     guide: GuideProposal | None
