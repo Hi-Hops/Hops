@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.hihops.hops.knowledge.domain.CaseVisibility;
+import com.hihops.hops.knowledge.domain.ReadRule;
 
 /**
  * 지식 근거의 공개 규칙 중 설정으로 바뀌는 부분. 지식 검색과 저장된 근거의 현재 공개 검증이 같은 값을 쓰게 한 곳에 둔다.
@@ -22,8 +23,13 @@ public class KnowledgeVisibilityPolicy {
         return caseVisibility;
     }
 
-    /** {@code isCurrentlyVisible}의 requireIndexed 인자. */
-    public boolean requireIndexedCase() {
-        return caseVisibility.requiresIndexed();
+    /** 사용자에게 닿을 수 있는 근거의 읽기 규칙(안내·티켓 근거의 현재 공개 검증 등). */
+    public ReadRule userRule() {
+        return ReadRule.user(caseVisibility.requiresIndexed());
+    }
+
+    /** 검색·관계 조회의 읽기 규칙. internalRead는 서버가 확정한 내부 판단 읽기일 때만 true다. */
+    public ReadRule rule(boolean internalRead) {
+        return internalRead ? ReadRule.internal(caseVisibility.requiresIndexed()) : userRule();
     }
 }

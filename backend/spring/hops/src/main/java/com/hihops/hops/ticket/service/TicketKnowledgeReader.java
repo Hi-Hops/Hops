@@ -47,7 +47,7 @@ public class TicketKnowledgeReader {
         }
         if (found.isEmpty()) return Optional.empty();
         KnowledgeDocumentVersion version = found.get();
-        if (!versions.isCurrentlyVisible(version.getId(), member.getId(), visibility.requireIndexedCase())) return Optional.empty();
+        if (!versions.isCurrentlyVisible(version.getId(), member.getId(), visibility.userRule())) return Optional.empty();
         KnowledgeDocument document = version.getKnowledgeDocument();
         if (document.isDeleted() || document.getReviewStatus() != ReviewStatus.APPROVED
                 || version.getReviewStatus() != ReviewStatus.APPROVED || document.getDataSplit() != DataSplit.RAG) {

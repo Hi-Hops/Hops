@@ -20,8 +20,8 @@ Spring은 `runId`로 저장된 실행 입력(`input_snapshot`)을 읽어 문의�
 
 | 실행 입력 `allowedDocumentScopes` | 읽을 수 있는 공개 범위 | 읽을 수 있는 종류 |
 |---|---|---|
-| `["EMPLOYEE"]` (직원 상담의 기본) | `EMPLOYEE` | `GUIDE`, `POLICY` |
-| `SYSTEM_STAFF` 포함 | `STAFF`도 포함 | `RUNBOOK`, `CASE`도 포함 |
+| `["EMPLOYEE"]` (직원 상담의 기본) | `EMPLOYEE` | `GUIDE`, `POLICY`, `CASE`(공개 범위가 `EMPLOYEE`인 사례만) |
+| `SYSTEM_STAFF` 포함 | `STAFF`도 포함 | `RUNBOOK`과 담당자 전용 `CASE`도 포함 |
 
 - 시스템 범위는 실행 입력의 `systemIds`다. 요청의 `systemIds`는 이 범위를 **좁히기만** 한다.
 - 직원 상담 실행이 담당자 전용 문서를 읽는 것은 [AGENT_ARCHITECTURE 9절](../../docs/ai/AGENT_ARCHITECTURE.md)의 옵션 프로필(아래 "내부 판단 경계")이며 서버 설정으로만 켠다. 이 API는 실행 입력에 없는 범위를 어떤 요청으로도 넓히지 않는다.
@@ -62,7 +62,7 @@ results: 점수가 높은 순, 같으면 documentKey 순. FOUND가 아니면 빈
 |---|---|---|
 | `FOUND` | 선필터와 반환 전 재검증을 통과한 문서가 1건 이상 | 근거로 사용 |
 | `NO_RESULT` | 범위 안에서 검색했지만 일치하는 문서가 없음 | 빈 목록 |
-| `DENIED` | 요청이 실행의 접근 범위를 넘음(예: 직원 실행에서 `RUNBOOK` 요청, 접근 밖 시스템). **조용히 빼지 않는다** | 빈 목록이 아니라 검색 실패로 처리 |
+| `DENIED` | 요청이 실행의 접근 범위를 넘음(예: 직원 실행에서 담당자 전용 `RUNBOOK` 요청, 접근 밖 시스템). **조용히 빼지 않는다** | 빈 목록이 아니라 검색 실패로 처리 |
 
 - 검색 실패(DB 오류, 저장 원문 digest 불일치)는 **HTTP 503 `SEARCH_UNAVAILABLE`**이다. 오류를 `NO_RESULT`나 빈 `results`로 바꾸지 않는다(평가 성질 P2).
 - 이 API는 결과가 없다는 이유로 접근 거부를 숨기거나, 접근 거부를 결과 없음으로 바꾸지 않는다. 직원 실행에서 담당자 문서는 `DENIED`가 아니라 접근 범위 밖이라 결과에 나타나지 않으며, 담당자 종류를 **직접 요청한 경우에만** `DENIED`다.
@@ -113,7 +113,7 @@ caseIndexStatus: CASE만 { vector, graph }. 저장된 색인 상태 그대로
 
 - 색인 상태를 `SUCCEEDED`로 바꾸거나 위장하지 않는다. 응답의 `caseIndexStatus`에 저장된 값이 그대로 나간다.
 - 이 설정은 지식 검색과 저장된 근거의 현재 공개 검증이 함께 따른다. 한쪽만 바꾸면 검색에서 나온 근거를 티켓 생성·안내 저장 단계가 거부하기 때문이다.
-- 사례 검토 API(`GET /api/v2/cases/{id}`)의 `publication.state`는 **색인 반영 상태**이며 이 설정과 무관하다. 1차 SQL 검색에서는 `publication.state = PRIVATE`인 승인 사례가 검색에 나올 수 있다. 이 차이와 표시 의미는 사례(#170) 담당자 리뷰에서 정한다.
+- 사례 검토 API(`GET /api/v2/cases/{id}`)의 `publication.state`는 **색인 반영 상태**이며 이 설정과 무관하다. 1차 SQL 검색에서는 `publication.state = PRIVATE`인 승인 사례가 검색에 나올 수 있다. 이 차이는 같은 응답의 가산 필드 `publication.searchRule`(적용 중인 규칙)과 `publication.visibleToSearch`(그 규칙에서 이 사용자 권한으로 지금 지식 검색에 나오는지)로 알린다. `state`의 의미(색인 반영 상태)는 바꾸지 않으므로 기존 표시는 그대로이고, 화면이 "검색에 쓰이는 중"을 보이려면 `visibleToSearch`를 쓴다.
 - 2차에 실제 색인이 생기면 설정을 `INDEXED`로 바꿔 계약대로 되돌린다.
 
 ## 검색 방법과 한계 (1차)
@@ -179,6 +179,8 @@ symptoms: 점수 순(같으면 catalogKey 순)
 - `DENIED`는 요청이 실행의 접근 범위(시스템·기능)를 넘을 때만이며, 담당자 전용 항목이 걸러진 것은 `DENIED`가 아니다.
 - 검색 실패(DB 오류)는 HTTP 503 `SEARCH_UNAVAILABLE`이다. 오류를 `NO_RESULT`로 바꾸지 않는다.
 
+**직원 실행이 확인 항목을 찾는 방식(결정)**: 확인 항목은 "증상 → 후보 원인 → 확인 항목" 연결(담당자 전용)으로 찾되 이 계산은 **서버 안에서만** 한다. 응답은 원인의 어떤 속성(이름·키·공개 범위·개수)에도 의존하지 않고 직원 공개 확인 항목과 질문 문구만 담는다(원인 이름·키·공개 범위를 바꿔도 직원 응답이 같음을 `RelationSearchApiTest`가 고정한다). 직원 경로가 담당자 전용 연결을 전혀 읽지 않게 하려면 직원용 증상→확인 항목 연결을 별도로 두는 방법이 있으나(새 마이그레이션 필요) 현재는 두지 않는다. 보안 리뷰에서 요구하면 그때 추가한다.
+
 ### 검증
 
 `RelationSearchApiTest`가 실제 PostgreSQL로 다음을 확인한다: 직원 실행에서 원인·담당자 전용 확인 항목·확인 항목 이름이 어디에도 없고 질문 문구만 나가는 것, 직원 공개 표시가 없거나 미승인인 항목·질문의 제외, 근거 런북 키의 비공개, 0건과 503의 구분, 시스템·기능 범위와 좁히기와 `DENIED`, 인증·실행 검증, 알 수 없는 필드와 범위 확대 시도의 거부, 담당자 범위 실행에서 주담당자에게만 원인·사례가 나가는 것과 사례 공개 규칙. 실제 AI 호출·질문 생성·모델 품질은 포함하지 않는다.
@@ -189,7 +191,7 @@ symptoms: 점수 순(같으면 catalogKey 순)
 
 **기본 프로필(꺼짐)**: 직원 상담 실행 입력은 `accessContext.allowedDocumentScopes=["EMPLOYEE"]`이고 `retrievalScopes` 키가 없다. 지식 검색·관계 조회는 직원 공개 자료와 직원 공개로 승인된 관계 항목만 돌려주고, AI의 `validate_evidence_scope`는 직원 상담에서 비직원 근거를 거부한다. 이 동작은 옵션 구현 전후로 같다.
 
-**켜는 방법**: Spring 서버 설정 `hops.agent.run.internal-judgement.enabled=true`뿐이다(기본 `false`). 요청 본문·모델 출력으로는 켤 수 없고(알 수 없는 필드는 400), 켜진 채 시작하면 Spring이 경고 로그를 남긴다.
+**켜는 방법**: Spring 서버 설정 `hops.agent.run.internal-judgement.enabled=true`뿐이다(기본 `false`). **보안 리뷰 기록(`hops.agent.run.internal-judgement.review-reference`)이 비어 있으면 서버가 시작하지 않는다.** 요청 본문·모델 출력으로는 켤 수 없고(알 수 없는 필드는 400), 켜진 채 시작하면 Spring이 리뷰 기록과 함께 경고 로그를 남긴다. SECURITY.md 개정안 초안과 켜기 전 점검표는 [AGENT_ARCHITECTURE 9.1절](../../docs/ai/AGENT_ARCHITECTURE.md)에 있다.
 
 **켜졌을 때**:
 
@@ -197,6 +199,7 @@ symptoms: 점수 순(같으면 catalogKey 순)
 - 지식 검색·관계 조회는 `retrievalScopes`를 읽기 범위로 쓰고, 담당자 전용 자료를 **주담당자 조건 없이**(문의자가 해당 시스템 담당자가 아니어도) 돌려준다. 시스템 범위, 승인 상태, `RAG`, 삭제 제외, 사례 공개 규칙은 그대로 적용한다. 응답 `applied.internalJudgement=true`로 구분되고 Spring이 내부 판단 읽기 로그를 남긴다.
 - **설정이 꺼진 서버는 실행 입력에 `retrievalScopes`가 남아 있어도 무시한다**(기본 프로필로 읽음). 읽기 범위가 `allowedDocumentScopes`를 줄이거나 알 수 없는 값을 가진 입력은 403이다.
 - 사용자에게 닿는 경로는 열리지 않는다. 안내·티켓 근거의 현재 공개 검증(`TicketKnowledgeReader`)은 내부 판단 읽기를 모르고, 담당자 전용 근거는 주담당자가 아닌 문의자에게 통과하지 못한다. 직원에게 질문으로 나갈 수 있는 것은 직원 공개로 표시된 확인 항목과 승인된 `EMPLOYEE` 질문 문구뿐이며(관계 조회의 `employeeDisclosable`·`questions`) 기본 프로필과 같은 집합이다.
+- 내부 판단 경계가 켜진 실행(`retrievalScopes`가 있는 실행 입력)은 AI 서버가 설정(`langfuse_capture_content`)과 무관하게 외부 추적(Langfuse)에 메시지·출력 본문을 기록하지 않는다.
 - AI wire는 `retrievalScopes`를 선택 필드로 받고(`allowedDocumentScopes`를 모두 포함, 중복·빈 값·알 수 없는 값 거부), 직원 상담이 아닌 실행에는 두지 못한다. AI는 이 값으로 `validate_evidence_scope`나 검색 질의의 공개 범위를 넓히지 않는다. 내부 판단 근거를 평가에 쓰는 것은 별도 기능(#181)이며 그 전에는 AI 쪽에서 쓰이지 않는다.
 
 배포 순서: AI를 먼저 갱신해 선택 필드를 받게 한 뒤 Spring을 배포한다(AI는 알 수 없는 필드를 거부한다). 옵션이 꺼져 있으면 Spring은 새 필드를 보내지 않아 기존 AI와 호환된다.

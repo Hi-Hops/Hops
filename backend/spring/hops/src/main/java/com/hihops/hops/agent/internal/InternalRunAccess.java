@@ -1,7 +1,6 @@
 package com.hihops.hops.agent.internal;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,8 +8,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import com.hihops.hops.agent.domain.AgentRun;
-import com.hihops.hops.agent.domain.AgentTask;
-import com.hihops.hops.agent.domain.RunStatus;
 import com.hihops.hops.agent.dto.AiRunRequest;
 import com.hihops.hops.agent.repository.AgentRunRepository;
 import com.hihops.hops.global.exception.BusinessException;
@@ -30,8 +27,6 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 @RequiredArgsConstructor
 class InternalRunAccess {
-    private static final String CONTRACT = "hops-system-1";
-
     private final AgentRunRepository runs;
     private final InquiryRepository inquiries;
     private final JdbcTemplate jdbc;
@@ -65,23 +60,8 @@ class InternalRunAccess {
                 SELECT m.policy_revision FROM member m JOIN department d ON d.id=m.department_id
                 WHERE m.id=? AND m.deleted_at IS NULL AND d.deleted_at IS NULL
                 """, Integer.class, member.getId());
-        if (run.getTask() != AgentTask.INQUIRY_ANALYSIS || !CONTRACT.equals(input.contractVersion())
-                || !runId.equals(input.runId()) || !inquiry.getId().equals(input.inquiryId())
-                || member.isDeleted() || member.getDepartment().isDeleted()
-                || input.accessContext() == null || !member.getId().equals(input.accessContext().actorId())
-                || policies.size() != 1 || policies.getFirst() != input.accessContext().policyRevision()
-                || !"EMPLOYEE_HELP".equals(input.accessContext().purpose())) {
-            throw new BusinessException(ErrorCode.ACCESS_DENIED);
-        }
-        if (inquiry.getVersion() != inquiryVersion || run.getInputVersion() != inquiryVersion
-                || input.inquiryVersion() != inquiryVersion) {
-            throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
-        }
-        if (inquiry.getCurrentRun() == null || !inquiry.getCurrentRun().getId().equals(run.getId())
-                || !List.of(RunStatus.QUEUED, RunStatus.RUNNING).contains(run.getRunStatus())
-                || !clock.instant().isBefore(Instant.parse(input.expiresAt()))) {
-            throw new BusinessException(ErrorCode.INVALID_STATE);
-        }
+        RunChecks.checkAccess(runId, run, inquiry, input, policies);
+        RunChecks.checkActive(run, inquiry, input, inquiryVersion, clock);
         return new RunAccess(run, inquiry, input);
     }
 }

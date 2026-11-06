@@ -91,13 +91,28 @@ class KnowledgeSearchApiTest extends InternalRunApiTestBase {
     }
 
     @Test
-    void 직원_실행이_런북이나_사례를_직접_요청하면_조용히_빼지_않고_거부한다() throws Exception {
-        for (String kind : List.of("RUNBOOK", "CASE")) {
-            var request = body(EA_QUERY);
-            request.put("kinds", List.of("GUIDE", kind));
-            search(request).andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("DENIED"))
-                    .andExpect(jsonPath("$.deniedReason").value("KIND_NOT_ALLOWED")).andExpect(jsonPath("$.results").isEmpty());
-        }
+    void 직원_실행이_런북을_직접_요청하면_조용히_빼지_않고_거부한다() throws Exception {
+        var request = body(EA_QUERY);
+        request.put("kinds", List.of("GUIDE", "RUNBOOK"));
+        search(request).andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("DENIED"))
+                .andExpect(jsonPath("$.deniedReason").value("KIND_NOT_ALLOWED")).andExpect(jsonPath("$.results").isEmpty());
+    }
+
+    @Test
+    void 직원_실행의_사례_요청은_거부하지_않고_공개_범위가_EMPLOYEE인_사례만_돌려준다() throws Exception {
+        var request = body("전자결재 문서가 문서함에 안 보임 열람 권한");
+        request.put("kinds", List.of("CASE"));
+        // 시드 사례는 모두 담당자 전용(STAFF)이라 직원 범위에서는 결과가 없다. 거부(DENIED)가 아니라 결과 없음이다.
+        search(request).andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("NO_RESULT")).andExpect(jsonPath("$.results").isEmpty());
+
+        // 사례의 공개 범위를 직원 공개로 바꾸면 그 사례는 직원 범위 검색에 나온다. 종류가 아니라 공개 범위가 정한다.
+        jdbc.update("UPDATE resolved_case SET access_level = 'EMPLOYEE' WHERE case_number = 'SEED-C-001'");
+        jdbc.update("UPDATE knowledge_document SET access_level = 'EMPLOYEE' WHERE document_type = 'CASE' AND id = "
+                + "(SELECT id FROM resolved_case WHERE case_number = 'SEED-C-001')");
+        entityManager.clear();
+        JsonNode found = search(request).andExpect(status().isOk()).andReturn().json();
+        assertThat(documentKeys(found)).containsExactly("SEED-C-001");
+        assertThat(found.path("results").get(0).path("evidence").path("accessScope").asString()).isEqualTo("EMPLOYEE");
     }
 
     @Test

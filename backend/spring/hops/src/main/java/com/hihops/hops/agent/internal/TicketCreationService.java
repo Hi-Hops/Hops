@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.agent.domain.AgentRun;
-import com.hihops.hops.agent.domain.AgentTask;
 import com.hihops.hops.agent.domain.RunStatus;
 import com.hihops.hops.agent.dto.AiRunRequest;
 import com.hihops.hops.agent.repository.AgentRunRepository;
@@ -31,7 +30,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 @RequiredArgsConstructor
 public class TicketCreationService {
-    private static final String CONTRACT = "hops-system-1";
+    private static final String CONTRACT = RunChecks.CONTRACT;
     private final AgentRunRepository runs;
     private final InquiryRepository inquiries;
     private final JdbcTemplate jdbc;
@@ -104,25 +103,12 @@ public class TicketCreationService {
                 SELECT m.policy_revision FROM member m JOIN department d ON d.id=m.department_id
                 WHERE m.id=? AND m.deleted_at IS NULL AND d.deleted_at IS NULL FOR SHARE OF m,d
                 """, Integer.class, member.getId());
-        if (run.getTask() != AgentTask.INQUIRY_ANALYSIS || !CONTRACT.equals(input.contractVersion())
-                || !runId.equals(input.runId()) || !inquiry.getId().equals(input.inquiryId())
-                || member.isDeleted() || member.getDepartment().isDeleted()
-                || !member.getId().equals(input.accessContext().actorId())
-                || policies.size() != 1 || policies.getFirst() != input.accessContext().policyRevision()
-                || !"EMPLOYEE_HELP".equals(input.accessContext().purpose())) {
-            throw new BusinessException(ErrorCode.ACCESS_DENIED);
-        }
+        RunChecks.checkAccess(runId, run, inquiry, input, policies);
         return new Context(run, inquiry, input);
     }
 
     private void writable(Context ctx, int version) {
-        if (ctx.inquiry().getVersion() != version || ctx.run().getInputVersion() != version
-                || ctx.input().inquiryVersion() != version) throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
-        if (ctx.inquiry().getCurrentRun() == null || !ctx.inquiry().getCurrentRun().getId().equals(ctx.run().getId())
-                || !List.of(RunStatus.QUEUED, RunStatus.RUNNING).contains(ctx.run().getRunStatus())
-                || !clock.instant().isBefore(Instant.parse(ctx.input().expiresAt()))) {
-            throw new BusinessException(ErrorCode.INVALID_STATE);
-        }
+        RunChecks.checkActive(ctx.run(), ctx.inquiry(), ctx.input(), version, clock);
     }
 
     private void checkBudget(Context ctx) {

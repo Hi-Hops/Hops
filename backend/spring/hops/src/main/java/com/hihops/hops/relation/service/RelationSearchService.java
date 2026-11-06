@@ -129,7 +129,7 @@ public class RelationSearchService {
     /** 승인 사례 이웃. 지식 검색과 같은 현재 공개 판정·조립 규칙을 쓴다. 공개할 수 없는 사례는 없는 것으로 본다. */
     private java.util.Optional<CaseNeighbor> neighbor(UUID caseId, int caseVersion, RelationSearchRepository.Viewer viewer) {
         return versions.findCaseVersion(caseId.toString(), caseVersion)
-                .filter(version -> versions.isCurrentlyVisible(version.getId(), viewer.memberId(), visibility.requireIndexedCase(), viewer.internalRead()))
+                .filter(version -> versions.isCurrentlyVisible(version.getId(), viewer.memberId(), visibility.rule(viewer.internalRead())))
                 .flatMap(assembler::assemble)
                 .map(assembled -> new CaseNeighbor(assembled.documentKey(), assembled.evidence(), assembled.caseIndexStatus()));
     }
@@ -137,7 +137,7 @@ public class RelationSearchService {
     /** 근거 문서 버전이 이 실행에 지금 공개 가능할 때만 문서 정보를 싣는다. 직원에게 담당자 런북의 ID·키를 알리지 않는다. */
     private Basis basis(Map<UUID, Basis> cache, UUID versionId, RelationSearchRepository.Viewer viewer) {
         return cache.computeIfAbsent(versionId, id -> {
-            if (!versions.isCurrentlyVisible(id, viewer.memberId(), visibility.requireIndexedCase(), viewer.internalRead())) {
+            if (!versions.isCurrentlyVisible(id, viewer.memberId(), visibility.rule(viewer.internalRead()))) {
                 return Basis.hidden();
             }
             KnowledgeDocumentVersion version = versions.findById(id).orElse(null);

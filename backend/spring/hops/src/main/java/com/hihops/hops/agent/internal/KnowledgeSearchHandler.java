@@ -35,7 +35,9 @@ import lombok.RequiredArgsConstructor;
 class KnowledgeSearchHandler {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeSearchHandler.class);
     private static final String CONTRACT = "hops-system-1";
-    private static final Set<Kind> EMPLOYEE_KINDS = EnumSet.of(Kind.GUIDE, Kind.POLICY);
+    // 담당자 런북은 정의상 담당자 전용이라 직원 범위에서 요청하면 거부한다. 사례는 공개 범위(access_level)가 정하므로
+    // 요청은 받되 직원 범위에서는 EMPLOYEE 사례만 돌려준다.
+    private static final Set<Kind> EMPLOYEE_KINDS = EnumSet.of(Kind.GUIDE, Kind.POLICY, Kind.CASE);
 
     private final InternalRunAccess runAccess;
     private final KnowledgeSearchService search;

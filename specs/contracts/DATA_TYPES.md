@@ -114,7 +114,7 @@
 | CaseApproval | caseId:Uuid, caseVersion:int, approvedBy:UserSummary, approvedAt:time | 해당 시스템 주담당자. 승인 내용 불변 |
 | IndexResult | jobId:Uuid, caseId:Uuid, caseVersion:int, store:IndexStore, state:IndexState, attempt:int, error:ApiError?, updatedAt:time | attempt≥1. 저장소별 같은 승인 버전 추적 |
 | CaseDetail | version:CaseVersion, approval:CaseApproval?, indexes:IndexResult[], publication:Publication | DRAFT에는 approval=null·indexes=[] |
-| Publication | caseId:Uuid, caseVersion:int, state:PRIVATE 또는 SEARCHABLE, canSearch:boolean | state는 승인·두 반영 성공의 전역 사실, canSearch는 현재 사용자 ACL까지 검사한 결과 |
+| Publication | caseId:Uuid, caseVersion:int, state:PRIVATE 또는 SEARCHABLE, canSearch:boolean, searchRule:APPROVED_SNAPSHOT 또는 INDEXED?, visibleToSearch:boolean? | state는 승인·두 반영 성공의 전역 사실(색인 반영 상태), canSearch는 현재 사용자 ACL까지 검사한 결과. 가산 필드(하위 호환): searchRule은 지식 검색의 사례 공개 규칙([지식 검색 계약](../../contracts/agents/KNOWLEDGE_TOOLS.md)), visibleToSearch는 그 규칙에서 이 사용자 권한으로 지금 지식 검색에 나오는지다. 1차 SQL 검색(APPROVED_SNAPSHOT)에서는 state=PRIVATE인 승인 사례도 visibleToSearch=true일 수 있고, 2차(INDEXED)에서는 state와 같은 조건이다 |
 
 ### 변경 요청
 

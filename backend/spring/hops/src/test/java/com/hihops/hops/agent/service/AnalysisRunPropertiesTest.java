@@ -52,4 +52,50 @@ class AnalysisRunPropertiesTest {
         // 켜려면 SECURITY.md 개정과 보안 리뷰가 먼저다. 기본값이 바뀌면 이 테스트가 막는다.
         assertThat(load().internalJudgement().enabled()).isFalse();
     }
+
+    @Test
+    void 내부_판단_경계는_보안_리뷰_기록_없이는_켤_수_없다() {
+        var validator = jakarta.validation.Validation.buildDefaultValidatorFactory().getValidator();
+
+        for (String reference : new String[] {null, "", "   "}) {
+            var violations = validator.validate(new AnalysisRunProperties.InternalJudgement(true, reference));
+            assertThat(violations).as("reference=" + reference).hasSize(1);
+        }
+        assertThat(validator.validate(new AnalysisRunProperties.InternalJudgement(true, "보안 리뷰 PR 000"))).isEmpty();
+        // 꺼져 있으면 기록이 없어도 된다(기본).
+        assertThat(validator.validate(new AnalysisRunProperties.InternalJudgement(false, ""))).isEmpty();
+        assertThat(validator.validate(new AnalysisRunProperties.InternalJudgement(false, null))).isEmpty();
+    }
+
+    @org.springframework.boot.context.properties.EnableConfigurationProperties(AnalysisRunProperties.class)
+    static class PropertiesConfig {
+    }
+
+    private org.springframework.boot.test.context.runner.ApplicationContextRunner runner(String... extra) {
+        var base = new java.util.ArrayList<>(java.util.List.of(
+                "hops.agent.run.deadline=60s",
+                "hops.agent.run.limits.max-model-calls=8", "hops.agent.run.limits.max-input-tokens=60000",
+                "hops.agent.run.limits.max-output-tokens=12000", "hops.agent.run.limits.max-tool-calls=10",
+                "hops.agent.run.limits.max-retries=2", "hops.agent.run.model-version=pending",
+                "hops.agent.run.prompt-version=pending", "hops.agent.run.schema-version=hops-system-1"));
+        base.addAll(java.util.List.of(extra));
+        return new org.springframework.boot.test.context.runner.ApplicationContextRunner()
+                .withConfiguration(org.springframework.boot.autoconfigure.AutoConfigurations.of(
+                        org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration.class))
+                .withUserConfiguration(PropertiesConfig.class).withPropertyValues(base.toArray(String[]::new));
+    }
+
+    @Test
+    void 보안_리뷰_기록_없이_켠_서버는_시작하지_않는다() {
+        runner("hops.agent.run.internal-judgement.enabled=true").run(context -> assertThat(context).hasFailed());
+        runner("hops.agent.run.internal-judgement.enabled=true", "hops.agent.run.internal-judgement.review-reference= ")
+                .run(context -> assertThat(context).hasFailed());
+        runner("hops.agent.run.internal-judgement.enabled=true", "hops.agent.run.internal-judgement.review-reference=SEC-REVIEW-1")
+                .run(context -> assertThat(context).hasNotFailed());
+        // 아무 설정이 없으면 꺼짐이고 정상 시작한다.
+        runner().run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(AnalysisRunProperties.class).internalJudgement().enabled()).isFalse();
+        });
+    }
 }

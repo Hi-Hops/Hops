@@ -189,6 +189,21 @@ class RelationSearchApiTest extends InternalRunApiTestBase {
         assertThat(mapper.writeValueAsString(response)).doesNotContain("cause-").doesNotContain("runbook-");
     }
 
+    @Test
+    void 직원_응답은_원인의_이름_키_공개_범위가_바뀌어도_달라지지_않는다() throws Exception {
+        // 원인은 확인 항목을 찾는 서버 내부 계산에만 쓰고, 직원 응답이 원인의 어떤 속성에도 의존하지 않음을 고정한다.
+        JsonNode before = search(body("문서함에 문서가 안 보여요")).andExpect(status().isOk()).json();
+
+        jdbc.update("UPDATE relation_cause SET label = '완전히 다른 원인 이름', catalog_key = 'cause-renamed-' || substr(catalog_key, 7)");
+        assertThat(search(body("문서함에 문서가 안 보여요")).json()).isEqualTo(before);
+
+        // 원인의 공개 범위가 직원 공개로 잘못 바뀌어도 직원 응답에 원인이 나가지 않는다.
+        jdbc.update("UPDATE relation_cause SET access_level = 'EMPLOYEE'");
+        JsonNode exposed = search(body("문서함에 문서가 안 보여요")).json();
+        assertThat(exposed).isEqualTo(before);
+        assertThat(mapper.writeValueAsString(exposed)).doesNotContain("cause-renamed-").doesNotContain("완전히 다른 원인 이름");
+    }
+
     // ---- 결과·응답
 
     @Test

@@ -23,6 +23,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.hihops.hops.knowledge.domain.ReadRule;
+
 /**
  * 시드 해결 사례(R__seed_dev_knowledge_cases.sql)를 실제로 적재해 정본 7절과 같은지, 이미 병합된 조회 API가 읽을 수 있는지 확인한다.
  * 이 파일은 docs/knowledge/cases의 사례 카드에서 자동 생성된다. 카드와 SQL이 어긋났는지는 scripts/knowledge의 검사가 맡는다.
@@ -151,7 +153,10 @@ class KnowledgeCaseSeedTest {
                 .andExpect(jsonPath("$.indexes[0].state").value("PENDING"))
                 .andExpect(jsonPath("$.indexes[0].attempt").value(1))
                 .andExpect(jsonPath("$.publication.state").value("PRIVATE"))
-                .andExpect(jsonPath("$.publication.canSearch").value(false));
+                .andExpect(jsonPath("$.publication.canSearch").value(false))
+                // 가산 필드: 1차 SQL 검색 규칙에서는 색인 전(PRIVATE)이어도 주담당자 권한의 지식 검색에는 나온다.
+                .andExpect(jsonPath("$.publication.searchRule").value("APPROVED_SNAPSHOT"))
+                .andExpect(jsonPath("$.publication.visibleToSearch").value(true));
         // 다른 시스템의 주담당자에게는 존재를 드러내지 않는다.
         mockMvc.perform(get("/api/v2/cases/" + caseId).with(auth(EA_OWNER)))
                 .andExpect(status().isNotFound());
@@ -184,12 +189,12 @@ class KnowledgeCaseSeedTest {
                 + "ON d.id = v.knowledge_document_id WHERE d.document_type = 'CASE' AND d.it_system_id = "
                 + "(SELECT id FROM it_system WHERE code = 'ELECTRONIC_APPROVAL') LIMIT 1", UUID.class);
         // 계약 규칙(INDEXED)은 Vector·Neo4j 반영이 모두 SUCCEEDED여야 한다. 시드는 색인하지 않았으므로 PENDING이고 공개되지 않는다.
-        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(EA_OWNER), true)).isFalse();
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(EA_OWNER), ReadRule.user(true))).isFalse();
         // 1차 SQL 검색 규칙(APPROVED_SNAPSHOT)은 승인된 현재 스냅샷이면 공개한다. 색인 상태는 PENDING 그대로다.
-        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(EA_OWNER), false)).isTrue();
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(EA_OWNER), ReadRule.user(false))).isTrue();
         // 담당자 전용 사례는 다른 시스템 담당자와 문의자에게 어느 규칙에서도 공개되지 않는다.
-        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(LOGIN_OWNER), false)).isFalse();
-        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(REQUESTER1), false)).isFalse();
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(LOGIN_OWNER), ReadRule.user(false))).isFalse();
+        assertThat(versions.isCurrentlyVisible(versionId, UUID.fromString(REQUESTER1), ReadRule.user(false))).isFalse();
         assertThat(count("SELECT count(*) FROM resolved_case WHERE vector_status = 'PENDING' AND graph_status = 'PENDING'")).isEqualTo(6);
     }
 

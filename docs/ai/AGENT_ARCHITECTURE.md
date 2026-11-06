@@ -233,6 +233,22 @@ START → collect → draft → link → validate → END
 
 기능 구현을 먼저 하더라도 기본 프로필로 시작하고, 옵션 프로필은 별도 결정으로 다룬다. 직원 응답의 누출 검사(P1)는 두 프로필 모두에서 유지한다.
 
+### 9.1 SECURITY.md 개정안 (초안, 제안)
+
+옵션 프로필을 켜려면 SECURITY.md에 아래 내용이 반영되고 보안 리뷰를 통과해야 한다. 이 초안은 **제안이며 SECURITY.md를 바꾸지 않았다.** 팀이 문서 PR로 검토해 채택한다.
+
+**SEC-09 추가 문안(안)**
+> 서버가 확정한 목적 `INTERNAL_JUDGEMENT`(내부 판단)에서는 사용자·목적 범위 밖의 담당자 전용 자료를 **AI의 내부 판단 입력으로만** 읽을 수 있다. 이 읽기는 서버 설정으로만 켜며 요청·모델이 켤 수 없다. 읽은 자료와 그에서 파생한 값은 사용자 응답·질문·안내·티켓 근거로 전달하지 않고, 사용자에게 닿는 모든 값은 사용자 범위의 승인된 항목(직원 공개 표시가 있는 확인 항목과 질문 문구, 직원 공개 근거)으로 다시 만든다. 사용 사실은 실행 단위로 기록한다.
+
+**LLM02 추가 문안(안)**
+> 내부 판단 입력에 담당자 전용 자료가 포함되는 실행은 외부 추적·로그에 모델 입력과 출력의 본문을 기록하지 않는다. 직원에게 닿는 출력은 누출 검사(P1)와 승인 항목 검사(P12)를 통과해야 한다.
+
+**켜기 전 점검표**
+1. SECURITY.md에 위 문안이 반영되고 보안 리뷰 기록이 있다. 기록(리뷰·PR 번호)을 서버 설정 `hops.agent.run.internal-judgement.review-reference`에 적는다. 비어 있으면 서버가 시작하지 않는다.
+2. 구현된 경계: 서버 설정으로만 켜짐(요청의 `retrievalScopes`·`internalJudgement` 등은 400), 설정이 꺼진 서버는 실행 입력의 값을 무시, 사용자에게 닿는 근거 검증은 우회를 모름, 응답 `applied.internalJudgement`와 로그로 사용 구분, 해당 실행의 외부 추적 본문 기록 끔(`SupervisorPipeline._tracing_for`).
+3. 아직 없는 것(켜기 전에 필요): AI가 내부 판단 근거를 평가에 쓰는 기능(#181)과 P1·P12 검사기, 내부 판단 사용 횟수의 지표·감사 조회.
+
+
 ## 10. LangGraph 기능을 쓰는 곳
 
 설치된 `langgraph 1.2.16`에서 `Send`, `interrupt`, `Command`, `RetryPolicy`, `InMemorySaver`와 스트림 모드(`values`, `updates`, `custom`, `messages` 등)를 import로 확인했다. `langgraph-checkpoint-postgres`는 설치돼 있지 않다.

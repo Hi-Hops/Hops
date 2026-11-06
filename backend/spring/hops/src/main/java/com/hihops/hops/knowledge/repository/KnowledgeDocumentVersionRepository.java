@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import com.hihops.hops.knowledge.domain.KnowledgeDocumentVersion;
+import com.hihops.hops.knowledge.domain.ReadRule;
 
 /** knowledge_document_version 테이블 저장·조회. 기본 save·findById는 JpaRepository가 제공한다. */
 public interface KnowledgeDocumentVersionRepository extends JpaRepository<KnowledgeDocumentVersion, UUID> {
@@ -47,10 +48,13 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
                 AND t.responsible_system_id=c.it_system_id
                 AND w.log_type IN ('RESOLVED','IMPLEMENTED'))))
             """, nativeQuery = true)
-    boolean isCurrentlyVisible(UUID versionId, UUID memberId, boolean requireIndexed, boolean internalRead);
+    boolean matchesVisibility(UUID versionId, UUID memberId, boolean requireIndexed, boolean internalRead);
 
-    /** 사용자에게 닿을 수 있는 근거의 공개 판정. 담당자 전용 문서는 해당 시스템 주담당자에게만 공개한다(내부 판단 읽기 아님). */
-    default boolean isCurrentlyVisible(UUID versionId, UUID memberId, boolean requireIndexed) {
-        return isCurrentlyVisible(versionId, memberId, requireIndexed, false);
+    /**
+     * 현재 DB 조건으로 공개 가능 여부를 확인한다. 규칙은 {@link ReadRule}로 받는다.
+     * 사용자에게 닿는 근거에는 {@code ReadRule.user(...)}만 쓴다.
+     */
+    default boolean isCurrentlyVisible(UUID versionId, UUID memberId, ReadRule rule) {
+        return matchesVisibility(versionId, memberId, rule.requireIndexedCase(), rule.internalRead());
     }
 }

@@ -59,7 +59,7 @@ public class KnowledgeSearchService {
         List<Hit> hits = new ArrayList<>();
         for (UUID id : ids) {
             // 반환 전 재검증: 현재 DB 기준의 공개 판정 한 가지를 모든 후보에 적용한다.
-            if (!versions.isCurrentlyVisible(id, query.memberId(), visibility.requireIndexedCase(), query.internalRead())) {
+            if (!versions.isCurrentlyVisible(id, query.memberId(), visibility.rule(query.internalRead()))) {
                 continue;
             }
             KnowledgeDocumentVersion version = versions.findById(id).orElse(null);

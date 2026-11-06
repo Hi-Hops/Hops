@@ -14,7 +14,10 @@ from hops_ai.contracts.wire import AccessContext, AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected
 from hops_ai.rules.progress import validate_evidence_scope
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
+from hops_ai.services.runs.supervisor import SupervisorPipeline
+from hops_ai.services.tracing import RunTracing
 from hops_ai.supervisor.state import create_initial_state
+from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import make_evidence, make_request
 from tests.unit.test_knowledge_agent import RecordingSource, how_to_request, run_through_executor
 
@@ -133,3 +136,21 @@ async def test_default_profile_search_never_returns_staff_material_to_an_employe
     assert state["evidence"], "직원 공개 가이드는 찾아야 한다"
     assert {item.accessScope for item in state["evidence"].values()} == {"EMPLOYEE"}
     assert "점검 순서" not in (state["guide"].messageText if state["guide"] else "")
+
+
+# ---- 추적(Langfuse)에 본문을 남기지 않는다
+
+
+def test_internal_judgement_runs_never_capture_content_in_external_tracing() -> None:
+    """담당자 자료가 모델 입력에 들어갈 수 있는 실행은 추적 설정과 무관하게 본문을 남기지 않는다."""
+    tracing = RunTracing(client=object(), capture_content=True)
+    pipeline = SupervisorPipeline(FakeLLMClient(), tracing=tracing)
+
+    default_run = pipeline._tracing_for(make_request())
+    option_run = pipeline._tracing_for(request_with_retrieval(["EMPLOYEE", "SYSTEM_STAFF"]))
+
+    assert default_run.capture_content is True
+    assert option_run.capture_content is False
+    assert option_run.client is tracing.client
+    # 전역 설정은 바꾸지 않는다. 다음 일반 실행은 원래 설정을 따른다.
+    assert tracing.capture_content is True

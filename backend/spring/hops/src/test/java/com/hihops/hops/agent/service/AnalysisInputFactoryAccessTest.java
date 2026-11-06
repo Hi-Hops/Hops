@@ -30,7 +30,7 @@ class AnalysisInputFactoryAccessTest {
 
     private AnalysisInputFactory factory(boolean internalJudgement) {
         var properties = new AnalysisRunProperties(Duration.ofSeconds(60), new ExecutionLimits(8, 60000, 12000, 10, 2),
-                "pending", "pending", "hops-system-1", new InternalJudgement(internalJudgement));
+                "pending", "pending", "hops-system-1", new InternalJudgement(internalJudgement, internalJudgement ? "TEST-REVIEW" : ""));
         return new AnalysisInputFactory(properties, mapper);
     }
 

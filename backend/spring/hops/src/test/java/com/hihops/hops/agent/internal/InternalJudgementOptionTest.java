@@ -25,7 +25,8 @@ import tools.jackson.databind.JsonNode;
  * 이 옵션은 SECURITY.md 개정과 보안 리뷰 전에는 운영에서 켜지 않는다. 여기서는 켜졌을 때의 경계만 확인한다:
  * 담당자 전용 자료를 내부 판단용으로 읽을 수 있어도 사용자에게 닿는 경로는 엄격한 공개 검증이 막는다.
  */
-@SpringBootTest(properties = {"SPRING_SERVICE_TOKEN=" + InternalRunApiTestBase.TOKEN, "hops.agent.run.internal-judgement.enabled=true"})
+@SpringBootTest(properties = {"SPRING_SERVICE_TOKEN=" + InternalRunApiTestBase.TOKEN, "hops.agent.run.internal-judgement.enabled=true",
+        "hops.agent.run.internal-judgement.review-reference=TEST-REVIEW"})
 class InternalJudgementOptionTest extends InternalRunApiTestBase {
     @Autowired TicketKnowledgeReader reader;
     @Autowired InquiryRepository inquiries;
