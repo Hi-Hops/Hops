@@ -153,10 +153,11 @@ def test_knowledge_result_must_name_an_existing_problem_and_match_its_guide() ->
 async def test_inquiry_asks_the_handoff_question_only_for_the_searched_problem() -> None:
     request = _request_with_text("전자결재 도장 등록 방법과 로그인 방법을 알려주세요")
     extraction = InquiryExtraction(
+        kind="PROBLEMS",
         problems=[
             _how_to("도장 등록 방법 문의", "ELECTRONIC_APPROVAL", "도장 등록"),
             _how_to("로그인 방법 문의", "COMMON_LOGIN", "로그인 방법"),
-        ]
+        ],
     )
     llm = FakeLLMClient(extraction)
     state = _with_problems(
@@ -183,6 +184,7 @@ async def test_a_staff_only_hit_ends_in_a_review_ticket_without_repeating_the_se
     )
     quote = QuotedValue(messageId=MESSAGE, quote="문서 미표시 점검 순서")
     extraction = InquiryExtraction(
+        kind="PROBLEMS",
         problems=[
             ExtractedProblem(
                 summary="미표시 점검 요청",
@@ -198,7 +200,7 @@ async def test_a_staff_only_hit_ends_in_a_review_ticket_without_repeating_the_se
                 desiredChange=None,
                 unknownFields=[],
             )
-        ]
+        ],
     )
     llm = FakeLLMClient(
         decision("CALL_ROLE", AgentRole.INQUIRY),

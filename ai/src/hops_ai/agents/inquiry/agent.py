@@ -73,6 +73,12 @@ class ExtractionInquiryAgent:
         no_guide = problems_without_guide(call.state)
         extraction = await self._extract(call, services)
         services.runtime.ensure_active()
+        if extraction.kind == "GREETING":
+            if extraction.problems:
+                raise OutputRejected("인사 응답 결과에 문제를 포함할 수 없다")
+            return InquiryResult(
+                invocationId=call.invocation_id, problems=[], questions=[], kind="GREETING"
+            )
         if not extraction.problems:
             raise OutputRejected("추출 결과에 문제가 없다")
 

@@ -15,6 +15,7 @@ from langgraph.graph import END, START, StateGraph
 
 from hops_ai.agents.base import Agent, pending_agents
 from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected
 from hops_ai.services.shared import SharedServices
@@ -28,6 +29,7 @@ from hops_ai.supervisor.runtime import (
     describe_run_failure,
 )
 from hops_ai.supervisor.state import SupervisorState, create_initial_state, transition_phase
+from hops_ai.supervisor.validation import has_conversation_result
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +160,15 @@ class Supervisor:
         graph.add_conditional_edges(
             DECIDE, _route, {name: name for name in (*ROLE_NODES.values(), FINISH)}
         )
-        for name in ROLE_NODES.values():
-            graph.add_edge(name, DECIDE)
+        for role, name in ROLE_NODES.items():
+            if role == AgentRole.INQUIRY:
+                graph.add_conditional_edges(
+                    name,
+                    lambda data: FINISH if has_conversation_result(data["state"]) else DECIDE,
+                    {FINISH: FINISH, DECIDE: DECIDE},
+                )
+            else:
+                graph.add_edge(name, DECIDE)
         graph.add_edge(FINISH, END)
         return graph.compile()
 
@@ -248,6 +257,15 @@ def _role_span_output(
         "questionCount": len(merged["questions"]),
         "ticketProposalCount": len(merged["ticketProposals"]),
     }
+    if role == AgentRole.INQUIRY:
+        output["kind"] = next(
+            (
+                result.kind
+                for invocation, result in merged["roleResults"].items()
+                if invocation not in before["roleResults"] and isinstance(result, InquiryResult)
+            ),
+            "PROBLEMS",
+        )
     if runtime.services.tracing.capture_content and role == AgentRole.INQUIRY:
         output["questions"] = [
             item.text for key, item in merged["questions"].items() if key not in before["questions"]

@@ -256,6 +256,7 @@ async def decide_next_action(
                     "추가 질문은 문제별 남은 횟수를 지킨다. "
                     "problems는 Inquiry가 문의를 분석해야 생긴다. problems가 비어 있으면 아직 "
                     "분석 전이므로 문제를 대상으로 하는 검색·티켓 제안은 성립하지 않는다. "
+                    "인사만 있는 메시지를 포함하여 새 사용자 메시지는 INQUIRY에서 분석한다. "
                     "사용법 문제에서 Knowledge 검색 결과가 없으면(completedCalls의 "
                     "searchState가 EMPTY) 안내할 근거가 없는 것이다. 남은 질문 횟수와 "
                     "이미 확보한 정보를 보고, 담당자 전달에 필요한 정보가 더 필요하면 "
@@ -276,7 +277,7 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v6",
+        prompt_version="supervisor.decision.v7",
         response_schema=decision_schema(context["allowedRoles"]),
     )
     response = await services.llm.generate(request)

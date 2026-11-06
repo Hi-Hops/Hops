@@ -64,6 +64,7 @@ class InquiryResult(ContractModel):
     invocationId: WireText
     problems: list[ProblemProposal]
     questions: list[QuestionProposal]
+    kind: Literal["PROBLEMS", "GREETING"] = "PROBLEMS"
 
 
 class KnowledgeResult(ContractModel):

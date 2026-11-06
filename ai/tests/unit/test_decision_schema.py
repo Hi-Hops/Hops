@@ -77,7 +77,7 @@ async def test_first_request_offers_only_the_roles_the_context_allows() -> None:
     assert context["allowedRoles"] == ["INQUIRY"]
     assert role_enum(sent.response_schema) == ["INQUIRY"]
     assert sent.response_model is SupervisorDecision
-    assert sent.prompt_version == "supervisor.decision.v6"
+    assert sent.prompt_version == "supervisor.decision.v7"
 
 
 async def test_schema_after_an_empty_search_leaves_out_inquiry_when_nothing_is_missing() -> None:

@@ -201,7 +201,9 @@ def _extracted(summary, intent, system, *, task=None, actual=None) -> ExtractedP
 async def analyze(text: str, problems: list[ExtractedProblem], *script):
     request = _request_with_text(text)
     llm = FakeLLMClient(
-        decision("CALL_ROLE", AgentRole.INQUIRY), InquiryExtraction(problems=problems), *script
+        decision("CALL_ROLE", AgentRole.INQUIRY),
+        InquiryExtraction(kind="PROBLEMS", problems=problems),
+        *script,
     )
     agents = runtime_registry(FixtureKnowledgeSource())
     supervisor = Supervisor(agents, restrict_roles=True)

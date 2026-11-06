@@ -11,7 +11,12 @@ from hops_ai.rules.proposals import (
     validate_ticket,
 )
 from hops_ai.supervisor.state import SupervisorState, transition_phase
-from hops_ai.supervisor.validation import ensure_active, validate_completion, validate_questions
+from hops_ai.supervisor.validation import (
+    ensure_active,
+    has_conversation_result,
+    validate_completion,
+    validate_questions,
+)
 
 
 def compose_public_answer(state: SupervisorState) -> str:
@@ -39,6 +44,10 @@ def compose_public_answer(state: SupervisorState) -> str:
     if state["input"].kind != RunKind.INQUIRY_ANALYSIS:
         raise OutputRejected("사례 초안 실행에는 상담 본문을 만들 수 없다")
     validate_completion(state)
+    if has_conversation_result(state):
+        if state["input"].problems:
+            return "안녕하세요. 이어서 문의 내용을 알려 주세요."
+        return "안녕하세요. 어떤 IT 관련 문의가 있으신가요? 내용을 알려 주세요."
     progress = get_problem_progress(state)
     questions = {question.problemRef: question for question in state["questions"].values()}
     question_numbers: dict[str, list[int]] = {}
@@ -217,12 +226,16 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
             inquiryVersion=request.inquiryVersion,
             status="SUCCEEDED",
             answer=body,
-            problemProposals=list(candidate["problems"].values()),
+            problemProposals=(
+                [] if has_conversation_result(candidate) else list(candidate["problems"].values())
+            ),
             questions=list(candidate["questions"].values()),
             guide=candidate["guide"],
             ticketProposals=list(candidate["ticketProposals"].values()),
             caseProposal=None,
-            evidence=list(candidate["evidence"].values()),
+            evidence=[]
+            if has_conversation_result(candidate)
+            else list(candidate["evidence"].values()),
             error=None,
             ticketCreationResults=list(candidate["ticketCreationResults"].values()),
         )

@@ -130,6 +130,6 @@ async def test_supervisor_sees_the_readiness_and_the_v5_guidance_after_an_empty_
     [item] = context["handoffReadiness"]
     assert item["missingForHandoff"] == ["expectedBehavior"]
     assert "handoffReadiness" in after_empty.messages[0].content
-    assert after_empty.prompt_version == "supervisor.decision.v6"
+    assert after_empty.prompt_version == "supervisor.decision.v7"
     # 검색 전에는 알릴 것이 없다.
     assert json.loads(llm.requests[2].messages[-1].content)["handoffReadiness"] == []

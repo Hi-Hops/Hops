@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.state import SupervisorState
 from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import AiRunRequest
@@ -14,6 +15,25 @@ from hops_ai.harness.errors import (
 )
 from hops_ai.rules.progress import get_problem_progress
 from hops_ai.rules.proposals import validate_problem_ref
+
+
+def has_conversation_result(state: "SupervisorState") -> bool:
+    """검증된 Inquiry 대화 응답이 단독으로 병합된 상담인지 확인한다."""
+    return (
+        state["input"].kind == "INQUIRY_ANALYSIS"
+        and not state["questions"]
+        and not state["ticketProposals"]
+        and not state["ticketCreationResults"]
+        and state["guide"] is None
+        and len(state["roleResults"]) == 1
+        and any(
+            isinstance(result, InquiryResult)
+            and result.kind != "PROBLEMS"
+            and not result.problems
+            and not result.questions
+            for result in state["roleResults"].values()
+        )
+    )
 
 
 def validate_completion(state: "SupervisorState") -> None:
@@ -33,6 +53,8 @@ def validate_completion(state: "SupervisorState") -> None:
     if state["input"].kind == "CASE_DRAFT":
         if state["caseProposal"] is None:
             raise OutputRejected("사례 제안이 준비되기 전에 종료할 수 없다")
+        return
+    if has_conversation_result(state):
         return
     progress = get_problem_progress(state)
     if not progress or any(item["outcome"] is None for item in progress):

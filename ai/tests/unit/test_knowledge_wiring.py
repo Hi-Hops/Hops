@@ -44,6 +44,7 @@ def how_to_first_message() -> AiRunRequest:
 
 def how_to_extraction(*, task: str | None = "문서 조회") -> InquiryExtraction:
     return InquiryExtraction(
+        kind="PROBLEMS",
         problems=[
             ExtractedProblem(
                 summary="전자결재 문서 조회 방법 문의",
@@ -59,7 +60,7 @@ def how_to_extraction(*, task: str | None = "문서 조회") -> InquiryExtractio
                 desiredChange=None,
                 unknownFields=[],
             )
-        ]
+        ],
     )
 
 
