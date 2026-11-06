@@ -15,6 +15,11 @@
   정책 표의 검색 종류로 검색하며, 아직 하지 않은 질의를 하나 고른다. 첫 질의는 문제 자신의
   정보로 만든 기존 질의이고, 재검색은 ②의 키워드만, 키워드와 확인한 상세 값 순서다. 관계
   조회(Neo4j)는 포함하지 않는다.
+- relation_source를 주면 문제별 행동 경로의 검색이 끝난 뒤, 정책 표가 관계를 쓰는 의도(증상 문의)에
+  한해 증상의 원인을 가르는 확인 항목을 함께 조회한다(`relations`). 직원 공개로 승인된 확인 항목과
+  보이는 질문 문구만 남기고 원인 이름은 받지 않는다. 연결은 후보일 뿐이다. 관계는 보강 정보라서
+  조회 오류(ERROR)는 0건(EMPTY)과 구분해 기록하되 검색 결과와 안내를 막지 않으며, 도구 호출 예산이
+  이미 소진됐으면 조회하지 않는다. 취소·기한 예외는 그대로 전달한다.
 - assess_evidence를 켜면 검색 뒤에 근거의 충분성 판정(Assessment)을 한 번 더 만든다. 결과가
   1건 이상일 때만 모델을 부르고(문제당 1회), 0건은 코드가 NO_MATCH로 확정한다. 검색 오류는
   평가하지 않는다. 모델 오류·검증 거부·예산 부족은 "평가 없음"으로 두고 검색 결과와 안내는
@@ -41,21 +46,36 @@ from hops_ai.agents.knowledge.assessment import (
 )
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
-from hops_ai.contracts.roles import Assessment, KnowledgeResult, SearchError, SearchResult
+from hops_ai.contracts.roles import (
+    Assessment,
+    KnowledgeResult,
+    RelationCheck,
+    RelationNeighbors,
+    RelationQuestion,
+    RelationSymptom,
+    SearchError,
+    SearchResult,
+)
 from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
 from hops_ai.rules.assessment import no_match_assessment, validate_assessment
-from hops_ai.rules.intent_policy import is_guide_type, search_kinds
+from hops_ai.rules.intent_policy import is_guide_type, policy_for, search_kinds
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
     SEARCH_KNOWLEDGE,
+    SEARCH_RELATIONS,
     KnowledgeHit,
     KnowledgeQuery,
     KnowledgeSource,
     RunLink,
+)
+from hops_ai.services.retrieval.relation_source import (
+    RelationQuery,
+    RelationResult,
+    RelationSource,
 )
 from hops_ai.services.shared import SharedServices
 
@@ -66,10 +86,20 @@ MAX_QUERY_MESSAGES = 5
 class SearchKnowledgeAgent:
     role = AgentRole.KNOWLEDGE
 
-    def __init__(self, source: KnowledgeSource, *, assess_evidence: bool = False) -> None:
-        """assess_evidence가 참이면 검색 결과의 충분성 판정을 함께 만든다(문제당 모델 1회)."""
+    def __init__(
+        self,
+        source: KnowledgeSource,
+        *,
+        assess_evidence: bool = False,
+        relation_source: RelationSource | None = None,
+    ) -> None:
+        """assess_evidence가 참이면 검색 결과의 충분성 판정을 함께 만든다(문제당 모델 1회).
+
+        relation_source를 주면 증상 문의의 검색에 관계 조회(확인 항목)를 더한다. 모델 호출은 없다.
+        """
         self._source = source
         self._assess_evidence = assess_evidence
+        self._relation_source = relation_source
 
     async def run(self, call: RoleRequest, services: SharedServices) -> RoleResponse:
 
@@ -103,6 +133,7 @@ class SearchKnowledgeAgent:
             problemRef=target.problemRef,
             queryDigest=query.digest(),
             assessment=await self._assess(target, hits, services),
+            relations=await self._look_up_relations(call, target, services),
         )
         return RoleResponse(
             result=result,
@@ -151,6 +182,73 @@ class SearchKnowledgeAgent:
         except (ValidationError, OutputRejected):
             return None
         return assessment
+
+    async def _look_up_relations(
+        self, call: RoleRequest, target: ProblemProposal, services: SharedServices
+    ) -> RelationNeighbors | None:
+        """증상의 원인을 가르는 확인 항목. 조회하지 않았으면 None, 오류면 ERROR 상태다."""
+        if self._relation_source is None or not call.targets:
+            return None
+        if not policy_for(target.intent).uses_relations:
+            return None
+        state = call.state
+        query = _relation_query(state, target, services)
+        if query is None:
+            return None
+        budget = services.runtime.budget
+        if budget.max_tool_calls is not None and budget.tool_calls_used >= budget.max_tool_calls:
+            return None  # 보강 정보를 위해 실행을 예산 초과로 끝내지 않는다
+        try:
+            result = await self._relation_source.search(query)
+        except RetrievalUnavailable:
+            return RelationNeighbors(state="ERROR", symptoms=[])
+        services.runtime.ensure_active()
+        return _neighbors(result)
+
+
+def _relation_query(
+    state: SupervisorState, target: ProblemProposal, services: SharedServices
+) -> RelationQuery | None:
+    """문제의 키워드·기능 후보·시스템으로 만든 관계 질의. 쓸 키워드도 기능도 없으면 None이다."""
+    analysis = state["analysis"].get(target.problemRef)
+    keywords = tuple(_searchable_keywords(state, target))
+    features = frozenset(analysis.featureCandidates) if analysis is not None else frozenset()
+    if not keywords and not features:
+        return None
+    access = state["input"].accessContext
+    system_ids = {target.reportedSystemCandidateId} & set(access.systemIds)
+    return RelationQuery(
+        keywords=keywords,
+        feature_ids=features,
+        system_ids=frozenset(system_ids),
+        allowed_scopes=frozenset(access.allowedDocumentScopes),
+        run=_run_link(state["input"], target, services, SEARCH_RELATIONS),
+    )
+
+
+def _neighbors(result: RelationResult) -> RelationNeighbors:
+    """직원에게 쓸 수 있는 확인 항목만 남긴다: 직원 공개로 승인됐고 질문 문구가 보이는 항목.
+
+    원인 이름과 담당자 전용 항목은 받아도 버린다(조회 응답이 이미 걸렀더라도 한 번 더 확인한다).
+    """
+    symptoms = []
+    for symptom in result.symptoms:
+        if symptom.accessScope != "EMPLOYEE":
+            continue
+        checks = []
+        for item in symptom.checkItems:
+            if not item.employeeDisclosable or item.accessScope != "EMPLOYEE":
+                continue
+            questions = [
+                RelationQuestion(id=question.id, text=question.text)
+                for question in item.questions
+                if question.basis.visible
+            ]
+            if questions:
+                checks.append(RelationCheck(id=item.id, questions=questions))
+        if checks:
+            symptoms.append(RelationSymptom(id=symptom.id, label=symptom.label, checkItems=checks))
+    return RelationNeighbors(state="FOUND" if symptoms else "EMPTY", symptoms=symptoms)
 
 
 def guidable_problem(state: SupervisorState) -> ProblemProposal | None:
@@ -312,15 +410,17 @@ def _build_query(
     )
 
 
-def _run_link(request, target: ProblemProposal, services: SharedServices | None) -> RunLink | None:
-    """Spring 내부 API 검색에 쓸 실행 문맥. 한 번 부를 때마다 도구 호출 한도 1회를 소비한다."""
+def _run_link(
+    request, target: ProblemProposal, services: SharedServices | None, tool: str = SEARCH_KNOWLEDGE
+) -> RunLink | None:
+    """Spring 내부 API 호출에 쓸 실행 문맥. 한 번 부를 때마다 도구 호출 한도 1회를 소비한다."""
     if services is None:
         return None
     runtime = services.runtime
 
     def reserve_call() -> float:
         runtime.ensure_active()
-        runtime.tool_policy.authorize(AgentRole.KNOWLEDGE, SEARCH_KNOWLEDGE)
+        runtime.tool_policy.authorize(AgentRole.KNOWLEDGE, tool)
         runtime.budget.start_tool_call()
         return runtime.budget.remaining_seconds()
 

@@ -306,7 +306,18 @@ def merge_knowledge_result(
             evidence=result.search.evidence,
         )
         assessments[result.problemRef] = result.assessment.model_copy(deep=True)
-    candidate = {**state, "evidence": evidence, "guide": guide, "assessments": assessments}
+    relations = dict(state["relations"])
+    if result.relations is not None:
+        if result.problemRef is None or result.problemRef not in state["problems"]:
+            raise OutputRejected("관계 조회 결과가 검색한 문제를 가리키지 않는다")
+        relations[result.problemRef] = result.relations.model_copy(deep=True)
+    candidate = {
+        **state,
+        "evidence": evidence,
+        "guide": guide,
+        "assessments": assessments,
+        "relations": relations,
+    }
     if guide is not None:
         if state["input"].kind == RunKind.CASE_DRAFT:
             raise OutputRejected("사례 초안 실행은 상담 안내를 반환하지 않는다")

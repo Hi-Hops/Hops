@@ -11,6 +11,7 @@ from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.executing import ExecutingTicketAgent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
+from hops_ai.services.retrieval.relation_source import RelationSource
 
 
 def build_registry(
@@ -20,6 +21,7 @@ def build_registry(
     assess_evidence: bool = False,
     defer_questions: bool = False,
     generate_questions: bool = False,
+    relation_source: RelationSource | None = None,
 ) -> Mapping[AgentRole, Agent]:
     """서버 실행에 쓰는 역할 조합.
 
@@ -39,11 +41,16 @@ def build_registry(
 
     generate_questions가 참이면 질문 행동의 문장을 모델이 쓴다(필드는 코드가 정하고, 실패하거나
     규칙을 어기면 고정 문구로 대체한다). defer_questions와 함께 쓴다.
+
+    relation_source를 주면 Knowledge가 증상 문의의 검색에 관계 조회(확인 항목)를 더한다. 문제별
+    행동 경로에서만 쓰이고 knowledge_source가 있을 때만 의미가 있다.
     """
     knowledge: Agent = (
         PendingAgent(AgentRole.KNOWLEDGE)
         if knowledge_source is None
-        else SearchKnowledgeAgent(knowledge_source, assess_evidence=assess_evidence)
+        else SearchKnowledgeAgent(
+            knowledge_source, assess_evidence=assess_evidence, relation_source=relation_source
+        )
     )
     return MappingProxyType(
         {

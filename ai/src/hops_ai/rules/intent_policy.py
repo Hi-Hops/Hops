@@ -31,6 +31,9 @@ class IntentPolicy:
         기능 추가·개선 요청). 설계 문서 5.3절 티켓 (a)다.
     answers_with_guide: 이 처리 유형이 승인된 가이드 안내로 끝나는지. 참이면 가이드를 찾지
         못한 경우에 한해 담당자 검토(REVIEW_REQUIRED) 티켓을 허용한다.
+    uses_relations: 문제별 행동 경로의 검색이 관계 데이터(증상과 원인을 가르는 확인 항목)도 조회하는
+        의도인지. 증상 문의만 해당한다. 조회한 확인 항목은 판정과 질문의 재료이며 원인을 확정하지
+        않는다.
     knowledge_kinds: 검색할 지식 종류의 **기본값**(초안). 비어 있으면 검색하지 않는 것이 기본이다.
         접근 범위가 아니다. 직원 상담의 기본 프로필은 이 값과 무관하게 직원 공개 자료만 읽는다.
         문제별 행동 경로의 검색이 `search_kinds`로 읽는다. 값은 측정으로 확정한다.
@@ -44,6 +47,7 @@ class IntentPolicy:
     guide_first_fields: tuple[str, ...] | None = None
     handoff_fields: tuple[str, ...] | None = None
     knowledge_kinds: frozenset[KnowledgeKind] = frozenset()
+    uses_relations: bool = False
 
 
 INTENT_POLICIES: Mapping[Intent, IntentPolicy] = MappingProxyType(
@@ -69,6 +73,7 @@ INTENT_POLICIES: Mapping[Intent, IntentPolicy] = MappingProxyType(
             required_fields=("taskOrScreen", "expectedBehavior", "actualBehavior", "occurredAt"),
             ticketable=True,
             knowledge_kinds=frozenset({"GUIDE", "RUNBOOK", "CASE"}),
+            uses_relations=True,
         ),
         "FEATURE_REQUEST": IntentPolicy(
             processing_type="CHANGE_REQUEST",

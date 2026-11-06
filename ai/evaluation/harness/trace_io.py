@@ -43,6 +43,8 @@ def _role_call(call: RoleCall) -> dict[str, Any]:
         "assessment": _assessment_dict(call.assessment),
         "question_source": call.question_source,
         "question_fallback": call.question_fallback,
+        "relation_state": call.relation_state,
+        "relation_check_ids": list(call.relation_check_ids),
     }
 
 
@@ -132,6 +134,9 @@ def trace_from_dict(data: dict[str, Any]) -> RunTrace:
                 # 질문 문장의 출처를 기록하기 전에 저장한 trace에는 이 키가 없다.
                 question_source=call.get("question_source"),
                 question_fallback=call.get("question_fallback"),
+                # 관계 조회를 기록하기 전에 저장한 trace에는 이 키가 없다.
+                relation_state=call.get("relation_state"),
+                relation_check_ids=tuple(call.get("relation_check_ids", ())),
             )
             for call in item["role_calls"]
         )

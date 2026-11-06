@@ -82,6 +82,7 @@ def create_initial_state(request: AiRunRequest, *, judgment: bool = False) -> Su
         problems={problem.id: _problem_from_input(problem) for problem in snapshot.problems},
         analysis={},
         assessments={},
+        relations={},
         decisions={},
         questions={},
         evidence=evidence,

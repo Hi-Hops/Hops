@@ -33,6 +33,7 @@ from evaluation.harness.behavior import check_behavior
 from evaluation.harness.budget import CallCap, CappedLLM
 from evaluation.harness.catalog import SYSTEMS
 from evaluation.harness.checks import check_trace
+from evaluation.harness.corpus_relations import CorpusRelationSource
 from evaluation.harness.corpus_source import CorpusKnowledgeSource
 from evaluation.harness.runner import RunConfig, run_scenario
 from evaluation.harness.scenario import Scenario, load_scenario
@@ -87,6 +88,17 @@ def _turn_summary(index: int, turn: TurnTrace) -> dict[str, Any]:
     ]
     if failures:
         summary["roleFailures"] = failures
+    relations = [
+        {
+            "problem": call.problem_ref,
+            "state": call.relation_state,
+            "checkItems": list(call.relation_check_ids),
+        }
+        for call in turn.role_calls
+        if call.relation_state
+    ]
+    if relations:
+        summary["relations"] = relations
     sources = [
         {"source": call.question_source, "fallback": call.question_fallback}
         for call in turn.role_calls
@@ -358,6 +370,7 @@ def _build_real(
     judgment: bool = False,
     corpus: bool = False,
     fixed_questions: bool = False,
+    relations: bool = False,
 ) -> tuple[LLMClient, Callable[[Scenario], Mapping[AgentRole, Agent]], str]:
     from hops_ai.agents.registry import build_registry
     from hops_ai.services.llm.openai import OpenAIClient
@@ -380,7 +393,8 @@ def _build_real(
         if "RETRIEVAL_ERROR" in scenario.faults:
             return build_registry(FaultyKnowledgeSource(), **options)
         source = CorpusKnowledgeSource() if corpus else knowledge_source_for(settings)
-        return build_registry(source, **options)
+        relation_source = CorpusRelationSource() if relations else None
+        return build_registry(source, relation_source=relation_source, **options)
 
     return (
         OpenAIClient(key, model or settings.supervisor_model),
@@ -415,6 +429,12 @@ CORPUS_SOURCE_NAME = (
 )
 
 
+CORPUS_RELATION_SOURCE_NAME = (
+    "CORPUS_RELATIONS(코퍼스 front matter의 증상·확인 항목과 질문 카드를 읽는 "
+    "평가 대역, 실조회 아님)"
+)
+
+
 def run_metadata(
     model: str,
     directory: Path = SCENARIO_DIR,
@@ -423,6 +443,7 @@ def run_metadata(
     corpus: bool = False,
     limits: Mapping[str, int] | None = None,
     model_questions: bool = False,
+    relations: bool = False,
 ) -> dict[str, Any]:
     """실행 조건 기록. 같은 조건끼리만 결과를 비교하려고 남긴다(EVALUATION.md 반복 실행 절).
 
@@ -448,6 +469,8 @@ def run_metadata(
         "judgmentMode": judgment,
         # 판정 모드에서 질문 문장을 모델이 쓰는지(꺼져 있으면 고정 문구)
         "modelQuestions": model_questions,
+        # 증상 문의의 검색이 관계 조회(확인 항목)를 더하는지. 켜면 코퍼스 선언을 읽는 평가 대역이다
+        "relationSource": CORPUS_RELATION_SOURCE_NAME if relations else None,
         "runLimits": dict(limits or DEFAULT_LIMITS),
     }
 
@@ -502,6 +525,11 @@ def main(argv: list[str] | None = None) -> int:
         help="고정 자료 대신 docs/knowledge/corpus를 Spring 규칙으로 근사해 검색한다(평가 대역)",
     )
     parser.add_argument(
+        "--relations",
+        action="store_true",
+        help="증상 문의의 검색에 관계 조회(확인 항목)를 더한다(코퍼스 선언을 읽는 평가 대역)",
+    )
+    parser.add_argument(
         "--fixed-questions",
         action="store_true",
         help="판정 모드에서도 질문 문장을 모델이 쓰지 않고 고정 문구를 쓴다(비교용)",
@@ -527,6 +555,7 @@ def main(argv: list[str] | None = None) -> int:
         judgment=args.judgment,
         corpus=args.corpus,
         fixed_questions=args.fixed_questions,
+        relations=args.relations,
     )
     limits = {
         **DEFAULT_LIMITS,
@@ -540,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
         corpus=args.corpus,
         limits=limits,
         model_questions=args.judgment and not args.fixed_questions,
+        relations=args.relations,
     )
 
     def save_partial(report: dict[str, Any]) -> None:

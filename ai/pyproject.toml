@@ -16,6 +16,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pyyaml>=6",
     "pytest>=8.3",
     "pytest-asyncio>=1.0",
     "ruff>=0.9",

@@ -65,6 +65,10 @@ class RoleCall:
     # 질문 행동에서 문장을 누가 썼는지(FIXED, MODEL, FIXED_FALLBACK)와 대체 사유 코드.
     question_source: str | None = None
     question_fallback: str | None = None
+    # 검색 역할이 함께 조회한 관계 데이터의 상태(FOUND, EMPTY, ERROR)와 받은 확인 항목 ID.
+    # 관계를 조회하지 않았으면 상태가 None이다.
+    relation_state: str | None = None
+    relation_check_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

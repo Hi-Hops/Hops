@@ -121,6 +121,12 @@ class RecordingAgent:
                     search_state=result.search.state,
                     evidence=tuple(verified) or tuple(result.search.evidence),
                     assessment=_assessment_record(result),
+                    relation_state=result.relations.state if result.relations else None,
+                    relation_check_ids=tuple(
+                        check.id
+                        for symptom in (result.relations.symptoms if result.relations else ())
+                        for check in symptom.checkItems
+                    ),
                 )
             )
         elif isinstance(result, InquiryResult):

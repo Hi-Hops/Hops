@@ -9,6 +9,7 @@
 | `harness/checks.py` | 안전 성질 P1~P11 검사기. 실행 기록만 보는 순수 함수이며 모델을 부르지 않는다 |
 | `harness/behavior.py` | 행동 성질 검사기(B7~B9). 안전 성질과 따로 두며 한 번 어겨도 실패가 아니다. 보고서의 `behaviorFindings`에 싣고 종료 코드에는 넣지 않는다 |
 | `harness/corpus_source.py` | `docs/knowledge/corpus`를 Spring 검색 규칙(토큰화·제목 가중·필요 일치 수·접근 범위 선필터)으로 근사해 찾는 평가 대역. 실검색이 아니다 |
+| `harness/corpus_relations.py` | 코퍼스 런북·정책 front matter의 증상·확인 항목과 `relations/questions.yml`을 읽어 Spring 관계 조회를 근사하는 평가 대역(직원 범위: 직원 공개 확인 항목과 승인된 질문 문구만). 실조회가 아니다 |
 | `harness/runner.py` | 시나리오를 끝까지 재생한다. AI가 질문하면 규칙 사용자가 답하고 다음 실행을 이어 간다 |
 | `harness/user_sim.py` | 규칙 기반 사용자 모사(`ASKED_FIELD_ONLY`). 같은 질문에는 같은 답이 나간다 |
 | `harness/spring_stub.py` | Spring이 AI 결과로 다음 실행 입력을 만드는 일을 흉내 내는 얇은 대역 |
@@ -31,6 +32,7 @@
 - **아직 재생하지 않는 것.** 시나리오 20(`guide-unresolved`)의 `followUp`은 멀티턴 작업(#189)에서 재생을 지원하기 전까지 파일에만 있고 첫 실행만 재생한다. 시나리오 12(`retrieval-fault`)의 `faults`는 호출자가 검색 역할에 오류를 주입해야 한다. 정답의 `assessment`는 Knowledge 충분성 판정이 생기기 전(#181)에는 채점에 쓰지 않는다.
 - **질문 5회 한도(P8)는 시나리오로 도달시키지 못한다.** 지금 규칙에서는 한 문제의 필수 필드가 최대 5개(시스템 포함)이고 이미 물은 필드를 다시 묻지 않으므로(P7) 질문 묶음이 5개가 되기 전에 필드가 소진된다. P8은 검사기 단위 테스트로만 확인한다.
 - - **검색 대역을 구분해서 읽는다.** 기본 검색원은 개발용 고정 자료(키워드 목록으로 찾음)다. `--corpus`는 코퍼스 본문을 Spring 검색 규칙으로 근사해 찾는다. 둘 다 실제 Spring 검색이 아니며, `--corpus` 결과도 실검색 품질이나 Spring 동작의 증거로 쓰지 않는다. 보고서의 `run.knowledgeSource`에 쓴 검색원이 적힌다.
+- **`--relations`는 증상 문의의 검색에 관계 조회(확인 항목)를 더한다.** 판정 모드에서만 쓰이고 코퍼스 선언을 읽는 평가 대역을 쓴다. 조회 상태(FOUND·EMPTY·ERROR)와 받은 확인 항목 ID가 보고서의 턴별 `relations`와 trace에 남는다. 이 단계에서는 확인 항목을 State에 담기만 하고 판정과 질문은 아직 읽지 않는다.
 - **판정 모드에서는 질문 문장을 모델이 쓴다.** 물을 필드는 코드가 정하고 모델은 문장만 쓰며, 실패하거나 규칙을 어기면 고정 문구로 대체한다. `--fixed-questions`로 끄면 고정 문구만 쓴다(비교용). 보고서의 `totals.modelQuestions`·`totals.questionFallbacks`와 턴별 `questionSources`로 대체 횟수와 사유 코드를 본다.
 - **판정 모드는 `--judgment`로 켠다.** 켜면 문제별 행동 경로(`Supervisor(problem_actions=True)`)로 돌고 Knowledge 충분성 판정과 질문 분리(`defer_questions`)를 함께 쓴다. 기본은 역할 단위 결정 경로이며 기존 기준선과 같은 조건이다. 판정 모드는 모델 호출이 늘어 Spring 기본 한도(8회)를 넘을 수 있어 `--max-model-calls`로 실행별 한도를 올린다. 올린 값은 `run.runLimits`에 적히므로 다른 한도로 잰 결과와 섞어 비교하지 않는다.
 - `TEST` 시나리오(13~20)는 동결한다. 프롬프트·규칙을 조정하는 데 쓰지 않는다.

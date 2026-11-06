@@ -122,6 +122,37 @@ class Assessment(ContractModel):
     rationale: WireText
 
 
+class RelationQuestion(ContractModel):
+    """확인 항목을 묻는 직원용 승인 질문 문구."""
+
+    id: WireText
+    text: WireText
+
+
+class RelationCheck(ContractModel):
+    """증상의 원인을 가르는 확인 항목. 직원 공개로 승인된 것만 담는다(원인 이름은 없다)."""
+
+    id: WireText
+    questions: list[RelationQuestion]
+
+
+class RelationSymptom(ContractModel):
+    id: WireText
+    label: WireText
+    checkItems: list[RelationCheck]
+
+
+class RelationNeighbors(ContractModel):
+    """한 문제의 관계 조회 결과. 연결은 후보일 뿐 현재 문의의 원인을 확정하지 않는다.
+
+    state는 검색과 같은 규칙이다: 0건(EMPTY)과 조회 오류(ERROR)를 구분하며 오류를 0건으로 바꾸지
+    않는다. 직원 상담에서는 직원 공개로 승인된 확인 항목과 보이는 질문 문구만 담는다.
+    """
+
+    state: Literal["FOUND", "EMPTY", "ERROR"]
+    symptoms: list[RelationSymptom]
+
+
 class KnowledgeResult(ContractModel):
     """검색 결과와 선택 가능한 안내. 내부 자료를 공개 안내로 자동 변환하지 않는다."""
 
@@ -137,6 +168,9 @@ class KnowledgeResult(ContractModel):
     # 이 검색에 쓴 질의의 지문. 같은 질의의 반복 검색을 피하는 데 쓰며, 비어 있으면 같은 문제를
     # 다시 검색하지 않는다. 질의가 바뀌었을 때(새 사실이 더해진 뒤)만 다시 검색할 수 있다.
     queryDigest: str | None = None
+    # 이 검색과 함께 조회한 관계 데이터(확인 항목). 관계를 조회하지 않은 호출은 None이다.
+    # problemRef가 있는 결과에만 붙는다.
+    relations: RelationNeighbors | None = None
 
 
 class TicketResult(ContractModel):

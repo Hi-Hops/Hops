@@ -17,6 +17,7 @@ from hops_ai.harness.context import RunContext
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.knowledge_source import KNOWLEDGE_TOOLS, KnowledgeSource
+from hops_ai.services.retrieval.relation_source import RelationSource
 from hops_ai.services.shared import SharedServices
 from hops_ai.services.tickets import TICKET_TOOLS, TicketHTTPClient
 from hops_ai.services.tools.base import ToolGateway
@@ -37,6 +38,7 @@ class SupervisorPipeline:
         ticket_client: TicketHTTPClient | None = None,
         assess_evidence: bool = False,
         problem_actions: bool | None = None,
+        relation_source: RelationSource | None = None,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
@@ -59,6 +61,7 @@ class SupervisorPipeline:
                 assess_evidence=assess_evidence,
                 defer_questions=assess_evidence,
                 generate_questions=assess_evidence,
+                relation_source=relation_source,
             )
             if agents is None
             else agents

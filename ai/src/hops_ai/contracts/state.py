@@ -9,7 +9,13 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import Assessment, AuthorizedKnowledgeRef, ProblemAnalysis, RoleResult
+from hops_ai.contracts.roles import (
+    Assessment,
+    AuthorizedKnowledgeRef,
+    ProblemAnalysis,
+    RelationNeighbors,
+    RoleResult,
+)
 from hops_ai.contracts.wire import (
     AiError,
     AiResult,
@@ -63,6 +69,9 @@ class SupervisorState(TypedDict):
     # 문제별 검색 근거의 충분성 판정(문제당 가장 최근의 유효한 판정). 내부 전용이며 AiResult에
     # 싣지 않는다. 판정이 없는 문제는 키가 없다(검색 생략·오류·평가 실패·예산 부족).
     assessments: dict[str, Assessment]
+    # 문제별 관계 조회 결과(확인 항목과 승인된 질문 문구). 내부 전용이며 AiResult에 싣지 않는다.
+    # 조회하지 않은 문제는 키가 없다.
+    relations: dict[str, RelationNeighbors]
     # 문제별로 고른 종료 행동(ANSWER·ASK·TICKET·HOLD·CLOSE). 문제별 행동 경로에서만 채우며
     # 비어 있으면 역할 단위 경로다. 채워진 문제의 결과는 산출물의 존재가 아니라 이 선택이 정한다.
     decisions: dict[str, str]
