@@ -13,9 +13,12 @@ from hops_ai.agents.inquiry.extraction import InquiryExtraction, QuotedValue
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.services.runs.supervisor import SupervisorPipeline
+from hops_ai.supervisor.decision import SupervisorDecision
 from hops_ai.supervisor.decisions import apply_reply
 from hops_ai.supervisor.execution import RoleRequest
 from hops_ai.supervisor.merge import merge_inquiry_result
+from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import make_request, reserve, running_state
 from tests.unit.test_inquiry_agent import (
     EA_SYMPTOM,
@@ -23,6 +26,8 @@ from tests.unit.test_inquiry_agent import (
     first_message_request,
     services_for,
 )
+from tests.unit.test_knowledge_agent import RecordingSource
+from tests.unit.test_knowledge_wiring import services_for as runtime_services_for
 from tests.unit.test_problem_graph import REF, prompt_versions, run, select
 from tests.unit.test_supervisor_reply import (
     CLARIFY_ANSWER,
@@ -144,3 +149,67 @@ async def test_a_reply_cannot_close_a_run_whose_analysis_found_a_problem() -> No
 
     with pytest.raises(OutputRejected, match="대화 응답"):
         apply_reply(merge_inquiry_result(state, result))
+
+
+# --- 설정으로 켠 실제 구성(SupervisorPipeline)을 통과한다 ---
+
+
+def flag_on_pipeline(llm) -> SupervisorPipeline:
+    """`HOPS_AI_KNOWLEDGE_ASSESSMENT`를 켠 main.py의 구성과 같다: 검색 연결과 판정 켜기만 준다."""
+    return SupervisorPipeline(llm, knowledge_source=RecordingSource(), assess_evidence=True)
+
+
+@pytest.mark.parametrize(
+    ("request_", "answer", "waits"),
+    [
+        (first_message_request("안녕하세요"), GREETING_ANSWER, False),
+        (pending_problem_conversation("안녕하세요"), FOLLOW_UP_GREETING_ANSWER, False),
+        (pending_problem_conversation("감사합니다!"), THANKS_ANSWER, False),
+    ],
+    ids=["greeting", "greeting-with-pending-problem", "thanks-with-pending-problem"],
+)
+async def test_the_flag_on_configuration_replies_to_courtesy_without_a_model_call(
+    request_, answer, waits
+) -> None:
+    llm = FakeLLMClient()
+    pipeline = flag_on_pipeline(llm)
+    assert pipeline._supervisor._problem_actions is True  # noqa: SLF001
+
+    result = await pipeline.run(request_, runtime_services_for(request_, llm).runtime)
+
+    assert result.status == "SUCCEEDED" and result.answer == answer
+    assert result.requiresFollowUp is waits
+    assert llm.requests == []
+
+
+async def test_the_flag_on_configuration_clarifies_when_analysis_finds_nothing() -> None:
+    request = first_message_request("혹시 시간 괜찮으세요?")
+    llm = FakeLLMClient(InquiryExtraction(problems=[]))
+
+    result = await flag_on_pipeline(llm).run(request, runtime_services_for(request, llm).runtime)
+
+    assert result.status == "SUCCEEDED" and result.answer == CLARIFY_ANSWER
+    assert result.requiresFollowUp is True
+
+
+@pytest.mark.parametrize("message", ["안녕하세요", "감사합니다!"])
+async def test_flag_on_and_flag_off_give_the_same_reply(message) -> None:
+    """켜고 끄는 것이 인사·감사 응답의 내용을 바꾸지 않는다. 다른 점은 모델 호출 수뿐이다."""
+    request = first_message_request(message)
+    kind = "THANKS" if "감사" in message else "GREETING"
+    off_llm = FakeLLMClient(
+        SupervisorDecision(nextAction="REPLY", role=None, publicSummary="대화 응답", replyKind=kind)
+    )
+    on_llm = FakeLLMClient()
+
+    off = await SupervisorPipeline(off_llm, knowledge_source=RecordingSource()).run(
+        request, runtime_services_for(request, off_llm).runtime
+    )
+    on = await flag_on_pipeline(on_llm).run(request, runtime_services_for(request, on_llm).runtime)
+
+    assert (on.status, on.answer, on.requiresFollowUp) == (
+        off.status,
+        off.answer,
+        off.requiresFollowUp,
+    )
+    assert len(off_llm.requests) == 1 and on_llm.requests == []
