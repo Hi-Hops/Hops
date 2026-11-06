@@ -10,7 +10,10 @@
 - 검색 0건(EMPTY)에는 안내를 만들지 않고, 검색 오류(ERROR)를 0건으로 바꾸지 않는다.
 - 안내는 직원 공개 GUIDE 근거가 있을 때만 제안한다. 담당자 전용 자료는 근거에 포함될 수
   있어도 안내문에 쓰지 않는다.
-- 이 역할은 현재 상담 실행에서 안내로 끝나는 유형(사용법) 문제 하나의 안내만 다룬다. 관계
+- 호출에 대상 문제(`targets`)가 없으면(역할 단위 결정 경로) 안내로 끝나는 유형(사용법) 문제
+  하나의 안내만 다루고 지식 종류는 제한하지 않는다. 대상이 있으면(문제별 행동 경로) 그 문제를
+  정책 표의 검색 종류로 검색하며, 아직 하지 않은 질의를 하나 고른다. 첫 질의는 문제 자신의
+  정보로 만든 기존 질의이고, 재검색은 ②의 키워드만, 키워드와 확인한 상세 값 순서다. 관계
   조회(Neo4j)는 포함하지 않는다.
 - assess_evidence를 켜면 검색 뒤에 근거의 충분성 판정(Assessment)을 한 번 더 만든다. 결과가
   1건 이상일 때만 모델을 부르고(문제당 1회), 0건은 코드가 NO_MATCH로 확정한다. 검색 오류는
@@ -22,6 +25,7 @@
 Supervisor 병합 단계가 현재 접근 범위와 다시 대조한다.
 """
 
+from dataclasses import replace
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -42,7 +46,7 @@ from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
 from hops_ai.rules.assessment import no_match_assessment, validate_assessment
-from hops_ai.rules.intent_policy import is_guide_type
+from hops_ai.rules.intent_policy import is_guide_type, search_kinds
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.retrieval.knowledge_source import (
@@ -73,8 +77,11 @@ class SearchKnowledgeAgent:
         state = call.state
         if state["input"].kind != RunKind.INQUIRY_ANALYSIS:
             raise OutputRejected("이 Knowledge 구현은 상담 실행의 안내만 다룬다")
-        target = _guide_target(state)
-        query = _build_query(state, target, services)
+        if call.targets:
+            target, query = _targeted_search(state, call.targets, services)
+        else:
+            target = _guide_target(state)
+            query = _build_query(state, target, services)
         try:
             hits = list(await self._source.search(query))
         except RetrievalUnavailable:
@@ -171,6 +178,84 @@ def guidable_problem(state: SupervisorState) -> ProblemProposal | None:
             continue
         return problem
     return None
+
+
+def _targeted_search(
+    state: SupervisorState, targets: tuple[str, ...], services: SharedServices
+) -> tuple[ProblemProposal, KnowledgeQuery]:
+    """문제별 행동 경로의 검색 대상과 질의. 한 호출은 문제 하나를 다룬다."""
+    if len(targets) != 1:
+        raise OutputRejected("Knowledge 호출은 문제 하나를 대상으로 한다")
+    problem = state["problems"].get(targets[0])
+    if problem is None:
+        raise OutputRejected("존재하지 않는 문제를 검색할 수 없다")
+    if not problem.reportedSystemCandidateId:
+        raise OutputRejected("보고 시스템이 정해지지 않은 문제는 검색할 수 없다")
+    if not search_kinds(problem.intent, state["input"].accessContext.allowedDocumentScopes):
+        raise OutputRejected("이 의도는 이번 실행에서 검색하지 않는다")
+    query = next_query(state, problem, services)
+    if query is None:
+        raise OutputRejected("아직 하지 않은 새 질의가 없다")
+    return problem, query
+
+
+def candidate_queries(
+    state: SupervisorState, problem: ProblemProposal, services: SharedServices | None = None
+) -> list[KnowledgeQuery]:
+    """문제별 행동 경로가 쓸 질의 후보를 쓰는 순서대로 돌려준다. 검색하지 않는 의도는 비어 있다.
+
+    첫 번째는 문제 자신의 정보로 만든 기존 질의(정책 표의 검색 종류를 더함)다. 이어서 ②의
+    키워드만으로 만든 질의, 키워드와 확인한 상세 값을 함께 쓴 질의가 있다. 키워드가 없으면
+    첫 번째뿐이다. 같은 지문의 질의는 한 번만 나온다.
+    """
+    request = state["input"]
+    kinds = search_kinds(problem.intent, request.accessContext.allowedDocumentScopes)
+    if not kinds:
+        return []
+    base = replace(_build_query(state, problem, services), kinds=kinds)
+    queries = [base]
+    keywords = _searchable_keywords(state, problem)
+    if keywords:
+        keyword_text = " ".join(keywords)
+        queries.append(replace(base, text=keyword_text))
+        details = _detail_values(problem)
+        if details:
+            queries.append(replace(base, text="\n".join([keyword_text, *details])))
+    unique: dict[str, KnowledgeQuery] = {}
+    for query in queries:
+        unique.setdefault(query.digest(), query)
+    return list(unique.values())
+
+
+def next_query(
+    state: SupervisorState, problem: ProblemProposal, services: SharedServices | None = None
+) -> KnowledgeQuery | None:
+    """이번 실행에서 그 문제에 아직 쓰지 않은 첫 질의 후보. 없으면 None이다.
+
+    지문이 없는 이전 검색 결과가 있으면 어떤 질의였는지 알 수 없어 다시 검색하지 않는다.
+    """
+    searched = searched_queries(state).get(problem.problemRef, set())
+    if None in searched:
+        return None
+    for query in candidate_queries(state, problem, services):
+        if query.digest() not in searched:
+            return query
+    return None
+
+
+def research_used(state: SupervisorState, problem_ref: str) -> int:
+    """이번 실행에서 그 문제를 첫 검색 뒤에 다시 검색한 횟수."""
+    return max(0, len(searched_queries(state).get(problem_ref, ())) - 1)
+
+
+def _searchable_keywords(state: SupervisorState, problem: ProblemProposal) -> list[str]:
+    """②의 키워드에서 시스템 이름·코드를 뺀 것. 시스템은 검색 범위로 따로 좁히므로 질의에 넣으면
+    점수 분모만 키운다. 시스템 이름이 통째로 들어 있는 키워드를 뺀다."""
+    analysis = state["analysis"].get(problem.problemRef)
+    if analysis is None:
+        return []
+    names = {name for system in state["input"].systems for name in (system.name, system.code)}
+    return [word for word in analysis.keywords if not any(name in word for name in names)]
 
 
 def _guide_target(state: SupervisorState) -> ProblemProposal:

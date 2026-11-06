@@ -88,6 +88,9 @@ class RoleRequest:
 
     invocation_id: str
     state: SupervisorState
+    # 이번 호출이 다룰 문제 참조. 비어 있으면 역할이 대상을 스스로 고른다(역할 단위 결정 경로).
+    # 문제별 행동 경로에서만 채운다. 실행기가 State의 문제인지 확인한 뒤 전달한다.
+    targets: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

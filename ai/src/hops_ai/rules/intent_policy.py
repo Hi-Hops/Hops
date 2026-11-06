@@ -8,7 +8,7 @@
 양식 모듈에 둔다. 에이전트·Supervisor 패키지를 불러오지 않는다.
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Literal, get_args
@@ -31,7 +31,7 @@ class IntentPolicy:
         못한 경우에 한해 담당자 검토(REVIEW_REQUIRED) 티켓을 허용한다.
     knowledge_kinds: 검색할 지식 종류의 **기본값**(초안). 비어 있으면 검색하지 않는 것이 기본이다.
         접근 범위가 아니다. 직원 상담의 기본 프로필은 이 값과 무관하게 직원 공개 자료만 읽는다.
-        아직 어떤 코드도 이 값을 읽지 않으며, 검색·평가 단계가 읽을 때 값을 확정한다.
+        문제별 행동 경로의 검색이 `search_kinds`로 읽는다. 값은 측정으로 확정한다.
     """
 
     processing_type: ProcessingType
@@ -131,6 +131,23 @@ GUIDE_TYPES: frozenset[ProcessingType] = frozenset(
 def policy_for(intent: Intent) -> IntentPolicy:
     """의도의 정책. 표는 시작할 때 모든 의도를 담는지 확인하므로 항목이 항상 있다."""
     return INTENT_POLICIES[intent]
+
+
+# 담당자 전용 자료만 있는 종류. 접근 범위에 SYSTEM_STAFF가 없으면 요청 자체가 거부된다.
+STAFF_ONLY_KINDS: frozenset[KnowledgeKind] = frozenset({"RUNBOOK"})
+
+
+def search_kinds(intent: Intent, allowed_scopes: Collection[str]) -> frozenset[KnowledgeKind]:
+    """그 의도가 이번 실행에서 실제로 검색할 지식 종류.
+
+    정책 표의 기본값에서 접근 범위로 읽을 수 없는 종류를 뺀다. 직원 상담(직원 공개 범위만)에서
+    담당자 전용 런북을 요청하면 Spring이 검색 실패(DENIED)로 처리하므로 처음부터 요청하지 않는다.
+    결과가 비어 있으면 그 의도는 이번 실행에서 검색하지 않는다.
+    """
+    kinds = policy_for(intent).knowledge_kinds
+    if "SYSTEM_STAFF" not in allowed_scopes:
+        kinds = kinds - STAFF_ONLY_KINDS
+    return frozenset(kinds)
 
 
 def is_ticketable(processing_type: str) -> bool:

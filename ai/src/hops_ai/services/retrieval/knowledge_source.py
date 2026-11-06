@@ -20,6 +20,9 @@ from hops_ai.contracts.wire import AccessScope, KnowledgeEvidence
 
 MAX_TOP_K = 5
 
+# 검색할 수 있는 지식 종류(공통 계약의 KnowledgeEvidence.kind).
+KNOWLEDGE_KINDS = frozenset({"GUIDE", "POLICY", "RUNBOOK", "CASE"})
+
 # Spring 내부 읽기 API를 부르는 업무 도구 이름. 역할별 도구 허용 목록과 호출 한도(toolCalls)에 쓴다.
 SEARCH_KNOWLEDGE = "search_knowledge"
 SEARCH_RELATIONS = "search_relations"
@@ -54,6 +57,11 @@ class KnowledgeQuery:
     # 지원 시스템의 안정적인 코드 → ID. 코드로 자료를 구분하는 구현이 ID를 찾는 데 쓴다.
     system_ids_by_code: Mapping[str, str]
     top_k: int = MAX_TOP_K
+    # 검색할 지식 종류. None이면 접근 범위 안의 모든 종류다(역할 단위 결정 경로의 기존 동작).
+    # 값이 있으면 비어 있지 않은 KNOWLEDGE_KINDS의 부분집합이어야 한다. 접근 범위로 읽을 수 없는
+    # 종류(직원 범위의 담당자 전용 런북)를 넣으면 Spring이 검색 실패(DENIED)로 처리하므로 호출 측이
+    # 미리 뺀다(rules.intent_policy.search_kinds).
+    kinds: frozenset[str] | None = None
     # Spring 내부 API 구현이 쓰는 실행 문맥. 고정 자료는 쓰지 않는다. 비교·지문에서 제외한다.
     run: RunLink | None = field(default=None, compare=False, repr=False)
 
@@ -62,19 +70,21 @@ class KnowledgeQuery:
             raise ValueError("검색어가 비어 있다")
         if not 1 <= self.top_k <= MAX_TOP_K:
             raise ValueError("검색 결과 수는 1~5건이어야 한다")
+        if self.kinds is not None and (not self.kinds or not self.kinds <= KNOWLEDGE_KINDS):
+            raise ValueError("검색 종류는 비어 있지 않은 지식 종류의 부분집합이어야 한다")
 
     def digest(self) -> str:
         """같은 검색인지 비교하는 지문. 검색어와 접근 범위·시스템·건수가 같으면 같다."""
-        canonical = json.dumps(
-            {
-                "text": self.text,
-                "scopes": sorted(self.allowed_scopes),
-                "systems": sorted(self.system_ids),
-                "topK": self.top_k,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
+        fields: dict = {
+            "text": self.text,
+            "scopes": sorted(self.allowed_scopes),
+            "systems": sorted(self.system_ids),
+            "topK": self.top_k,
+        }
+        # 종류를 지정하지 않은 질의는 종류가 없던 때와 같은 지문을 유지한다.
+        if self.kinds is not None:
+            fields["kinds"] = sorted(self.kinds)
+        canonical = json.dumps(fields, ensure_ascii=False, sort_keys=True)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
