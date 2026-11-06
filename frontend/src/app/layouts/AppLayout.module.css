@@ -168,7 +168,7 @@
 .sidebar > nav {
   flex: 0 0 auto;
 }
-/* 구역 제목은 선택 메뉴가 아니므로 구분선으로 분리한다. 채팅 세션 구역과 같은 형태다. */
+/* 구역 제목은 선택 메뉴가 아니므로 아이콘 없이 구분선으로 분리한다. 채팅 세션 구역과 같은 형태다. */
 .navSection {
   margin-top: var(--space-6);
   padding-top: var(--space-4);
@@ -184,13 +184,20 @@
 .active {
   display: flex;
   position: relative;
-  gap: var(--space-3);
+  gap: var(--space-2);
   align-items: center;
   min-height: var(--control-height);
   margin-bottom: 2px;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   color: var(--color-text-secondary);
+}
+.link:hover {
+  background: var(--color-sunken);
+}
+.link > svg,
+.active > svg {
+  flex: none;
 }
 .active {
   background: var(--color-primary-soft);

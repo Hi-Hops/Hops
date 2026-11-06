@@ -2,6 +2,7 @@ import { NavLink } from 'react-router';
 import { paths } from '@/shared/config/paths';
 import { displayDate } from '@/shared/lib/date';
 import { Button } from '@/shared/ui/Button';
+import { NavIcon } from '@/shared/ui/NavIcon';
 import { useInquirySessions } from '../api/inquiryApi';
 import { systemStatus } from '../model/systemStatus';
 import styles from './InquiryList.module.css';
@@ -19,7 +20,7 @@ export function RecentInquiries() {
       <div className={styles.sessions}>
         {query.isPending && <p role="status">채팅 세션을 불러오고 있어요.</p>}
         {!query.isPending && !query.isError && items.length === 0 && (
-          <p>아직 문의가 없어요. + 새 문의로 시작해 주세요.</p>
+          <p>아직 문의가 없어요. 새 문의로 시작해 주세요.</p>
         )}
         {items.map((item) => (
           <NavLink
@@ -27,10 +28,10 @@ export function RecentInquiries() {
             to={paths.inquiryChat(item.id)}
             className={({ isActive }) => (isActive ? styles.current : styles.recentLink)}
           >
-            <span
-              className={styles.dot}
+            <NavIcon
+              name="chat"
+              className={styles.sessionIcon}
               data-tone={systemStatus(item.status).tone}
-              aria-hidden="true"
             />
             <div className={styles.sessionText}>
               <strong>{item.title}</strong>

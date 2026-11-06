@@ -7,6 +7,7 @@ import { logout, refreshSession, useSession } from '@/features/auth';
 import { RealtimeBoundary } from '@/features/realtime';
 import { RecentInquiries } from '@/features/inquiry';
 import { Button } from '@/shared/ui/Button';
+import { NavIcon } from '@/shared/ui/NavIcon';
 import { onSessionEvent } from '@/shared/lib/sessionEvents';
 import styles from './AppLayout.module.css';
 
@@ -172,7 +173,7 @@ export function AppLayout() {
                 to="/"
                 className={({ isActive }) => (isActive ? styles.active : styles.link)}
               >
-                + 새 문의
+                <NavIcon name="plus" />새 문의
               </NavLink>
               {/* 채팅 경로도 /inquiries로 시작하므로 내 문의 목록에서만 선택 표시한다. */}
               <NavLink
@@ -180,7 +181,7 @@ export function AppLayout() {
                 to={paths.inquiries}
                 className={({ isActive }) => (isActive ? styles.active : styles.link)}
               >
-                내 문의
+                <NavIcon name="inquiries" />내 문의
               </NavLink>
               {user.primarySystemIds.length > 0 && (
                 <section className={styles.navSection} aria-labelledby="work-nav-title">
@@ -191,12 +192,14 @@ export function AppLayout() {
                     to={paths.tickets}
                     className={({ isActive }) => (isActive ? styles.active : styles.link)}
                   >
+                    <NavIcon name="tickets" />
                     담당 시스템 업무
                   </NavLink>
                   <NavLink
                     to={paths.cases}
                     className={({ isActive }) => (isActive ? styles.active : styles.link)}
                   >
+                    <NavIcon name="cases" />
                     해결 사례 검토
                   </NavLink>
                 </section>
@@ -206,6 +209,7 @@ export function AppLayout() {
                   to={paths.adminTickets}
                   className={({ isActive }) => (isActive ? styles.active : styles.link)}
                 >
+                  <NavIcon name="admin" />
                   업무 관리
                 </NavLink>
               )}
