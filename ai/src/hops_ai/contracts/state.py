@@ -9,7 +9,13 @@ from dataclasses import dataclass
 from typing import Literal, TypedDict
 
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import AuthorizedKnowledgeRef, RoleResult
+from hops_ai.contracts.roles import (
+    Assessment,
+    AuthorizedKnowledgeRef,
+    ProblemAnalysis,
+    RelationNeighbors,
+    RoleResult,
+)
 from hops_ai.contracts.wire import (
     AiError,
     AiResult,
@@ -49,6 +55,9 @@ class SupervisorState(TypedDict):
     """계약 S3의 내부 State. 역할은 결과만 반환하고 실행기가 새 State를 병합한다."""
 
     input: AiRunRequest
+    # 문제별 행동 경로(판정 모드)로 도는 실행인지. 참이면 안내할 수 있는 문제의 정의가 판정을 따른다
+    # (rules.progress.problems_without_guide). 거짓이면 역할 단위 경로의 기존 규칙이다.
+    judgment: bool
     phase: RunPhase
     activeRole: AgentRole | Literal["SUPERVISOR"] | None
     nextAction: (
@@ -58,6 +67,17 @@ class SupervisorState(TypedDict):
     # REPLY로 끝나는 대화 응답의 종류. 다른 행동에서는 None이다.
     replyKind: Literal["GREETING", "THANKS", "CLARIFY"] | None
     problems: dict[str, ProblemProposal]
+    # 문제별 검색 힌트(키워드·기능 후보). 내부 전용이며 AiResult에 싣지 않는다.
+    analysis: dict[str, ProblemAnalysis]
+    # 문제별 검색 근거의 충분성 판정(문제당 가장 최근의 유효한 판정). 내부 전용이며 AiResult에
+    # 싣지 않는다. 판정이 없는 문제는 키가 없다(검색 생략·오류·평가 실패·예산 부족).
+    assessments: dict[str, Assessment]
+    # 문제별 관계 조회 결과(확인 항목과 승인된 질문 문구). 내부 전용이며 AiResult에 싣지 않는다.
+    # 조회하지 않은 문제는 키가 없다.
+    relations: dict[str, RelationNeighbors]
+    # 문제별로 고른 종료 행동(ANSWER·ASK·TICKET·HOLD·CLOSE). 문제별 행동 경로에서만 채우며
+    # 비어 있으면 역할 단위 경로다. 채워진 문제의 결과는 산출물의 존재가 아니라 이 선택이 정한다.
+    decisions: dict[str, str]
     questions: dict[tuple[str, str], QuestionProposal]
     evidence: dict[str, KnowledgeEvidence]
     guide: GuideProposal | None
@@ -86,6 +106,12 @@ class RoleRequest:
 
     invocation_id: str
     state: SupervisorState
+    # 이번 호출이 다룰 문제 참조. 비어 있으면 역할이 대상을 스스로 고른다(역할 단위 결정 경로).
+    # 문제별 행동 경로에서만 채운다. 실행기가 State의 문제인지 확인한 뒤 전달한다.
+    targets: tuple[str, ...] = ()
+    # 역할 안의 행동 이름. 없으면 역할의 기본 동작이다. 문제별 행동 경로의 Inquiry는 "ASK"로 질문만
+    # 만든다(모델 호출 없음).
+    action: str | None = None
 
 
 @dataclass(frozen=True)

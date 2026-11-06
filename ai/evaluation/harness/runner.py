@@ -26,6 +26,9 @@ class RunConfig:
     # 사용자 응답을 주고받는 최대 횟수. 문제당 질문 한도(5)보다 넉넉히 잡아 한도 위반도 관찰한다.
     max_turns: int = 7
     limits: Mapping[str, int] | None = None
+    # 문제별 행동 경로(판정 모드)로 Supervisor를 돌린다. 역할 조합은 호출자가 이 경로에 맞게
+    # 만든다(질문 분리 `defer_questions` 등). 끄면 역할 단위 결정 경로다.
+    judgment: bool = False
 
     def __post_init__(self) -> None:
         if self.max_turns < 1:
@@ -58,6 +61,7 @@ async def run_scenario(
         pipeline = SupervisorPipeline(
             RecordingLLM(llm, log),
             {role: RecordingAgent(agent, log) for role, agent in agents.items()},
+            problem_actions=cfg.judgment,
         )
         context = RunContext.create(
             run_id=request.runId,

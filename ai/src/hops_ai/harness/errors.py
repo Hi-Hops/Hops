@@ -70,6 +70,14 @@ class OutputRejected(GuardViolation):
     safe_message = "모델 출력이 검증을 통과하지 못했다"
 
 
+class MalformedOutput(OutputRejected):
+    """모델이 응답은 냈지만 출력 형식을 어겼다. 같은 요청을 다시 보내면 달라질 수 있어 재시도한다.
+
+    재시도를 모두 쓰고도 실패하면 그대로 OutputRejected(INVALID_OUTPUT)로 알린다.
+    거부·미완료·구조 오류·요청 거절처럼 다시 보내도 같을 가능성이 큰 실패는 이 예외가 아니다.
+    """
+
+
 class TransientError(HarnessError):
     """일시 오류. 자동 재시도 대상이며 모델 연결 장애·시간 초과·속도 제한이 여기에 해당한다."""
 

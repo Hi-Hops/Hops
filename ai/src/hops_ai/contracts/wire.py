@@ -222,9 +222,14 @@ class SystemFeature(WireModel):
     name: WireText
 
 
+# 지원 시스템의 안정적인 코드. 어떤 시스템이 있는지는 요청이 알려 주므로 값 목록을 코드에 두지 않고
+# 형식만 검사한다(대문자·숫자·밑줄). 허용 코드 집합은 서버가 보낸 시스템 목록이 정한다.
+SystemCode = Annotated[StrictStr, Field(pattern=r"^[A-Z][A-Z0-9_]{1,63}$")]
+
+
 class SupportedSystem(WireModel):
     id: WireUuid
-    code: Literal["ELECTRONIC_APPROVAL", "COMMON_LOGIN", "FILE_SHARING"]
+    code: SystemCode
     name: WireText
     features: list[SystemFeature]
 

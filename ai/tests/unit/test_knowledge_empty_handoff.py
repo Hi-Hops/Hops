@@ -227,6 +227,8 @@ def how_to_extraction(*, desired: QuotedValue | None = None) -> InquiryExtractio
                 businessPurpose=None,
                 desiredChange=None,
                 unknownFields=[],
+                keywords=[],
+                featureCandidates=[],
             )
         ]
     )

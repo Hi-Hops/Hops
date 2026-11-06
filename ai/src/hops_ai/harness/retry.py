@@ -13,6 +13,7 @@ from hops_ai.harness.budget import RunBudget
 from hops_ai.harness.errors import (
     CallTimeoutError,
     LlmCallLimitExceeded,
+    MalformedOutput,
     OutputRejected,
     TransientError,
 )
@@ -42,7 +43,10 @@ async def call_with_retry[T](
     max_delay: float = DEFAULT_MAX_DELAY,
     ensure_active: Callable[[], None] | None = None,
 ) -> T:
-    """operation을 예산 안에서 실행하고 일시 오류(TransientError)와 시간 초과만 재시도한다.
+    """operation을 예산 안에서 실행하고 일시 오류(TransientError)·시간 초과·형식 위반만 재시도한다.
+
+    형식 위반(MalformedOutput)은 서버가 알려 준 대기 시간이 없으므로 지수 백오프를 쓰고,
+    재시도를 다 쓰면 그대로 INVALID_OUTPUT으로 알린다.
 
     - 시도마다 모델 호출 1회를 예약한다. 상한이나 마감을 넘으면 새 호출을 시작하지 않는다.
     - 호출 시간 제한은 이 함수가 강제한다. 초과하면 일시 오류로 보고 재시도 대상이 된다.
@@ -68,8 +72,8 @@ async def call_with_retry[T](
             async with asyncio.timeout(timeout):
                 result = await operation()
         except TimeoutError:
-            failure: TransientError = CallTimeoutError()
-        except TransientError as error:
+            failure: TransientError | MalformedOutput = CallTimeoutError()
+        except (TransientError, MalformedOutput) as error:
             failure = error
         else:
             check_active()
@@ -82,8 +86,9 @@ async def call_with_retry[T](
             raise failure
         if budget.llm_calls_used >= budget.max_llm_calls:
             raise LlmCallLimitExceeded
-        if failure.retry_after is not None:
-            delay = failure.retry_after
+        retry_after = failure.retry_after if isinstance(failure, TransientError) else None
+        if retry_after is not None:
+            delay = retry_after
         else:
             delay = backoff_delay(retries, base=base_delay, cap=max_delay, rng=rng)
         if type(delay) not in (int, float) or not math.isfinite(delay) or delay < 0:

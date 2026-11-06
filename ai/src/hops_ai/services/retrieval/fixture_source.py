@@ -47,6 +47,7 @@ class FixtureKnowledgeSource:
                 document.access_scope not in query.allowed_scopes
                 or system_id is None
                 or system_id not in query.system_ids
+                or (query.kinds is not None and document.kind not in query.kinds)
             ):
                 continue
             matched = _matched_keywords(document, text)

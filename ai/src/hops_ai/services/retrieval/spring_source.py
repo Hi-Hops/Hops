@@ -158,6 +158,9 @@ class SpringKnowledgeSource(_SpringReader):
         if query.system_ids:
             # 요청은 실행의 접근 시스템을 좁히기만 한다. 한도를 넘으면 앞쪽만 보내 더 좁게 찾는다.
             body["systemIds"] = sorted(query.system_ids)[:MAX_REQUEST_SYSTEMS]
+        if query.kinds is not None:
+            # 종류도 접근 범위를 좁히기만 한다. 지정하지 않으면 접근 범위 안의 모든 종류다.
+            body["kinds"] = sorted(query.kinds)
         data = await self._post(
             run,
             f"/internal/v2/runs/{run.run_id}/knowledge-searches",

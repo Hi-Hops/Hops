@@ -177,6 +177,8 @@ def scripted_llm(request, *, compound=False):
         businessPurpose=None,
         desiredChange=None,
         unknownFields=[],
+        keywords=[],
+        featureCandidates=[],
     )
     problems = [extracted]
     decisions = [

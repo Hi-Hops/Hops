@@ -15,24 +15,39 @@ from langgraph.graph import END, START, StateGraph
 
 from hops_ai.agents.base import Agent, pending_agents
 from hops_ai.contracts.domain import AgentRole
+from hops_ai.contracts.execution import RunKind
+from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected
+from hops_ai.rules.legal_actions import legal_actions, run_actions
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.choices import Choices, compute_choices
 from hops_ai.supervisor.decision import SupervisorDecision, decide_next_action
+from hops_ai.supervisor.decisions import apply_decision, apply_reply, prepare_decision
 from hops_ai.supervisor.execution import execute_role
+from hops_ai.supervisor.facts import pending_problem_refs, problem_facts
 from hops_ai.supervisor.finalize import finalize_result
 from hops_ai.supervisor.runtime import (
     SupervisorRuntime,
     describe_failure_for_log,
     describe_run_failure,
 )
+from hops_ai.supervisor.selection import choose_actions
 from hops_ai.supervisor.state import SupervisorState, create_initial_state, transition_phase
+from hops_ai.supervisor.validation import confirmed_courtesy, is_reply, reply_allowed
 
 logger = logging.getLogger(__name__)
 
 DECIDE = "decide"
 FINISH = "finish"
+# 문제별 행동 경로(판정 모드)의 노드 이름과 실행 단위 행동의 키.
+SELECT = "select"
+STEP = "step"
+RUN_ACTION = "__run__"
+REPLY_ACTION = "__reply__"
+# 판정 모드 그래프의 안전망 반복 한도. 종료는 합법 행동의 규칙(같은 질의 금지, 재검색 상한, 종료
+# 행동 확정)이 보장하고, 실제 호출 상한은 모델 호출 예산이 막는다.
+PROBLEM_GRAPH_RECURSION_LIMIT = 60
 # 역할 노드의 이름. 진행 이벤트·추적의 역할 이름(role.value)과 노드 이름을 한 곳에서 맞춘다.
 ROLE_NODES: dict[AgentRole, str] = {role: role.value.lower() for role in AgentRole}
 
@@ -43,6 +58,13 @@ class _GraphState(TypedDict):
     state: SupervisorState
     decision: SupervisorDecision | None
     choices: Choices | None
+
+
+class _ProblemGraphState(TypedDict):
+    """판정 모드 그래프의 작업 State와 이번 반복에서 고른 문제별 행동. 외부에 반환하지 않는다."""
+
+    state: SupervisorState
+    plan: dict[str, str] | None
 
 
 @dataclass
@@ -69,6 +91,7 @@ class Supervisor:
         agents: Mapping[AgentRole, Agent] | None = None,
         *,
         restrict_roles: bool = False,
+        problem_actions: bool = False,
     ) -> None:
         """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다.
 
@@ -77,6 +100,8 @@ class Supervisor:
         """
         self._agents = dict(pending_agents() if agents is None else agents)
         self._restrict_roles = restrict_roles
+        # 참이면 상담 실행을 문제별 행동 경로로 돈다(판정 모드). 사례 초안은 기존 경로 그대로다.
+        self._problem_actions = problem_actions
 
     async def analyze(self, request: AiRunRequest, services: SharedServices) -> AiResult:
         """문의 분석 또는 사례 초안 실행을 최종 AiResult로 반환한다.
@@ -99,7 +124,9 @@ class Supervisor:
         """
         if not isinstance(request, AiRunRequest) or not isinstance(services, SharedServices):
             raise InputRejected("실행 요청과 공유 서비스가 필요하다")
-        initial = create_initial_state(request)
+        # 판정 모드는 상담 실행에서만 쓴다. 사례 초안은 Curator를 쓰는 기존 경로다.
+        judgment = self._problem_actions and request.kind == RunKind.INQUIRY_ANALYSIS
+        initial = create_initial_state(request, judgment=judgment)
         runtime = SupervisorRuntime(initial["input"], services)
         last = _LastConfirmed(initial)
 
@@ -107,7 +134,8 @@ class Supervisor:
             last.state = transition_phase(runtime.sync_state(initial), "RUNNING")
             # 각 순환은 모델 호출을 소비한다. 그래프 자체 한도도 호출 상한에 맞춘다.
             limit = min(request.limits.maxModelCalls, services.runtime.budget.max_llm_calls)
-            await runtime.run(self._stream(runtime, last, 2 * limit + 4))
+            recursion_limit = PROBLEM_GRAPH_RECURSION_LIMIT if judgment else 2 * limit + 4
+            await runtime.run(self._stream(runtime, last, recursion_limit, judgment=judgment))
             # 비동기 실행의 취소·마감 검사를 마친 뒤 결과를 한 번만 고정한다.
             candidate = finalize_result(runtime.sync_state(last.state))
             # 본문·출처 검증에 걸린 시간도 서버의 더 짧은 실행 기한에 포함한다.
@@ -130,11 +158,22 @@ class Supervisor:
         return result
 
     async def _stream(
-        self, runtime: SupervisorRuntime, last: _LastConfirmed, recursion_limit: int
+        self,
+        runtime: SupervisorRuntime,
+        last: _LastConfirmed,
+        recursion_limit: int,
+        *,
+        judgment: bool = False,
     ) -> None:
         """그래프를 끝까지 실행하며 단계마다 확정된 State를 기록한다."""
-        graph = self._build_graph(runtime)
-        first = _GraphState(state=last.state, decision=None, choices=None)
+        if judgment:
+            graph = self._build_problem_graph(runtime)
+            first: _GraphState | _ProblemGraphState = _ProblemGraphState(
+                state=last.state, plan=None
+            )
+        else:
+            graph = self._build_graph(runtime)
+            first = _GraphState(state=last.state, decision=None, choices=None)
         async for values in graph.astream(
             first, config={"recursion_limit": recursion_limit}, stream_mode="values"
         ):
@@ -194,20 +233,134 @@ class Supervisor:
             decision = data["decision"]
             if decision is None or decision.role != role:
                 raise OutputRejected("호출할 역할이 없다")
-            state = _enter(runtime, data, role.value)
-            with runtime.services.tracing.observe(
-                role.value,
-                {
-                    "targetProblemCount": len(state["input"].problemIds),
-                    "messageCount": len(state["input"].messages),
-                },
-            ) as span:
-                merged = await execute_role(state, role, runtime.services, self._agents)
-                if span is not None:
-                    span.update(output=_role_span_output(runtime, role, state, merged))
-            return _GraphState(state=runtime.sync_state(merged), decision=None, choices=None)
+            merged = await self._call_role(runtime, data["state"], role)
+            return _GraphState(state=merged, decision=None, choices=None)
 
         return run_role
+
+    async def _call_role(
+        self,
+        runtime: SupervisorRuntime,
+        state: SupervisorState,
+        role: AgentRole,
+        *,
+        targets: tuple[str, ...] = (),
+        action: str | None = None,
+    ) -> SupervisorState:
+        """역할 하나를 호출하고 병합 검증을 거친 새 State를 돌려준다. 두 경로가 함께 쓴다."""
+        state = _enter_state(runtime, state, role.value)
+        with runtime.services.tracing.observe(
+            role.value,
+            {
+                "targetProblemCount": len(state["input"].problemIds),
+                "messageCount": len(state["input"].messages),
+            },
+        ) as span:
+            merged = await execute_role(
+                state, role, runtime.services, self._agents, targets=targets, action=action
+            )
+            if span is not None:
+                span.update(output=_role_span_output(runtime, role, state, merged))
+        return runtime.sync_state(merged)
+
+    def _build_problem_graph(self, runtime: SupervisorRuntime):
+        """문제별 행동 경로(판정 모드)의 그래프. 선택과 실행을 종료 행동이 확정될 때까지 반복한다.
+
+        선택(select)은 결과가 없는 문제마다 합법 행동을 계산해 하나씩 고르고, 실행(step)은 고른
+        행동을 한 번씩 실행한다. 모든 문제가 종료 행동을 확정하면 마무리(finish)로 간다.
+        """
+
+        async def select(data: _ProblemGraphState) -> _ProblemGraphState:
+            state = _enter_state(runtime, data["state"], "SUPERVISOR")
+            plan = await self._plan(runtime, state)
+            return _ProblemGraphState(state=runtime.sync_state(state), plan=plan)
+
+        async def step(data: _ProblemGraphState) -> _ProblemGraphState:
+            state = await self._execute_plan(runtime, data["state"], data["plan"] or {})
+            return _ProblemGraphState(state=state, plan=None)
+
+        async def finish(data: _ProblemGraphState) -> _ProblemGraphState:
+            state = runtime.sync_state(data["state"])
+            runtime.ensure_active()
+            return _ProblemGraphState(state=transition_phase(state, "FINALIZING"), plan=None)
+
+        def route(data: _ProblemGraphState) -> str:
+            return STEP if data["plan"] else FINISH
+
+        graph = StateGraph(_ProblemGraphState)
+        graph.add_node(SELECT, select)
+        graph.add_node(STEP, step)
+        graph.add_node(FINISH, finish)
+        graph.add_edge(START, SELECT)
+        graph.add_conditional_edges(SELECT, route, {STEP: STEP, FINISH: FINISH})
+        graph.add_edge(STEP, SELECT)
+        graph.add_edge(FINISH, END)
+        return graph.compile()
+
+    async def _plan(self, runtime: SupervisorRuntime, state: SupervisorState) -> dict[str, str]:
+        """이번 반복에서 할 행동. 실행 단위 행동(분석·대화 응답)이 먼저, 모두 확정하면 비어 있다.
+
+        분석하지 않은 메시지가 확인된 인사·감사뿐이면 분석 없이 대화로 답하고, 분석이 문제를 하나도
+        찾지 못했으면 되묻는다. 둘 다 합법 행동이 하나뿐이라 모델을 부르지 않는다.
+        """
+        if is_reply(state):
+            return {}
+        analyzed = any(isinstance(item, InquiryResult) for item in state["roleResults"].values())
+        replyable = reply_allowed(state)
+        run = run_actions(
+            analyzed=analyzed,
+            courtesy_only=replyable and confirmed_courtesy(state) is not None,
+            no_problem_found=replyable,
+        )
+        if "REPLY" in run:
+            return {REPLY_ACTION: "REPLY"}
+        if "ANALYZE" in run:
+            return {RUN_ACTION: "ANALYZE"}
+        pending = pending_problem_refs(state)
+        if not pending:
+            return {}
+        options = {ref: legal_actions(problem_facts(state, ref)) for ref in pending}
+        with runtime.services.tracing.observe(
+            "SUPERVISOR", {"pendingProblemCount": len(pending)}
+        ) as span:
+            chosen = await choose_actions(state, runtime.services, options)
+            if span is not None:
+                span.update(output={"actions": dict(chosen)})
+        return dict(chosen)
+
+    async def _execute_plan(
+        self, runtime: SupervisorRuntime, state: SupervisorState, plan: Mapping[str, str]
+    ) -> SupervisorState:
+        """고른 행동을 실행한다. 검색·질문처럼 역할이 필요한 행동은 역할을 부르고, 답변·대기·범위
+        밖은 모델 없이 확정한다. 티켓은 고른 문제를 모아 한 번에 제안한다."""
+        if RUN_ACTION in plan:
+            return await self._call_role(runtime, state, AgentRole.INQUIRY)
+        if REPLY_ACTION in plan:
+            return runtime.sync_state(apply_reply(state))
+        tickets: list[str] = []
+        for ref, action in plan.items():
+            if action in ("SEARCH", "RESEARCH"):
+                state = await self._call_role(runtime, state, AgentRole.KNOWLEDGE, targets=(ref,))
+            elif action == "ASK":
+                # 질문이 같은 문제의 안내와 함께 있으면 병합이 거부하므로 먼저 안내를 치운다.
+                state = prepare_decision(state, ref, "ASK")
+                state = await self._call_role(
+                    runtime, state, AgentRole.INQUIRY, targets=(ref,), action="ASK"
+                )
+                state = apply_decision(state, ref, "ASK")
+            elif action == "TICKET":
+                tickets.append(ref)
+            elif action in ("ANSWER", "HOLD", "CLOSE"):
+                state = apply_decision(state, ref, action)
+            else:
+                raise OutputRejected("실행할 수 없는 행동이다")
+        if tickets:
+            for ref in tickets:
+                state = prepare_decision(state, ref, "TICKET")
+            state = await self._call_role(runtime, state, AgentRole.TICKET, targets=tuple(tickets))
+            for ref in tickets:
+                state = apply_decision(state, ref, "TICKET")
+        return runtime.sync_state(state)
 
     async def _finish(self, runtime: SupervisorRuntime, data: _GraphState) -> _GraphState:
         """미완료 호출이 없는지 확인하고 최종화 준비 상태로 이동한다."""
@@ -222,6 +375,13 @@ def _enter(runtime: SupervisorRuntime, data: _GraphState, label: str) -> Supervi
     state = runtime.sync_state(data["state"])
     runtime.services.runtime.report_progress(label)
     return state
+
+
+def _enter_state(runtime: SupervisorRuntime, state: SupervisorState, label: str) -> SupervisorState:
+    """`_enter`와 같되 그래프 State가 아니라 작업 State를 직접 받는다."""
+    synced = runtime.sync_state(state)
+    runtime.services.runtime.report_progress(label)
+    return synced
 
 
 def _route(data: _GraphState) -> str:
@@ -267,4 +427,9 @@ def _role_span_output(
                     "preservedFacts": preserved,
                     "addedFacts": added,
                 }
+        # 검색 힌트의 품질을 측정에서 확인할 수 있게 남긴다. 사용자 응답에는 쓰지 않는다.
+        output["analysisByProblem"] = {
+            ref: {"keywords": item.keywords, "featureCandidates": item.featureCandidates}
+            for ref, item in merged["analysis"].items()
+        }
     return output

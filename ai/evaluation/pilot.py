@@ -29,9 +29,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from evaluation.harness.behavior import check_behavior
 from evaluation.harness.budget import CallCap, CappedLLM
 from evaluation.harness.catalog import SYSTEMS
 from evaluation.harness.checks import check_trace
+from evaluation.harness.corpus_relations import CorpusRelationSource
+from evaluation.harness.corpus_source import CorpusKnowledgeSource
 from evaluation.harness.runner import RunConfig, run_scenario
 from evaluation.harness.scenario import Scenario, load_scenario
 from evaluation.harness.spring_stub import DEFAULT_LIMITS
@@ -78,6 +81,31 @@ def _turn_summary(index: int, turn: TurnTrace) -> dict[str, Any]:
             for call in turn.role_calls
         ],
     }
+    failures = [
+        {"role": call.role.value, "type": call.failed_with, "detail": call.failure_detail}
+        for call in turn.role_calls
+        if call.failed_with
+    ]
+    if failures:
+        summary["roleFailures"] = failures
+    relations = [
+        {
+            "problem": call.problem_ref,
+            "state": call.relation_state,
+            "checkItems": list(call.relation_check_ids),
+        }
+        for call in turn.role_calls
+        if call.relation_state
+    ]
+    if relations:
+        summary["relations"] = relations
+    sources = [
+        {"source": call.question_source, "fallback": call.question_fallback}
+        for call in turn.role_calls
+        if call.question_source
+    ]
+    if sources:
+        summary["questionSources"] = sources
     if result is not None:
         summary["questions"] = [
             {"problemRef": q.problemRef, "fields": q.requestedFields, "text": q.text}
@@ -89,12 +117,79 @@ def _turn_summary(index: int, turn: TurnTrace) -> dict[str, Any]:
         summary["ticketProposals"] = len(result.ticketProposals)
         summary["evidenceCount"] = len(result.evidence)
         summary["error"] = result.error.model_dump(mode="json") if result.error else None
+    hints = _search_hints(turn)
+    if hints:
+        summary["searchHints"] = hints
+    assessments = _assessments(turn)
+    if assessments:
+        summary["assessments"] = assessments
     summary["userReply"] = turn.user_reply
     return summary
 
 
+def _assessments(turn: TurnTrace) -> dict[str, Any]:
+    """검색 호출별 충분성 판정 요약. 평가를 하지 못한 검색도 센다.
+
+    foundWithoutAssessment는 근거가 있는데 판정이 없는 검색 수다. 모델 오류, 검증 거부, 예산
+    부족을 구분하지 않고 "평가 없음"으로 묶는다.
+    """
+    searches = [
+        call
+        for call in turn.role_calls
+        if call.role == AgentRole.KNOWLEDGE and call.search_state in ("FOUND", "EMPTY")
+    ]
+    if not searches:
+        return {}
+    return {
+        "items": [
+            {
+                "problemRef": call.assessment.problem_ref,
+                "verdict": call.assessment.verdict,
+                "supportingEvidence": len(call.assessment.supporting_evidence_ids),
+                "missingInformation": [ref for _, ref in call.assessment.missing_information],
+                "candidateCauses": len(call.assessment.candidate_causes),
+                "rationale": call.assessment.rationale,
+            }
+            for call in searches
+            if call.assessment is not None
+        ],
+        "foundWithoutAssessment": sum(
+            1 for call in searches if call.search_state == "FOUND" and call.assessment is None
+        ),
+    }
+
+
+def _search_hints(turn: TurnTrace) -> list[dict[str, Any]]:
+    """문의 분석이 낸 검색 힌트를 사람이 읽기 쉽게 정리한다. 키워드 품질을 눈으로 확인하는 데 쓴다.
+
+    모델 원본에서 규칙이 버린 값(없는 단어·허용 밖 기능 등)을 함께 보여 규칙이 얼마나 걸러냈는지
+    알 수 있다. 기능은 ID 대신 이름으로 적는다.
+    """
+    names = {
+        feature.id: feature.name for system in turn.request.systems for feature in system.features
+    }
+    hints = []
+    for call in turn.role_calls:
+        for item in call.analysis:
+            hints.append(
+                {
+                    "problemRef": item.problem_ref,
+                    "keywords": list(item.keywords),
+                    "droppedKeywords": [k for k in item.raw_keywords if k not in item.keywords],
+                    "features": [names.get(f, f) for f in item.feature_candidates],
+                    "droppedFeatures": [
+                        names.get(f, f)
+                        for f in item.raw_feature_candidates
+                        if f not in item.feature_candidates
+                    ],
+                }
+            )
+    return hints
+
+
 def summarize(trace: RunTrace, cap: CallCap) -> dict[str, Any]:
     violations = check_trace(trace)
+    behavior = check_behavior(trace)
     return {
         "scenarioId": trace.scenario_id,
         "callCap": {"max": cap.max_calls, "used": cap.used, "exceeded": cap.exceeded},
@@ -118,6 +213,10 @@ def summarize(trace: RunTrace, cap: CallCap) -> dict[str, Any]:
         "turns": [_turn_summary(index, turn) for index, turn in enumerate(trace.turns, start=1)],
         "safetyViolations": [
             {"property": v.property_id, "turn": v.turn, "message": v.message} for v in violations
+        ],
+        # 행동 성질의 관찰. 안전 위반이 아니므로 종료 코드에 넣지 않고 반복 통과율로 본다
+        "behaviorFindings": [
+            {"property": v.property_id, "turn": v.turn, "message": v.message} for v in behavior
         ],
     }
 
@@ -175,6 +274,16 @@ class FaultyKnowledgeSource:
         raise RetrievalUnavailable()
 
 
+def _count_questions(reports: list[dict[str, Any]], source: str) -> int:
+    return sum(
+        1
+        for report in reports
+        for turn in report["turns"]
+        for item in turn.get("questionSources", [])
+        if item["source"] == source
+    )
+
+
 def aggregate(total: CallCap, reports: list[dict[str, Any]]) -> dict[str, Any]:
     ran = [report for report in reports if "skipped" not in report]
     return {
@@ -188,6 +297,10 @@ def aggregate(total: CallCap, reports: list[dict[str, Any]]) -> dict[str, Any]:
             "outputTokens": sum(r["totals"]["outputTokens"] for r in ran),
             "seconds": round(sum(r["totals"]["seconds"] for r in ran), 2),
             "safetyViolations": sum(len(r["safetyViolations"]) for r in ran),
+            # 모델이 쓴 질문 문장 수와, 실패하거나 규칙을 어겨 고정 문구로 대체된 횟수
+            "modelQuestions": _count_questions(ran, "MODEL"),
+            "questionFallbacks": _count_questions(ran, "FIXED_FALLBACK"),
+            "behaviorFindings": sum(len(r["behaviorFindings"]) for r in ran),
             "scenariosHittingTheirCap": [r["scenarioId"] for r in ran if r["callCap"]["exceeded"]],
             "scenariosTimedOut": [r["scenarioId"] for r in ran if "timedOut" in r],
             "scenariosTruncated": [r["scenarioId"] for r in ran if r["truncated"]],
@@ -253,6 +366,11 @@ async def run_batch(
 
 def _build_real(
     model: str | None,
+    *,
+    judgment: bool = False,
+    corpus: bool = False,
+    fixed_questions: bool = False,
+    relations: bool = False,
 ) -> tuple[LLMClient, Callable[[Scenario], Mapping[AgentRole, Agent]], str]:
     from hops_ai.agents.registry import build_registry
     from hops_ai.services.llm.openai import OpenAIClient
@@ -265,9 +383,18 @@ def _build_real(
     settings = Settings(_env_file=None, knowledge_source=KnowledgeSourceKind.FIXTURE)
 
     def agents_for(scenario: Scenario) -> Mapping[AgentRole, Agent]:
+        # 판정 모드는 질문을 Inquiry가 미뤘다가 코드가 고른 행동으로 묻게 한다(defer_questions).
+        # 역할 조합을 주입하면 파이프라인이 이 구성을 대신 해 주지 않으므로 여기서 맞춘다.
+        options = {
+            "assess_evidence": True,
+            "defer_questions": judgment,
+            "generate_questions": judgment and not fixed_questions,
+        }
         if "RETRIEVAL_ERROR" in scenario.faults:
-            return build_registry(FaultyKnowledgeSource())
-        return build_registry(knowledge_source_for(settings))
+            return build_registry(FaultyKnowledgeSource(), **options)
+        source = CorpusKnowledgeSource() if corpus else knowledge_source_for(settings)
+        relation_source = CorpusRelationSource() if relations else None
+        return build_registry(source, relation_source=relation_source, **options)
 
     return (
         OpenAIClient(key, model or settings.supervisor_model),
@@ -296,8 +423,32 @@ def select_scenarios(
     return scenarios
 
 
-def run_metadata(model: str, directory: Path = SCENARIO_DIR) -> dict[str, Any]:
-    """실행 조건 기록. 같은 조건끼리만 결과를 비교하려고 남긴다(EVALUATION.md 반복 실행 절)."""
+FIXTURE_SOURCE_NAME = "FIXTURE(개발용 고정 자료, 가상 기업 문서 아님)"
+CORPUS_SOURCE_NAME = (
+    "CORPUS(docs/knowledge/corpus 본문을 Spring 검색 규칙으로 근사해 찾는 평가 대역, 실검색 아님)"
+)
+
+
+CORPUS_RELATION_SOURCE_NAME = (
+    "CORPUS_RELATIONS(코퍼스 front matter의 증상·확인 항목과 질문 카드를 읽는 "
+    "평가 대역, 실조회 아님)"
+)
+
+
+def run_metadata(
+    model: str,
+    directory: Path = SCENARIO_DIR,
+    *,
+    judgment: bool = False,
+    corpus: bool = False,
+    limits: Mapping[str, int] | None = None,
+    model_questions: bool = False,
+    relations: bool = False,
+) -> dict[str, Any]:
+    """실행 조건 기록. 같은 조건끼리만 결과를 비교하려고 남긴다(EVALUATION.md 반복 실행 절).
+
+    판정 모드와 검색원, 실행별 한도가 결과를 바꾸므로 실제로 쓴 값을 그대로 적는다.
+    """
 
     def git(*args: str) -> str | None:
         try:
@@ -314,8 +465,13 @@ def run_metadata(model: str, directory: Path = SCENARIO_DIR) -> dict[str, Any]:
         # 커밋되지 않은 변경이 있으면 그 코드로 돌린 것이므로 기록한다
         "gitDirty": bool(git("status", "--porcelain")),
         "model": model,
-        "knowledgeSource": "FIXTURE(개발용 고정 자료, 가상 기업 문서 아님)",
-        "runLimits": dict(DEFAULT_LIMITS),
+        "knowledgeSource": CORPUS_SOURCE_NAME if corpus else FIXTURE_SOURCE_NAME,
+        "judgmentMode": judgment,
+        # 판정 모드에서 질문 문장을 모델이 쓰는지(꺼져 있으면 고정 문구)
+        "modelQuestions": model_questions,
+        # 증상 문의의 검색이 관계 조회(확인 항목)를 더하는지. 켜면 코퍼스 선언을 읽는 평가 대역이다
+        "relationSource": CORPUS_RELATION_SOURCE_NAME if relations else None,
+        "runLimits": dict(limits or DEFAULT_LIMITS),
     }
 
 
@@ -358,6 +514,32 @@ def main(argv: list[str] | None = None) -> int:
         help="시나리오당 제한(초)",
     )
     parser.add_argument("--model", default=None, help="기본값은 설정의 supervisor_model")
+    parser.add_argument(
+        "--judgment",
+        action="store_true",
+        help="문제별 행동 경로(판정 모드)로 돌린다. 기본은 역할 단위 결정 경로",
+    )
+    parser.add_argument(
+        "--corpus",
+        action="store_true",
+        help="고정 자료 대신 docs/knowledge/corpus를 Spring 규칙으로 근사해 검색한다(평가 대역)",
+    )
+    parser.add_argument(
+        "--relations",
+        action="store_true",
+        help="증상 문의의 검색에 관계 조회(확인 항목)를 더한다(코퍼스 선언을 읽는 평가 대역)",
+    )
+    parser.add_argument(
+        "--fixed-questions",
+        action="store_true",
+        help="판정 모드에서도 질문 문장을 모델이 쓰지 않고 고정 문구를 쓴다(비교용)",
+    )
+    parser.add_argument(
+        "--max-model-calls",
+        type=int,
+        default=None,
+        help="실행(턴)별 모델 호출 한도. 기본은 Spring 설정과 같은 값(spring_stub.DEFAULT_LIMITS)",
+    )
     parser.add_argument("--out", type=Path, default=None, help="보고서를 JSON 파일로도 저장")
     parser.add_argument(
         "--trace-dir",
@@ -368,9 +550,27 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     scenarios = select_scenarios(args.caseFamilies, args.split, allow_test=args.allow_test)
-    llm, agents_for, model = _build_real(args.model)
+    llm, agents_for, model = _build_real(
+        args.model,
+        judgment=args.judgment,
+        corpus=args.corpus,
+        fixed_questions=args.fixed_questions,
+        relations=args.relations,
+    )
+    limits = {
+        **DEFAULT_LIMITS,
+        **({"maxModelCalls": args.max_model_calls} if args.max_model_calls else {}),
+    }
+    config = RunConfig(limits=limits, judgment=args.judgment)
     done: list[dict[str, Any]] = []
-    run_info = run_metadata(model)
+    run_info = run_metadata(
+        model,
+        judgment=args.judgment,
+        corpus=args.corpus,
+        limits=limits,
+        model_questions=args.judgment and not args.fixed_questions,
+        relations=args.relations,
+    )
 
     def save_partial(report: dict[str, Any]) -> None:
         done.append(report)
@@ -405,6 +605,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_calls=args.max_calls,
                 per_scenario_calls=args.per_scenario_calls,
                 scenario_timeout=args.scenario_timeout,
+                config=config,
                 on_start=lambda n, total, sc: _log(f"[{n}/{total}] 시작: {sc.scenario_id}"),
                 on_turn=log_turn,
                 on_report=save_partial,

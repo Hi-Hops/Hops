@@ -1,0 +1,265 @@
+{
+ "format": 1,
+ "scenario_id": "S-ea-search-howto-001",
+ "extra_forbidden_phrases": [],
+ "truncated": false,
+ "turns": [
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "6b2abe35-0c76-54a8-9042-54ee3be2b3cd",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "4f8fc305-334f-5864-b9cf-380d9ebd74ae",
+    "inquiryVersion": 1,
+    "answerMessageId": "cf28ac6c-ec8f-5353-9d78-93f71635946f",
+    "problemIds": [],
+    "messages": [
+     {
+      "id": "a78cbe89-b362-5aae-b415-add003f06858",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 지난 문서를 찾는 방법을 알려주세요.",
+      "problemIds": [],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     }
+    ],
+    "problems": [],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "35ee5891-7c67-536b-9372-504c430ae081",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T08:36:03.941044Z",
+    "limits": {
+     "maxModelCalls": 8,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "6b2abe35-0c76-54a8-9042-54ee3be2b3cd",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "4f8fc305-334f-5864-b9cf-380d9ebd74ae",
+    "inquiryVersion": 1,
+    "status": "SUCCEEDED",
+    "answer": "전자결재에서 문서를 찾는 방법입니다.\n1. 전자결재 메뉴에서 '문서 조회'를 선택합니다.\n2. 문서 상태와 조회 기간을 지정합니다. 조회 기간에 문서 작성일이 포함되어야 목록에 표시됩니다.\n3. 제목이나 작성자를 입력해 목록을 좁힙니다.\n본인이 열람할 수 있는 문서만 표시됩니다.\n\n참고 자료: 전자결재 문서 조회 방법",
+    "problemProposals": [
+     {
+      "problemRef": "new:1",
+      "summary": "전자결재에서 지난 문서를 찾는 방법을 묻습니다.",
+      "intent": "HOW_TO",
+      "processingType": "KNOWLEDGE_QA",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지난 문서를 찾는 방법",
+        "sourceMessageIds": [
+         "a78cbe89-b362-5aae-b415-add003f06858"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "기대한 동작: 지난 문서를 찾는",
+        "sourceMessageIds": [
+         "a78cbe89-b362-5aae-b415-add003f06858"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재에서 지난 문서를 찾는 방법",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": "지난 문서를 찾는",
+       "actualBehavior": null,
+       "occurredAt": null,
+       "currentWorkflow": null,
+       "desiredChange": null,
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [],
+    "guide": {
+     "messageText": "전자결재에서 문서를 찾는 방법입니다.\n1. 전자결재 메뉴에서 '문서 조회'를 선택합니다.\n2. 문서 상태와 조회 기간을 지정합니다. 조회 기간에 문서 작성일이 포함되어야 목록에 표시됩니다.\n3. 제목이나 작성자를 입력해 목록을 좁힙니다.\n본인이 열람할 수 있는 문서만 표시됩니다.\n\n참고 자료: 전자결재 문서 조회 방법",
+     "evidenceIds": [
+      "b7632802-8dc1-5a38-8e20-7f0acb429e1c"
+     ],
+     "problemRef": "new:1"
+    },
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [
+     {
+      "id": "b7632802-8dc1-5a38-8e20-7f0acb429e1c",
+      "documentId": "7f81c5e7-521b-575a-9a43-68b6d9d408cb",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 문서 조회 방법",
+      "excerpt": "전자결재에서 문서를 찾는 방법입니다.\n1. 전자결재 메뉴에서 '문서 조회'를 선택합니다.\n2. 문서 상태와 조회 기간을 지정합니다. 조회 기간에 문서 작성일이 포함되어야 목록에 표시됩니다.\n3. 제목이나 작성자를 입력해 목록을 좁힙니다.\n본인이 열람할 수 있는 문서만 표시됩니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "개발용 고정 가이드. 전자결재의 문서 조회 화면 사용법에 적용한다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     }
+    ],
+    "error": null,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": [
+      {
+       "problem_ref": "new:1",
+       "keywords": [
+        "전자결재",
+        "문서",
+        "찾는",
+        "방법"
+       ],
+       "feature_candidates": [
+        "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "문서",
+        "찾는",
+        "방법"
+       ],
+       "raw_feature_candidates": [
+        "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e"
+       ]
+      }
+     ],
+     "assessment": null
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "new:1",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "b7632802-8dc1-5a38-8e20-7f0acb429e1c",
+       "documentId": "7f81c5e7-521b-575a-9a43-68b6d9d408cb",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 문서 조회 방법",
+       "excerpt": "전자결재에서 문서를 찾는 방법입니다.\n1. 전자결재 메뉴에서 '문서 조회'를 선택합니다.\n2. 문서 상태와 조회 기간을 지정합니다. 조회 기간에 문서 작성일이 포함되어야 목록에 표시됩니다.\n3. 제목이나 작성자를 입력해 목록을 좁힙니다.\n본인이 열람할 수 있는 문서만 표시됩니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "개발용 고정 가이드. 전자결재의 문서 조회 화면 사용법에 적용한다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "new:1",
+      "verdict": "SUFFICIENT",
+      "supporting_evidence_ids": [
+       "b7632802-8dc1-5a38-8e20-7f0acb429e1c"
+      ],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "직원용 안내에 전자결재 문서 조회 메뉴에서 조회 기간, 문서 상태, 제목 또는 작성자로 지난 문서를 찾는 방법이 제시되어 있습니다."
+     }
+    }
+   ],
+   "model_calls": 5,
+   "error": null,
+   "user_reply": null,
+   "unknown_after": [],
+   "ref_map": [],
+   "input_tokens": 9113,
+   "output_tokens": 422,
+   "elapsed_seconds": 14.974738500081003
+  }
+ ]
+}

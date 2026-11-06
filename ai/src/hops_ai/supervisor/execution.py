@@ -17,6 +17,7 @@ from hops_ai.contracts.roles import (
 from hops_ai.contracts.state import RoleRequest, RoleResponse
 from hops_ai.contracts.wire import KnowledgeEvidence
 from hops_ai.harness.errors import ComponentNotReady, OutputRejected
+from hops_ai.rules.proposals import validate_problem_ref
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.merge import (
     merge_curator_result,
@@ -34,6 +35,9 @@ async def execute_role(
     role: AgentRole,
     services: SharedServices,
     agents: Mapping[AgentRole, Agent],
+    *,
+    targets: tuple[str, ...] = (),
+    action: str | None = None,
 ) -> SupervisorState:
     """허용된 전문 역할 하나를 호출하고 해당 역할의 병합 검증을 적용한다.
 
@@ -47,6 +51,9 @@ async def execute_role(
         services: 같은 run의 예산·취소 제한을 공유하는 서비스. 시간 제한과 누적 사용량은
             실행기의 서비스 wrapper가 관리하고, 전체 await 취소는 상위 실행기가 맡는다.
         agents: 서버가 등록한 역할 구현체. 모델이 등록 항목을 추가할 수 없다.
+        targets: 이번 호출이 다룰 문제 참조(문제별 행동 경로). 모두 State의 문제여야 하며
+            비어 있으면 역할이 대상을 스스로 고른다.
+        action: 역할 안의 행동 이름(문제별 행동 경로). 없으면 역할의 기본 동작이다.
 
     Returns:
         검증된 역할 결과를 반영하고 호출 예약을 해제한 새 State.
@@ -76,7 +83,11 @@ async def execute_role(
     # 호출 식별자와 예약은 실행기가 소유한다. 전문 역할에는 별도 스냅샷만 넘긴다.
     invocation_id = str(uuid4())
     reserved = {**state, "activeRole": role, "pendingCalls": {invocation_id}}
-    request = RoleRequest(invocation_id=invocation_id, state=deepcopy(reserved))
+    for ref in targets:
+        validate_problem_ref(reserved, ref)
+    request = RoleRequest(
+        invocation_id=invocation_id, state=deepcopy(reserved), targets=targets, action=action
+    )
     response = await agent.run(request, services)
 
     # 취소·기한 뒤 늦게 도착한 결과를 병합하기 전에 다시 차단한다.

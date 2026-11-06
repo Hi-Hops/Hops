@@ -13,7 +13,7 @@ from hops_ai.harness.budget import Clock
 from hops_ai.harness.errors import ComponentNotReady
 from hops_ai.persistence.run_ledger import RunLedger
 from hops_ai.services.llm.openai import OpenAIClient
-from hops_ai.services.retrieval.factory import knowledge_source_for
+from hops_ai.services.retrieval.factory import knowledge_source_for, relation_source_for
 from hops_ai.services.runs.admission import RunAdmissionService
 from hops_ai.services.runs.events import RunEventHub
 from hops_ai.services.runs.executor import RunExecutor, RunPipeline, server_ceilings
@@ -59,8 +59,10 @@ def create_app(
         pipeline = SupervisorPipeline(
             OpenAIClient(key, resolved.supervisor_model),
             knowledge_source=knowledge_source_for(resolved),
+            relation_source=relation_source_for(resolved),
             tracing=tracing,
             ticket_client=TicketHTTPClient(resolved) if resolved.ticket_tools_enabled else None,
+            assess_evidence=resolved.knowledge_assessment,
         )
     resolved_ledger = ledger
     if resolved.internal_api_enabled and resolved_ledger is None:

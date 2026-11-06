@@ -195,6 +195,8 @@ def _extracted(summary, intent, system, *, task=None, actual=None) -> ExtractedP
         businessPurpose=None,
         desiredChange=None,
         unknownFields=[],
+        keywords=[],
+        featureCandidates=[],
     )
 
 

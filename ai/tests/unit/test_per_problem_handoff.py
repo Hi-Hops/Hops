@@ -197,6 +197,8 @@ async def test_a_staff_only_hit_ends_in_a_review_ticket_without_repeating_the_se
                 businessPurpose=None,
                 desiredChange=None,
                 unknownFields=[],
+                keywords=[],
+                featureCandidates=[],
             )
         ]
     )
@@ -272,4 +274,6 @@ def _how_to(summary: str, system_code: str, task: str) -> ExtractedProblem:
         businessPurpose=None,
         desiredChange=None,
         unknownFields=[],
+        keywords=[],
+        featureCandidates=[],
     )

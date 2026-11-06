@@ -6,7 +6,12 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-from hops_ai.harness.errors import ComponentNotReady, OutputRejected, TransientError
+from hops_ai.harness.errors import (
+    ComponentNotReady,
+    MalformedOutput,
+    OutputRejected,
+    TransientError,
+)
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.llm.openai import OpenAIClient
 
@@ -193,3 +198,111 @@ async def test_response_schema_override_is_sent_and_parsing_still_uses_the_model
     [sent] = server.requests
     assert json.loads(sent.content)["text"]["format"]["schema"] == restricted
     assert response.parsed == Reply(text="기간을 확인해 보세요.")
+
+
+# --- 실패 유형 구분: 응답 본문·모델이 낸 값은 사유에 넣지 않는다 ---
+
+
+class Strict(BaseModel):
+    count: int
+    names: list[str]
+
+
+def strict_request() -> LLMRequest:
+    return LLMRequest(
+        messages=[LLMMessage(role="user", content="질문")],
+        response_model=Strict,
+        max_output_tokens=300,
+        prompt_version="test.prompt.v1",
+    )
+
+
+async def rejection(body: dict, request: LLMRequest | None = None) -> OutputRejected:
+    server = Server(responses=json_response(body))
+    with pytest.raises(OutputRejected) as caught:
+        await server.client().generate(request or make_request())
+    return caught.value
+
+
+async def test_an_incomplete_response_names_its_status_and_reason() -> None:
+    body = {
+        **completed(),
+        "status": "incomplete",
+        "incomplete_details": {"reason": "max_output_tokens"},
+    }
+
+    error = await rejection(body)
+
+    assert "완료되지 않았" in error.detail
+    assert "status=incomplete" in error.detail and "reason=max_output_tokens" in error.detail
+
+
+async def test_an_incomplete_response_without_a_reason_is_still_reported() -> None:
+    error = await rejection({**completed(), "status": "incomplete"})
+
+    assert "완료되지 않았" in error.detail and "reason=NoneType" in error.detail
+
+
+async def test_a_refusal_is_reported_as_a_refusal() -> None:
+    body = completed()
+    body["output"] = [
+        {"type": "message", "content": [{"type": "refusal", "refusal": "답할 수 없습니다"}]}
+    ]
+
+    error = await rejection(body)
+
+    assert error.detail == "모델이 응답을 거부했습니다"
+
+
+async def test_a_schema_violation_lists_field_and_error_type_but_not_the_values() -> None:
+    secret = "홍길동의 비밀 값"
+    body = completed(json.dumps({"count": secret, "names": [1, secret]}, ensure_ascii=False))
+
+    error = await rejection(body, strict_request())
+
+    assert "형식을 어겼" in error.detail
+    assert "count:" in error.detail and "names.0:" in error.detail
+    assert secret not in error.detail and secret not in str(error)
+
+
+async def test_invalid_json_is_reported_as_a_format_violation() -> None:
+    error = await rejection(completed("not json"))
+
+    assert "형식을 어겼" in error.detail and "json_invalid" in error.detail
+
+
+async def test_many_violations_are_counted_not_listed_in_full() -> None:
+    body = completed(json.dumps({"count": "x", "names": [1, 2, 3, 4, 5, 6, 7]}))
+
+    error = await rejection(body, strict_request())
+
+    assert "외 " in error.detail and "건" in error.detail
+
+
+async def test_a_response_with_missing_parts_is_reported_as_a_structure_problem() -> None:
+    error = await rejection({"status": "completed", "model": "m", "output": [], "usage": {}})
+
+    assert error.detail == "OpenAI 응답 구조를 읽을 수 없습니다"
+
+
+async def test_the_contract_error_still_uses_the_fixed_message_not_the_detail() -> None:
+    from hops_ai.harness.errors import describe_failure
+
+    error = await rejection({**completed(), "status": "incomplete"})
+
+    failure = describe_failure(error)
+    assert failure.error.message == OutputRejected.safe_message
+    assert "incomplete" not in failure.error.message
+
+
+async def test_only_a_format_violation_is_marked_as_retriable() -> None:
+    violation = await rejection(completed('{"unexpected": 1}'))
+    refusal_body = completed()
+    refusal_body["output"] = [{"type": "message", "content": [{"type": "refusal"}]}]
+    refusal = await rejection(refusal_body)
+    incomplete = await rejection({**completed(), "status": "incomplete"})
+    structure = await rejection({"status": "completed", "model": "m", "output": [], "usage": {}})
+
+    assert isinstance(violation, MalformedOutput)
+    for other in (refusal, incomplete, structure):
+        assert type(other) is OutputRejected

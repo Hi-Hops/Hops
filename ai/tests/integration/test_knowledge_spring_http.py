@@ -158,6 +158,8 @@ def scripted_llm(request: AiRunRequest) -> FakeLLMClient:
         businessPurpose=None,
         desiredChange=None,
         unknownFields=[],
+        keywords=[],
+        featureCandidates=[],
     )
     return FakeLLMClient(
         SupervisorDecision(

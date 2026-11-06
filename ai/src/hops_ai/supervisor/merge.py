@@ -11,6 +11,7 @@ from hops_ai.contracts.roles import (
     CuratorResult,
     InquiryResult,
     KnowledgeResult,
+    ProblemAnalysis,
     RoleResult,
     TicketResult,
 )
@@ -21,6 +22,8 @@ from hops_ai.contracts.wire import (
     TicketExecution,
 )
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.rules.analysis import validate_analysis
+from hops_ai.rules.assessment import check_item_ids, validate_assessment
 from hops_ai.rules.progress import (
     validate_evidence_scope,
 )
@@ -177,9 +180,35 @@ def merge_inquiry_result(state: SupervisorState, result: InquiryResult) -> Super
         if key in questions and questions[key] != question:
             raise OutputRejected("같은 질문 묶음의 내용이 달라졌다")
         questions[key] = question
-    candidate = {**state, "problems": problems, "questions": questions}
+    analysis = dict(state["analysis"])
+    analyzed: set[str] = set()
+    for item in result.analysis:
+        if item.problemRef not in seen or item.problemRef in analyzed:
+            raise OutputRejected("분석이 이번 결과의 문제와 다르거나 같은 문제가 중복됐다")
+        analyzed.add(item.problemRef)
+        validate_analysis(state, item, problems[item.problemRef])
+        analysis[item.problemRef] = _preserve_analysis(analysis.get(item.problemRef), item)
+    candidate = {**state, "problems": problems, "questions": questions, "analysis": analysis}
     validate_questions(candidate)
     return _complete_merge(candidate, result)
+
+
+def _preserve_analysis(
+    previous: ProblemAnalysis | None, latest: ProblemAnalysis
+) -> ProblemAnalysis:
+    """최신 분석으로 대체하되, 빈 목록은 삭제가 아니라 누락으로 보고 이전 값을 유지한다.
+
+    모델은 호출마다 다시 추출하므로 한 번의 빈 응답이 앞서 얻은 검색 힌트를 지우면 안 된다.
+    """
+    if previous is None:
+        return latest.model_copy(deep=True)
+    return latest.model_copy(
+        update={
+            "keywords": latest.keywords or previous.keywords,
+            "featureCandidates": latest.featureCandidates or previous.featureCandidates,
+        },
+        deep=True,
+    )
 
 
 def merge_knowledge_result(
@@ -263,7 +292,33 @@ def merge_knowledge_result(
         # 모델이 재작성한 객체 대신 별도로 전달받은 검증 객체의 독립 복사본을 보존한다.
         evidence[item.id] = verified_by_id[item.id].model_copy(deep=True)
     guide = result.guide if result.guide is not None else state["guide"]
-    candidate = {**state, "evidence": evidence, "guide": guide}
+    assessments = dict(state["assessments"])
+    if result.assessment is not None:
+        problem = state["problems"].get(result.problemRef or "")
+        if problem is None or result.assessment.problemRef != result.problemRef:
+            raise OutputRejected("판정이 검색한 문제와 다른 문제를 가리킨다")
+        # 판정은 이번 검색의 검증된 근거와 닫힌 어휘 규칙에 맞아야 한다. 에이전트가 이미 걸렀으므로
+        # 어긋나면 에이전트의 결함이라 거부한다. 문제당 가장 최근의 유효한 판정만 보존한다.
+        validate_assessment(
+            result.assessment,
+            intent=problem.intent,
+            search_state=result.search.state,
+            evidence=result.search.evidence,
+            allowed_check_items=check_item_ids(result.relations),
+        )
+        assessments[result.problemRef] = result.assessment.model_copy(deep=True)
+    relations = dict(state["relations"])
+    if result.relations is not None:
+        if result.problemRef is None or result.problemRef not in state["problems"]:
+            raise OutputRejected("관계 조회 결과가 검색한 문제를 가리키지 않는다")
+        relations[result.problemRef] = result.relations.model_copy(deep=True)
+    candidate = {
+        **state,
+        "evidence": evidence,
+        "guide": guide,
+        "assessments": assessments,
+        "relations": relations,
+    }
     if guide is not None:
         if state["input"].kind == RunKind.CASE_DRAFT:
             raise OutputRejected("사례 초안 실행은 상담 안내를 반환하지 않는다")

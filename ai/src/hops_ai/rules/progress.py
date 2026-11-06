@@ -11,11 +11,7 @@ from hops_ai.contracts.state import SupervisorState
 from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import AiRunRequest, KnowledgeEvidence
 from hops_ai.harness.errors import OutputRejected
-
-# 담당자가 처리하는 유형. 사용법(KNOWLEDGE_QA)은 안내로, 범위 밖은 범위 안내로 끝난다.
-TICKETABLE_TYPES = frozenset(
-    {"SERVICE_REQUEST", "INVESTIGATION", "CHANGE_REQUEST", "REVIEW_REQUIRED"}
-)
+from hops_ai.rules.assessment import answerable
 
 
 def get_problem_knowledge(
@@ -44,7 +40,20 @@ def problems_without_guide(state: "SupervisorState") -> frozenset[str]:
     검색 결과가 없거나(EMPTY), 결과는 있지만 직원에게 공개할 가이드가 없어 안내가 만들어지지
     않은 경우(FOUND이고 guide가 없음)다. 검색 오류(ERROR)는 포함하지 않는다. 오류를 근거 없음으로
     바꾸지 않는다. 검색한 문제가 기록되지 않은 결과는 어느 문제에도 적용하지 않는다.
+
+    판정 모드(문제별 행동 경로)에서는 안내가 있어도 판정이 SUFFICIENT가 아니거나 안내가 판정이
+    인용한 근거로 만들어지지 않았으면 "안내를 만들지 못한" 문제다. 그 문제를 담당자 검토로 넘기는
+    것이 허용되는 경우이며, 이때 최종 응답에는 쓰지 않을 안내를 싣지 않는다(supervisor.decisions).
     """
+    if state.get("judgment"):
+        searched = {
+            result.problemRef
+            for result in state["roleResults"].values()
+            if isinstance(result, KnowledgeResult)
+            and result.problemRef is not None
+            and result.search.state != "ERROR"
+        }
+        return frozenset(ref for ref in searched if not answerable(state, ref))
     return frozenset(
         result.problemRef
         for result in state["roleResults"].values()
@@ -65,6 +74,16 @@ def searched_queries(state: "SupervisorState") -> dict[str, set[str | None]]:
         if isinstance(result, KnowledgeResult) and result.problemRef is not None:
             searched.setdefault(result.problemRef, set()).add(result.queryDigest)
     return searched
+
+
+# 문제별 행동 경로가 고른 종료 행동이 만드는 문제의 결과.
+DECISION_OUTCOMES: dict[str, str] = {
+    "ANSWER": "PROVIDE_GUIDE",
+    "ASK": "ASK_USER",
+    "TICKET": "PROPOSE_TICKET",
+    "HOLD": "WAITING_SYSTEM",
+    "CLOSE": "OUT_OF_SCOPE",
+}
 
 
 class ProblemProgress(TypedDict):
@@ -126,11 +145,18 @@ def get_problem_progress(state: "SupervisorState") -> list[ProblemProgress]:
         work = work_items.get(ref)
         work_outcome = work.outcome if work and work.outcome != "NOT_CREATED" else None
         outcome = None
-        if ref in questions:
+        decided = state.get("decisions", {}).get(ref)
+        # 판정 모드에서는 질문·안내·티켓이 있다는 사실이 결과가 아니다. 검색이 안내를 만들어 둬도
+        # 판정이 불충분하면 보내지 않으므로, 결과는 고른 종료 행동만 정한다(서버 결과는 그대로).
+        artifacts_decide = not state.get("judgment")
+        if decided is not None:
+            # 문제별 행동 경로: 모델과 코드가 고른 종료 행동이 결과를 정한다.
+            outcome = DECISION_OUTCOMES[decided]
+        elif artifacts_decide and ref in questions:
             outcome = "ASK_USER"
-        elif state["guide"] is not None and state["guide"].problemRef == ref:
+        elif artifacts_decide and state["guide"] is not None and state["guide"].problemRef == ref:
             outcome = "PROVIDE_GUIDE"
-        elif ref in state["ticketProposals"]:
+        elif artifacts_decide and ref in state["ticketProposals"]:
             outcome = "PROPOSE_TICKET"
         elif work_outcome is not None:
             outcome = "EXISTING_WORK"

@@ -11,12 +11,17 @@ from hops_ai.agents.ticket import ModelTicketAgent
 from hops_ai.agents.ticket.executing import ExecutingTicketAgent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
+from hops_ai.services.retrieval.relation_source import RelationSource
 
 
 def build_registry(
     knowledge_source: KnowledgeSource | None = None,
     *,
     execute_tickets: bool = False,
+    assess_evidence: bool = False,
+    defer_questions: bool = False,
+    generate_questions: bool = False,
+    relation_source: RelationSource | None = None,
 ) -> Mapping[AgentRole, Agent]:
     """서버 실행에 쓰는 역할 조합.
 
@@ -27,15 +32,33 @@ def build_registry(
 
     Ticket은 execute_tickets=False면 제안만 만드는 ModelTicketAgent, True면 Spring 업무 도구로
     생성·확인까지 수행하는 ExecutingTicketAgent다. 어느 쪽인지 호출 측이 명시한다.
+
+    assess_evidence가 참이면 Knowledge가 검색 뒤에 근거의 충분성 판정을 만든다(문제당 모델 1회).
+    판정을 읽는 쪽(Supervisor의 행동 선택)이 연결되기 전까지는 기본 거짓이다.
+
+    defer_questions가 참이면 Inquiry가 분석에서 질문을 만들지 않는다(문제별 행동 경로는 질문을
+    별도 행동으로 만든다). 기본은 거짓이라 분석이 질문까지 만든다.
+
+    generate_questions가 참이면 질문 행동의 문장을 모델이 쓴다(필드는 코드가 정하고, 실패하거나
+    규칙을 어기면 고정 문구로 대체한다). defer_questions와 함께 쓴다.
+
+    relation_source를 주면 Knowledge가 증상 문의의 검색에 관계 조회(확인 항목)를 더한다. 문제별
+    행동 경로에서만 쓰이고 knowledge_source가 있을 때만 의미가 있다.
     """
     knowledge: Agent = (
         PendingAgent(AgentRole.KNOWLEDGE)
         if knowledge_source is None
-        else SearchKnowledgeAgent(knowledge_source)
+        else SearchKnowledgeAgent(
+            knowledge_source, assess_evidence=assess_evidence, relation_source=relation_source
+        )
     )
     return MappingProxyType(
         {
-            AgentRole.INQUIRY: ExtractionInquiryAgent(guide_first=knowledge_source is not None),
+            AgentRole.INQUIRY: ExtractionInquiryAgent(
+                guide_first=knowledge_source is not None,
+                defer_questions=defer_questions,
+                generate_questions=generate_questions,
+            ),
             AgentRole.KNOWLEDGE: knowledge,
             AgentRole.TICKET: ExecutingTicketAgent() if execute_tickets else ModelTicketAgent(),
             AgentRole.CURATOR: ModelCuratorAgent(),

@@ -1,0 +1,608 @@
+{
+ "format": 1,
+ "scenario_id": "S-ea-notify-improvement-001",
+ "extra_forbidden_phrases": [],
+ "truncated": false,
+ "turns": [
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "e256f904-ccae-5688-b0bd-f1c9e80cd37b",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "e39e369e-3ec3-5aa8-a34d-e2b5664a1708",
+    "inquiryVersion": 1,
+    "answerMessageId": "fd87195e-3906-5b7e-8824-c1d4edd97f5b",
+    "problemIds": [],
+    "messages": [
+     {
+      "id": "c086f1cd-00d2-5f46-a189-9d8cc8075e98",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
+      "problemIds": [],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     }
+    ],
+    "problems": [],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "35348205-4e98-5f9e-a62c-57fc56e56831",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T09:40:33.557114Z",
+    "limits": {
+     "maxModelCalls": 20,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "e256f904-ccae-5688-b0bd-f1c9e80cd37b",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "e39e369e-3ec3-5aa8-a34d-e2b5664a1708",
+    "inquiryVersion": 1,
+    "status": "SUCCEEDED",
+    "answer": "지금은 이 일을 어떻게 진행하고 계신가요?",
+    "problemProposals": [
+     {
+      "problemRef": "new:1",
+      "summary": "전자결재의 결재 알림 개선을 요청하고 싶어 합니다.",
+      "intent": "IMPROVEMENT_REQUEST",
+      "processingType": "CHANGE_REQUEST",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재의 결재 알림",
+        "sourceMessageIds": [
+         "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "바라는 변경: 개선",
+        "sourceMessageIds": [
+         "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재의 결재 알림",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": null,
+       "actualBehavior": null,
+       "occurredAt": null,
+       "currentWorkflow": null,
+       "desiredChange": "개선",
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [
+     {
+      "problemRef": "new:1",
+      "bundleRef": "inquiry-new-1-1",
+      "text": "지금은 이 일을 어떻게 진행하고 계신가요?",
+      "requestedFields": [
+       "currentWorkflow"
+      ]
+     }
+    ],
+    "guide": null,
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [],
+    "error": null,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": [
+      {
+       "problem_ref": "new:1",
+       "keywords": [
+        "전자결재",
+        "결재",
+        "알림",
+        "개선"
+       ],
+       "feature_candidates": [
+        "74c8f41e-e3a1-5828-a317-2ccca15895c7"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "결재",
+        "알림",
+        "개선"
+       ],
+       "raw_feature_candidates": [
+        "74c8f41e-e3a1-5828-a317-2ccca15895c7"
+       ]
+      }
+     ],
+     "assessment": null
+    },
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": [],
+     "assessment": null
+    }
+   ],
+   "model_calls": 1,
+   "error": null,
+   "user_reply": "알림이 없어서 결재함에 자주 들어가 확인해요.",
+   "unknown_after": [],
+   "ref_map": [
+    [
+     "new:1",
+     "42a4445f-2de2-5fe5-a6f4-8ae3bc908258"
+    ]
+   ],
+   "input_tokens": 2146,
+   "output_tokens": 211,
+   "elapsed_seconds": 3.3921172921545804
+  },
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "287c1849-725a-54ea-82a2-4120a0d6326b",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "e39e369e-3ec3-5aa8-a34d-e2b5664a1708",
+    "inquiryVersion": 2,
+    "answerMessageId": "ef8d877c-2a02-50df-b5b3-4dffb08ca8a1",
+    "problemIds": [
+     "42a4445f-2de2-5fe5-a6f4-8ae3bc908258"
+    ],
+    "messages": [
+     {
+      "id": "c086f1cd-00d2-5f46-a189-9d8cc8075e98",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
+      "problemIds": [
+       "42a4445f-2de2-5fe5-a6f4-8ae3bc908258"
+      ],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     },
+     {
+      "id": "3797a97a-7f07-5217-abe1-0b83ea0636cd",
+      "revision": 1,
+      "sequenceNo": 2,
+      "sender": "AI",
+      "content": "지금은 이 일을 어떻게 진행하고 계신가요?",
+      "problemIds": [
+       "42a4445f-2de2-5fe5-a6f4-8ae3bc908258"
+      ],
+      "createdAt": "2026-11-05T00:01:00.000000Z"
+     },
+     {
+      "id": "b16e2f48-d41e-52d9-a1b7-129cb455d8e2",
+      "revision": 1,
+      "sequenceNo": 3,
+      "sender": "USER",
+      "content": "알림이 없어서 결재함에 자주 들어가 확인해요.",
+      "problemIds": [
+       "42a4445f-2de2-5fe5-a6f4-8ae3bc908258"
+      ],
+      "createdAt": "2026-11-05T00:01:30.000000Z"
+     }
+    ],
+    "problems": [
+     {
+      "id": "42a4445f-2de2-5fe5-a6f4-8ae3bc908258",
+      "summary": "전자결재의 결재 알림 개선을 요청하고 싶어 합니다.",
+      "intent": "IMPROVEMENT_REQUEST",
+      "processingType": "CHANGE_REQUEST",
+      "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "reportedFeatureId": null,
+      "state": "ANALYZING",
+      "questionCount": 1,
+      "standardRequest": {
+       "summary": "전자결재의 결재 알림 개선을 요청하고 싶어 합니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재의 결재 알림",
+         "sourceMessageIds": [
+          "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "바라는 변경: 개선",
+         "sourceMessageIds": [
+          "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": null,
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재의 결재 알림",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": null,
+        "actualBehavior": null,
+        "occurredAt": null,
+        "currentWorkflow": null,
+        "desiredChange": "개선",
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      },
+      "resolutionContext": null
+     }
+    ],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "35348205-4e98-5f9e-a62c-57fc56e56831",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T09:40:36.949903Z",
+    "limits": {
+     "maxModelCalls": 20,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "287c1849-725a-54ea-82a2-4120a0d6326b",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "e39e369e-3ec3-5aa8-a34d-e2b5664a1708",
+    "inquiryVersion": 2,
+    "status": "SUCCEEDED",
+    "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+    "problemProposals": [
+     {
+      "problemRef": "42a4445f-2de2-5fe5-a6f4-8ae3bc908258",
+      "summary": "전자결재의 결재 알림 개선을 요청하고 싶어 합니다.",
+      "intent": "IMPROVEMENT_REQUEST",
+      "processingType": "CHANGE_REQUEST",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재의 결재 알림",
+        "sourceMessageIds": [
+         "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "바라는 변경: 개선",
+        "sourceMessageIds": [
+         "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "하려던 업무·화면: 전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
+        "sourceMessageIds": [
+         "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "현재 진행 방식: 알림이 없어서 결재함에 자주 들어가 확인해요.",
+        "sourceMessageIds": [
+         "b16e2f48-d41e-52d9-a1b7-129cb455d8e2"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 알림이 없어서",
+        "sourceMessageIds": [
+         "b16e2f48-d41e-52d9-a1b7-129cb455d8e2"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": null,
+       "actualBehavior": "알림이 없어서",
+       "occurredAt": null,
+       "currentWorkflow": "알림이 없어서 결재함에 자주 들어가 확인해요.",
+       "desiredChange": "개선",
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [],
+    "guide": null,
+    "ticketProposals": [
+     {
+      "problemRef": "42a4445f-2de2-5fe5-a6f4-8ae3bc908258",
+      "title": "전자결재 결재 알림 개선 요청",
+      "processingType": "CHANGE_REQUEST",
+      "responsibleSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "evidenceIds": [],
+      "standardRequestSnapshot": {
+       "summary": "전자결재의 결재 알림 개선을 요청하고 싶어 합니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재의 결재 알림",
+         "sourceMessageIds": [
+          "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "바라는 변경: 개선",
+         "sourceMessageIds": [
+          "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "하려던 업무·화면: 전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
+         "sourceMessageIds": [
+          "c086f1cd-00d2-5f46-a189-9d8cc8075e98"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "현재 진행 방식: 알림이 없어서 결재함에 자주 들어가 확인해요.",
+         "sourceMessageIds": [
+          "b16e2f48-d41e-52d9-a1b7-129cb455d8e2"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 알림이 없어서",
+         "sourceMessageIds": [
+          "b16e2f48-d41e-52d9-a1b7-129cb455d8e2"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재의 결재 알림이 불편해서 개선을 요청하고 싶어요.",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": null,
+        "actualBehavior": "알림이 없어서",
+        "occurredAt": null,
+        "currentWorkflow": "알림이 없어서 결재함에 자주 들어가 확인해요.",
+        "desiredChange": "개선",
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      }
+     }
+    ],
+    "caseProposal": null,
+    "evidence": [],
+    "error": null,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": [
+      {
+       "problem_ref": "42a4445f-2de2-5fe5-a6f4-8ae3bc908258",
+       "keywords": [
+        "전자결재",
+        "결재",
+        "알림",
+        "결재함"
+       ],
+       "feature_candidates": [
+        "74c8f41e-e3a1-5828-a317-2ccca15895c7"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "결재",
+        "알림",
+        "결재함"
+       ],
+       "raw_feature_candidates": [
+        "74c8f41e-e3a1-5828-a317-2ccca15895c7"
+       ]
+      }
+     ],
+     "assessment": null
+    },
+    {
+     "role": "TICKET",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": [],
+     "assessment": null
+    }
+   ],
+   "model_calls": 2,
+   "error": null,
+   "user_reply": null,
+   "unknown_after": [],
+   "ref_map": [],
+   "input_tokens": 3915,
+   "output_tokens": 365,
+   "elapsed_seconds": 7.3519033750053495
+  }
+ ]
+}

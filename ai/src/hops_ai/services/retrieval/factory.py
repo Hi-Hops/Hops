@@ -2,7 +2,8 @@
 
 from hops_ai.services.retrieval.fixture_source import FixtureKnowledgeSource
 from hops_ai.services.retrieval.knowledge_source import KnowledgeSource
-from hops_ai.services.retrieval.spring_source import SpringKnowledgeSource
+from hops_ai.services.retrieval.relation_source import RelationSource
+from hops_ai.services.retrieval.spring_source import SpringKnowledgeSource, SpringRelationSource
 from hops_ai.settings import KnowledgeSourceKind, Settings
 
 
@@ -16,4 +17,11 @@ def knowledge_source_for(settings: Settings) -> KnowledgeSource | None:
         return FixtureKnowledgeSource()
     if settings.knowledge_source is KnowledgeSourceKind.SPRING:
         return SpringKnowledgeSource(settings)
+    return None
+
+
+def relation_source_for(settings: Settings) -> RelationSource | None:
+    """관계 데이터(확인 항목)를 읽는 자료. Spring 연결일 때만 있고 그 밖에는 연결하지 않는다."""
+    if settings.knowledge_source is KnowledgeSourceKind.SPRING:
+        return SpringRelationSource(settings)
     return None

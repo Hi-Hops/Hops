@@ -45,7 +45,7 @@ def _problem_from_input(problem: InputProblem) -> ProblemProposal:
     )
 
 
-def create_initial_state(request: AiRunRequest) -> SupervisorState:
+def create_initial_state(request: AiRunRequest, *, judgment: bool = False) -> SupervisorState:
     """검증된 요청으로 독립적인 초기 State를 만든다.
 
     Args:
@@ -75,11 +75,16 @@ def create_initial_state(request: AiRunRequest) -> SupervisorState:
 
     return SupervisorState(
         input=snapshot,
+        judgment=judgment,
         phase="QUEUED",
         activeRole=None,
         nextAction=None,
         replyKind=None,
         problems={problem.id: _problem_from_input(problem) for problem in snapshot.problems},
+        analysis={},
+        assessments={},
+        relations={},
+        decisions={},
         questions={},
         evidence=evidence,
         guide=None,

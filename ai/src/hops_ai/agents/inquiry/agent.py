@@ -1,7 +1,8 @@
 """Inquiry 역할: 문의 원문에서 사실을 추출하고 부족한 정보를 질문으로 만든다.
 
-모델이 하는 일은 원문 구절 추출뿐이다(extraction.py). 확보한 정보가 무엇인지는
-원문 대조로, 무엇을 더 물을지는 양식 규칙(forms.py)으로 코드가 정한다.
+모델이 하는 일은 원문 구절 추출과 검색 힌트(키워드·기능 후보) 제안이다(extraction.py).
+확보한 정보가 무엇인지는 원문 대조로, 무엇을 더 물을지는 양식 규칙(forms.py)으로 코드가 정한다.
+검색 힌트는 사실이 아니라서 규칙(rules.analysis)으로 정리하고 질문·안내에 쓰지 않는다.
 모델이 질문 내용·시스템·처리 유형을 정하지 못하므로 모델이나 프롬프트를 바꿔도
 같은 규칙과 검증이 적용된다.
 
@@ -9,7 +10,9 @@
 """
 
 from collections.abc import Mapping, Sequence
+from typing import Literal
 
+from hops_ai.agents.inquiry.asking import question_from_plan, question_plan
 from hops_ai.agents.inquiry.extraction import (
     DETAIL_FIELDS,
     MAX_OUTPUT_TOKENS,
@@ -19,13 +22,35 @@ from hops_ai.agents.inquiry.extraction import (
     ExtractedProblem,
     InquiryExtraction,
     build_user_payload,
+    extraction_schema,
     ground,
     ground_unknown,
 )
-from hops_ai.agents.inquiry.forms import FIELD_LABELS, plan_next
+from hops_ai.agents.inquiry.forms import FIELD_LABELS, QuestionPlan, plan_next
+from hops_ai.agents.inquiry.question_text import (
+    MAX_OUTPUT_TOKENS as QUESTION_MAX_OUTPUT_TOKENS,
+)
+from hops_ai.agents.inquiry.question_text import (
+    PROMPT_VERSION as QUESTION_PROMPT_VERSION,
+)
+from hops_ai.agents.inquiry.question_text import (
+    RESERVED_CALLS as QUESTION_RESERVED_CALLS,
+)
+from hops_ai.agents.inquiry.question_text import (
+    SYSTEM_PROMPT as QUESTION_SYSTEM_PROMPT,
+)
+from hops_ai.agents.inquiry.question_text import (
+    QuestionDraft,
+    RejectedQuestion,
+    validate_text,
+)
+from hops_ai.agents.inquiry.question_text import (
+    build_user_payload as build_question_payload,
+)
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.roles import InquiryResult
+from hops_ai.contracts.roles import InquiryResult, ProblemAnalysis
 from hops_ai.contracts.state import RoleRequest
+from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import (
     EvidenceStatement,
     InputProblem,
@@ -35,36 +60,43 @@ from hops_ai.contracts.wire import (
     QuestionProposal,
     RequestDetails,
 )
-from hops_ai.rules.progress import problems_without_guide
+from hops_ai.harness.errors import OutputRejected, TransientError
+from hops_ai.rules.analysis import (
+    allowed_feature_ids,
+    normalize_keywords,
+    select_feature_candidates,
+    user_texts,
+)
+from hops_ai.rules.intent_policy import is_guide_type, policy_for
+from hops_ai.rules.progress import problems_without_guide, searched_queries
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
-
-# 의도에서 규칙으로 정하는 처리 유형. 모델이 정하지 않으며 새 장애(INCIDENT)는 확정하지 않는다.
-PROCESSING_TYPES: Mapping[str, ProcessingType] = {
-    "HOW_TO": "KNOWLEDGE_QA",
-    "ACCESS_REQUEST": "SERVICE_REQUEST",
-    "OBSERVED_SYMPTOM": "INVESTIGATION",
-    "FEATURE_REQUEST": "CHANGE_REQUEST",
-    "IMPROVEMENT_REQUEST": "CHANGE_REQUEST",
-    "UNKNOWN": "REVIEW_REQUIRED",
-    "OUT_OF_SCOPE": "OUT_OF_SCOPE",
-}
 
 
 class ExtractionInquiryAgent:
     role = AgentRole.INQUIRY
 
-    def __init__(self, *, guide_first: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        guide_first: bool = False,
+        defer_questions: bool = False,
+        generate_questions: bool = False,
+    ) -> None:
         """guide_first: 승인 가이드를 먼저 찾을 수 있을 때(Knowledge 연결) 참으로 둔다.
 
         사용법 문의에서 검색에 필요한 정보(시스템, 하려는 작업·화면)만 확보하면 추가 질문 없이
         Knowledge로 넘어간다. 거짓이면 기존 양식 질문을 그대로 한다.
         """
         self._guide_first = guide_first
+        self._defer_questions = defer_questions
+        self._generate_questions = generate_questions
 
     async def run(self, call: RoleRequest, services: SharedServices) -> InquiryResult:
 
         services.runtime.ensure_active()
+        if call.action == "ASK":
+            return await self._ask(call, services)
         request = call.state["input"]
         existing = list(request.problems)
         # Knowledge가 그 문제를 오류 없이 검색했지만 안내를 만들지 못했다면 사용법 문제는 안내 대신
@@ -82,6 +114,8 @@ class ExtractionInquiryAgent:
         system_ids = {system.code: system.id for system in request.systems}
         problems: list[ProblemProposal] = []
         questions: list[QuestionProposal] = []
+        analysis: list[ProblemAnalysis] = []
+        texts = user_texts(request)
         for index, extracted in enumerate(extraction.problems[:MAX_PROBLEMS]):
             original = existing[index] if index < len(existing) else None
             ref = original.id if original is not None else f"new:{index + 1}"
@@ -100,11 +134,99 @@ class ExtractionInquiryAgent:
                 previous=previous,
             )
             problems.append(problem)
-            if question is not None:
+            # 질문을 미루면(문제별 행동 경로) 분석은 문제와 검색 힌트만 만든다. 질문은 ASK 행동이
+            # 고른 뒤에 만든다.
+            if question is not None and not self._defer_questions:
                 questions.append(question)
+            # 검색 힌트는 사실이 아니라서 인용 대조 대신 규칙으로 정리한다. 기능 후보는 코드가 정한
+            # 문제의 시스템(서버 확인값 포함)을 기준으로 거른다. 모델이 시스템을 바꾸지 못한다.
+            analysis.append(
+                ProblemAnalysis(
+                    problemRef=ref,
+                    keywords=list(normalize_keywords(extracted.keywords, texts)),
+                    featureCandidates=list(
+                        select_feature_candidates(
+                            extracted.featureCandidates,
+                            allowed_feature_ids(request, problem.reportedSystemCandidateId),
+                        )
+                    ),
+                )
+            )
         return InquiryResult(
-            invocationId=call.invocation_id, problems=problems, questions=questions
+            invocationId=call.invocation_id,
+            problems=problems,
+            questions=questions,
+            analysis=analysis,
         )
+
+    async def _ask(self, call: RoleRequest, services: SharedServices) -> InquiryResult:
+        """대상 문제 하나의 질문을 만든다. 무엇을 물을지는 항상 양식 규칙이 정한다.
+
+        generate_questions가 켜져 있으면 문장을 모델이 쓰고, 실패하거나 규칙을 어기면 고정 문구를
+        쓴다. 예산·취소·기한 예외는 질문 실패가 아니라 실행 실패라서 그대로 전달한다.
+        """
+        if len(call.targets) != 1:
+            raise OutputRejected("질문 행동은 문제 하나를 대상으로 한다")
+        ref = call.targets[0]
+        # 검색했는지는 이번 실행의 검색 결과가 그 문제에 있는지로 안다.
+        searched = ref in searched_queries(call.state)
+        plan = question_plan(call.state, ref, searched=searched)
+        text: str | None = None
+        source: Literal["FIXED", "MODEL", "FIXED_FALLBACK"] = "FIXED"
+        fallback: str | None = None
+        if self._generate_questions and plan.action == "ASK":
+            text, fallback = await self._write_question(call, ref, plan, services)
+            source = "MODEL" if text is not None else "FIXED_FALLBACK"
+        question = question_from_plan(call.state, ref, plan, text)
+        return InquiryResult(
+            invocationId=call.invocation_id,
+            problems=[],
+            questions=[question],
+            analysis=[],
+            questionSource=source,
+            questionFallback=fallback,
+        )
+
+    @staticmethod
+    async def _write_question(
+        call: RoleRequest, ref: str, plan: QuestionPlan, services: SharedServices
+    ) -> tuple[str | None, str | None]:
+        """모델이 쓴 질문 문장과 대체 사유. 문장을 못 얻으면 (None, 사유 코드)다."""
+        state = call.state
+        budget = services.runtime.budget
+        remaining_output = state["input"].limits.maxOutputTokens - state["usage"]["outputTokens"]
+        if (
+            budget.max_llm_calls - budget.llm_calls_used < 1 + QUESTION_RESERVED_CALLS
+            or remaining_output <= 0
+        ):
+            return None, "BUDGET"
+        original = next((item for item in state["input"].problems if item.id == ref), None)
+        asked = original.questionCount if original is not None else 0
+        system_names = [system.name for system in state["input"].systems]
+        try:
+            response = await services.llm.generate(
+                LLMRequest(
+                    messages=[
+                        LLMMessage("system", QUESTION_SYSTEM_PROMPT),
+                        LLMMessage(
+                            "user",
+                            build_question_payload(
+                                state["problems"][ref], plan, system_names, QUESTION_LIMIT - asked
+                            ),
+                        ),
+                    ],
+                    response_model=QuestionDraft,
+                    max_output_tokens=min(QUESTION_MAX_OUTPUT_TOKENS, remaining_output),
+                    prompt_version=QUESTION_PROMPT_VERSION,
+                )
+            )
+        except (OutputRejected, TransientError):
+            return None, "MODEL_ERROR"
+        services.runtime.ensure_active()
+        try:
+            return validate_text(response.parsed.text, plan, system_names), None
+        except RejectedQuestion as rejected:
+            return None, f"INVALID:{rejected.code}"
 
     @staticmethod
     async def _extract(call: RoleRequest, services: SharedServices) -> InquiryExtraction:
@@ -123,6 +245,7 @@ class ExtractionInquiryAgent:
                     ),
                 ],
                 response_model=InquiryExtraction,
+                response_schema=extraction_schema([system.code for system in request.systems]),
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 prompt_version=PROMPT_VERSION,
             )
@@ -155,7 +278,8 @@ def _assemble(
         system_id = original.reportedSystemId or system_ids.get(extracted.systemCode or "")
     else:
         intent = extracted.intent
-        processing_type = PROCESSING_TYPES[intent]
+        # 처리 유형은 의도별 정책 표가 정한다. 모델이 정하지 않는다.
+        processing_type = policy_for(intent).processing_type
         system_id = system_ids.get(extracted.systemCode or "")
 
     if previous is not None and system_id is None:
@@ -171,7 +295,7 @@ def _assemble(
         question_count=original.questionCount if original is not None else 0,
         unknown=declared_unknown,
         guide_first=guide_first,
-        handoff=knowledge_empty and processing_type == "KNOWLEDGE_QA",
+        handoff=knowledge_empty and is_guide_type(processing_type),
     )
 
     facts = _carry_facts(

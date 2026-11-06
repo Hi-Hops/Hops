@@ -15,8 +15,8 @@ from hops_ai.contracts.roles import TicketResult
 from hops_ai.contracts.state import RoleRequest, SupervisorState
 from hops_ai.contracts.wire import ProblemProposal, StandardRequestBody, TicketProposal
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.intent_policy import is_guide_type, is_ticketable
 from hops_ai.rules.progress import (
-    TICKETABLE_TYPES,
     get_problem_knowledge,
     get_problem_message_ids,
     get_problem_progress,
@@ -43,8 +43,8 @@ class ModelTicketAgent:
             if ref in pending
             and p.reportedSystemCandidateId is not None
             and (
-                p.processingType in TICKETABLE_TYPES
-                or (p.processingType == "KNOWLEDGE_QA" and ref in no_guide)
+                is_ticketable(p.processingType)
+                or (is_guide_type(p.processingType) and ref in no_guide)
             )
         }
 
@@ -53,6 +53,11 @@ class ModelTicketAgent:
         services.runtime.ensure_active()
         state = call.state
         problems = self.eligible_problems(state)
+        if call.targets:
+            # 문제별 행동 경로: 고른 문제만 처리한다. 하나라도 자격이 없으면 거부한다.
+            if not set(call.targets) <= problems.keys():
+                raise OutputRejected("티켓으로 제안할 수 없는 문제가 대상에 있다")
+            problems = {ref: problems[ref] for ref in call.targets}
         if not problems:
             raise OutputRejected("티켓으로 제안할 수 있는 문제가 없다")
 
@@ -148,7 +153,7 @@ class ModelTicketAgent:
                 title=decision.title,
                 processingType=(
                     "REVIEW_REQUIRED"
-                    if problem.processingType == "KNOWLEDGE_QA"
+                    if is_guide_type(problem.processingType)
                     else problem.processingType
                 ),
                 responsibleSystemCandidateId=system_id,

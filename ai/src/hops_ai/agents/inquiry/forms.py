@@ -22,6 +22,7 @@ from typing import Literal
 
 from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.contracts.wire import Intent
+from hops_ai.rules.intent_policy import INTENT_POLICIES
 
 # 시스템은 RequestDetails 필드가 아니라 문제의 보고 시스템 후보로 확인한다.
 SYSTEM = "system"
@@ -30,28 +31,29 @@ SYSTEM = "system"
 MAX_QUESTIONS_PER_PROBLEM = QUESTION_LIMIT
 MAX_FIELDS_PER_QUESTION = 3
 
+# 아래 세 표의 값은 의도별 정책 표(rules.intent_policy)가 정본이다. 여기서는 의도 이름으로
+# 바로 찾을 수 있게 펼쳐 둘 뿐이며 값을 따로 정의하지 않는다.
+
 # 의도별로 처리에 꼭 필요한 정보. 앞에 있을수록 먼저 묻는다.
 REQUIRED_FIELDS: Mapping[str, tuple[str, ...]] = {
-    "HOW_TO": ("taskOrScreen", "currentWorkflow"),
-    "ACCESS_REQUEST": ("requestedAccess", "businessPurpose"),
-    "OBSERVED_SYMPTOM": ("taskOrScreen", "expectedBehavior", "actualBehavior", "occurredAt"),
-    "FEATURE_REQUEST": ("currentWorkflow", "desiredChange"),
-    "IMPROVEMENT_REQUEST": ("currentWorkflow", "desiredChange"),
-    # 의도를 모르면 무엇을 하려는지부터 확인한다.
-    "UNKNOWN": ("taskOrScreen",),
+    intent: policy.required_fields for intent, policy in INTENT_POLICIES.items()
 }
 
 # 승인된 가이드를 먼저 찾을 수 있을 때(Knowledge 연결) 안내 전에 확보할 정보.
 # 사용법은 PRD 기준으로 시스템과 하려는 작업·화면만 알면 검색을 시작할 수 있다.
 # 검색 결과가 없을 때 담당자 전달에 필요한 나머지 정보는 그 뒤에 확인한다.
 GUIDE_FIRST_FIELDS: Mapping[str, tuple[str, ...]] = {
-    "HOW_TO": ("taskOrScreen",),
+    intent: policy.guide_first_fields
+    for intent, policy in INTENT_POLICIES.items()
+    if policy.guide_first_fields is not None
 }
 
 # 승인된 가이드를 찾지 못해(Knowledge EMPTY) 담당자에게 넘길 수 있는 상태가 됐을 때 확보할 정보.
 # 사용법의 우선 확인 항목에 원하는 결과를 더한다. 계약에 없는 정보(사용자 역할 등)는 묻지 않는다.
 HANDOFF_FIELDS: Mapping[str, tuple[str, ...]] = {
-    "HOW_TO": ("taskOrScreen", "expectedBehavior"),
+    intent: policy.handoff_fields
+    for intent, policy in INTENT_POLICIES.items()
+    if policy.handoff_fields is not None
 }
 
 # 담당자 전달용 질문에서만 쓰는 문구. 사용법에 맞지 않는 기본 문구를 대신한다.
@@ -103,6 +105,8 @@ class QuestionPlan:
     fields: tuple[str, ...] = ()
     text: str | None = None
     unknown: tuple[str, ...] = ()
+    # ASK일 때 fields마다의 고정 질문 문구(같은 순서). 모델이 문장을 쓸 때 각 필드의 뜻 기준이다.
+    prompts: tuple[str, ...] = ()
 
 
 def required_fields(
@@ -160,6 +164,7 @@ def plan_next(
     unknown: Collection[str] = (),
     guide_first: bool = False,
     handoff: bool = False,
+    priority: Sequence[str] = (),
 ) -> QuestionPlan:
     """확보한 정보를 보고 다음 행동을 정한다.
 
@@ -172,6 +177,9 @@ def plan_next(
             작업·화면만 확보하면 COMPLETE가 되어 Knowledge 검색으로 넘어간다.
         handoff: 가이드를 찾지 못한 뒤인지. 참이면 담당자 전달용 항목을 확보하고 질문 문구도
             그에 맞게 쓴다.
+        priority: 먼저 물을 필드(Knowledge 판정이 부족하다고 한 정보). 질문이 필요한 상황(ASK)에서만
+            쓰이며 ASK인지 여부는 바꾸지 않는다. 이미 확보했거나 모른다고 했거나 이미 물은 필드,
+            양식에 없는 필드는 무시한다.
     """
     if intent == "OUT_OF_SCOPE":
         return QuestionPlan("OUT_OF_SCOPE")
@@ -191,6 +199,23 @@ def plan_next(
         return QuestionPlan("COMPLETE", unknown=tuple(f for f in unknown if f != SYSTEM))
 
     askable = [name for name in missing if name not in asked]
+    # 판정이 지목한 필드를 앞에 둔다. 필수 목록에 없어도 양식의 필드이고 아직 모르는 값이면 묻는다.
+    wanted = [
+        name
+        for name in dict.fromkeys(priority)
+        if name in FIELD_PROMPTS
+        and name not in asked
+        and name not in unknown
+        and not (known.get(name) or "").strip()
+    ]
+    # 시스템이 정해지지 않았으면 시스템을 가장 먼저 묻는 합의는 우선순위로도 바뀌지 않는다.
+    first = [name for name in askable if name == SYSTEM]
+    wanted = [name for name in wanted if name != SYSTEM]
+    askable = [
+        *first,
+        *wanted,
+        *(name for name in askable if name not in first and name not in wanted),
+    ]
     if question_count >= MAX_QUESTIONS_PER_PROBLEM or not askable:
         # 더 물을 수 없다. 모르는 값은 지어내지 않고 미확인으로 넘긴다.
         return QuestionPlan("HANDOFF", unknown=tuple(missing))
@@ -199,7 +224,10 @@ def plan_next(
     # 담당자 전달용 문구는 그 항목을 따로 정의한 의도에서만 쓴다.
     handoff_prompts = handoff and intent in HANDOFF_FIELDS
     return QuestionPlan(
-        "ASK", fields=fields, text=compose_question(fields, system_names, handoff=handoff_prompts)
+        "ASK",
+        fields=fields,
+        text=compose_question(fields, system_names, handoff=handoff_prompts),
+        prompts=tuple(_prompt(name, system_names, handoff=handoff_prompts) for name in fields),
     )
 
 

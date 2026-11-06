@@ -13,6 +13,7 @@ from hops_ai.contracts.wire import (
     TicketProposal,
 )
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.intent_policy import is_guide_type
 from hops_ai.rules.progress import (
     get_problem_knowledge,
     get_problem_message_ids,
@@ -108,7 +109,7 @@ def _is_review_handoff(
     검색하지 않은 문제나 다른 문제의 결과로는 허용하지 않으며 다른 유형 불일치는 계속 거부한다.
     """
     return (
-        problem.processingType == "KNOWLEDGE_QA"
+        is_guide_type(problem.processingType)
         and proposal.processingType == "REVIEW_REQUIRED"
         and problem.problemRef in problems_without_guide(state)
     )

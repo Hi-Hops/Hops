@@ -13,11 +13,31 @@ from dataclasses import asdict
 import httpx
 from pydantic import BaseModel, ValidationError
 
-from hops_ai.harness.errors import ComponentNotReady, OutputRejected, TransientError
+from hops_ai.harness.errors import (
+    ComponentNotReady,
+    MalformedOutput,
+    OutputRejected,
+    TransientError,
+)
 from hops_ai.services.llm.client import LLMRequest, LLMResponse, LLMUsage
 
 _BASE_URL = "https://api.openai.com/v1/"
 _HTTP_TIMEOUT = httpx.Timeout(120.0, connect=10.0)
+
+
+def _short(value: object) -> str:
+    """API가 준 상태 이름을 로그에 안전하게 줄여 쓴다(이름이 아니면 유형만)."""
+    return value[:40] if isinstance(value, str) else type(value).__name__
+
+
+def _violations(error: ValidationError, limit: int = 5) -> str:
+    """검증 오류의 필드 위치와 오류 유형만. 모델이 낸 값(input)은 쓰지 않는다."""
+    items = [
+        f"{'.'.join(str(part) for part in item['loc']) or '(전체)'}:{item['type']}"
+        for item in error.errors(include_input=False, include_url=False)[:limit]
+    ]
+    more = error.error_count() - len(items)
+    return ", ".join(items) + (f" 외 {more}건" if more > 0 else "")
 
 
 class OpenAIClient:
@@ -72,21 +92,43 @@ class OpenAIClient:
                     "max_output_tokens": request.max_output_tokens,
                 },
             )
+        return self._parse(request, data)
+
+    @staticmethod
+    def _parse[T: BaseModel](request: LLMRequest[T], data: dict) -> LLMResponse[T]:
+        """응답을 읽는다. 실패하면 어느 단계에서 왜 실패했는지를 detail에 남긴다.
+
+        detail은 로그용이며 사용자에게 가는 고정 문구(safe_message)는 그대로다. 모델이 낸 값이나
+        응답 본문은 detail에 넣지 않는다. 필드 위치와 오류 유형, API가 알려 준 상태 이름만 쓴다.
+        """
         try:
-            if data["status"] != "completed":
-                raise ValueError("incomplete")
-            texts = [
-                content["text"]
+            status = data["status"]
+            if status != "completed":
+                reason = (data.get("incomplete_details") or {}).get("reason")
+                raise OutputRejected(
+                    f"OpenAI 응답이 완료되지 않았습니다(status={_short(status)}, "
+                    f"reason={_short(reason)})"
+                )
+            contents = [
+                content
                 for item in data["output"]
                 if item["type"] == "message"
                 for content in item["content"]
-                if content["type"] == "output_text"
             ]
-            parsed = request.response_model.model_validate_json("".join(texts))
+            if any(content["type"] == "refusal" for content in contents):
+                raise OutputRejected("모델이 응답을 거부했습니다")
+            texts = [content["text"] for content in contents if content["type"] == "output_text"]
             usage = LLMUsage(data["usage"]["input_tokens"], data["usage"]["output_tokens"])
-            return LLMResponse(parsed=parsed, usage=usage, model_id=data["model"])
-        except (KeyError, TypeError, ValueError, ValidationError) as exc:
-            raise OutputRejected("OpenAI 응답을 검증할 수 없습니다") from exc
+            model_id = data["model"]
+        except (KeyError, TypeError, AttributeError) as exc:
+            raise OutputRejected("OpenAI 응답 구조를 읽을 수 없습니다") from exc
+        try:
+            parsed = request.response_model.model_validate_json("".join(texts))
+        except ValidationError as exc:
+            raise MalformedOutput(
+                f"모델 출력이 형식을 어겼습니다({_violations(exc)}, 출력 텍스트 {len(texts)}개)"
+            ) from exc
+        return LLMResponse(parsed=parsed, usage=usage, model_id=model_id)
 
     @staticmethod
     async def _post(client: httpx.AsyncClient, path: str, payload: dict) -> dict:

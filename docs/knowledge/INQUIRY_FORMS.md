@@ -2,7 +2,7 @@
 
 문의 유형마다 담당자가 처리하거나 안내하는 데 필요한 정보가 다르다. 이 문서는 AI 서버가 문의 유형별로 무엇을 확보하고 어떤 순서로 묻는지, 모르거나 한도에 닿으면 어떻게 하는지를 데이터 작성자와 평가자가 같은 기준으로 읽도록 정리한 **검토 기준**이다. 제품 정책은 [PRD](../PRD.md), 필드 이름은 [공통 계약](../../specs/contracts/README.md)의 `RequestDetails`를 따르며 여기서 다시 정의하지 않는다.
 
-현재 동작의 정본은 `ai/src/hops_ai/agents/inquiry/forms.py`다. 이 문서와 코드가 다르면 코드가 현재 동작이고, 문서를 고치거나 코드 변경을 PR로 제안한다. 팀 합의는 이 문서가 PR 리뷰를 거쳐 병합된 뒤에 성립한다.
+현재 동작의 정본은 코드다. 의도별 필수 필드·검색 종류 같은 값은 `ai/src/hops_ai/rules/intent_policy.py`에, 질문 선택 규칙은 `ai/src/hops_ai/agents/inquiry/forms.py`에 있다. 이 문서와 코드가 다르면 코드가 현재 동작이고, 문서를 고치거나 코드 변경을 PR로 제안한다. 아래 두 표의 필드와 검색 종류는 `ai/tests/unit/test_intent_policy.py`가 코드의 정책 표와 대조한다. 팀 합의는 이 문서가 PR 리뷰를 거쳐 병합된 뒤에 성립한다.
 
 ## 역할 분담
 
@@ -18,15 +18,17 @@
 
 질문은 아래 순서로 한다. 시스템이 정해지지 않았다면 항상 시스템부터 묻는다. 시스템은 `RequestDetails` 필드가 아니라 문제의 보고 시스템 후보로 확인한다.
 
-| 의도 | 필수 필드 (묻는 순서) | 비고 |
-|---|---|---|
-| `HOW_TO` 사용법 | 하려는 업무·화면(`taskOrScreen`), 현재 진행 방식(`currentWorkflow`) | 아래 "상태에 따라 달라지는 요구" 참조 |
-| `ACCESS_REQUEST` 권한 신청 | 필요한 기능·권한(`requestedAccess`), 업무 목적(`businessPurpose`) | |
-| `OBSERVED_SYMPTOM` 현상 | 하려던 업무·화면, 기대 동작(`expectedBehavior`), 실제 동작(`actualBehavior`), 발생 시점(`occurredAt`) | |
-| `FEATURE_REQUEST` 기능 추가 | 현재 진행 방식, 바라는 변경(`desiredChange`) | |
-| `IMPROVEMENT_REQUEST` 개선 | 현재 진행 방식, 바라는 변경 | |
-| `UNKNOWN` 의도 불명 | 하려는 업무·화면 | 의도를 모르면 무엇을 하려는지부터 확인 |
-| `OUT_OF_SCOPE` 범위 밖 | 없음 | 질문하지 않고 범위를 안내 |
+| 의도 | 필수 필드 (묻는 순서) | 검색 종류 (초안) | 비고 |
+|---|---|---|---|
+| `HOW_TO` 사용법 | 하려는 업무·화면(`taskOrScreen`), 현재 진행 방식(`currentWorkflow`) | `GUIDE`, `POLICY` | 아래 "상태에 따라 달라지는 요구" 참조 |
+| `ACCESS_REQUEST` 권한 신청 | 필요한 기능·권한(`requestedAccess`), 업무 목적(`businessPurpose`) | `GUIDE`, `POLICY` | |
+| `OBSERVED_SYMPTOM` 현상 | 하려던 업무·화면(`taskOrScreen`), 기대 동작(`expectedBehavior`), 실제 동작(`actualBehavior`), 발생 시점(`occurredAt`) | `GUIDE`, `RUNBOOK`, `CASE` | |
+| `FEATURE_REQUEST` 기능 추가 | 현재 진행 방식(`currentWorkflow`), 바라는 변경(`desiredChange`) | 없음 | |
+| `IMPROVEMENT_REQUEST` 개선 | 현재 진행 방식(`currentWorkflow`), 바라는 변경(`desiredChange`) | 없음 | |
+| `UNKNOWN` 의도 불명 | 하려는 업무·화면(`taskOrScreen`) | 없음 | 의도를 모르면 무엇을 하려는지부터 확인 |
+| `OUT_OF_SCOPE` 범위 밖 | 없음 | 없음 | 질문하지 않고 범위를 안내 |
+
+**검색 종류**는 그 의도에서 검색할 지식 종류의 **기본값이며 초안**이다. 비어 있으면 검색하지 않는 것이 기본이다. 문제별 행동 경로의 검색이 이 값을 읽는다(접근 범위로 읽을 수 없는 종류는 뺀다: 직원 범위에서는 담당자 전용 `RUNBOOK`을 요청하지 않는다). 접근 범위 자체는 아니다(직원 상담의 기본 프로필은 이 값과 무관하게 직원 공개 자료만 읽는다). 값은 측정으로 확정한다.
 
 계약에 없는 정보(사용자 역할, 발생 빈도, 영향 받는 사용자 수 등)는 지금 묻지 않는다. 필드를 늘리는 것은 공통 계약 변경이므로 팀 합의가 먼저다.
 
@@ -36,8 +38,8 @@
 
 | 상태 | 사용법(`HOW_TO`)에 요구하는 정보 | 이유 |
 |---|---|---|
-| 가이드를 먼저 찾을 수 있음 (Knowledge 연결) | 시스템 + 하려는 업무·화면 | 사용법은 이 둘만 알면 검색을 시작할 수 있다. |
-| 가이드를 찾지 못해 담당자에게 넘길 준비 중 | 시스템 + 하려는 업무·화면 + 원하는 결과(`expectedBehavior`) | 담당자가 요청을 이해하려면 최종 목적이 필요하다. 이때 원하는 결과 질문은 사용법에 맞는 문구를 쓴다. |
+| 가이드를 먼저 찾을 수 있음 (Knowledge 연결) | 시스템 + 하려는 업무·화면(`taskOrScreen`) | 사용법은 이 둘만 알면 검색을 시작할 수 있다. |
+| 가이드를 찾지 못해 담당자에게 넘길 준비 중 | 시스템 + 하려는 업무·화면(`taskOrScreen`) + 원하는 결과(`expectedBehavior`) | 담당자가 요청을 이해하려면 최종 목적이 필요하다. 이때 원하는 결과 질문은 사용법에 맞는 문구를 쓴다. |
 
 다른 의도는 이 상태 구분이 없고 위 표의 필수 필드를 그대로 쓴다.
 

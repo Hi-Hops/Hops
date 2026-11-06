@@ -1,6 +1,6 @@
 """Knowledge 역할: 허용된 지식을 검색해 근거와 직원 안내를 제안한다.
 
-이 구현은 모델을 호출하지 않는다. 질의는 그 문제 자신의 정보로 규칙에 따라 만든다. 문제 하나가
+검색은 모델을 호출하지 않는다. 질의는 그 문제 자신의 정보로 규칙에 따라 만든다. 문제 하나가
 문의 전체의 주제일 때만 요약과 사용자 원문을 함께 쓰고, 한 문의에 다른 문제가 함께 있으면 그
 문제의 단어로 검색이 오염되므로 원문과 모델이 쓴 요약은 쓰지 않고 검증된 상세 값만 쓴다.
 검색 범위(공개 범위·시스템)는 서버가 확정한 접근 문맥에서만 가져온다. 안내문은 근거 문서의
@@ -10,29 +10,77 @@
 - 검색 0건(EMPTY)에는 안내를 만들지 않고, 검색 오류(ERROR)를 0건으로 바꾸지 않는다.
 - 안내는 직원 공개 GUIDE 근거가 있을 때만 제안한다. 담당자 전용 자료는 근거에 포함될 수
   있어도 안내문에 쓰지 않는다.
-- 이 역할은 현재 상담 실행에서 사용법(KNOWLEDGE_QA) 문제 하나의 안내만 다룬다. 원인 후보나
-  관계 조회(Neo4j)는 포함하지 않는다.
+- 호출에 대상 문제(`targets`)가 없으면(역할 단위 결정 경로) 안내로 끝나는 유형(사용법) 문제
+  하나의 안내만 다루고 지식 종류는 제한하지 않는다. 대상이 있으면(문제별 행동 경로) 그 문제를
+  정책 표의 검색 종류로 검색하며, 아직 하지 않은 질의를 하나 고른다. 첫 질의는 문제 자신의
+  정보로 만든 기존 질의이고, 재검색은 ②의 키워드만, 키워드와 확인한 상세 값 순서다. 관계
+  조회(Neo4j)는 포함하지 않는다.
+- relation_source를 주면 문제별 행동 경로의 검색이 끝난 뒤, 정책 표가 관계를 쓰는 의도(증상 문의)에
+  한해 증상의 원인을 가르는 확인 항목을 함께 조회한다(`relations`). 직원 공개로 승인된 확인 항목과
+  보이는 질문 문구만 남기고 원인 이름은 받지 않는다. 연결은 후보일 뿐이다. 관계는 보강 정보라서
+  조회 오류(ERROR)는 0건(EMPTY)과 구분해 기록하되 검색 결과와 안내를 막지 않으며, 도구 호출 예산이
+  이미 소진됐으면 조회하지 않는다. 취소·기한 예외는 그대로 전달한다.
+- assess_evidence를 켜면 검색 뒤에 근거의 충분성 판정(Assessment)을 한 번 더 만든다. 결과가
+  1건 이상일 때만 모델을 부르고(문제당 1회), 0건은 코드가 NO_MATCH로 확정한다. 검색 오류는
+  평가하지 않는다. 모델 오류·검증 거부·예산 부족은 "평가 없음"으로 두고 검색 결과와 안내는
+  그대로 돌려준다. 안내는 판정과 무관하게 지금처럼 승인 본문으로 조립한다(판정을 읽는 것은
+  Supervisor의 행동 선택이다).
 
 반환하는 결과는 제안이다. 권한 확인과 digest 확인은 검색 자료가 마쳤다고 알린 값이며,
 Supervisor 병합 단계가 현재 접근 범위와 다시 대조한다.
 """
 
+from dataclasses import replace
 from uuid import uuid4
 
+from pydantic import ValidationError
+
+from hops_ai.agents.knowledge.assessment import (
+    MAX_OUTPUT_TOKENS,
+    PROMPT_VERSION,
+    RESERVED_CALLS,
+    SYSTEM_PROMPT,
+    AssessmentDraft,
+    build_user_payload,
+    to_assessment,
+)
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
-from hops_ai.contracts.roles import KnowledgeResult, SearchError, SearchResult
+from hops_ai.contracts.roles import (
+    Assessment,
+    KnowledgeResult,
+    RelationCheck,
+    RelationNeighbors,
+    RelationQuestion,
+    RelationSymptom,
+    SearchError,
+    SearchResult,
+)
 from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
-from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable
+from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
+from hops_ai.rules.assessment import (
+    check_item_ids,
+    limit_check_items,
+    no_match_assessment,
+    validate_assessment,
+)
+from hops_ai.rules.intent_policy import is_guide_type, policy_for, search_kinds
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
+from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
     SEARCH_KNOWLEDGE,
+    SEARCH_RELATIONS,
     KnowledgeHit,
     KnowledgeQuery,
     KnowledgeSource,
     RunLink,
+)
+from hops_ai.services.retrieval.relation_source import (
+    RelationQuery,
+    RelationResult,
+    RelationSource,
 )
 from hops_ai.services.shared import SharedServices
 
@@ -43,8 +91,20 @@ MAX_QUERY_MESSAGES = 5
 class SearchKnowledgeAgent:
     role = AgentRole.KNOWLEDGE
 
-    def __init__(self, source: KnowledgeSource) -> None:
+    def __init__(
+        self,
+        source: KnowledgeSource,
+        *,
+        assess_evidence: bool = False,
+        relation_source: RelationSource | None = None,
+    ) -> None:
+        """assess_evidence가 참이면 검색 결과의 충분성 판정을 함께 만든다(문제당 모델 1회).
+
+        relation_source를 주면 증상 문의의 검색에 관계 조회(확인 항목)를 더한다. 모델 호출은 없다.
+        """
         self._source = source
+        self._assess_evidence = assess_evidence
+        self._relation_source = relation_source
 
     async def run(self, call: RoleRequest, services: SharedServices) -> RoleResponse:
 
@@ -52,8 +112,11 @@ class SearchKnowledgeAgent:
         state = call.state
         if state["input"].kind != RunKind.INQUIRY_ANALYSIS:
             raise OutputRejected("이 Knowledge 구현은 상담 실행의 안내만 다룬다")
-        target = _guide_target(state)
-        query = _build_query(state, target, services)
+        if call.targets:
+            target, query = _targeted_search(state, call.targets, services)
+        else:
+            target = _guide_target(state)
+            query = _build_query(state, target, services)
         try:
             hits = list(await self._source.search(query))
         except RetrievalUnavailable:
@@ -64,6 +127,8 @@ class SearchKnowledgeAgent:
         services.runtime.ensure_active()
 
         evidence = tuple(hit.evidence for hit in hits)
+        # 관계를 먼저 조회한다: 판정이 확인 항목을 부족한 정보로 지목할 수 있게 입력으로 준다.
+        relations = await self._look_up_relations(call, target, services)
         result = KnowledgeResult(
             invocationId=call.invocation_id,
             search=(
@@ -71,15 +136,131 @@ class SearchKnowledgeAgent:
                 if hits
                 else SearchResult(state="EMPTY", evidence=[], error=None)
             ),
-            guide=_guide(target, hits),
+            guide=_guide_for(state, call, target, hits),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
+            assessment=await self._assess(target, hits, relations, services),
+            relations=relations,
         )
         return RoleResponse(
             result=result,
             authorized_refs=tuple(hit.reference for hit in hits),
             verified_evidence=evidence,
         )
+
+    async def _assess(
+        self,
+        target: ProblemProposal,
+        hits: list[KnowledgeHit],
+        relations: RelationNeighbors | None,
+        services: SharedServices,
+    ) -> Assessment | None:
+        """검색 근거의 충분성 판정. 만들지 못하면 None(평가 없음)이며 흐름을 막지 않는다.
+
+        예산·취소·기한 예외(BudgetExceeded 등)는 평가 실패가 아니라 실행 실패이므로 그대로 전달한다.
+        """
+        if not self._assess_evidence:
+            return None
+        if not hits:
+            return no_match_assessment(target.problemRef)
+        budget = services.runtime.budget
+        # 평가가 실행 예산을 다 써서 이후의 필수 호출(판단·질문·티켓)을 막지 않게 한다.
+        if budget.max_llm_calls - budget.llm_calls_used < 1 + RESERVED_CALLS:
+            return None
+        try:
+            response = await services.llm.generate(
+                LLMRequest(
+                    messages=[
+                        LLMMessage("system", SYSTEM_PROMPT),
+                        LLMMessage("user", build_user_payload(target, hits, relations)),
+                    ],
+                    response_model=AssessmentDraft,
+                    max_output_tokens=MAX_OUTPUT_TOKENS,
+                    prompt_version=PROMPT_VERSION,
+                )
+            )
+        except (OutputRejected, TransientError):
+            return None
+        services.runtime.ensure_active()
+        try:
+            assessment = limit_check_items(to_assessment(target.problemRef, response.parsed))
+            validate_assessment(
+                assessment,
+                intent=target.intent,
+                search_state="FOUND",
+                evidence=[hit.evidence for hit in hits],
+                allowed_check_items=check_item_ids(relations),
+            )
+        except (ValidationError, OutputRejected):
+            return None
+        return assessment
+
+    async def _look_up_relations(
+        self, call: RoleRequest, target: ProblemProposal, services: SharedServices
+    ) -> RelationNeighbors | None:
+        """증상의 원인을 가르는 확인 항목. 조회하지 않았으면 None, 오류면 ERROR 상태다."""
+        if self._relation_source is None or not call.targets:
+            return None
+        if not policy_for(target.intent).uses_relations:
+            return None
+        state = call.state
+        query = _relation_query(state, target, services)
+        if query is None:
+            return None
+        budget = services.runtime.budget
+        if budget.max_tool_calls is not None and budget.tool_calls_used >= budget.max_tool_calls:
+            return None  # 보강 정보를 위해 실행을 예산 초과로 끝내지 않는다
+        try:
+            result = await self._relation_source.search(query)
+        except RetrievalUnavailable:
+            return RelationNeighbors(state="ERROR", symptoms=[])
+        services.runtime.ensure_active()
+        return _neighbors(result)
+
+
+def _relation_query(
+    state: SupervisorState, target: ProblemProposal, services: SharedServices
+) -> RelationQuery | None:
+    """문제의 키워드·기능 후보·시스템으로 만든 관계 질의. 쓸 키워드도 기능도 없으면 None이다."""
+    analysis = state["analysis"].get(target.problemRef)
+    keywords = tuple(_searchable_keywords(state, target))
+    features = frozenset(analysis.featureCandidates) if analysis is not None else frozenset()
+    if not keywords and not features:
+        return None
+    access = state["input"].accessContext
+    system_ids = {target.reportedSystemCandidateId} & set(access.systemIds)
+    return RelationQuery(
+        keywords=keywords,
+        feature_ids=features,
+        system_ids=frozenset(system_ids),
+        allowed_scopes=frozenset(access.allowedDocumentScopes),
+        run=_run_link(state["input"], target, services, SEARCH_RELATIONS),
+    )
+
+
+def _neighbors(result: RelationResult) -> RelationNeighbors:
+    """직원에게 쓸 수 있는 확인 항목만 남긴다: 직원 공개로 승인됐고 질문 문구가 보이는 항목.
+
+    원인 이름과 담당자 전용 항목은 받아도 버린다(조회 응답이 이미 걸렀더라도 한 번 더 확인한다).
+    """
+    symptoms = []
+    for symptom in result.symptoms:
+        if symptom.accessScope != "EMPLOYEE":
+            continue
+        checks = []
+        for item in symptom.checkItems:
+            if not item.employeeDisclosable or item.accessScope != "EMPLOYEE":
+                continue
+            questions = [
+                RelationQuestion(id=question.id, text=question.text)
+                for question in item.questions
+                if question.basis.visible
+            ]
+            if questions:
+                checks.append(RelationCheck(id=item.id, questions=questions))
+        if checks:
+            symptoms.append(RelationSymptom(id=symptom.id, label=symptom.label, checkItems=checks))
+    return RelationNeighbors(state="FOUND" if symptoms else "EMPTY", symptoms=symptoms)
 
 
 def guidable_problem(state: SupervisorState) -> ProblemProposal | None:
@@ -99,7 +280,7 @@ def guidable_problem(state: SupervisorState) -> ProblemProposal | None:
         if item["outcome"] is not None:
             continue
         problem = state["problems"][item["problemRef"]]
-        if problem.processingType != "KNOWLEDGE_QA" or not problem.reportedSystemCandidateId:
+        if not is_guide_type(problem.processingType) or not problem.reportedSystemCandidateId:
             continue
         digests = searched.get(problem.problemRef, set())
         # 지문이 없는 결과는 어떤 질의였는지 알 수 없어 다시 검색하지 않는다.
@@ -107,6 +288,98 @@ def guidable_problem(state: SupervisorState) -> ProblemProposal | None:
             continue
         return problem
     return None
+
+
+def _targeted_search(
+    state: SupervisorState, targets: tuple[str, ...], services: SharedServices
+) -> tuple[ProblemProposal, KnowledgeQuery]:
+    """문제별 행동 경로의 검색 대상과 질의. 한 호출은 문제 하나를 다룬다."""
+    if len(targets) != 1:
+        raise OutputRejected("Knowledge 호출은 문제 하나를 대상으로 한다")
+    problem = state["problems"].get(targets[0])
+    if problem is None:
+        raise OutputRejected("존재하지 않는 문제를 검색할 수 없다")
+    if not problem.reportedSystemCandidateId:
+        raise OutputRejected("보고 시스템이 정해지지 않은 문제는 검색할 수 없다")
+    if not search_kinds(problem.intent, state["input"].accessContext.allowedDocumentScopes):
+        raise OutputRejected("이 의도는 이번 실행에서 검색하지 않는다")
+    query = next_query(state, problem, services)
+    if query is None:
+        raise OutputRejected("아직 하지 않은 새 질의가 없다")
+    return problem, query
+
+
+def _guide_for(
+    state: SupervisorState, call: RoleRequest, target: ProblemProposal, hits: list[KnowledgeHit]
+) -> GuideProposal | None:
+    """이 검색 결과로 만들 수 있는 안내. 문제별 행동 경로에서는 다른 문제의 안내를 덮어쓰지 않는다.
+
+    응답 계약이 안내를 하나만 허용하므로(`AiResult.guide`) 안내 칸이 다른 문제로 이미 차 있으면 이
+    문제는 안내를 만들지 않는다. 그 문제는 답변할 수 없는 것으로 계산돼 질문이나 담당자 검토로 간다.
+    """
+    existing = state["guide"]
+    if call.targets and existing is not None and existing.problemRef != target.problemRef:
+        return None
+    return _guide(target, hits)
+
+
+def candidate_queries(
+    state: SupervisorState, problem: ProblemProposal, services: SharedServices | None = None
+) -> list[KnowledgeQuery]:
+    """문제별 행동 경로가 쓸 질의 후보를 쓰는 순서대로 돌려준다. 검색하지 않는 의도는 비어 있다.
+
+    첫 번째는 문제 자신의 정보로 만든 기존 질의(정책 표의 검색 종류를 더함)다. 이어서 ②의
+    키워드만으로 만든 질의, 키워드와 확인한 상세 값을 함께 쓴 질의가 있다. 키워드가 없으면
+    첫 번째뿐이다. 같은 지문의 질의는 한 번만 나온다.
+    """
+    request = state["input"]
+    kinds = search_kinds(problem.intent, request.accessContext.allowedDocumentScopes)
+    if not kinds:
+        return []
+    base = replace(_build_query(state, problem, services), kinds=kinds)
+    queries = [base]
+    keywords = _searchable_keywords(state, problem)
+    if keywords:
+        keyword_text = " ".join(keywords)
+        queries.append(replace(base, text=keyword_text))
+        details = _detail_values(problem)
+        if details:
+            queries.append(replace(base, text="\n".join([keyword_text, *details])))
+    unique: dict[str, KnowledgeQuery] = {}
+    for query in queries:
+        unique.setdefault(query.digest(), query)
+    return list(unique.values())
+
+
+def next_query(
+    state: SupervisorState, problem: ProblemProposal, services: SharedServices | None = None
+) -> KnowledgeQuery | None:
+    """이번 실행에서 그 문제에 아직 쓰지 않은 첫 질의 후보. 없으면 None이다.
+
+    지문이 없는 이전 검색 결과가 있으면 어떤 질의였는지 알 수 없어 다시 검색하지 않는다.
+    """
+    searched = searched_queries(state).get(problem.problemRef, set())
+    if None in searched:
+        return None
+    for query in candidate_queries(state, problem, services):
+        if query.digest() not in searched:
+            return query
+    return None
+
+
+def research_used(state: SupervisorState, problem_ref: str) -> int:
+    """이번 실행에서 그 문제를 첫 검색 뒤에 다시 검색한 횟수."""
+    return max(0, len(searched_queries(state).get(problem_ref, ())) - 1)
+
+
+def _searchable_keywords(state: SupervisorState, problem: ProblemProposal) -> list[str]:
+    """②의 키워드에서 시스템 이름·코드를 뺀 것. 시스템은 검색 범위로 따로 좁히므로 질의에 넣으면
+    점수 분모만 키운다. 시스템 이름이 통째로 들어 있는 키워드를 뺀다."""
+    analysis = state["analysis"].get(problem.problemRef)
+    if analysis is None:
+        return []
+    names = {name for system in state["input"].systems for name in (system.name, system.code)}
+    return [word for word in analysis.keywords if not any(name in word for name in names)]
 
 
 def _guide_target(state: SupervisorState) -> ProblemProposal:
@@ -149,15 +422,17 @@ def _build_query(
     )
 
 
-def _run_link(request, target: ProblemProposal, services: SharedServices | None) -> RunLink | None:
-    """Spring 내부 API 검색에 쓸 실행 문맥. 한 번 부를 때마다 도구 호출 한도 1회를 소비한다."""
+def _run_link(
+    request, target: ProblemProposal, services: SharedServices | None, tool: str = SEARCH_KNOWLEDGE
+) -> RunLink | None:
+    """Spring 내부 API 호출에 쓸 실행 문맥. 한 번 부를 때마다 도구 호출 한도 1회를 소비한다."""
     if services is None:
         return None
     runtime = services.runtime
 
     def reserve_call() -> float:
         runtime.ensure_active()
-        runtime.tool_policy.authorize(AgentRole.KNOWLEDGE, SEARCH_KNOWLEDGE)
+        runtime.tool_policy.authorize(AgentRole.KNOWLEDGE, tool)
         runtime.budget.start_tool_call()
         return runtime.budget.remaining_seconds()
 
@@ -197,12 +472,25 @@ def _recent_user_messages(state: SupervisorState, target: ProblemProposal) -> li
     return [message.content for message in user_messages[-MAX_QUERY_MESSAGES:]]
 
 
+# 안내문 하나의 글자 상한. 최종 답변 본문은 4,000자 이내여야 하고 다른 문제의 질문·안내와 문제
+# 번호가 함께 들어가므로 여유를 둔다. 승인 본문을 잘라 쓰지 않으며(승인되지 않은 내용이 된다),
+# 이보다 긴 본문으로는 안내를 만들지 않아 질문이나 담당자 검토로 간다. 오류로 끝나는 것보다 낫다.
+MAX_GUIDE_CHARS = 3000
+
+
 def _guide(target: ProblemProposal, hits: list[KnowledgeHit]) -> GuideProposal | None:
-    """직원 공개 가이드 근거가 있을 때만 그 승인 본문으로 안내를 구성한다."""
+    """직원 공개 가이드 근거가 있을 때만 그 승인 본문으로 안내를 구성한다.
+
+    첫 직원 공개 가이드의 본문이 너무 길면 안내를 만들지 않는다. 뒤의 다른 가이드로 대신하지 않는다:
+    판정이 인용한 근거와 안내가 다른 문서가 되면 안 된다.
+    """
     for hit in hits:
         if hit.evidence.kind == "GUIDE" and hit.evidence.accessScope == "EMPLOYEE":
+            message = f"{hit.content}\n\n참고 자료: {hit.evidence.title}"
+            if len(message) > MAX_GUIDE_CHARS:
+                return None
             return GuideProposal(
-                messageText=f"{hit.content}\n\n참고 자료: {hit.evidence.title}",
+                messageText=message,
                 evidenceIds=[hit.evidence.id],
                 problemRef=target.problemRef,
             )
