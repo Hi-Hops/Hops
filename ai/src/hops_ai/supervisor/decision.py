@@ -288,6 +288,9 @@ async def decide_next_action(
                     "조금이라도 있으면 인사가 함께 있어도 INQUIRY로 분석한다. 문의·보완 없이 "
                     "인사만 있으면 REPLY와 replyKind=GREETING, 무엇을 원하는지 알 수 없으면 "
                     "REPLY와 replyKind=CLARIFY를 선택한다. 확실하지 않으면 INQUIRY로 분석한다. "
+                    "기존 문제가 있고 그 outcome이 없더라도, 마지막 사용자 메시지가 보완·요청 없이 "
+                    "인사만이면 REPLY와 replyKind=GREETING을 선택한다. 기존 문제는 그대로 남고 "
+                    "사용자의 다음 메시지에서 이어서 처리한다. "
                     "Inquiry가 문제를 찾지 못했으면 같은 분석을 반복하지 않고 REPLY로 되묻는다. "
                     "REPLY가 아닌 행동의 replyKind는 null이다. 진행 상황이나 해결 시점을 "
                     "추측하여 답하지 않는다. "
@@ -311,7 +314,7 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v8",
+        prompt_version="supervisor.decision.v9",
         response_schema=decision_schema(context["allowedRoles"]),
     )
     response = await services.llm.generate(request)
