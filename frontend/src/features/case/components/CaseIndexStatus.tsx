@@ -38,7 +38,8 @@ export function CaseIndexStatus({ detail, store, allowed }: CaseIndexStatusProps
       />
       {index && (
         <p>
-          현재 시도 {index.attempt} · {index.error?.message ?? '현재 승인 버전의 반영 결과예요.'}
+          현재 시도 {index.attempt}
+          {index.error ? ` · ${index.error.message}` : ''}
         </p>
       )}
       {(canRetry || canCheck || command.pending) && (

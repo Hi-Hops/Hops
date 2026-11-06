@@ -19,6 +19,7 @@ import {
   systemTicketKeys,
 } from '../api/systemTicketApi';
 import type {
+  KnowledgeEvidence,
   RelatedMessage,
   TicketDetail,
   TicketManagementDetail,
@@ -34,9 +35,54 @@ function hasRequest(value: TicketManagementDetail | TicketDetail): value is Tick
   return 'standardRequest' in value && 'workRecords' in value;
 }
 type RequestContentProps = { ticket: TicketDetail };
+type KnowledgeItemProps = RequestContentProps & { item: KnowledgeEvidence };
+function KnowledgeItem({ item, ticket }: KnowledgeItemProps) {
+  return (
+    <article className={styles.evidence}>
+      <strong>
+        {item.title} · 문서 v{item.documentVersion}
+      </strong>
+      <p>{item.excerpt}</p>
+      <p>{item.applicability}</p>
+      <small>
+        {item.systemId === null
+          ? '공통 정책'
+          : ticket.responsibleSystem.id === item.systemId
+            ? ticket.responsibleSystem.name
+            : '관련 시스템'}{' '}
+        · 적용 버전 {item.appliesToSystemVersion ?? '미확인'} ·{' '}
+        {item.origin === 'SYNTHETIC'
+          ? '가상 자료'
+          : item.origin === 'DEMO_VERIFIED'
+            ? '데모 검증 자료'
+            : item.origin === 'OPERATIONAL'
+              ? '운영 자료'
+              : '출처 확인 필요'}
+      </small>
+    </article>
+  );
+}
+/** 기록 중 탭을 오가지 않도록 요청 내용을 같은 탭에서 펼쳐 본다. 펼칠 때만 관련 대화를 조회한다. */
+function RequestReference({ ticket }: RequestContentProps) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className={workflow.reference}
+      open={open}
+      onToggle={(event) => {
+        setOpen(event.currentTarget.open);
+      }}
+    >
+      <summary>요청 내역 참고</summary>
+      {open && <RequestContent ticket={ticket} />}
+    </details>
+  );
+}
 function RequestContent({ ticket }: RequestContentProps) {
   const actor = useSession((s) => s.user?.id);
   const request = ticket.standardRequest;
+  const cases = request.knowledge.filter((item) => item.kind === 'CASE');
+  const documents = request.knowledge.filter((item) => item.kind !== 'CASE');
   const detailFields = [
     ['taskOrScreen', '업무·화면'],
     ['requestedAccess', '요청 권한'],
@@ -63,8 +109,10 @@ function RequestContent({ ticket }: RequestContentProps) {
   }, [query.data]);
   return (
     <div className={styles.requestSections}>
-      <section className={styles.requestCard}>
-        <h3>표준 요청</h3>
+      <details className={styles.requestFold}>
+        <summary>
+          <h3>표준 요청</h3>
+        </summary>
         <dl className={styles.facts}>
           <dt>문의 요약</dt>
           <dd>{request.summary}</dd>
@@ -101,11 +149,6 @@ function RequestContent({ ticket }: RequestContentProps) {
             ))}
           </>
         )}
-        <h4>확인된 사실</h4>
-        {request.confirmedFacts.map((fact, i) => (
-          <p key={String(i) + fact.text}>• {fact.text}</p>
-        ))}
-        {!request.confirmedFacts.length && <p>저장된 확인 사실이 없어요.</p>}
         <h4>미확인 항목</h4>
         {request.unknowns.length ? (
           request.unknowns.map((text) => <p key={text}>{text}</p>)
@@ -118,70 +161,52 @@ function RequestContent({ ticket }: RequestContentProps) {
         ) : (
           <p>저장된 추정이 없어요.</p>
         )}
+      </details>
+      <section className={styles.requestCard}>
+        <h3>확인된 사실</h3>
+        {request.confirmedFacts.map((fact, i) => (
+          <p key={String(i) + fact.text}>• {fact.text}</p>
+        ))}
+        {!request.confirmedFacts.length && <p>저장된 확인 사실이 없어요.</p>}
       </section>
       <section className={styles.requestCard}>
-        <h3>관련 지식·검토 근거</h3>
-        {request.knowledge.length ? (
-          request.knowledge.map((item) => (
-            <article className={styles.evidence} key={item.id}>
-              <strong>
-                {item.title} · 문서 v{item.documentVersion}
-              </strong>
-              <p>{item.excerpt}</p>
-              <p>{item.applicability}</p>
-              <small>
-                {item.systemId === null
-                  ? '공통 정책'
-                  : ticket.responsibleSystem.id === item.systemId
-                    ? ticket.responsibleSystem.name
-                    : '관련 시스템'}{' '}
-                · 적용 버전 {item.appliesToSystemVersion ?? '미확인'} ·{' '}
-                {item.origin === 'SYNTHETIC'
-                  ? '가상 자료'
-                  : item.origin === 'DEMO_VERIFIED'
-                    ? '데모 검증 자료'
-                    : item.origin === 'OPERATIONAL'
-                      ? '운영 자료'
-                      : '출처 확인 필요'}
-              </small>
-            </article>
-          ))
-        ) : (
-          <p>저장된 관련 지식이 없어요. 근거를 추가로 확인해 주세요.</p>
-        )}
-      </section>
-      <section className={styles.requestCard}>
-        <h3>관련 대화·보완 정보</h3>
-        <p className={styles.cardMeta}>해당 문제에서 조회가 허용된 원문 구간만 표시해요.</p>
+        <h3>채팅 내역</h3>
         {query.isPending ? (
           <LoadingState />
         ) : query.isError ? (
           <ErrorState
-            title="관련 대화를 불러오지 못했어요"
+            title="채팅 내역을 불러오지 못했어요"
             onRetry={() => {
               void query.refetch();
             }}
           />
         ) : (
           <>
-            {messages.map((message) => (
-              <article className={styles.evidence} key={message.id}>
-                <strong>
-                  {message.sender === 'USER' ? '문의자' : 'Hops'} · {displayDate(message.createdAt)}
-                </strong>
-                <p>{message.content}</p>
-                {!!message.revisions.length && (
-                  <details>
-                    <summary>정정 이력</summary>
-                    {message.revisions.map((revision) => (
-                      <p key={revision.revisionNo}>{revision.content}</p>
-                    ))}
-                  </details>
-                )}
-              </article>
-            ))}
+            <div className={styles.chatLog}>
+              {messages.map((message) => (
+                <article
+                  className={styles.chatMessage}
+                  data-sender={message.sender}
+                  key={message.id}
+                >
+                  <div className={styles.chatMeta}>
+                    <strong>{message.sender === 'USER' ? '문의자' : 'Hops'}</strong>
+                    <time dateTime={message.createdAt}>{displayDate(message.createdAt)}</time>
+                  </div>
+                  <p className={styles.chatText}>{message.content}</p>
+                  {!!message.revisions.length && (
+                    <details>
+                      <summary>정정 이력</summary>
+                      {message.revisions.map((revision) => (
+                        <p key={revision.revisionNo}>{revision.content}</p>
+                      ))}
+                    </details>
+                  )}
+                </article>
+              ))}
+            </div>
             {!messages.length && (
-              <p>공개 가능한 관련 대화가 없어요. 위 표준 요청을 확인해 주세요.</p>
+              <p>공개 가능한 채팅 내역이 없어요. 위 표준 요청을 확인해 주세요.</p>
             )}
             {query.hasNextPage && (
               <Button
@@ -191,10 +216,30 @@ function RequestContent({ ticket }: RequestContentProps) {
                   void query.fetchNextPage();
                 }}
               >
-                관련 대화 더 보기
+                채팅 내역 더 보기
               </Button>
             )}
           </>
+        )}
+      </section>
+      <section className={styles.requestCard}>
+        <h3>관련 과거 해결 사례</h3>
+        {cases.length ? (
+          <>
+            {cases.map((item) => (
+              <KnowledgeItem key={item.id} item={item} ticket={ticket} />
+            ))}
+          </>
+        ) : (
+          <p>관련 과거 해결 사례가 없어요.</p>
+        )}
+        {!!documents.length && (
+          <details className={styles.documents}>
+            <summary>참고 문서 {documents.length}건</summary>
+            {documents.map((item) => (
+              <KnowledgeItem key={item.id} item={item} ticket={ticket} />
+            ))}
+          </details>
         )}
       </section>
     </div>
@@ -278,9 +323,9 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
           {!admin && (
             <nav className={styles.tabs} aria-label="티켓 상세 탭">
               {[
-                ['request', '요청·관련 대화'],
-                ['work', '처리·검증'],
-                ['case', '사례'],
+                ['request', '요청 내역'],
+                ['work', '문의 처리 기록'],
+                ['case', '해결 사례'],
               ].map(([value, label]) => (
                 <Link
                   key={value}
@@ -307,9 +352,10 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
                 )
               ) : hasRequest(data) && !admin && tab === 'work' ? (
                 <>
+                  <RequestReference ticket={data} />
                   <WorkRecordEditor ticket={data} />
                   <section className={styles.requestCard}>
-                    <h3>처리 기록 이력</h3>
+                    <h3>문의 처리 기록 이력</h3>
                     {data.workRecords.length ? (
                       [...data.workRecords].reverse().map((record) => (
                         <article key={record.id} className={workflow.record}>
@@ -322,16 +368,20 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
                             · {record.author.name}
                           </strong>
                           <p>{record.action}</p>
-                          {record.verification && <p>검증: {record.verification}</p>}
-                          <p>
-                            확인된 원인: {record.confirmedCause ?? '미확인'} · 적용 버전:{' '}
-                            {record.appliesToSystemVersion ?? '미확인'}
-                          </p>
+                          {record.verification && <p>동작 확인: {record.verification}</p>}
+                          {(['VERIFIED_RESOLUTION', 'IMPLEMENTED_VERIFIED'].includes(record.kind) ||
+                            record.confirmedCause !== null ||
+                            record.appliesToSystemVersion !== null) && (
+                            <p>
+                              확인된 원인: {record.confirmedCause ?? '미확인'} · 적용 버전:{' '}
+                              {record.appliesToSystemVersion ?? '미확인'}
+                            </p>
+                          )}
                           <small>{displayDate(record.createdAt)}</small>
                         </article>
                       ))
                     ) : (
-                      <p>아직 저장된 처리 기록이 없어요.</p>
+                      <p>아직 저장된 문의 처리 기록이 없어요.</p>
                     )}
                   </section>
                   {data.activeResolutionRequest && (
@@ -427,7 +477,6 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
     <RouteModal
       title={heading}
       titleHint={shownTicket?.ticketNumber}
-      description={admin ? '업무 관리자 · 제한된 상세' : '표준 요청·근거·배정 정보'}
       onClose={onClose}
       returnFocusId={returnFocusId ?? 'ticket-' + id}
       padded={false}

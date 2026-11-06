@@ -34,7 +34,6 @@ export function LoginForm({
       </div>
       <div className={styles.heading}>
         <h1 id="login-title">Hops에 로그인</h1>
-        <p>사내 계정으로 로그인하세요.</p>
       </div>
       {expired && (
         <div className={styles.notice} role="status">
@@ -87,7 +86,6 @@ export function LoginForm({
           {mutation.isPending ? '로그인 중' : '로그인'}
         </Button>
       </form>
-      <p className={styles.caption}>사내 IT 문의를 시작하고 처리 현황을 확인하세요.</p>
     </section>
   );
 }

@@ -30,11 +30,6 @@
 .composer {
   margin-top: var(--space-5);
 }
-.page .mockNote {
-  margin-top: var(--space-4);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
 .rail {
   flex: 0 0 var(--rail-width);
   box-sizing: border-box;

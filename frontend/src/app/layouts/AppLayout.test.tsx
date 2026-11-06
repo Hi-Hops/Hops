@@ -29,6 +29,7 @@ function renderLayout(path = '/') {
       <Route element={<AppLayout />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/inquiries/:inquiryId/chat" element={<InquiryChatPage />} />
+        <Route path="/inquiries" element={<h1>문의 내역</h1>} />
         <Route path="/tickets" element={<h1>담당 업무</h1>} />
         <Route path="/admin/tickets" element={<h1>관리자 업무</h1>} />
       </Route>
@@ -51,11 +52,33 @@ describe('F003/F006 사이드바 이동', () => {
       expect(menu.getByRole('link', { name: '+ 새 문의' })).toHaveAttribute('href', '/');
       expect(menu.getByRole('link', { name: '내 문의' })).toHaveAttribute('href', '/inquiries');
       expect(Boolean(menu.queryByRole('link', { name: '담당 시스템 업무' }))).toBe(staff);
+      expect(Boolean(menu.queryByRole('heading', { name: '업무' }))).toBe(staff);
+      expect(Boolean(menu.queryByRole('link', { name: '해결 사례 검토' }))).toBe(staff);
       expect(Boolean(menu.queryByRole('link', { name: '업무 관리' }))).toBe(admin);
       expect(screen.getByRole('region', { name: '채팅 세션' })).toBeVisible();
       await screen.findByLabelText('문의 내용');
     },
   );
+  it('F006-AC10 채팅 화면에서는 채팅 세션만 선택되고 내 문의는 목록 화면에서만 선택된다', async () => {
+    await login(TEST_LOGINS.requester);
+    const { items } = await systemGet('/inquiries?page=0&size=20', readInquiries);
+    const seed = items[0];
+    if (!seed) throw new Error('기존 문의 필요');
+    const user = userEvent.setup();
+    renderLayout(`/inquiries/${seed.id}/chat`);
+    await screen.findByLabelText('메시지 입력');
+    if (screen.queryByRole('dialog')) await user.keyboard('{Escape}');
+    const menu = within(screen.getByRole('navigation', { name: '주 메뉴' }));
+    const history = within(screen.getByRole('region', { name: '채팅 세션' }));
+    const session = await history.findByRole('link', { name: new RegExp(`^${seed.title}`, 'u') });
+    expect(session).toHaveAttribute('aria-current', 'page');
+    expect(menu.getByRole('link', { name: '내 문의' })).not.toHaveAttribute('aria-current');
+
+    await user.click(menu.getByRole('link', { name: '내 문의' }));
+    expect(await screen.findByRole('heading', { name: '문의 내역' })).toBeVisible();
+    expect(menu.getByRole('link', { name: '내 문의' })).toHaveAttribute('aria-current', 'page');
+    expect(session).not.toHaveAttribute('aria-current');
+  });
   it('F006-AC11 사이드바는 버튼으로 여닫고 포커스와 열림 상태를 유지한다', async () => {
     await login(TEST_LOGINS.requester);
     const user = userEvent.setup();
