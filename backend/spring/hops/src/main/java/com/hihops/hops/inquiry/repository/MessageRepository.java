@@ -21,6 +21,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     @Query(value = "SELECT * FROM message WHERE payload->'resolutionRequest'->>'id'=CAST(:id AS text) AND deleted_at IS NULL AND message_status='COMPLETED'", nativeQuery = true)
     Optional<Message> findResolution(UUID id);
     Optional<Message> findByIdAndInquiryIdAndDeletedAtIsNull(UUID id, UUID inquiryId);
+    boolean existsByInquiry_IdAndSenderTypeAndSequenceNoGreaterThanAndDeletedAtIsNull(UUID inquiryId,
+            com.hihops.hops.inquiry.domain.SenderType senderType, int sequenceNo);
 
     @Query("SELECT m FROM Message m WHERE m.inquiry.id = :inquiryId AND m.deletedAt IS NULL "
             + "AND m.messageStatus = com.hihops.hops.inquiry.domain.MessageStatus.COMPLETED "

@@ -136,6 +136,38 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         result(command(requester, "/inquiries/" + inquiry + "/messages", next));
     }
 
+    @Test
+    void 추가_설명_요청_뒤_사용자가_답하면_새_실행이_없어도_마지막_티켓_해결로_문의를_완료한다() throws Exception {
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
+        jdbc.update("UPDATE agent_run SET run_status='RUNNING',completed_at=NULL WHERE id=?", analysis);
+        jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", analysis, inquiry);
+        var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
+        var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
+                .put("requiresFollowUp", true);
+        output.putArray("problemProposals");
+        output.putArray("questions");
+        output.putArray("ticketProposals");
+        transaction.executeWithoutResult(status -> {
+            var run = runs.findById(analysis).orElseThrow();
+            String validation = answers.apply(run, input, output);
+            run.storeOutcome(output.toString(), validation, null);
+            run.finish(com.hihops.hops.agent.domain.RunStatus.SUCCEEDED, Instant.now());
+        });
+        // 결과를 적용한 실행의 입력에도 같은 답변 ID가 있다(실제 실행은 접수 때 고정한다).
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?", input.toString(), analysis);
+        // 배정된 문제의 보완처럼 새 실행을 시작하지 않는 사용자 입력이 답변 뒤에 저장됐다.
+        jdbc.update("INSERT INTO message (id, inquiry_id, sequence_no, sender_type, content, payload, message_status) "
+                + "VALUES (?, ?, (SELECT MAX(sequence_no) + 1 FROM message WHERE inquiry_id = ?), 'USER', ?, '{}'::jsonb, 'COMPLETED')",
+                UUID.randomUUID(), inquiry, inquiry, "오후 2시부터 그랬어요");
+        result(command(requester, "/resolution-requests/" + resolutionId + "/responses",
+                mapper.createObjectNode().put("requestId", UUID.randomUUID().toString())
+                        .put("expectedRequestRevision", 1).put("decision", "RESOLVED")));
+        assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry))
+                .isEqualTo("RESOLVED");
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"RESOLVED", "UNRESOLVED"})
     void 문의자_문제투영은_처리기록의_확인요청과_응답후_티켓상태를_반영한다(String decision) throws Exception {
