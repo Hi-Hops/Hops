@@ -29,6 +29,7 @@ def _role_call(call: RoleCall) -> dict[str, Any]:
         "search_state": call.search_state,
         "evidence": [item.model_dump(mode="json") for item in call.evidence],
         "failed_with": call.failed_with,
+        "failure_detail": call.failure_detail,
         "analysis": [
             {
                 "problem_ref": item.problem_ref,
@@ -120,6 +121,8 @@ def trace_from_dict(data: dict[str, Any]) -> RunTrace:
                 search_state=call["search_state"],
                 evidence=tuple(KnowledgeEvidence.model_validate(e) for e in call["evidence"]),
                 failed_with=call["failed_with"],
+                # 사유를 기록하기 전에 저장한 trace에는 이 키가 없다.
+                failure_detail=call.get("failure_detail"),
                 # 검색 힌트를 기록하기 전에 저장한 trace에는 이 키가 없다. 형식 번호는 그대로다.
                 analysis=_analysis(call.get("analysis", [])),
                 # 판정을 기록하기 전에 저장한 trace에도 이 키가 없다.

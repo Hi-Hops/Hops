@@ -55,6 +55,9 @@ class RoleCall:
     evidence: tuple[KnowledgeEvidence, ...] = ()
     # 역할이 결과 없이 예외로 끝났다면 예외 이름.
     failed_with: str | None = None
+    # 실패한 예외의 사유 문구(하네스 오류의 detail, 없으면 고정 문구). 어느 검증이 거부했는지
+    # 구분하려고 남긴다. 합성 시나리오에서만 저장하며 길이는 자른다.
+    failure_detail: str | None = None
     # 문의 분석 역할이 문제마다 낸 검색 힌트. 다른 역할은 비어 있다.
     analysis: tuple[AnalysisRecord, ...] = ()
     # 검색 역할이 낸 충분성 판정. 평가를 하지 않았거나 "평가 없음"이면 None이다.

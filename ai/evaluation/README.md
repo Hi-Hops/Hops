@@ -12,7 +12,7 @@
 | `harness/runner.py` | 시나리오를 끝까지 재생한다. AI가 질문하면 규칙 사용자가 답하고 다음 실행을 이어 간다 |
 | `harness/user_sim.py` | 규칙 기반 사용자 모사(`ASKED_FIELD_ONLY`). 같은 질문에는 같은 답이 나간다 |
 | `harness/spring_stub.py` | Spring이 AI 결과로 다음 실행 입력을 만드는 일을 흉내 내는 얇은 대역 |
-| `harness/recorders.py` | 런타임 코드를 바꾸지 않고 역할 호출(검색 상태·근거)과 모델 호출 수를 기록 |
+| `harness/recorders.py` | 런타임 코드를 바꾸지 않고 역할 호출(검색 상태·근거)과 모델 호출 수를 기록. 역할이 하네스 오류로 실패하면 그 사유 문구(`failure_detail`, 200자까지)도 남겨 보고서의 `roleFailures`에 싣는다 |
 | `harness/scenario.py` | 시나리오 JSON 형식과 검증 |
 | `harness/budget.py` | 평가 전체의 모델 호출 상한(Spring의 실행당 한도와 별개). 호출 전에 소모해 상한을 넘는 원격 호출이 일어나지 않게 한다 |
 | `pilot.py` | 실제 모델로 시나리오를 한 번씩 재생하는 실행 도구. 호출·토큰·시간·위반과 실행 조건을 보고한다 |

@@ -80,6 +80,13 @@ def _turn_summary(index: int, turn: TurnTrace) -> dict[str, Any]:
             for call in turn.role_calls
         ],
     }
+    failures = [
+        {"role": call.role.value, "type": call.failed_with, "detail": call.failure_detail}
+        for call in turn.role_calls
+        if call.failed_with
+    ]
+    if failures:
+        summary["roleFailures"] = failures
     if result is not None:
         summary["questions"] = [
             {"problemRef": q.problemRef, "fields": q.requestedFields, "text": q.text}

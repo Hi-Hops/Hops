@@ -8,7 +8,7 @@ from hops_ai.agents.base import Agent
 from hops_ai.agents.inquiry.extraction import InquiryExtraction
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult, KnowledgeResult
-from hops_ai.harness.errors import RetrievalUnavailable
+from hops_ai.harness.errors import HarnessError, RetrievalUnavailable
 from hops_ai.services.llm.client import LLMClient, LLMRequest, LLMResponse
 from hops_ai.supervisor.execution import RoleResponse
 
@@ -55,6 +55,16 @@ class RecordingLLM:
         return response
 
 
+MAX_FAILURE_DETAIL = 200
+
+
+def _failure_detail(exc: Exception) -> str | None:
+    """하네스 오류의 사유 문구. 그 밖의 예외는 임의 내용이 섞일 수 있어 남기지 않는다."""
+    if not isinstance(exc, HarnessError):
+        return None
+    return str(exc)[:MAX_FAILURE_DETAIL]
+
+
 def _assessment_record(result: KnowledgeResult) -> AssessmentRecord | None:
     item = result.assessment
     if item is None:
@@ -93,7 +103,13 @@ class RecordingAgent:
             )
             raise
         except Exception as exc:
-            self._log.role_calls.append(RoleCall(self.role, failed_with=type(exc).__name__))
+            self._log.role_calls.append(
+                RoleCall(
+                    self.role,
+                    failed_with=type(exc).__name__,
+                    failure_detail=_failure_detail(exc),
+                )
+            )
             raise
         result = response.result if isinstance(response, RoleResponse) else response
         if isinstance(result, KnowledgeResult):
