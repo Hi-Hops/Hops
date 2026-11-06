@@ -485,6 +485,104 @@ async def test_inquiry_greeting_prompts_for_content() -> None:
     assert len(llm.requests) == 2
 
 
+@pytest.mark.parametrize(
+    "message", ["안녕하세요 로그인이 안 돼요", "안녕하세요! 도움이 필요해요", "점심 메뉴 추천해줘"]
+)
+async def test_wrong_greeting_classification_asks_for_clarification(message) -> None:
+    request = first_message_request(message)
+    services, _ = services_for(
+        request,
+        SupervisorDecision(nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="분석"),
+        InquiryExtraction(kind="GREETING", problems=[]),
+    )
+
+    result = await Supervisor({AgentRole.INQUIRY: ExtractionInquiryAgent()}).analyze(
+        request, services
+    )
+
+    assert result.status == "SUCCEEDED"
+    assert (
+        result.answer
+        == "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
+    )
+    assert not result.problemProposals and not result.ticketProposals and not result.questions
+
+
+@pytest.mark.parametrize("message", ["안녕하세요!", "안녕", "안녕하세요, 반갑습니다", "Hello!"])
+async def test_unambiguous_greeting_keeps_greeting_response(message) -> None:
+    request = first_message_request(message)
+    services, _ = services_for(
+        request,
+        SupervisorDecision(nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="분석"),
+        InquiryExtraction(kind="GREETING", problems=[]),
+    )
+
+    result = await Supervisor({AgentRole.INQUIRY: ExtractionInquiryAgent()}).analyze(
+        request, services
+    )
+
+    assert result.answer == "안녕하세요. 어떤 IT 관련 문의가 있으신가요? 내용을 알려 주세요."
+
+
+async def test_wrong_greeting_after_unsaved_issue_asks_for_clarification() -> None:
+    fields = first_message_request("로그인이 안 돼요", extra_ai_message=True).model_dump(
+        mode="json"
+    )
+    fields["messages"].append(
+        {
+            **fields["messages"][0],
+            "id": "00000000-0000-0000-0000-000000000098",
+            "sequenceNo": 3,
+            "content": "안녕하세요",
+        }
+    )
+    request = AiRunRequest.model_validate(fields)
+    services, _ = services_for(
+        request,
+        SupervisorDecision(nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="분석"),
+        InquiryExtraction(kind="GREETING", problems=[]),
+    )
+
+    result = await Supervisor({AgentRole.INQUIRY: ExtractionInquiryAgent()}).analyze(
+        request, services
+    )
+
+    assert (
+        result.answer
+        == "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
+    )
+    assert not result.problemProposals and not result.ticketProposals
+
+
+async def test_greeting_does_not_hide_unlinked_issue_when_another_problem_exists() -> None:
+    fields = make_request().model_dump(mode="json")
+    fields["messages"][0].update(content="로그인도 안 돼요", problemIds=[])
+    fields["messages"].append(
+        {
+            **fields["messages"][0],
+            "id": "00000000-0000-0000-0000-000000000098",
+            "sequenceNo": 2,
+            "content": "안녕하세요",
+        }
+    )
+    request = AiRunRequest.model_validate(fields)
+    services, _ = services_for(
+        request,
+        SupervisorDecision(nextAction="CALL_ROLE", role=AgentRole.INQUIRY, publicSummary="분석"),
+        InquiryExtraction(kind="GREETING", problems=[]),
+    )
+
+    result = await Supervisor({AgentRole.INQUIRY: ExtractionInquiryAgent()}).analyze(
+        request, services
+    )
+
+    assert (
+        result.answer
+        == "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
+    )
+    assert not result.problemProposals and not result.ticketProposals
+
+
 async def test_out_of_scope_request_is_analyzed_by_inquiry() -> None:
     request = first_message_request("점심 메뉴 추천해줘")
     services, llm = services_for(

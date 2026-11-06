@@ -8,6 +8,7 @@
 반환하는 InquiryResult는 제안일 뿐이다. 저장·배정은 Spring이 하고, 병합 검증은 Supervisor가 한다.
 """
 
+import re
 from collections.abc import Mapping, Sequence
 
 from hops_ai.agents.inquiry.extraction import (
@@ -51,6 +52,31 @@ PROCESSING_TYPES: Mapping[str, ProcessingType] = {
     "OUT_OF_SCOPE": "OUT_OF_SCOPE",
 }
 
+_GREETING_WORDS = (
+    "안녕하십니까",
+    "안녕하세요",
+    "안녕하셔요",
+    "안녕",
+    "반갑습니다",
+    "반가워요",
+    "hello",
+    "hi",
+    "hey",
+)
+
+
+def _only_greetings(text: str) -> bool:
+    """명확한 인사만 확인한다. 미확인 표현은 문의 내용이 있을 수 있다."""
+    remaining = re.sub(r"[\s.,!?~…，。！？～]+", "", text).casefold()
+    if not remaining:
+        return False
+    while remaining:
+        greeting = next((word for word in _GREETING_WORDS if remaining.startswith(word)), None)
+        if greeting is None:
+            return False
+        remaining = remaining[len(greeting) :]
+    return True
+
 
 class ExtractionInquiryAgent:
     role = AgentRole.INQUIRY
@@ -76,8 +102,20 @@ class ExtractionInquiryAgent:
         if extraction.kind == "GREETING":
             if extraction.problems:
                 raise OutputRejected("인사 응답 결과에 문제를 포함할 수 없다")
+            user_messages = [message for message in request.messages if message.sender == "USER"]
+            latest = max(user_messages, key=lambda message: message.sequenceNo, default=None)
+            relevant = [
+                message
+                for message in user_messages
+                if not existing or not message.problemIds or message == latest
+            ]
+            kind = (
+                "GREETING"
+                if relevant and all(_only_greetings(message.content) for message in relevant)
+                else "CLARIFICATION"
+            )
             return InquiryResult(
-                invocationId=call.invocation_id, problems=[], questions=[], kind="GREETING"
+                invocationId=call.invocation_id, problems=[], questions=[], kind=kind
             )
         if not extraction.problems:
             raise OutputRejected("추출 결과에 문제가 없다")

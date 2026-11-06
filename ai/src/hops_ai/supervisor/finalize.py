@@ -1,6 +1,7 @@
 """검증된 State를 외부 AiResult로 확정한다. 업무 저장 성공을 만들지 않는다."""
 
 from hops_ai.contracts.execution import RunKind
+from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiResult
 from hops_ai.harness.errors import OutputRejected
 from hops_ai.rules.progress import get_problem_progress, validate_evidence_scope
@@ -45,6 +46,9 @@ def compose_public_answer(state: SupervisorState) -> str:
         raise OutputRejected("사례 초안 실행에는 상담 본문을 만들 수 없다")
     validate_completion(state)
     if has_conversation_result(state):
+        result = next(r for r in state["roleResults"].values() if isinstance(r, InquiryResult))
+        if result.kind == "CLARIFICATION":
+            return "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
         if state["input"].problems:
             return "안녕하세요. 이어서 문의 내용을 알려 주세요."
         return "안녕하세요. 어떤 IT 관련 문의가 있으신가요? 내용을 알려 주세요."
