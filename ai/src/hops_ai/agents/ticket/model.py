@@ -53,6 +53,11 @@ class ModelTicketAgent:
         services.runtime.ensure_active()
         state = call.state
         problems = self.eligible_problems(state)
+        if call.targets:
+            # 문제별 행동 경로: 고른 문제만 처리한다. 하나라도 자격이 없으면 거부한다.
+            if not set(call.targets) <= problems.keys():
+                raise OutputRejected("티켓으로 제안할 수 없는 문제가 대상에 있다")
+            problems = {ref: problems[ref] for ref in call.targets}
         if not problems:
             raise OutputRejected("티켓으로 제안할 수 있는 문제가 없다")
 

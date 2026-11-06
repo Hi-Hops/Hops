@@ -49,6 +49,9 @@ class SupervisorState(TypedDict):
     """계약 S3의 내부 State. 역할은 결과만 반환하고 실행기가 새 State를 병합한다."""
 
     input: AiRunRequest
+    # 문제별 행동 경로(판정 모드)로 도는 실행인지. 참이면 안내할 수 있는 문제의 정의가 판정을 따른다
+    # (rules.progress.problems_without_guide). 거짓이면 역할 단위 경로의 기존 규칙이다.
+    judgment: bool
     phase: RunPhase
     activeRole: AgentRole | Literal["SUPERVISOR"] | None
     nextAction: (

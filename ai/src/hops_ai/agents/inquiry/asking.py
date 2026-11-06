@@ -18,6 +18,7 @@ from hops_ai.agents.inquiry.forms import FIELD_LABELS, QuestionPlan, plan_next
 from hops_ai.contracts.state import SupervisorState
 from hops_ai.contracts.wire import ProblemProposal, QuestionProposal
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.rules.assessment import answerable
 
 
 def _declared_unknown(problem: ProblemProposal) -> set[str]:
@@ -30,23 +31,6 @@ def _known(problem: ProblemProposal) -> Mapping[str, str | None]:
     return {
         name: value for name, value in values.items() if isinstance(value, str) and value.strip()
     }
-
-
-def answerable(state: SupervisorState, ref: str) -> bool:
-    """그 문제를 승인된 가이드로 답할 수 있는지.
-
-    판정이 SUFFICIENT이고 그 문제의 안내가 판정이 인용한 근거로 만들어졌을 때다. 안내문은 직원 공개
-    가이드 본문으로만 조립하므로 판정이 충분해도 안내가 없으면 답할 수 없다.
-    """
-    assessment = state["assessments"].get(ref)
-    guide = state["guide"]
-    return (
-        assessment is not None
-        and assessment.verdict == "SUFFICIENT"
-        and guide is not None
-        and guide.problemRef == ref
-        and bool(set(guide.evidenceIds) & set(assessment.supportingEvidenceIds))
-    )
 
 
 def question_plan(state: SupervisorState, ref: str, *, searched: bool) -> QuestionPlan:

@@ -99,7 +99,7 @@ class SearchKnowledgeAgent:
                 if hits
                 else SearchResult(state="EMPTY", evidence=[], error=None)
             ),
-            guide=_guide(target, hits),
+            guide=_guide_for(state, call, target, hits),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
             assessment=await self._assess(target, hits, services),
@@ -197,6 +197,20 @@ def _targeted_search(
     if query is None:
         raise OutputRejected("아직 하지 않은 새 질의가 없다")
     return problem, query
+
+
+def _guide_for(
+    state: SupervisorState, call: RoleRequest, target: ProblemProposal, hits: list[KnowledgeHit]
+) -> GuideProposal | None:
+    """이 검색 결과로 만들 수 있는 안내. 문제별 행동 경로에서는 다른 문제의 안내를 덮어쓰지 않는다.
+
+    응답 계약이 안내를 하나만 허용하므로(`AiResult.guide`) 안내 칸이 다른 문제로 이미 차 있으면 이
+    문제는 안내를 만들지 않는다. 그 문제는 답변할 수 없는 것으로 계산돼 질문이나 담당자 검토로 간다.
+    """
+    existing = state["guide"]
+    if call.targets and existing is not None and existing.problemRef != target.problemRef:
+        return None
+    return _guide(target, hits)
 
 
 def candidate_queries(

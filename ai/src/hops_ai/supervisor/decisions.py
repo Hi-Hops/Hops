@@ -16,6 +16,33 @@ from hops_ai.rules.proposals import validate_problem_ref
 from hops_ai.supervisor.state import SupervisorState
 
 
+def prepare_decision(state: SupervisorState, ref: str, action: str) -> SupervisorState:
+    """고르지 않은 행동의 산출물을 그 문제에서 치운다. 행동은 아직 확정하지 않는다.
+
+    질문과 티켓은 같은 문제에 안내·다른 산출물이 있으면 병합 검증이 거부하므로, 그 행동의 역할을
+    부르기 전에 먼저 치워야 한다. 확정(`apply_decision`)은 역할이 산출물을 만든 뒤에 한다.
+    """
+    if action not in DECISION_OUTCOMES:
+        raise OutputRejected("종료 행동이 아니다")
+    validate_problem_ref(state, ref)
+    guide = state["guide"]
+    has_guide = guide is not None and guide.problemRef == ref
+    return {
+        **state,
+        "questions": {
+            key: item
+            for key, item in state["questions"].items()
+            if key[0] != ref or action == "ASK"
+        },
+        "guide": guide if not has_guide or action == "ANSWER" else None,
+        "ticketProposals": {
+            key: item
+            for key, item in state["ticketProposals"].items()
+            if key != ref or action == "TICKET"
+        },
+    }
+
+
 def apply_decision(state: SupervisorState, ref: str, action: str) -> SupervisorState:
     """그 문제의 종료 행동을 확정하고 고르지 않은 행동의 산출물을 치운 새 State를 돌려준다.
 
@@ -23,36 +50,15 @@ def apply_decision(state: SupervisorState, ref: str, action: str) -> SupervisorS
         OutputRejected: 종료 행동이 아니거나, 이미 다른 행동을 확정했거나, 그 행동에 필요한 산출물이
             없는 경우.
     """
-    if action not in DECISION_OUTCOMES:
-        raise OutputRejected("종료 행동이 아니다")
-    validate_problem_ref(state, ref)
     previous = state["decisions"].get(ref)
     if previous is not None and previous != action:
         raise OutputRejected("이미 다른 종료 행동을 확정한 문제다")
-
-    guide = state["guide"]
-    has_question = any(key[0] == ref for key in state["questions"])
-    has_guide = guide is not None and guide.problemRef == ref
-    has_ticket = ref in state["ticketProposals"]
+    pruned = prepare_decision(state, ref, action)
+    guide = pruned["guide"]
     if (
-        (action == "ASK" and not has_question)
-        or (action == "ANSWER" and not has_guide)
-        or (action == "TICKET" and not has_ticket)
+        (action == "ASK" and not any(key[0] == ref for key in pruned["questions"]))
+        or (action == "ANSWER" and not (guide is not None and guide.problemRef == ref))
+        or (action == "TICKET" and ref not in pruned["ticketProposals"])
     ):
         raise OutputRejected("고른 행동에 필요한 산출물이 아직 없다")
-
-    questions = {
-        key: item for key, item in state["questions"].items() if key[0] != ref or action == "ASK"
-    }
-    tickets = {
-        key: item
-        for key, item in state["ticketProposals"].items()
-        if key != ref or action == "TICKET"
-    }
-    return {
-        **state,
-        "decisions": {**state["decisions"], ref: action},
-        "questions": questions,
-        "guide": guide if not has_guide or action == "ANSWER" else None,
-        "ticketProposals": tickets,
-    }
+    return {**pruned, "decisions": {**state["decisions"], ref: action}}

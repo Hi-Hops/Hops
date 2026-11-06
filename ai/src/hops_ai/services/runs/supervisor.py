@@ -52,6 +52,7 @@ class SupervisorPipeline:
                 knowledge_source,
                 execute_tickets=ticket_client is not None,
                 assess_evidence=assess_evidence,
+                defer_questions=assess_evidence,
             )
             if agents is None
             else agents
@@ -61,7 +62,14 @@ class SupervisorPipeline:
         self._tracing = tracing or RunTracing()
         self._raw_llm = llm
         self._tools = tools or DisabledToolGateway()
-        self._supervisor = Supervisor(registry, restrict_roles=True)
+        # 판정을 켜면 문제별 행동 경로로 돈다(판정 호출, 질문 분리, 문제별 행동 선택이 한 스위치다).
+        # 검색이 연결돼 있어야 하고, 역할 조합을 주입한 경우에는 호출 측이 질문 분리 같은 구성을
+        # 책임지므로 켜지 않는다.
+        self._supervisor = Supervisor(
+            registry,
+            restrict_roles=True,
+            problem_actions=assess_evidence and agents is None and knowledge_source is not None,
+        )
 
     def _tracing_for(self, request: AiRunRequest) -> RunTracing:
         """이 실행에 쓸 추적 설정. 내부 판단 경계(옵션) 실행은 내용을 외부 추적에 남기지 않는다.

@@ -16,6 +16,7 @@
 from collections.abc import Iterable, Sequence
 
 from hops_ai.contracts.roles import Assessment
+from hops_ai.contracts.state import SupervisorState
 from hops_ai.contracts.wire import Intent, KnowledgeEvidence
 from hops_ai.harness.errors import OutputRejected
 from hops_ai.rules.intent_policy import policy_for
@@ -127,3 +128,20 @@ def validate_assessment(
         raise OutputRejected("다음 확인 항목이 허용된 관계 확인 항목이 아니다")
     if not assessment.rationale.strip() or len(assessment.rationale) > MAX_RATIONALE:
         raise OutputRejected("판정 이유가 비었거나 길다")
+
+
+def answerable(state: SupervisorState, ref: str) -> bool:
+    """그 문제를 승인된 가이드로 답할 수 있는지.
+
+    판정이 SUFFICIENT이고 그 문제의 안내가 판정이 인용한 근거로 만들어졌을 때다. 안내문은 직원 공개
+    가이드 본문으로만 조립하므로 판정이 충분해도 안내가 없으면 답할 수 없다.
+    """
+    assessment = state["assessments"].get(ref)
+    guide = state["guide"]
+    return (
+        assessment is not None
+        and assessment.verdict == "SUFFICIENT"
+        and guide is not None
+        and guide.problemRef == ref
+        and bool(set(guide.evidenceIds) & set(assessment.supportingEvidenceIds))
+    )
