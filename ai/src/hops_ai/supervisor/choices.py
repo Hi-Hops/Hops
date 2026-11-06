@@ -21,7 +21,7 @@ from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.state import SupervisorState
 from hops_ai.supervisor.decision import allowed_actions
 from hops_ai.supervisor.policy import get_allowed_roles
-from hops_ai.supervisor.validation import greeting_confirmed, reply_allowed
+from hops_ai.supervisor.validation import confirmed_courtesy, reply_allowed
 
 
 @dataclass(frozen=True)
@@ -54,7 +54,7 @@ def _inquiry_has_work(state: SupervisorState) -> bool:
       다시 추출하지 않고 Ticket으로 전달한다. 다른 미처리 문제가 있으면 호출을 유지한다.
     - 이번 실행의 Inquiry가 문제를 하나도 찾지 못했다면 같은 원문을 다시 분석하지 않는다.
       Supervisor가 대화 응답(REPLY)으로 사용자에게 되묻는다.
-    - 아직 분석하지 않은 사용자 메시지가 확인된 인사 표현뿐이면 분석할 문의 내용이 없다.
+    - 아직 분석하지 않은 사용자 메시지가 확인된 인사·감사 표현뿐이면 분석할 문의 내용이 없다.
       처리 중인 기존 문제가 있어도 Inquiry가 이전 질문을 반복하지 않고 Supervisor가 인사로
       답한다. 기존 문제는 사용자의 다음 메시지에서 이어서 처리한다.
     사용자가 새 메시지로 답한 다음 실행은 새 State라서 다시 호출할 수 있다.
@@ -66,9 +66,16 @@ def _inquiry_has_work(state: SupervisorState) -> bool:
         for result in state["roleResults"].values()
     ):
         return False
-    if not state["roleResults"] and reply_allowed(state) and greeting_confirmed(state):
+    if _courtesy_only(state):
         return False
     return not (all_unfinished_ready_for_handoff(state) or inquiry_has_nothing_left_to_do(state))
+
+
+def _courtesy_only(state: SupervisorState) -> bool:
+    """역할 실행 전이고 아직 분석하지 않은 사용자 메시지가 확인된 인사·감사 표현뿐인지."""
+    return (
+        not state["roleResults"] and reply_allowed(state) and confirmed_courtesy(state) is not None
+    )
 
 
 def _knowledge_has_target(state: SupervisorState) -> bool:
@@ -112,4 +119,7 @@ def compute_choices(
     registered = legal_roles(state, agents, restrict=restrict)
     roles = registered & get_allowed_roles(RunKind(state["input"].kind))
     actions = tuple(action for action in allowed_actions(state) if roles or action != "CALL_ROLE")
+    if restrict and _courtesy_only(state):
+        # 인사·감사만 받은 실행은 대화 응답으로 답한다. 기존 처리 결과를 다시 안내하지 않는다.
+        actions = tuple(action for action in actions if action == "REPLY")
     return Choices(frozenset(registered), frozenset(roles), actions)

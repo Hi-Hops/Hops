@@ -56,7 +56,7 @@ class SupervisorState(TypedDict):
         | None
     )
     # REPLY로 끝나는 대화 응답의 종류. 다른 행동에서는 None이다.
-    replyKind: Literal["GREETING", "CLARIFY"] | None
+    replyKind: Literal["GREETING", "THANKS", "CLARIFY"] | None
     problems: dict[str, ProblemProposal]
     questions: dict[tuple[str, str], QuestionProposal]
     evidence: dict[str, KnowledgeEvidence]

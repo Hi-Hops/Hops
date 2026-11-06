@@ -51,7 +51,7 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 
 - **입력:** 현재 문의·문제의 상태, 허용된 다음 행동, 각 전문 역할 결과와 Spring의 저장·권한 검증 결과.
 - **판단:** 필요한 경우 Inquiry·Knowledge·Ticket을 선택하고, 답변·질문·담당자 연결·종료 등의 허용된 다음 행동을 모델 판단으로 제안한다. 역할 간 결과는 실행기가 검증 후 조합한다.
-- **대화 의도:** 사용자 메시지를 어떻게 처리할지 먼저 판단한다. IT 문의나 기존 문의의 보완이 조금이라도 있으면 인사가 함께 있어도 Inquiry에 분석을 맡긴다. 인사만 있으면 `REPLY`/`GREETING`, 의도를 알 수 없으면 `REPLY`/`CLARIFY`로 답하며 답변 문구는 코드가 고정한다. 처리 중인 기존 문제가 있어도 마지막 메시지가 인사만이면 `GREETING`으로 답하고 기존 문제는 다음 메시지에서 이어서 처리한다. 아직 분석하지 않은 사용자 메시지가 코드가 확인한 인사 표현뿐이면 실행기는 그 실행의 선택지에서 Inquiry를 뺀다. 아직 분석하지 않은 메시지는 기존 문제가 없으면 전체 사용자 메시지, 있으면 마지막 AI 답변 이후의 사용자 메시지다. 사용자가 대상을 고르지 않은 메시지는 문제에 연결되지 않으므로 연결 여부로 구분하지 않는다. 확실하지 않으면 Inquiry로 보낸다. 모델이 인사로 판단해도 아직 분석하지 않은 사용자 메시지가 코드가 확인한 인사 표현만이 아니면 `CLARIFY`로 낮춘다. `REPLY`는 질문·안내·티켓 제안이 없고 Inquiry가 문제를 찾지 못한 상담에서만 허용하며 `requiresFollowUp=true`로 끝난다. 진행 상황·해결 시점은 추측하여 답하지 않는다.
+- **대화 의도:** 사용자 메시지를 어떻게 처리할지 먼저 판단한다. IT 문의나 기존 문의의 보완이 조금이라도 있으면 인사가 함께 있어도 Inquiry에 분석을 맡기고, 확실하지 않으면 Inquiry로 보낸다. 문의 없이 대화로 답할 때는 `REPLY`를 고르며 답변 문구는 코드가 고정한다. 응답 종류(`replyKind`)는 코드가 정한다. 아직 분석하지 않은 사용자 메시지가 확인된 인사 표현뿐이면 `GREETING`, 감사 표현이 있으면 `THANKS`, 그 밖에는 `CLARIFY`(되묻기)다. 아직 분석하지 않은 메시지는 기존 문제가 없으면 전체 사용자 메시지, 있으면 마지막 AI 답변 이후의 사용자 메시지다. 사용자가 대상을 고르지 않은 메시지는 문제에 연결되지 않으므로 연결 여부로 구분하지 않는다. 이 메시지가 확인된 인사·감사 표현뿐이면 실행기는 그 실행의 선택지에서 Inquiry를 빼서, 처리 중인 기존 문제가 있어도 이전 질문을 반복하지 않는다. 기존 문제는 다음 메시지에서 이어서 처리한다. `REPLY`는 질문·안내·티켓 제안이 없고 Inquiry가 문제를 찾지 못한 상담에서만 허용한다. `requiresFollowUp=true`는 `CLARIFY`일 때만이며, 인사·감사 응답은 처리 중인 문제의 완료를 막지 않는다. 진행 상황·해결 시점은 추측하여 답하지 않는다.
 - **제한:** 모든 문의에 모든 역할을 호출하지 않는다. 실행기는 허용 경로·전체 시간·호출·토큰·재시도를 강제한다. 무제한 상호 호출과 허용되지 않은 도구 접근을 막는다.
 - **검증:** 실행 성공이나 모델의 문장만으로 저장·배정·해결·공개를 확정하지 않는다. 최신 버전, 실제 Spring 결과와 접근 범위를 반영한다.
 
@@ -161,7 +161,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 | 역할 | 입력·출력의 구체 경계 | 검증 |
 |---|---|---|
-| Supervisor | 현재 허용 행동과 전문 결과 → nextAction=CALL_ROLE/ASK_USER/PROVIDE_GUIDE/PROPOSE_TICKETS/FINISH/REPLY, role nullable, replyKind=GREETING/CLARIFY nullable(REPLY에만), 공개 요약 | 전문 역할은 INQUIRY/KNOWLEDGE/TICKET/CURATOR. runtime이 kind별 허용 경로·전체 예산 강제 |
+| Supervisor | 현재 허용 행동과 전문 결과 → nextAction=CALL_ROLE/ASK_USER/PROVIDE_GUIDE/PROPOSE_TICKETS/FINISH/REPLY, role nullable, replyKind=GREETING/THANKS/CLARIFY nullable(REPLY에만), 공개 요약 | 전문 역할은 INQUIRY/KNOWLEDGE/TICKET/CURATOR. runtime이 kind별 허용 경로·전체 예산 강제 |
 | Inquiry | ProblemProposal(problemRef,summary,intent,processingType,reportedSystemCandidateId,facts,assumptions,unknowns,details), QuestionProposal(problemRef,bundleRef,text,requestedFields) | 기존 문제는 UUID, 신규는 new: 접두 참조. bundleRef는 같은 출력의 재전달에도 유지. remainingQuestions를 넘는 질문 거부 |
 | Knowledge | 검색 목적·권한·표준 요청 → SearchResult와 조건부 원인 후보·다음 확인 항목 | EMPTY와 ERROR 구분. 확인되지 않은 원인을 사실·장애로 확정하지 않음 |
 | Ticket | TicketProposal(problemRef,title,processingType,responsibleSystemCandidateId,evidenceIds,standardRequestSnapshot) | 담당자·티켓 번호·저장 성공 필드 없음. Spring이 PRIMARY와 유일 작업 검증 |
@@ -291,7 +291,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 
 - INQUIRY_ANALYSIS의 answerMessageId는 UUID·workRecord=null이며 accessContext.purpose는 EMPLOYEE_HELP 또는 SYSTEM_WORK다. CASE_DRAFT는 answerMessageId=null·WorkRecordContext 필수·purpose=CASE_DRAFT다.
 - SUCCEEDED 상담은 answer 필수·caseProposal=null, SUCCEEDED CASE_DRAFT는 caseProposal 필수·answer/guide=null·문제/질문/티켓 목록=[]다. 실패·시간 초과·대체된 AiResult는 error 필수·answer/guide/caseProposal=null·제안/근거 목록=[]다.
-- `requiresFollowUp`은 상담 답변 뒤 사용자 입력이 더 필요하다는 제안이다. 이전 생산자의 생략은 `false`로 읽으며, 새 생산자는 항상 boolean을 포함한다. `true`는 SUCCEEDED INQUIRY_ANALYSIS에만 허용하고 나머지 결과에는 `false`다. `false`는 사용자 입력이 불필요하다는 확정이 아니며 기존 `questions` 등은 별도로 적용한다. Spring은 타입을 검증하고 `true`면 문의 완료 집계를 보류한다. 검증된 대기는 현재 실행의 결과로 보존해 이후 해결 확인 때도 적용하며, 현재 실행이 교체되기 전까지 입력 저장만으로 대기를 해제하지 않는다. 이 필드만으로 질문 횟수·문제 상태·업무 저장 또는 해결을 확정하지 않는다. 이 변경은 Spring 반영 후 AI 반영 순서가 필요하다. 구 Spring은 새 필드를 무시하므로 새 AI를 먼저 사용하면 추가 응답 중 문의가 완료될 수 있다. 엄격한 별도 소비자와 저장된 새 결과를 읽는 이전 AI의 롤백 호환성도 확인해야 한다.
+- `requiresFollowUp`은 상담 답변 뒤 사용자 입력이 더 필요하다는 제안이다. 이전 생산자의 생략은 `false`로 읽으며, 새 생산자는 항상 boolean을 포함한다. `true`는 SUCCEEDED INQUIRY_ANALYSIS에만 허용하고 나머지 결과에는 `false`다. `false`는 사용자 입력이 불필요하다는 확정이 아니며 기존 `questions` 등은 별도로 적용한다. Spring은 타입을 검증하고 `true`면 문의 완료 집계를 보류한다. 검증된 대기는 현재 실행의 결과로 보존해 이후 해결 확인 때도 적용한다. 그 실행의 AI 답변 뒤에 사용자 메시지가 저장되면 새 실행이 시작되지 않는 입력(배정된 문제의 보완 등)이어도 대기가 풀린다. 사용자가 답하지 않으면 대기가 유지되어 문의는 완료되지 않는다. 현재 생산자는 되묻기(`CLARIFY`) 응답에만 `true`를 보낸다. 이 필드만으로 질문 횟수·문제 상태·업무 저장 또는 해결을 확정하지 않는다. 이 변경은 Spring 반영 후 AI 반영 순서가 필요하다. 구 Spring은 새 필드를 무시하므로 새 AI를 먼저 사용하면 추가 응답 중 문의가 완료될 수 있다. 엄격한 별도 소비자와 저장된 새 결과를 읽는 이전 AI의 롤백 호환성도 확인해야 한다.
 - AiRunSnapshot의 QUEUED/RUNNING/UNKNOWN은 result=null이다. 종료 상태에는 같은 status의 AiResult가 필수이며 SUCCEEDED의 error=null, FAILED/TIMED_OUT/SUPERSEDED의 error는 AiError다.
 - AiEvent.eventType별 payload는 각각 ProgressPayload/DeltaPayload/AiResult로 고정한다. DeltaPayload.messageId는 입력 answerMessageId와 같아야 하며 CASE_DRAFT에는 답변 조각을 발행하지 않는다.
 - ExistingWorkItem은 STORED에만 ticketId UUID이고 나머지는null이다. CaseProposal.reusable=true면 제목·문제 설명·조치·검증·적용 조건·공개 범위가 필수다. false면 본문·적용 버전·공개 범위는null, limitations/sourceMessageIds/entityLinks는[]다.
@@ -307,7 +307,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | phase | QUEUED/RUNNING/FINALIZING/SUCCEEDED/FAILED/TIMED_OUT/SUPERSEDED | 실행기만 허용 전이로 변경 |
 | activeRole | SUPERVISOR/INQUIRY/KNOWLEDGE/TICKET/CURATOR 또는 null | 실행기만 변경, 역할 완료 후 null |
 | nextAction | CALL_ROLE/ASK_USER/PROVIDE_GUIDE/PROPOSE_TICKETS/FINISH/REPLY 또는 null | Supervisor 제안 → 실행기 검증 후 반영 |
-| replyKind | GREETING/CLARIFY 또는 null·초기 null | REPLY 결정에만 기록. 인사 표현이 확인되지 않은 GREETING은 실행기가 CLARIFY로 낮춤 |
+| replyKind | GREETING/THANKS/CLARIFY 또는 null·초기 null | REPLY 결정에만 기록. 종류는 실행기가 확인된 인사·감사 표현으로 정하고 그 밖에는 CLARIFY |
 | problems | Map<problemRef,ProblemProposal>·기존 문제에서 초기화 | Inquiry 출력 검증기. UUID는 기존 유지, 신규는 new: 참조 |
 | questions | Map<(problemRef,bundleRef),QuestionProposal>·빈 map | Inquiry 출력 검증기. 동일 키·같은 내용은 no-op, 다른 내용은 오류 |
 | evidence | Map<evidenceId,KnowledgeEvidence>·허용 스냅샷 | Knowledge 검증기. 같은 ID 다른 내용/버전은 오류·별도 ID 요구 |

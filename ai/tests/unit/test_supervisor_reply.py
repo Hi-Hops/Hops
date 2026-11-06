@@ -19,7 +19,7 @@ from hops_ai.supervisor.decision import SupervisorDecision, validate_supervisor_
 from hops_ai.supervisor.execution import RoleRequest
 from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.merge import merge_inquiry_result
-from hops_ai.supervisor.validation import only_greetings
+from hops_ai.supervisor.validation import courtesy_kind
 from tests.supervisor_fixtures import make_request, reserve, running_state
 from tests.unit.test_inquiry_agent import (
     EA_SYMPTOM,
@@ -30,6 +30,7 @@ from tests.unit.test_inquiry_agent import (
 
 GREETING_ANSWER = "안녕하세요. 어떤 IT 관련 문의가 있으신가요? 내용을 알려 주세요."
 FOLLOW_UP_GREETING_ANSWER = "안녕하세요. 이어서 문의 내용을 알려 주세요."
+THANKS_ANSWER = "감사합니다. 다른 IT 문의가 있으시면 언제든 알려 주세요."
 CLARIFY_ANSWER = "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
 
 
@@ -74,7 +75,7 @@ async def test_greeting_is_answered_by_the_supervisor_without_inquiry(message) -
     assert result.answer == GREETING_ANSWER
     assert result.problemProposals == [] and result.questions == []
     assert result.ticketProposals == [] and result.guide is None
-    assert result.requiresFollowUp is True
+    assert result.requiresFollowUp is False
     # Supervisor 판단 한 번으로 끝나고 Inquiry 모델은 호출하지 않는다.
     assert len(llm.requests) == 1
 
@@ -88,7 +89,7 @@ async def test_greeting_with_existing_problem_keeps_it_unchanged() -> None:
 
     assert result.answer == FOLLOW_UP_GREETING_ANSWER
     assert result.problemProposals == [] and result.questions == [] and result.evidence == []
-    assert result.requiresFollowUp is True
+    assert result.requiresFollowUp is False
 
 
 @pytest.mark.parametrize(
@@ -196,15 +197,20 @@ def test_case_draft_cannot_reply() -> None:
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        ("안녕하세요", True),
-        ("hi~", True),
-        ("", False),
-        ("안녕하세요 로그인", False),
-        ("하이", False),
+        ("안녕하세요", "GREETING"),
+        ("hi~", "GREETING"),
+        ("감사합니다!", "THANKS"),
+        ("안녕하세요 감사합니다", "THANKS"),
+        ("Thank you", "THANKS"),
+        ("", None),
+        ("안녕하세요 로그인", None),
+        ("하이", None),
+        ("감사합니다 그런데 또 안 돼요", None),
+        ("안녕히 계세요", None),
     ],
 )
-def test_only_greetings_accepts_listed_expressions(text, expected) -> None:
-    assert only_greetings(text) is expected
+def test_courtesy_kind_accepts_only_listed_expressions(text, expected) -> None:
+    assert courtesy_kind(text) == expected
 
 
 def allowed_roles(llm) -> list[str]:
@@ -273,3 +279,38 @@ async def test_inquiry_stays_available_when_there_is_content_to_analyze(request_
     _, llm = await analyze(request_, reply("CLARIFY"))
 
     assert "INQUIRY" in allowed_roles(llm)
+
+
+@pytest.mark.parametrize("kind", ["THANKS", "CLARIFY", "GREETING"])
+async def test_thanks_after_a_pending_problem_is_answered_without_waiting(kind) -> None:
+    """감사 인사에는 감사로 답한다. 모델이 고른 종류와 무관하게 코드가 확인한 표현을 따른다."""
+    result, llm = await analyze(pending_problem_conversation("감사합니다!"), reply(kind))
+
+    assert "INQUIRY" not in allowed_roles(llm)
+    assert result.answer == THANKS_ANSWER
+    assert result.problemProposals == [] and result.questions == []
+    assert result.requiresFollowUp is False
+
+
+async def test_only_clarify_waits_for_the_user() -> None:
+    result, _ = await analyze(first_message_request("음..."), reply("THANKS"))
+
+    assert result.answer == CLARIFY_ANSWER
+    assert result.requiresFollowUp is True
+
+
+def allowed_actions(llm) -> list[str]:
+    return json.loads(llm.requests[0].messages[1].content)["allowedActions"]
+
+
+async def test_thanks_after_resolution_can_only_reply() -> None:
+    """해결된 문제에 감사 인사가 오면 기존 결과 안내(FINISH) 대신 감사로 답한다."""
+    fields = pending_problem_conversation("고맙습니다").model_dump(mode="json")
+    fields["problems"][0]["state"] = "RESOLVED"
+    request = AiRunRequest.model_validate(fields)
+
+    result, llm = await analyze(request, reply("THANKS"))
+
+    assert allowed_actions(llm) == ["REPLY"]
+    assert result.answer == THANKS_ANSWER
+    assert result.requiresFollowUp is False

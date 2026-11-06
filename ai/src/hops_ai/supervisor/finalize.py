@@ -45,6 +45,8 @@ def compose_public_answer(state: SupervisorState) -> str:
         raise OutputRejected("사례 초안 실행에는 상담 본문을 만들 수 없다")
     validate_completion(state)
     if is_reply(state):
+        if state["replyKind"] == "THANKS":
+            return "감사합니다. 다른 IT 문의가 있으시면 언제든 알려 주세요."
         if state["replyKind"] == "CLARIFY":
             return "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
         if state["input"].problems:
@@ -235,7 +237,8 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
             caseProposal=None,
             evidence=[] if is_reply(candidate) else list(candidate["evidence"].values()),
             error=None,
-            requiresFollowUp=is_reply(candidate),
+            # 되묻기만 사용자 답을 기다린다. 인사·감사 응답은 처리 중인 문제의 완료를 막지 않는다.
+            requiresFollowUp=is_reply(candidate) and candidate["replyKind"] == "CLARIFY",
             ticketCreationResults=list(candidate["ticketCreationResults"].values()),
         )
     else:

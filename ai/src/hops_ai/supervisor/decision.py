@@ -20,8 +20,8 @@ from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.policy import get_allowed_roles, validate_role_for_run
 from hops_ai.supervisor.state import SupervisorState
 from hops_ai.supervisor.validation import (
+    confirmed_courtesy,
     ensure_active,
-    greeting_confirmed,
     reply_allowed,
     validate_completion,
     validate_questions,
@@ -39,8 +39,9 @@ class SupervisorDecision(ContractModel):
     publicSummary에는 공개 가능한 짧은 행동 설명만 넣고 내부 판단 과정은 넣지 않는다.
     이 문구를 최종 answer로 사용하지 않으며, 최종 본문은 검증된 State로 구성한다.
 
-    REPLY는 문의 분석 없이 대화로 답하는 행동이다. replyKind는 인사만 받은 GREETING 또는
-    의도를 알 수 없어 되묻는 CLARIFY이며 REPLY에만 둔다. 답변 문구는 코드가 고정한다.
+    REPLY는 문의 분석 없이 대화로 답하는 행동이다. replyKind는 인사만 받은 GREETING,
+    감사 인사만 받은 THANKS, 의도를 알 수 없어 되묻는 CLARIFY이며 REPLY에만 둔다.
+    답변 문구는 코드가 고정한다.
     """
 
     nextAction: Literal[
@@ -48,7 +49,7 @@ class SupervisorDecision(ContractModel):
     ]
     role: AgentRole | None
     publicSummary: WireText
-    replyKind: Literal["GREETING", "CLARIFY"] | None = None
+    replyKind: Literal["GREETING", "THANKS", "CLARIFY"] | None = None
 
     @model_validator(mode="after")
     def check_action_role(self) -> "SupervisorDecision":
@@ -73,7 +74,7 @@ def decision_schema(allowed_roles: Sequence[str]) -> dict[str, Any]:
     schema["properties"]["role"] = role
     # 구조화 출력은 모든 속성을 필수로 요구한다. 기본값이 있는 replyKind도 null로 명시하게 한다.
     schema["properties"]["replyKind"] = {
-        "anyOf": [{"type": "string", "enum": ["GREETING", "CLARIFY"]}, {"type": "null"}]
+        "anyOf": [{"type": "string", "enum": ["GREETING", "THANKS", "CLARIFY"]}, {"type": "null"}]
     }
     schema["required"] = list(schema["properties"])
     # 더 이상 참조하지 않는 역할 정의는 남기지 않는다.
@@ -286,7 +287,8 @@ async def decide_next_action(
                     "분석 전이므로 문제를 대상으로 하는 검색·티켓 제안은 성립하지 않는다. "
                     "먼저 사용자 메시지의 의도를 판단한다. IT 문의 내용이나 기존 문의의 보완이 "
                     "조금이라도 있으면 인사가 함께 있어도 INQUIRY로 분석한다. 문의·보완 없이 "
-                    "인사만 있으면 REPLY와 replyKind=GREETING, 무엇을 원하는지 알 수 없으면 "
+                    "인사만 있으면 REPLY와 replyKind=GREETING, 감사 인사만 있으면 "
+                    "REPLY와 replyKind=THANKS, 무엇을 원하는지 알 수 없으면 "
                     "REPLY와 replyKind=CLARIFY를 선택한다. 확실하지 않으면 INQUIRY로 분석한다. "
                     "기존 문제가 있고 그 outcome이 없더라도, 마지막 사용자 메시지가 보완·요청 없이 "
                     "인사만이면 REPLY와 replyKind=GREETING을 선택한다. 기존 문제는 그대로 남고 "
@@ -314,7 +316,7 @@ async def decide_next_action(
         ],
         response_model=SupervisorDecision,
         max_output_tokens=remaining_output,
-        prompt_version="supervisor.decision.v9",
+        prompt_version="supervisor.decision.v10",
         response_schema=decision_schema(context["allowedRoles"]),
     )
     response = await services.llm.generate(request)
@@ -333,11 +335,13 @@ async def decide_next_action(
 
 
 def confirm_reply(state: SupervisorState, decision: SupervisorDecision) -> SupervisorDecision:
-    """모델이 인사로 판단해도 코드가 확인한 인사 표현이 아니면 되묻기로 낮춘다.
+    """대화 응답의 종류를 코드가 확인한 표현으로 정한다.
 
-    인사로 잘못 판단한 문의를 조용히 끝내지 않고 사용자에게 다시 확인하기 위한 보수적 처리다.
-    목록 밖의 단순 인사도 되묻기가 될 수 있다.
+    아직 분석하지 않은 메시지가 확인된 인사·감사 표현뿐이면 그 종류(GREETING/THANKS)로,
+    아니면 되묻기(CLARIFY)로 정한다. 모델은 REPLY 여부만 정하고 종류를 바꾸지 못한다.
+    인사로 잘못 판단한 문의를 조용히 끝내지 않기 위한 보수적 처리다. 목록 밖의 단순 인사도
+    되묻기가 될 수 있다.
     """
-    if decision.replyKind == "GREETING" and not greeting_confirmed(state):
-        return decision.model_copy(update={"replyKind": "CLARIFY"})
-    return decision
+    if decision.replyKind is None:
+        return decision
+    return decision.model_copy(update={"replyKind": confirmed_courtesy(state) or "CLARIFY"})

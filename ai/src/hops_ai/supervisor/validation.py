@@ -2,6 +2,7 @@
 
 import re
 from datetime import UTC, datetime
+from typing import Literal
 
 from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.state import SupervisorState
@@ -17,39 +18,53 @@ from hops_ai.harness.errors import (
 from hops_ai.rules.progress import get_problem_progress
 from hops_ai.rules.proposals import validate_problem_ref
 
-# 코드가 단순 인사로 인정하는 표현. 목록 밖의 인사는 되묻기로 처리되는 안전한 쪽으로 실패한다.
-_GREETING_WORDS = (
-    "안녕하십니까",
-    "안녕하세요",
-    "안녕하셔요",
-    "안녕",
-    "반갑습니다",
-    "반가워요",
-    "hello",
-    "hi",
-    "hey",
-)
+# 코드가 인사·감사 인사로 인정하는 표현. 목록 밖의 표현은 되묻기로 처리되는 안전한 쪽으로 실패한다.
+_COURTESY_WORDS: dict[str, str] = {
+    "안녕하십니까": "GREETING",
+    "안녕하세요": "GREETING",
+    "안녕하셔요": "GREETING",
+    "안녕": "GREETING",
+    "반갑습니다": "GREETING",
+    "반가워요": "GREETING",
+    "hello": "GREETING",
+    "hi": "GREETING",
+    "hey": "GREETING",
+    "감사드립니다": "THANKS",
+    "감사합니다": "THANKS",
+    "감사해요": "THANKS",
+    "고맙습니다": "THANKS",
+    "고마워요": "THANKS",
+    "thankyou": "THANKS",
+    "thanks": "THANKS",
+}
+# 긴 표현부터 맞춰 "안녕하세요"를 "안녕"+나머지로 잘못 나누지 않는다.
+_COURTESY_ORDER = sorted(_COURTESY_WORDS, key=len, reverse=True)
 
 
-def only_greetings(text: str) -> bool:
-    """확인된 인사 표현만으로 이뤄진 문장인지. 미확인 표현에는 문의 내용이 있을 수 있다."""
+def courtesy_kind(text: str) -> Literal["GREETING", "THANKS"] | None:
+    """확인된 인사·감사 표현만으로 이뤄진 문장의 종류. 감사가 하나라도 있으면 THANKS다.
+
+    미확인 표현이 섞이면 문의 내용이 있을 수 있으므로 None이다.
+    """
     remaining = re.sub(r"[\s.,!?~…，。！？～]+", "", text).casefold()
     if not remaining:
-        return False
+        return None
+    kinds: set[str] = set()
     while remaining:
-        greeting = next((word for word in _GREETING_WORDS if remaining.startswith(word)), None)
-        if greeting is None:
-            return False
-        remaining = remaining[len(greeting) :]
-    return True
+        word = next((word for word in _COURTESY_ORDER if remaining.startswith(word)), None)
+        if word is None:
+            return None
+        kinds.add(_COURTESY_WORDS[word])
+        remaining = remaining[len(word) :]
+    return "THANKS" if "THANKS" in kinds else "GREETING"
 
 
-def greeting_confirmed(state: "SupervisorState") -> bool:
-    """아직 분석하지 않은 사용자 메시지가 모두 확인된 인사 표현인지.
+def unanswered_user_messages(state: "SupervisorState") -> list:
+    """아직 분석하지 않은 사용자 메시지.
 
-    기존 문제가 없으면 전체 사용자 메시지를 본다. 앞선 실행이 실패해 분석되지 못한 문의가
-    인사 뒤에 묻히지 않게 한다. 기존 문제가 있으면 마지막 AI 답변 이후의 사용자 메시지만
-    본다. Spring은 사용자가 대상을 고르지 않은 메시지를 문제에 연결하지 않으므로, 연결
+    기존 문제가 없으면 전체 사용자 메시지다. 앞선 실행이 실패해 분석되지 못한 문의가
+    인사 뒤에 묻히지 않게 한다. 기존 문제가 있으면 마지막 AI 답변 이후의 사용자 메시지다.
+    Spring은 사용자가 대상을 고르지 않은 메시지를 문제에 연결하지 않으므로, 연결
     여부로는 이미 분석한 메시지와 새 메시지를 구분할 수 없다.
     """
     request = state["input"]
@@ -60,7 +75,15 @@ def greeting_confirmed(state: "SupervisorState") -> bool:
             default=0,
         )
         user_messages = [message for message in user_messages if message.sequenceNo > answered]
-    return bool(user_messages) and all(only_greetings(message.content) for message in user_messages)
+    return user_messages
+
+
+def confirmed_courtesy(state: "SupervisorState") -> Literal["GREETING", "THANKS"] | None:
+    """아직 분석하지 않은 사용자 메시지가 모두 확인된 인사·감사 표현이면 그 종류."""
+    kinds = [courtesy_kind(message.content) for message in unanswered_user_messages(state)]
+    if not kinds or None in kinds:
+        return None
+    return "THANKS" if "THANKS" in kinds else "GREETING"
 
 
 def reply_allowed(state: "SupervisorState") -> bool:
