@@ -36,6 +36,7 @@ class SupervisorPipeline:
         tracing: RunTracing | None = None,
         ticket_client: TicketHTTPClient | None = None,
         assess_evidence: bool = False,
+        problem_actions: bool | None = None,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
@@ -43,6 +44,10 @@ class SupervisorPipeline:
         knowledge_source는 기본 역할 조합(agents를 주지 않은 경우)에서만 Knowledge를 연결하며,
         없으면 Knowledge는 연결 전 자리로 남는다. assess_evidence는 같은 경우에 Knowledge가
         검색 근거의 충분성 판정을 만들지 정한다.
+
+        problem_actions는 문제별 행동 경로(판정 모드)를 쓸지 명시한다. 주지 않으면 위 기본 구성
+        (판정을 켠 Knowledge 연결)에서만 켠다. 평가 하네스처럼 역할 조합을 주입하는 호출 측은
+        질문 분리 같은 구성(`defer_questions`)을 직접 책임지며 이 값을 True로 줘서 켠다.
         """
         if agents is not None and ticket_client is not None:
             # 주입한 역할 조합의 TICKET을 몰래 바꾸지 않는다. 호출 측이 직접 넣는다.
@@ -65,10 +70,10 @@ class SupervisorPipeline:
         # 판정을 켜면 문제별 행동 경로로 돈다(판정 호출, 질문 분리, 문제별 행동 선택이 한 스위치다).
         # 검색이 연결돼 있어야 하고, 역할 조합을 주입한 경우에는 호출 측이 질문 분리 같은 구성을
         # 책임지므로 켜지 않는다.
+        if problem_actions is None:
+            problem_actions = assess_evidence and agents is None and knowledge_source is not None
         self._supervisor = Supervisor(
-            registry,
-            restrict_roles=True,
-            problem_actions=assess_evidence and agents is None and knowledge_source is not None,
+            registry, restrict_roles=True, problem_actions=problem_actions
         )
 
     def _tracing_for(self, request: AiRunRequest) -> RunTracing:
