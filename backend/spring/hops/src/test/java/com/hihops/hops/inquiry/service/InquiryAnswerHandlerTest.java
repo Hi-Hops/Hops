@@ -131,6 +131,16 @@ class InquiryAnswerHandlerTest {
     }
 
     @Test
+    void 추가_응답_표시가_boolean이_아니면_답변을_저장하지_않는다() {
+        for (String invalid : new String[] {"null", "\"true\"", "1"}) {
+            assertThatThrownBy(() -> handler.apply(run, input(), result(",\"requiresFollowUp\":" + invalid)))
+                    .isInstanceOfSatisfying(AgentResultRejectedException.class,
+                            e -> assertThat(e.code()).isEqualTo("INVALID_OUTPUT"));
+        }
+        verify(writer, never()).insert(any(), any(), any(), anyString());
+    }
+
+    @Test
     void 아직_저장하지_않는_AI_제안은_unapplied에_남기고_실패시키지_않는다() {
         String extra = ",\"questions\":[{\"text\":\"q\"}],\"ticketProposals\":[{\"title\":\"t\"}],\"problemProposals\":[],"
                 + "\"guide\":null,\"caseProposal\":null,\"evidence\":[]";

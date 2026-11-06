@@ -129,7 +129,11 @@ public class ResolutionRequestService {
         }
         // 대상 문제만 변경하고, 문의 집계에서는 다른 문제의 상태를 그대로 유지한다.
         tickets.flush(); problems.flush();
-        inquiry.updateResolution(problems.countUnresolved(inquiry.getId()) == 0);
+        var currentRun = inquiry.getCurrentRun();
+        boolean awaitingFollowUp = currentRun != null && currentRun.getRunStatus() == RunStatus.SUCCEEDED
+                && currentRun.getValidationResult() != null
+                && mapper.readTree(currentRun.getValidationResult()).path("requiresFollowUp").asBoolean(false);
+        inquiry.updateResolution(problems.countUnresolved(inquiry.getId()) == 0 && !awaitingFollowUp);
         return new ResourceRef(ResourceType.RESOLUTION_REQUEST, id);
     }
 

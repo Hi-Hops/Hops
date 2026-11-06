@@ -151,6 +151,8 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 | AiRunSnapshot | contractVersion,runId,status,lastSeq,result,error | result/error는 조건부 nullable. status=QUEUED/RUNNING/SUCCEEDED/FAILED/TIMED_OUT/SUPERSEDED/UNKNOWN |
 | AiResult | contractVersion,runId,kind,inquiryId,inquiryVersion,status,answer,problemProposals,questions,guide,ticketProposals,caseProposal,evidence,error | kind·종료 상태별 조합은 S2의 조건부 규칙. 제안 성공이 DB 저장 성공은 아님 |
 
+`AiResult.requiresFollowUp`은 추가 응답 대기를 나타내는 선택적 가산 boolean이다. 정확한 조건과 이전 생산자 호환은 아래 S2를 따른다.
+
 시각·ID·입력은 신규 데이터 계약의 공통 표현을 따른다. 없는 값은 null, 결과 없는 목록은 []로 반환한다. 필수 필드 누락·알 수 없는 시스템·실재하지 않는 근거는 Spring/실행기의 검증 오류다. Spring은 원문과 버전을 재검증하고 유효한 제안만 업무 저장에 사용한다. 내부 역할 이름·메모리 객체를 외부 wire DTO로 그대로 노출하지 않는다.
 
 ### 역할별 출력과 적용 검증
@@ -270,7 +272,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | TicketProposal | problemRef:string, title:string, processingType:SERVICE_REQUEST / INVESTIGATION / CHANGE_REQUEST / REVIEW_REQUIRED, responsibleSystemCandidateId:Uuid, evidenceIds:Uuid[], standardRequestSnapshot:StandardRequestBody |
 | EntityLink | relation:APPLIES_TO / ADDRESSES / USES_CHECK, targetId:string, evidenceIds:Uuid[] |
 | CaseProposal | reusable:boolean, title:string 또는 null, action:string 또는 null, verification:string 또는 null, applicability:string 또는 null, limitations:string[], appliesToSystemVersion:string 또는 null, accessScope:EMPLOYEE / SYSTEM_STAFF 또는 null, sourceMessageIds:Uuid[], entityLinks:EntityLink[], problemStatement:string 또는 null |
-| AiResult | contractVersion:hops-system-1, runId:Uuid, kind:INQUIRY_ANALYSIS / CASE_DRAFT, inquiryId:Uuid, inquiryVersion:int, status:SUCCEEDED / FAILED / TIMED_OUT / SUPERSEDED, answer:string 또는 null, problemProposals:ProblemProposal[], questions:QuestionProposal[], guide:GuideProposal 또는 null, ticketProposals:TicketProposal[], caseProposal:CaseProposal 또는 null, evidence:KnowledgeEvidence[], error:AiError 또는 null |
+| AiResult | contractVersion:hops-system-1, runId:Uuid, kind:INQUIRY_ANALYSIS / CASE_DRAFT, inquiryId:Uuid, inquiryVersion:int, status:SUCCEEDED / FAILED / TIMED_OUT / SUPERSEDED, answer:string 또는 null, problemProposals:ProblemProposal[], questions:QuestionProposal[], guide:GuideProposal 또는 null, ticketProposals:TicketProposal[], caseProposal:CaseProposal 또는 null, evidence:KnowledgeEvidence[], error:AiError 또는 null, requiresFollowUp:boolean(생략 가능) |
 | AiAccepted | contractVersion:hops-system-1, runId:Uuid, status:QUEUED, eventsPath:string |
 | AiRunSnapshot | contractVersion:hops-system-1, runId:Uuid, status:QUEUED / RUNNING / SUCCEEDED / FAILED / TIMED_OUT / SUPERSEDED / UNKNOWN, lastSeq:int, result:AiResult 또는 null, error:AiError 또는 null |
 | ProgressPayload | role:SUPERVISOR / INQUIRY / KNOWLEDGE / TICKET / CURATOR, displaySummary:string |
@@ -287,6 +289,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 
 - INQUIRY_ANALYSIS의 answerMessageId는 UUID·workRecord=null이며 accessContext.purpose는 EMPLOYEE_HELP 또는 SYSTEM_WORK다. CASE_DRAFT는 answerMessageId=null·WorkRecordContext 필수·purpose=CASE_DRAFT다.
 - SUCCEEDED 상담은 answer 필수·caseProposal=null, SUCCEEDED CASE_DRAFT는 caseProposal 필수·answer/guide=null·문제/질문/티켓 목록=[]다. 실패·시간 초과·대체된 AiResult는 error 필수·answer/guide/caseProposal=null·제안/근거 목록=[]다.
+- `requiresFollowUp`은 상담 답변 뒤 사용자 입력이 더 필요하다는 제안이다. 이전 생산자의 생략은 `false`로 읽으며, 새 생산자는 항상 boolean을 포함한다. `true`는 SUCCEEDED INQUIRY_ANALYSIS에만 허용하고 나머지 결과에는 `false`다. `false`는 사용자 입력이 불필요하다는 확정이 아니며 기존 `questions` 등은 별도로 적용한다. Spring은 타입을 검증하고 `true`면 문의 완료 집계를 보류한다. 검증된 대기는 현재 실행의 결과로 보존해 이후 해결 확인 때도 적용하며, 현재 실행이 교체되기 전까지 입력 저장만으로 대기를 해제하지 않는다. 이 필드만으로 질문 횟수·문제 상태·업무 저장 또는 해결을 확정하지 않는다. 이 변경은 Spring 반영 후 AI 반영 순서가 필요하다. 구 Spring은 새 필드를 무시하므로 새 AI를 먼저 사용하면 추가 응답 중 문의가 완료될 수 있다. 엄격한 별도 소비자와 저장된 새 결과를 읽는 이전 AI의 롤백 호환성도 확인해야 한다.
 - AiRunSnapshot의 QUEUED/RUNNING/UNKNOWN은 result=null이다. 종료 상태에는 같은 status의 AiResult가 필수이며 SUCCEEDED의 error=null, FAILED/TIMED_OUT/SUPERSEDED의 error는 AiError다.
 - AiEvent.eventType별 payload는 각각 ProgressPayload/DeltaPayload/AiResult로 고정한다. DeltaPayload.messageId는 입력 answerMessageId와 같아야 하며 CASE_DRAFT에는 답변 조각을 발행하지 않는다.
 - ExistingWorkItem은 STORED에만 ticketId UUID이고 나머지는null이다. CaseProposal.reusable=true면 제목·문제 설명·조치·검증·적용 조건·공개 범위가 필수다. false면 본문·적용 버전·공개 범위는null, limitations/sourceMessageIds/entityLinks는[]다.

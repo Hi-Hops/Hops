@@ -51,8 +51,9 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
     private org.springframework.transaction.support.TransactionTemplate transaction;
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-    void 마지막_티켓_확인_뒤_분석이_끝나면_현재_문제와_미적용_새문제를_기준으로_문의_상태를_집계한다(boolean newProblem) throws Exception {
+    @org.junit.jupiter.params.provider.CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void 마지막_티켓_확인_뒤_분석이_끝나면_현재_문제와_미적용_새문제를_기준으로_문의_상태를_집계한다(
+            boolean newProblem, boolean explicitFalse) throws Exception {
         result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
         String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
         jdbc.update("UPDATE agent_run SET run_status='RUNNING',completed_at=NULL WHERE id=?", analysis);
@@ -63,6 +64,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
         input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
         var output = mapper.createObjectNode().put("answer", "저장된 처리 결과를 확인했습니다.");
+        if (explicitFalse) output.put("requiresFollowUp", false);
         output.putArray("problemProposals");
         if (newProblem) ((tools.jackson.databind.node.ArrayNode) output.path("problemProposals")).addObject().put("problemRef", "new:remaining");
         transaction.executeWithoutResult(status -> {
@@ -72,6 +74,66 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         });
         assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry))
                 .isEqualTo(newProblem ? "IN_PROGRESS" : "RESOLVED");
+    }
+
+    @Test
+    void 마지막_티켓이_해결되어도_추가_설명을_기다리면_새_메시지를_받는다() throws Exception {
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
+        jdbc.update("UPDATE agent_run SET run_status='RUNNING',completed_at=NULL WHERE id=?", analysis);
+        jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", analysis, inquiry);
+        result(command(requester, "/resolution-requests/" + resolutionId + "/responses",
+                mapper.createObjectNode().put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1).put("decision", "RESOLVED")));
+        var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
+        var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
+                .put("requiresFollowUp", true);
+        output.putArray("problemProposals");
+        output.putArray("questions");
+        output.putArray("ticketProposals");
+        transaction.executeWithoutResult(status -> {
+            var run = runs.findById(analysis).orElseThrow();
+            answers.apply(run, input, output);
+            run.finish(com.hihops.hops.agent.domain.RunStatus.SUCCEEDED, Instant.now());
+        });
+        assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry))
+                .isEqualTo("IN_PROGRESS");
+        var next = mapper.createObjectNode().put("requestId", UUID.randomUUID().toString())
+                .put("expectedInquiryVersion", 1).put("content", "로그인이 안 됩니다");
+        next.putArray("problemIds");
+        result(command(requester, "/inquiries/" + inquiry + "/messages", next));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void 추가_설명을_요청한_후_마지막_티켓이_해결되어도_문의를_유지한다(boolean newerInputWithoutRun) throws Exception {
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
+        jdbc.update("UPDATE agent_run SET run_status='RUNNING',completed_at=NULL WHERE id=?", analysis);
+        jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", analysis, inquiry);
+        var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
+        var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
+                .put("requiresFollowUp", true);
+        output.putArray("problemProposals");
+        output.putArray("questions");
+        output.putArray("ticketProposals");
+        transaction.executeWithoutResult(status -> {
+            var run = runs.findById(analysis).orElseThrow();
+            String validation = answers.apply(run, input, output);
+            run.storeOutcome(output.toString(), validation, null);
+            run.finish(com.hihops.hops.agent.domain.RunStatus.SUCCEEDED, Instant.now());
+        });
+        if (newerInputWithoutRun) jdbc.update("UPDATE inquiry SET version=2 WHERE id=?", inquiry);
+        result(command(requester, "/resolution-requests/" + resolutionId + "/responses",
+                mapper.createObjectNode().put("requestId", UUID.randomUUID().toString())
+                        .put("expectedRequestRevision", 1).put("decision", "RESOLVED")));
+        assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry))
+                .isEqualTo("IN_PROGRESS");
+        var next = mapper.createObjectNode().put("requestId", UUID.randomUUID().toString())
+                .put("expectedInquiryVersion", newerInputWithoutRun ? 2 : 1).put("content", "로그인이 안 됩니다");
+        next.putArray("problemIds");
+        result(command(requester, "/inquiries/" + inquiry + "/messages", next));
     }
 
     @org.junit.jupiter.params.ParameterizedTest

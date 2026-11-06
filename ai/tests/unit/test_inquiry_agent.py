@@ -422,6 +422,7 @@ async def test_supervisor_turns_a_vague_inquiry_into_a_question_for_the_user() -
     [question] = result.questions
     assert question.text in result.answer
     assert result.ticketProposals == [] and result.guide is None
+    assert result.requiresFollowUp is False
     assert result.problemProposals[0].reportedSystemCandidateId == SYSTEM
     assert len(llm.requests) == 3
 
@@ -482,6 +483,7 @@ async def test_inquiry_greeting_prompts_for_content() -> None:
     assert result.answer == "안녕하세요. 어떤 IT 관련 문의가 있으신가요? 내용을 알려 주세요."
     assert result.problemProposals == [] and result.questions == []
     assert result.ticketProposals == [] and result.guide is None
+    assert result.requiresFollowUp is True
     assert len(llm.requests) == 2
 
 
@@ -506,6 +508,7 @@ async def test_wrong_greeting_classification_asks_for_clarification(message) -> 
         == "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
     )
     assert not result.problemProposals and not result.ticketProposals and not result.questions
+    assert result.requiresFollowUp is True
 
 
 @pytest.mark.parametrize("message", ["안녕하세요!", "안녕", "안녕하세요, 반갑습니다", "Hello!"])
@@ -552,6 +555,7 @@ async def test_wrong_greeting_after_unsaved_issue_asks_for_clarification() -> No
         == "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
     )
     assert not result.problemProposals and not result.ticketProposals
+    assert result.requiresFollowUp is True
 
 
 async def test_greeting_does_not_hide_unlinked_issue_when_another_problem_exists() -> None:
@@ -581,6 +585,7 @@ async def test_greeting_does_not_hide_unlinked_issue_when_another_problem_exists
         == "보내주신 내용을 정확히 파악하지 못했어요. 문의 내용을 조금 더 알려주시겠어요?"
     )
     assert not result.problemProposals and not result.ticketProposals
+    assert result.requiresFollowUp is True
 
 
 async def test_out_of_scope_request_is_analyzed_by_inquiry() -> None:

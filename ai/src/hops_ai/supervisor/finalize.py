@@ -241,6 +241,7 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
             if has_conversation_result(candidate)
             else list(candidate["evidence"].values()),
             error=None,
+            requiresFollowUp=has_conversation_result(candidate),
             ticketCreationResults=list(candidate["ticketCreationResults"].values()),
         )
     else:

@@ -243,6 +243,28 @@ def test_result_allows_questions_with_overlapping_text(bodies) -> None:
     assert [question.text for question in result.questions] == list(bodies)
 
 
+def test_follow_up_flag_is_backward_compatible_and_strict() -> None:
+    payload = inquiry_result()
+    assert AiResult.model_validate(payload).requiresFollowUp is False
+    assert AiResult.model_validate(payload | {"requiresFollowUp": True}).requiresFollowUp is True
+    for invalid in (None, 1, "true"):
+        with pytest.raises(ValidationError):
+            AiResult.model_validate(payload | {"requiresFollowUp": invalid})
+
+
+def test_follow_up_flag_is_rejected_for_failed_result() -> None:
+    failure = inquiry_result() | {
+        "status": "FAILED",
+        "answer": None,
+        "problemProposals": [],
+        "questions": [],
+        "error": {"code": "INVALID_OUTPUT", "message": "실패", "retryable": False},
+        "requiresFollowUp": True,
+    }
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(failure)
+
+
 @pytest.mark.parametrize("missing", ["question", "guide"])
 def test_result_still_rejects_missing_required_body(missing) -> None:
     """본문 검사를 단순화해도 질문·가이드 누락은 허용하지 않는다."""
@@ -573,6 +595,8 @@ def test_case_draft_result_validates_content_and_kind() -> None:
         "caseProposal": proposal,
     }
     assert AiResult.model_validate(payload).caseProposal.reusable
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(payload | {"requiresFollowUp": True})
     with pytest.raises(ValidationError):
         AiResult.model_validate(payload | {"answer": "답변"})
     with pytest.raises(ValidationError):
