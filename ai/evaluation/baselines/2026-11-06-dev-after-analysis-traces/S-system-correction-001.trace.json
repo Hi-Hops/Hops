@@ -1,0 +1,607 @@
+{
+ "format": 1,
+ "scenario_id": "S-system-correction-001",
+ "extra_forbidden_phrases": [],
+ "truncated": false,
+ "turns": [
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "57a9effb-e752-5572-aaf5-3552dc8d04f9",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 1,
+    "answerMessageId": "88ee79e4-83d1-5f85-b448-524419cbd5dc",
+    "problemIds": [],
+    "messages": [
+     {
+      "id": "056b97f7-db36-5571-9faf-e5a8ed2f3234",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 지운 파일이 안 보여요.",
+      "problemIds": [],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     }
+    ],
+    "problems": [],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "504cb811-95c1-52ab-a49b-c2d840ade786",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T08:12:35.847908Z",
+    "limits": {
+     "maxModelCalls": 8,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "57a9effb-e752-5572-aaf5-3552dc8d04f9",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 1,
+    "status": "SUCCEEDED",
+    "answer": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?",
+    "problemProposals": [
+     {
+      "problemRef": "new:1",
+      "summary": "전자결재에서 지운 파일이 보이지 않습니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재에서 지운 파일",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": null,
+       "actualBehavior": "지운 파일이 안 보여요.",
+       "occurredAt": null,
+       "currentWorkflow": null,
+       "desiredChange": null,
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [
+     {
+      "problemRef": "new:1",
+      "bundleRef": "inquiry-new-1-1",
+      "text": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?",
+      "requestedFields": [
+       "expectedBehavior",
+       "occurredAt"
+      ]
+     }
+    ],
+    "guide": null,
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [],
+    "error": null,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": [
+      {
+       "problem_ref": "new:1",
+       "keywords": [
+        "전자결재",
+        "파일"
+       ],
+       "feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "파일"
+       ],
+       "raw_feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ]
+      }
+     ]
+    }
+   ],
+   "model_calls": 3,
+   "error": null,
+   "user_reply": "지운 파일이 다시 보여야 해요. 어제 오후부터요. 아, 전자결재가 아니라 파일 공유 시스템 이야기였어요.",
+   "unknown_after": [],
+   "ref_map": [
+    [
+     "new:1",
+     "17f261f9-d003-57c3-9009-a7565dc4e835"
+    ]
+   ],
+   "input_tokens": 5968,
+   "output_tokens": 284,
+   "elapsed_seconds": 9.105262709083036
+  },
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "d253ef49-0ea8-5b07-bfa0-1cce13a6ee22",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 2,
+    "answerMessageId": "7a92a28f-895f-54f7-a662-23aca20517ba",
+    "problemIds": [
+     "17f261f9-d003-57c3-9009-a7565dc4e835"
+    ],
+    "messages": [
+     {
+      "id": "056b97f7-db36-5571-9faf-e5a8ed2f3234",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 지운 파일이 안 보여요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     },
+     {
+      "id": "6503c69e-b82d-50ff-adb3-dc98d8c4799b",
+      "revision": 1,
+      "sequenceNo": 2,
+      "sender": "AI",
+      "content": "처리에 필요한 내용을 알려 주시겠어요?\n1. 원래 어떻게 동작하길 기대하셨나요?\n2. 언제부터, 또는 언제 그런 일이 있었나요?",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:00.000000Z"
+     },
+     {
+      "id": "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126",
+      "revision": 1,
+      "sequenceNo": 3,
+      "sender": "USER",
+      "content": "지운 파일이 다시 보여야 해요. 어제 오후부터요. 아, 전자결재가 아니라 파일 공유 시스템 이야기였어요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:30.000000Z"
+     }
+    ],
+    "problems": [
+     {
+      "id": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "전자결재에서 지운 파일이 보이지 않습니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "reportedFeatureId": null,
+      "state": "ANALYZING",
+      "questionCount": 1,
+      "standardRequest": {
+       "summary": "전자결재에서 지운 파일이 보이지 않습니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": null,
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재에서 지운 파일",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": null,
+        "actualBehavior": "지운 파일이 안 보여요.",
+        "occurredAt": null,
+        "currentWorkflow": null,
+        "desiredChange": null,
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      },
+      "resolutionContext": null
+     }
+    ],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "504cb811-95c1-52ab-a49b-c2d840ade786",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T08:12:44.954061Z",
+    "limits": {
+     "maxModelCalls": 8,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "d253ef49-0ea8-5b07-bfa0-1cce13a6ee22",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 2,
+    "status": "SUCCEEDED",
+    "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+    "problemProposals": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "파일 공유 시스템에서 지운 파일이 안 보입니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "발생 시점: 어제 오후부터요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+       "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+       "occurredAt": "어제 오후부터요.",
+       "currentWorkflow": null,
+       "desiredChange": null,
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [],
+    "guide": null,
+    "ticketProposals": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "title": "파일 공유에서 삭제한 파일이 보이지 않는 현상 확인 요청",
+      "processingType": "INVESTIGATION",
+      "responsibleSystemCandidateId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "evidenceIds": [
+       "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+      ],
+      "standardRequestSnapshot": {
+       "summary": "파일 공유 시스템에서 지운 파일이 안 보입니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "발생 시점: 어제 오후부터요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+       "responsibilityEvidenceIds": [
+        "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+       ],
+       "details": {
+        "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+        "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+        "occurredAt": "어제 오후부터요.",
+        "currentWorkflow": null,
+        "desiredChange": null,
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      }
+     }
+    ],
+    "caseProposal": null,
+    "evidence": [],
+    "error": null,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": [
+      {
+       "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+       "keywords": [
+        "파일",
+        "공유",
+        "지운"
+       ],
+       "feature_candidates": [],
+       "raw_keywords": [
+        "파일",
+        "공유",
+        "지운"
+       ],
+       "raw_feature_candidates": [
+        "152e8439-1e01-5e26-9749-f77df1cb65fc"
+       ]
+      }
+     ]
+    },
+    {
+     "role": "TICKET",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "analysis": []
+    }
+   ],
+   "model_calls": 5,
+   "error": null,
+   "user_reply": null,
+   "unknown_after": [],
+   "ref_map": [],
+   "input_tokens": 10941,
+   "output_tokens": 578,
+   "elapsed_seconds": 17.64075000002049
+  }
+ ]
+}
