@@ -1,0 +1,602 @@
+{
+ "format": 1,
+ "scenario_id": "S-ea-bulk-download-001",
+ "extra_forbidden_phrases": [],
+ "truncated": false,
+ "turns": [
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "166a24fb-9ba4-5824-84e3-c813c4b71d4f",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "df10c199-2eea-5bf2-9b56-380061f07aa5",
+    "inquiryVersion": 1,
+    "answerMessageId": "93aedb22-b4fe-520b-9530-de658536f5f8",
+    "problemIds": [],
+    "messages": [
+     {
+      "id": "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+      "problemIds": [],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     }
+    ],
+    "problems": [],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "89df9586-222f-565a-92e8-4b40f304df84",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T12:24:32.781059Z",
+    "limits": {
+     "maxModelCalls": 8,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "166a24fb-9ba4-5824-84e3-c813c4b71d4f",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "df10c199-2eea-5bf2-9b56-380061f07aa5",
+    "inquiryVersion": 1,
+    "status": "SUCCEEDED",
+    "answer": "현재는 전자결재 문서의 첨부 파일을 어떻게 내려받고 계신가요?",
+    "problemProposals": [
+     {
+      "problemRef": "new:1",
+      "summary": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어 합니다.",
+      "intent": "FEATURE_REQUEST",
+      "processingType": "CHANGE_REQUEST",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+        "sourceMessageIds": [
+         "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "바라는 변경: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+        "sourceMessageIds": [
+         "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": null,
+       "actualBehavior": null,
+       "occurredAt": null,
+       "currentWorkflow": null,
+       "desiredChange": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [
+     {
+      "problemRef": "new:1",
+      "bundleRef": "inquiry-new-1-1",
+      "text": "현재는 전자결재 문서의 첨부 파일을 어떻게 내려받고 계신가요?",
+      "requestedFields": [
+       "currentWorkflow"
+      ]
+     }
+    ],
+    "guide": null,
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [],
+    "error": null,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [
+      {
+       "problem_ref": "new:1",
+       "keywords": [
+        "전자결재",
+        "문서",
+        "첨부",
+        "파일",
+        "내려받고"
+       ],
+       "feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "문서",
+        "첨부",
+        "파일",
+        "내려받고"
+       ],
+       "raw_feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ]
+      }
+     ],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    },
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null,
+     "question_source": "MODEL",
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    }
+   ],
+   "model_calls": 2,
+   "error": null,
+   "user_reply": "지금은 첨부 파일을 하나씩 내려받고 있어요.",
+   "unknown_after": [],
+   "ref_map": [
+    [
+     "new:1",
+     "4f45a168-9121-55db-a200-6132efde9938"
+    ]
+   ],
+   "input_tokens": 2689,
+   "output_tokens": 289,
+   "elapsed_seconds": 6.426026916131377
+  },
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "0da8ff46-d83c-53ab-a43e-ce6cdd5d7f43",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "df10c199-2eea-5bf2-9b56-380061f07aa5",
+    "inquiryVersion": 2,
+    "answerMessageId": "d9c5d563-f4cc-50c8-a88f-2572cb9eeff5",
+    "problemIds": [
+     "4f45a168-9121-55db-a200-6132efde9938"
+    ],
+    "messages": [
+     {
+      "id": "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+      "problemIds": [
+       "4f45a168-9121-55db-a200-6132efde9938"
+      ],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     },
+     {
+      "id": "9cbc5e60-a725-551e-9eb2-a1a1f7ebd4d3",
+      "revision": 1,
+      "sequenceNo": 2,
+      "sender": "AI",
+      "content": "현재는 전자결재 문서의 첨부 파일을 어떻게 내려받고 계신가요?",
+      "problemIds": [
+       "4f45a168-9121-55db-a200-6132efde9938"
+      ],
+      "createdAt": "2026-11-05T00:01:00.000000Z"
+     },
+     {
+      "id": "61face77-370b-5321-bbc4-b8df2f0ecb08",
+      "revision": 1,
+      "sequenceNo": 3,
+      "sender": "USER",
+      "content": "지금은 첨부 파일을 하나씩 내려받고 있어요.",
+      "problemIds": [
+       "4f45a168-9121-55db-a200-6132efde9938"
+      ],
+      "createdAt": "2026-11-05T00:01:30.000000Z"
+     }
+    ],
+    "problems": [
+     {
+      "id": "4f45a168-9121-55db-a200-6132efde9938",
+      "summary": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어 합니다.",
+      "intent": "FEATURE_REQUEST",
+      "processingType": "CHANGE_REQUEST",
+      "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "reportedFeatureId": null,
+      "state": "ANALYZING",
+      "questionCount": 1,
+      "standardRequest": {
+       "summary": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어 합니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+         "sourceMessageIds": [
+          "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "바라는 변경: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+         "sourceMessageIds": [
+          "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": null,
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": null,
+        "actualBehavior": null,
+        "occurredAt": null,
+        "currentWorkflow": null,
+        "desiredChange": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      },
+      "resolutionContext": null
+     }
+    ],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "89df9586-222f-565a-92e8-4b40f304df84",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-06T12:24:39.207889Z",
+    "limits": {
+     "maxModelCalls": 8,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "0da8ff46-d83c-53ab-a43e-ce6cdd5d7f43",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "df10c199-2eea-5bf2-9b56-380061f07aa5",
+    "inquiryVersion": 2,
+    "status": "SUCCEEDED",
+    "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+    "problemProposals": [
+     {
+      "problemRef": "4f45a168-9121-55db-a200-6132efde9938",
+      "summary": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어 합니다.",
+      "intent": "FEATURE_REQUEST",
+      "processingType": "CHANGE_REQUEST",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+        "sourceMessageIds": [
+         "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "바라는 변경: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+        "sourceMessageIds": [
+         "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "현재 진행 방식: 지금은 첨부 파일을 하나씩 내려받고 있어요.",
+        "sourceMessageIds": [
+         "61face77-370b-5321-bbc4-b8df2f0ecb08"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재 문서의 첨부 파일",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": null,
+       "actualBehavior": null,
+       "occurredAt": null,
+       "currentWorkflow": "지금은 첨부 파일을 하나씩 내려받고 있어요.",
+       "desiredChange": "한 번에 모두 내려받고 싶어요.",
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [],
+    "guide": null,
+    "ticketProposals": [
+     {
+      "problemRef": "4f45a168-9121-55db-a200-6132efde9938",
+      "title": "전자결재 문서 첨부 파일 일괄 다운로드 요청",
+      "processingType": "CHANGE_REQUEST",
+      "responsibleSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "evidenceIds": [],
+      "standardRequestSnapshot": {
+       "summary": "전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어 합니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+         "sourceMessageIds": [
+          "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "바라는 변경: 전자결재 문서의 첨부 파일을 한 번에 모두 내려받고 싶어요.",
+         "sourceMessageIds": [
+          "0ecd1a95-c58c-569d-8b5a-b6bd7ee9c30f"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "현재 진행 방식: 지금은 첨부 파일을 하나씩 내려받고 있어요.",
+         "sourceMessageIds": [
+          "61face77-370b-5321-bbc4-b8df2f0ecb08"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재 문서의 첨부 파일",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": null,
+        "actualBehavior": null,
+        "occurredAt": null,
+        "currentWorkflow": "지금은 첨부 파일을 하나씩 내려받고 있어요.",
+        "desiredChange": "한 번에 모두 내려받고 싶어요.",
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      }
+     }
+    ],
+    "caseProposal": null,
+    "evidence": [],
+    "error": null,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [
+      {
+       "problem_ref": "4f45a168-9121-55db-a200-6132efde9938",
+       "keywords": [
+        "전자결재",
+        "첨부",
+        "파일",
+        "내려받고"
+       ],
+       "feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "첨부",
+        "파일",
+        "내려받고"
+       ],
+       "raw_feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ]
+      }
+     ],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    },
+    {
+     "role": "TICKET",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    }
+   ],
+   "model_calls": 2,
+   "error": null,
+   "user_reply": null,
+   "unknown_after": [],
+   "ref_map": [],
+   "input_tokens": 3806,
+   "output_tokens": 364,
+   "elapsed_seconds": 7.205716958036646
+  }
+ ]
+}
