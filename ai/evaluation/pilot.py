@@ -92,8 +92,43 @@ def _turn_summary(index: int, turn: TurnTrace) -> dict[str, Any]:
     hints = _search_hints(turn)
     if hints:
         summary["searchHints"] = hints
+    assessments = _assessments(turn)
+    if assessments:
+        summary["assessments"] = assessments
     summary["userReply"] = turn.user_reply
     return summary
+
+
+def _assessments(turn: TurnTrace) -> dict[str, Any]:
+    """검색 호출별 충분성 판정 요약. 평가를 하지 못한 검색도 센다.
+
+    foundWithoutAssessment는 근거가 있는데 판정이 없는 검색 수다. 모델 오류, 검증 거부, 예산
+    부족을 구분하지 않고 "평가 없음"으로 묶는다.
+    """
+    searches = [
+        call
+        for call in turn.role_calls
+        if call.role == AgentRole.KNOWLEDGE and call.search_state in ("FOUND", "EMPTY")
+    ]
+    if not searches:
+        return {}
+    return {
+        "items": [
+            {
+                "problemRef": call.assessment.problem_ref,
+                "verdict": call.assessment.verdict,
+                "supportingEvidence": len(call.assessment.supporting_evidence_ids),
+                "missingInformation": [ref for _, ref in call.assessment.missing_information],
+                "candidateCauses": len(call.assessment.candidate_causes),
+                "rationale": call.assessment.rationale,
+            }
+            for call in searches
+            if call.assessment is not None
+        ],
+        "foundWithoutAssessment": sum(
+            1 for call in searches if call.search_state == "FOUND" and call.assessment is None
+        ),
+    }
 
 
 def _search_hints(turn: TurnTrace) -> list[dict[str, Any]]:

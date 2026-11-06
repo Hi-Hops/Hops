@@ -9,7 +9,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evaluation.harness.trace import AnalysisRecord, RoleCall, RunTrace, TurnTrace
+from evaluation.harness.trace import (
+    AnalysisRecord,
+    AssessmentRecord,
+    RoleCall,
+    RunTrace,
+    TurnTrace,
+)
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest, KnowledgeEvidence
 
@@ -33,7 +39,34 @@ def _role_call(call: RoleCall) -> dict[str, Any]:
             }
             for item in call.analysis
         ],
+        "assessment": _assessment_dict(call.assessment),
     }
+
+
+def _assessment_dict(item: AssessmentRecord | None) -> dict[str, Any] | None:
+    if item is None:
+        return None
+    return {
+        "problem_ref": item.problem_ref,
+        "verdict": item.verdict,
+        "supporting_evidence_ids": list(item.supporting_evidence_ids),
+        "missing_information": [list(pair) for pair in item.missing_information],
+        "candidate_causes": [list(pair) for pair in item.candidate_causes],
+        "rationale": item.rationale,
+    }
+
+
+def _assessment(data: dict[str, Any] | None) -> AssessmentRecord | None:
+    if data is None:
+        return None
+    return AssessmentRecord(
+        problem_ref=data["problem_ref"],
+        verdict=data["verdict"],
+        supporting_evidence_ids=tuple(data["supporting_evidence_ids"]),
+        missing_information=tuple((kind, ref) for kind, ref in data["missing_information"]),
+        candidate_causes=tuple((text, confirmed) for text, confirmed in data["candidate_causes"]),
+        rationale=data["rationale"],
+    )
 
 
 def _analysis(items: list[dict[str, Any]]) -> tuple[AnalysisRecord, ...]:
@@ -89,6 +122,8 @@ def trace_from_dict(data: dict[str, Any]) -> RunTrace:
                 failed_with=call["failed_with"],
                 # 검색 힌트를 기록하기 전에 저장한 trace에는 이 키가 없다. 형식 번호는 그대로다.
                 analysis=_analysis(call.get("analysis", [])),
+                # 판정을 기록하기 전에 저장한 trace에도 이 키가 없다.
+                assessment=_assessment(call.get("assessment")),
             )
             for call in item["role_calls"]
         )

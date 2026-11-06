@@ -6,7 +6,7 @@
 
 | 위치 | 역할 |
 |---|---|
-| `harness/checks.py` | 안전 성질 P1~P9 검사기. 실행 기록만 보는 순수 함수이며 모델을 부르지 않는다 |
+| `harness/checks.py` | 안전 성질 P1~P11 검사기. 실행 기록만 보는 순수 함수이며 모델을 부르지 않는다 |
 | `harness/runner.py` | 시나리오를 끝까지 재생한다. AI가 질문하면 규칙 사용자가 답하고 다음 실행을 이어 간다 |
 | `harness/user_sim.py` | 규칙 기반 사용자 모사(`ASKED_FIELD_ONLY`). 같은 질문에는 같은 답이 나간다 |
 | `harness/spring_stub.py` | Spring이 AI 결과로 다음 실행 입력을 만드는 일을 흉내 내는 얇은 대역 |

@@ -3,7 +3,7 @@
 from pydantic import BaseModel
 
 from evaluation.harness.budget import CallCapExceeded
-from evaluation.harness.trace import AnalysisRecord, RoleCall
+from evaluation.harness.trace import AnalysisRecord, AssessmentRecord, RoleCall
 from hops_ai.agents.base import Agent
 from hops_ai.agents.inquiry.extraction import InquiryExtraction
 from hops_ai.contracts.domain import AgentRole
@@ -55,6 +55,20 @@ class RecordingLLM:
         return response
 
 
+def _assessment_record(result: KnowledgeResult) -> AssessmentRecord | None:
+    item = result.assessment
+    if item is None:
+        return None
+    return AssessmentRecord(
+        problem_ref=item.problemRef,
+        verdict=item.verdict,
+        supporting_evidence_ids=tuple(item.supportingEvidenceIds),
+        missing_information=tuple((entry.kind, entry.ref) for entry in item.missingInformation),
+        candidate_causes=tuple((cause.text, cause.confirmed) for cause in item.candidateCauses),
+        rationale=item.rationale,
+    )
+
+
 class RecordingAgent:
     """역할 호출의 결과(검색 상태·근거)를 기록하고 결과는 그대로 돌려준다.
 
@@ -90,6 +104,7 @@ class RecordingAgent:
                     problem_ref=result.problemRef,
                     search_state=result.search.state,
                     evidence=tuple(verified) or tuple(result.search.evidence),
+                    assessment=_assessment_record(result),
                 )
             )
         elif isinstance(result, InquiryResult):

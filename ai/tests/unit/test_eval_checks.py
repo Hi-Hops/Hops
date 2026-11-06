@@ -1,4 +1,4 @@
-"""안전 성질 P1~P9 검사기 단위 테스트.
+"""안전 성질 P1~P11 검사기 단위 테스트.
 
 모델을 부르지 않고 합성 기록으로 검사기가 위반을 잡고 정상은 통과시키는지만 확인한다. 이 테스트의
 통과는 AI의 실제 동작이 안전하다는 뜻이 아니다.
@@ -325,6 +325,6 @@ def test_check_trace_collects_violations_and_rejects_unknown_properties() -> Non
     assert ids(check_trace(run_trace(over))) == ["P9"]
     assert ids(check_trace(run_trace(over), ("P1", "P2"))) == []
     with pytest.raises(ValueError):
-        check_trace(run_trace(over), ("P10",))
-    assert set(CHECKS) == {f"P{n}" for n in range(1, 10)}
+        check_trace(run_trace(over), ("P12",))
+    assert set(CHECKS) == {f"P{n}" for n in range(1, 12)}
     assert EVIDENCE_B != message_id("m1")

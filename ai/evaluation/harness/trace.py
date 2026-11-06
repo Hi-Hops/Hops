@@ -29,8 +29,24 @@ class AnalysisRecord:
 
 
 @dataclass(frozen=True)
+class AssessmentRecord:
+    """Knowledge가 한 검색에 대해 낸 충분성 판정. 검사기(P10·P11)가 판정에 쓴다.
+
+    판정을 낸 호출의 검색 근거는 같은 `RoleCall.evidence`에 있다. 가능 원인은 (문장, 확정 여부)
+    쌍으로, 부족한 정보는 (종류, 참조) 쌍으로 남긴다. rationale은 내부용이라 사람이 읽는 데만 쓴다.
+    """
+
+    problem_ref: str
+    verdict: str
+    supporting_evidence_ids: tuple[str, ...] = ()
+    missing_information: tuple[tuple[str, str], ...] = ()
+    candidate_causes: tuple[tuple[str, bool], ...] = ()
+    rationale: str = ""
+
+
+@dataclass(frozen=True)
 class RoleCall:
-    """한 번의 역할 호출. 검색 역할은 검색 상태·근거를, 문의 분석 역할은 검색 힌트를 남긴다."""
+    """한 번의 역할 호출. 검색 역할은 검색 상태·근거·판정을, 문의 분석 역할은 검색 힌트를 남긴다."""
 
     role: AgentRole
     # 검색이 다룬 문제. 알 수 없으면 None이다(예외로 끝난 호출 등).
@@ -41,6 +57,8 @@ class RoleCall:
     failed_with: str | None = None
     # 문의 분석 역할이 문제마다 낸 검색 힌트. 다른 역할은 비어 있다.
     analysis: tuple[AnalysisRecord, ...] = ()
+    # 검색 역할이 낸 충분성 판정. 평가를 하지 않았거나 "평가 없음"이면 None이다.
+    assessment: AssessmentRecord | None = None
 
 
 @dataclass(frozen=True)
