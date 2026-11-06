@@ -56,6 +56,15 @@ def test_the_first_iteration_of_a_run_can_only_analyze() -> None:
     assert run_actions(analyzed=True) == frozenset()
 
 
+def test_only_greetings_or_an_empty_analysis_can_reply_instead() -> None:
+    """분석할 문의가 없거나 분석이 문제를 찾지 못한 실행은 대화 응답만 합법이다."""
+    assert run_actions(analyzed=False, courtesy_only=True) == {"REPLY"}
+    assert run_actions(analyzed=True, no_problem_found=True) == {"REPLY"}
+    # 분석한 뒤에는 인사만 왔더라도 분석 결과가 정한다. 이미 분석했다면 다시 응답할 이유가 없다.
+    assert run_actions(analyzed=True, courtesy_only=True) == frozenset()
+    assert run_actions(analyzed=False, no_problem_found=True) == {"ANALYZE"}
+
+
 # --- 범위 밖·시스템 미확정 ---
 
 

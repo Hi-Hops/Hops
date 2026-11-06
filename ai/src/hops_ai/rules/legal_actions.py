@@ -8,8 +8,9 @@
 아니라 결정 경로(supervisor)가 맡는다. 그래서 입력의 모든 조합을 열거해 규칙을 검사할 수 있다.
 
 종료 행동(ANSWER, ASK, TICKET, HOLD, CLOSE)은 현재 실행을 끝내고, 비종료 행동(SEARCH, RESEARCH,
-ASSESS)은 결과를 State에 더한 뒤 판단 루프로 돌아간다. 분석(ANALYZE)은 문제가 생기기 전의 실행
-단위 행동이라 `run_actions`가 따로 정한다.
+ASSESS)은 결과를 State에 더한 뒤 판단 루프로 돌아간다. 분석(ANALYZE)과 대화 응답(REPLY)은 문제가
+생기기 전·문제가 없을 때의 실행 단위 행동이라 `run_actions`가 따로 정한다. 대화 응답은 현재 실행을
+끝낸다.
 
 검색 오류(ERROR)는 이 표 밖이다. 호출 측이 오류를 P2 규칙대로 안전하게 실패 처리해야 하며, 이
 함수는 오류를 "검색은 했지만 판정이 없다"로 읽어 어떤 입력에도 집합이 비지 않게만 한다.
@@ -89,9 +90,20 @@ class ProblemFacts:
         return self.remaining_questions > 0 and self.askable
 
 
-def run_actions(*, analyzed: bool) -> frozenset[str]:
-    """실행 단위의 행동. 이번 실행에서 아직 분석하지 않았다면 분석만 합법이다."""
-    return frozenset() if analyzed else frozenset({"ANALYZE"})
+def run_actions(
+    *, analyzed: bool, courtesy_only: bool = False, no_problem_found: bool = False
+) -> frozenset[str]:
+    """실행 단위의 행동. 문제가 생기기 전이라 문제별 행동(`legal_actions`)이 정하지 못한다.
+
+    - 아직 분석하지 않았으면 분석만 합법이다. 단 분석하지 않은 사용자 메시지가 확인된 인사·감사
+      표현뿐이면(courtesy_only) 분석할 문의가 없으므로 대화 응답(REPLY)만 합법이다.
+    - 분석했는데 문제를 하나도 찾지 못했으면(no_problem_found) 같은 분석을 반복하지 않고 대화
+      응답(REPLY)으로 되묻는 것만 합법이다.
+    - 그 밖에는 비어 있고, 이후 행동은 문제별 합법 행동이 정한다.
+    """
+    if analyzed:
+        return frozenset({"REPLY"}) if no_problem_found else frozenset()
+    return frozenset({"REPLY"}) if courtesy_only else frozenset({"ANALYZE"})
 
 
 def legal_actions(facts: ProblemFacts) -> frozenset[Action]:

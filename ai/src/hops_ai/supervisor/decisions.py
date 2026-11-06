@@ -14,6 +14,7 @@ from hops_ai.harness.errors import OutputRejected
 from hops_ai.rules.progress import DECISION_OUTCOMES
 from hops_ai.rules.proposals import validate_problem_ref
 from hops_ai.supervisor.state import SupervisorState
+from hops_ai.supervisor.validation import confirmed_courtesy, reply_allowed
 
 
 def prepare_decision(state: SupervisorState, ref: str, action: str) -> SupervisorState:
@@ -40,6 +41,27 @@ def prepare_decision(state: SupervisorState, ref: str, action: str) -> Superviso
             for key, item in state["ticketProposals"].items()
             if key != ref or action == "TICKET"
         },
+    }
+
+
+def apply_reply(state: SupervisorState) -> SupervisorState:
+    """문의 분석 없이 대화로 답하는 실행 단위 종료 행동(REPLY)을 확정한다.
+
+    응답 종류는 모델이 아니라 코드가 정한다. 분석하지 않은 메시지가 확인된 인사·감사 표현뿐이면
+    그 종류(GREETING/THANKS)이고, 아니면 되묻기(CLARIFY)다. 문제별 행동이 아니라서 `decisions`를
+    쓰지 않고, 역할 단위 경로와 같이 `nextAction`·`replyKind`로 기록한다. 최종화가 이를 읽어
+    고정 문구로 답한다.
+
+    Raises:
+        OutputRejected: 질문·안내·티켓 제안이 있거나 Inquiry가 문제를 찾은 상담이라 대화 응답으로
+            끝낼 수 없는 경우.
+    """
+    if not reply_allowed(state):
+        raise OutputRejected("대화 응답으로 끝낼 수 없는 상담이다")
+    return {
+        **state,
+        "nextAction": "REPLY",
+        "replyKind": confirmed_courtesy(state) or "CLARIFY",
     }
 
 

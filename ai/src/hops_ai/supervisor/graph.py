@@ -19,11 +19,11 @@ from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected
-from hops_ai.rules.legal_actions import legal_actions
+from hops_ai.rules.legal_actions import legal_actions, run_actions
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.choices import Choices, compute_choices
 from hops_ai.supervisor.decision import SupervisorDecision, decide_next_action
-from hops_ai.supervisor.decisions import apply_decision, prepare_decision
+from hops_ai.supervisor.decisions import apply_decision, apply_reply, prepare_decision
 from hops_ai.supervisor.execution import execute_role
 from hops_ai.supervisor.facts import pending_problem_refs, problem_facts
 from hops_ai.supervisor.finalize import finalize_result
@@ -34,6 +34,7 @@ from hops_ai.supervisor.runtime import (
 )
 from hops_ai.supervisor.selection import choose_actions
 from hops_ai.supervisor.state import SupervisorState, create_initial_state, transition_phase
+from hops_ai.supervisor.validation import confirmed_courtesy, is_reply, reply_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ FINISH = "finish"
 SELECT = "select"
 STEP = "step"
 RUN_ACTION = "__run__"
+REPLY_ACTION = "__reply__"
 # 판정 모드 그래프의 안전망 반복 한도. 종료는 합법 행동의 규칙(같은 질의 금지, 재검색 상한, 종료
 # 행동 확정)이 보장하고, 실제 호출 상한은 모델 호출 예산이 막는다.
 PROBLEM_GRAPH_RECURSION_LIMIT = 60
@@ -296,9 +298,23 @@ class Supervisor:
         return graph.compile()
 
     async def _plan(self, runtime: SupervisorRuntime, state: SupervisorState) -> dict[str, str]:
-        """이번 반복에서 할 행동. 아직 분석하지 않았으면 분석뿐이고, 모두 확정했으면 비어 있다."""
+        """이번 반복에서 할 행동. 실행 단위 행동(분석·대화 응답)이 먼저, 모두 확정하면 비어 있다.
+
+        분석하지 않은 메시지가 확인된 인사·감사뿐이면 분석 없이 대화로 답하고, 분석이 문제를 하나도
+        찾지 못했으면 되묻는다. 둘 다 합법 행동이 하나뿐이라 모델을 부르지 않는다.
+        """
+        if is_reply(state):
+            return {}
         analyzed = any(isinstance(item, InquiryResult) for item in state["roleResults"].values())
-        if not analyzed:
+        replyable = reply_allowed(state)
+        run = run_actions(
+            analyzed=analyzed,
+            courtesy_only=replyable and confirmed_courtesy(state) is not None,
+            no_problem_found=replyable,
+        )
+        if "REPLY" in run:
+            return {REPLY_ACTION: "REPLY"}
+        if "ANALYZE" in run:
             return {RUN_ACTION: "ANALYZE"}
         pending = pending_problem_refs(state)
         if not pending:
@@ -319,6 +335,8 @@ class Supervisor:
         밖은 모델 없이 확정한다. 티켓은 고른 문제를 모아 한 번에 제안한다."""
         if RUN_ACTION in plan:
             return await self._call_role(runtime, state, AgentRole.INQUIRY)
+        if REPLY_ACTION in plan:
+            return runtime.sync_state(apply_reply(state))
         tickets: list[str] = []
         for ref, action in plan.items():
             if action in ("SEARCH", "RESEARCH"):
