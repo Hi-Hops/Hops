@@ -25,8 +25,13 @@ from hops_ai.services.retrieval.knowledge_source import KnowledgeHit
 
 PROMPT_VERSION = "knowledge.assessment.v3"
 MAX_OUTPUT_TOKENS = 900
-# 근거 하나의 본문을 모델에 줄 때의 글자 상한. 한 번에 최대 5건이다.
-MAX_EVIDENCE_CHARS = 2000
+# 근거 하나의 본문을 모델에 줄 때의 글자 상한. 한 번에 최대 5건이다. 넘으면 앞부분과 끝부분을
+# 남긴다: 안내의 적용 조건과 한계는 보통 끝에 있고, 잘리면 판정이 한계를 보지 못해 충분하다고
+# 과대 판정한다.
+MAX_EVIDENCE_CHARS = 4000
+EVIDENCE_HEAD_CHARS = 2600
+EVIDENCE_TAIL_CHARS = 1200
+OMISSION_MARK = "\n…(중략)…\n"
 # 평가를 하려면 평가 자신 말고도 남겨 둘 모델 호출 수. Supervisor의 다음 판단과 그다음 한 번이다.
 # 평가가 실행 예산을 다 써서 필수 호출(판단·질문·티켓)을 못 하게 만들지 않으려는 값이다.
 RESERVED_CALLS = 2
@@ -96,6 +101,13 @@ class AssessmentDraft(ContractModel):
     rationale: str
 
 
+def evidence_excerpt(content: str) -> str:
+    """모델에게 줄 본문. 한도를 넘으면 중간을 줄이고 앞부분과 끝부분을 남긴다."""
+    if len(content) <= MAX_EVIDENCE_CHARS:
+        return content
+    return content[:EVIDENCE_HEAD_CHARS] + OMISSION_MARK + content[-EVIDENCE_TAIL_CHARS:]
+
+
 def check_item_payload(relations: RelationNeighbors | None) -> list[dict[str, str]]:
     """모델에게 보이는 확인 항목: id와 승인된 직원용 질문 하나. 같은 항목은 한 번만 낸다."""
     if relations is None:
@@ -133,7 +145,7 @@ def build_user_payload(
                     "kind": hit.evidence.kind,
                     "accessScope": hit.evidence.accessScope,
                     "title": hit.evidence.title,
-                    "text": hit.content[:MAX_EVIDENCE_CHARS],
+                    "text": evidence_excerpt(hit.content),
                 }
                 for hit in hits
             ],

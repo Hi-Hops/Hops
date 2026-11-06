@@ -262,3 +262,46 @@ def test_the_merge_accepts_check_items_the_same_result_looked_up() -> None:
 def test_the_merge_rejects_a_check_item_the_result_did_not_look_up(relations) -> None:
     with pytest.raises(OutputRejected):
         merge_with(["check-a"], relations)
+
+
+# --- 확인 항목 개수 상한 ---
+
+
+def many_checks(count: int):
+    return FakeRelations(symptom(checks=[check(f"check-{n}") for n in range(count)]))
+
+
+async def test_more_than_three_check_items_are_cut_to_the_first_three() -> None:
+    relations = many_checks(5)
+
+    state, _ = await assess(partial(*[f"check-{n}" for n in (4, 2, 0, 1, 3)]), relations)
+
+    kept = state["assessments"][PROBLEM].missingInformation
+    assert [m.ref for m in kept] == ["check-4", "check-2", "check-0"]
+
+
+async def test_the_cut_keeps_form_fields_and_only_counts_check_items() -> None:
+    relations = many_checks(5)
+    mixed = draft(
+        verdict="PARTIAL",
+        supportingEvidenceIds=[GUIDE.id],
+        missingInformation=[
+            {"kind": "CHECK_ITEM", "ref": "check-0"},
+            {"kind": "FIELD", "ref": "occurredAt"},
+            {"kind": "CHECK_ITEM", "ref": "check-1"},
+            {"kind": "CHECK_ITEM", "ref": "check-2"},
+            {"kind": "CHECK_ITEM", "ref": "check-3"},
+        ],
+    )
+
+    state, _ = await assess(mixed, relations)
+
+    kept = state["assessments"][PROBLEM].missingInformation
+    assert [m.ref for m in kept] == ["check-0", "occurredAt", "check-1", "check-2"]
+
+
+def test_the_merge_rejects_more_than_three_check_items() -> None:
+    refs = [f"check-{n}" for n in range(4)]
+
+    with pytest.raises(OutputRejected):
+        merge_with(refs, neighbors(*refs))

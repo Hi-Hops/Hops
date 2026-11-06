@@ -10,7 +10,7 @@ from typing import Literal
 
 from hops_ai.contracts.wire import AccessScope
 
-SystemCode = Literal["ELECTRONIC_APPROVAL", "COMMON_LOGIN", "FILE_SHARING"]
+SystemCode = str  # 개발용 자료의 시스템 코드. 값은 요청이 알려 주는 코드와 맞춘다
 DocumentKind = Literal["GUIDE", "POLICY", "RUNBOOK"]
 
 

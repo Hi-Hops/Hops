@@ -22,6 +22,7 @@ from hops_ai.agents.inquiry.extraction import (
     ExtractedProblem,
     InquiryExtraction,
     build_user_payload,
+    extraction_schema,
     ground,
     ground_unknown,
 )
@@ -242,6 +243,7 @@ class ExtractionInquiryAgent:
                     ),
                 ],
                 response_model=InquiryExtraction,
+                response_schema=extraction_schema([system.code for system in request.systems]),
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 prompt_version=PROMPT_VERSION,
             )

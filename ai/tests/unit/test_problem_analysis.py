@@ -16,7 +16,9 @@ from hops_ai.harness.errors import OutputRejected
 from hops_ai.rules.analysis import (
     MAX_FEATURE_CANDIDATES,
     MAX_KEYWORDS,
+    MIN_FEATURE_CANDIDATES,
     allowed_feature_ids,
+    feature_candidate_limit,
     normalize_keywords,
     select_feature_candidates,
     user_texts,
@@ -118,7 +120,22 @@ def test_feature_selection_drops_outsiders_and_duplicates_and_caps_the_count() -
     raw = [LOGIN, VIEW, VIEW, "not-a-feature", STATUS, ATTACH]
 
     assert select_feature_candidates(raw, allowed) == (VIEW, STATUS)
-    assert MAX_FEATURE_CANDIDATES == 2
+
+
+@pytest.mark.parametrize(
+    ("features", "limit"), [(0, 1), (1, 1), (2, 1), (3, 2), (4, 2), (5, 2), (40, 2)]
+)
+def test_the_candidate_limit_grows_with_the_systems_feature_count(features, limit) -> None:
+    assert feature_candidate_limit(features) == limit
+    assert MIN_FEATURE_CANDIDATES <= limit <= MAX_FEATURE_CANDIDATES
+
+
+def test_a_large_system_keeps_two_candidates_and_a_tiny_one_keeps_one() -> None:
+    big = frozenset(f"f{n}" for n in range(12))
+    tiny = frozenset({"only", "second"})
+
+    assert select_feature_candidates([f"f{n}" for n in range(12)], big) == ("f0", "f1")
+    assert select_feature_candidates(["second", "only"], tiny) == ("second",)
 
 
 # --- Inquiry 연결 ---

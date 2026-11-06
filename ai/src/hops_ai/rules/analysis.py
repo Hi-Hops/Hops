@@ -27,8 +27,11 @@ MAX_KEYWORDS = 5
 # 긴 구절은 거의 맞지 않는다. API 상한은 50자다.
 MIN_KEYWORD_LENGTH = 2
 MAX_KEYWORD_LENGTH = 20
-# 문제 하나의 기능 후보 상한. 시스템마다 기능이 3~4개뿐이라 더 늘리면 거르는 효과가 없다.
-# API 상한은 10개다.
+# 문제 하나의 기능 후보 상한은 그 시스템의 기능 수로 줄어든다: 기능 수의 절반 올림이고 1~2개다.
+# 후보를 기능 수의 절반 이하로 두어야 기능 일치가 증상을 거르는 효과가 있고, 틀린 기능 추측이 순위를
+# 좌우하지 못한다. 기능이 3개 이상인 시스템은 2개다. 프롬프트도 최대 2개를 요청한다. 기능이 아주
+# 많은 시스템에서 더 허용하는 것은 측정한 근거가 없어 하지 않는다. API 상한은 10개다.
+MIN_FEATURE_CANDIDATES = 1
 MAX_FEATURE_CANDIDATES = 2
 
 
@@ -95,13 +98,19 @@ def allowed_feature_ids(request: AiRunRequest, system_id: str | None) -> frozens
     )
 
 
+def feature_candidate_limit(feature_count: int) -> int:
+    """시스템의 기능 수에서 정한 기능 후보 상한(기능 수의 절반 올림, 1~2개)."""
+    return max(MIN_FEATURE_CANDIDATES, min(MAX_FEATURE_CANDIDATES, -(-feature_count // 2)))
+
+
 def select_feature_candidates(raw: Sequence[str], allowed: frozenset[str]) -> tuple[str, ...]:
-    """허용된 기능 ID만 중복 없이 앞에서부터 MAX_FEATURE_CANDIDATES개까지 남긴다."""
+    """허용된 기능 ID만 중복 없이 앞에서부터 상한(`feature_candidate_limit`)개까지 남긴다."""
+    limit = feature_candidate_limit(len(allowed))
     kept: list[str] = []
     for value in raw:
         if value in allowed and value not in kept:
             kept.append(value)
-            if len(kept) == MAX_FEATURE_CANDIDATES:
+            if len(kept) == limit:
                 break
     return tuple(kept)
 
@@ -125,8 +134,10 @@ def validate_analysis(
     if any(not is_grounded(keyword, texts) for keyword in analysis.keywords):
         raise OutputRejected("분석의 키워드가 사용자 메시지에 없다")
     candidates = analysis.featureCandidates
-    if len(candidates) > MAX_FEATURE_CANDIDATES or len(candidates) != len(set(candidates)):
-        raise OutputRejected("분석의 기능 후보가 개수·중복 규칙을 어겼다")
     allowed = allowed_feature_ids(state["input"], proposal.reportedSystemCandidateId)
+    if len(candidates) > feature_candidate_limit(len(allowed)) or len(candidates) != len(
+        set(candidates)
+    ):
+        raise OutputRejected("분석의 기능 후보가 개수·중복 규칙을 어겼다")
     if not set(candidates) <= allowed:
         raise OutputRejected("분석의 기능 후보가 허용된 시스템의 기능이 아니다")

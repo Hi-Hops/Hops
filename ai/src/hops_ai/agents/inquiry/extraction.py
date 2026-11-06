@@ -7,10 +7,11 @@
 출력 스키마는 OpenAI 구조화 출력(strict)에 맞춰 모든 필드를 필수로 두고 값이 없으면 null로 받는다.
 """
 
+import copy
 import json
 import re
 from collections.abc import Mapping, Sequence
-from typing import Literal
+from typing import Any, Literal
 
 from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
@@ -38,7 +39,6 @@ type FieldName = Literal[
     "desiredChange",
     "system",
 ]
-type SystemCode = Literal["ELECTRONIC_APPROVAL", "COMMON_LOGIN", "FILE_SHARING"]
 
 SYSTEM_PROMPT = """\
 너는 사내 IT 헬프데스크 문의에서 사실을 추출하는 도구다. 답변을 쓰거나 문제를 해결하지 않는다.
@@ -109,7 +109,9 @@ class UnknownClaim(ContractModel):
 class ExtractedProblem(ContractModel):
     summary: str
     intent: Intent
-    systemCode: SystemCode | None
+    # systems 목록의 코드. 허용 값은 호출마다 출력 스키마가 요청의 시스템 코드로 좁힌다
+    # (`extraction_schema`). 목록 밖 값이 와도 코드가 시스템 없음으로 처리한다.
+    systemCode: str | None
     taskOrScreen: QuotedValue | None
     currentWorkflow: QuotedValue | None
     expectedBehavior: QuotedValue | None
@@ -127,6 +129,20 @@ class ExtractedProblem(ContractModel):
 
 class InquiryExtraction(ContractModel):
     problems: list[ExtractedProblem]
+
+
+def extraction_schema(system_codes: Sequence[str]) -> dict[str, Any]:
+    """추출 출력 스키마. 시스템 코드는 이번 요청이 지원하는 코드만 고르게 좁힌다.
+
+    시스템 목록을 코드에 두지 않고 요청에서 가져오므로 시스템이 늘거나 이름이 바뀌어도 코드를 바꾸지
+    않는다. 코드가 하나도 없으면 시스템 코드는 null만 허용한다.
+    """
+    schema = copy.deepcopy(InquiryExtraction.model_json_schema())
+    code = {"type": "string", "enum": sorted(set(system_codes))}
+    schema["$defs"]["ExtractedProblem"]["properties"]["systemCode"] = {
+        "anyOf": [code, {"type": "null"}] if system_codes else [{"type": "null"}]
+    }
+    return schema
 
 
 def build_user_payload(

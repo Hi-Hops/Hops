@@ -59,7 +59,12 @@ from hops_ai.contracts.roles import (
 from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
-from hops_ai.rules.assessment import check_item_ids, no_match_assessment, validate_assessment
+from hops_ai.rules.assessment import (
+    check_item_ids,
+    limit_check_items,
+    no_match_assessment,
+    validate_assessment,
+)
 from hops_ai.rules.intent_policy import is_guide_type, policy_for, search_kinds
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
@@ -178,7 +183,7 @@ class SearchKnowledgeAgent:
             return None
         services.runtime.ensure_active()
         try:
-            assessment = to_assessment(target.problemRef, response.parsed)
+            assessment = limit_check_items(to_assessment(target.problemRef, response.parsed))
             validate_assessment(
                 assessment,
                 intent=target.intent,
@@ -467,12 +472,25 @@ def _recent_user_messages(state: SupervisorState, target: ProblemProposal) -> li
     return [message.content for message in user_messages[-MAX_QUERY_MESSAGES:]]
 
 
+# 안내문 하나의 글자 상한. 최종 답변 본문은 4,000자 이내여야 하고 다른 문제의 질문·안내와 문제
+# 번호가 함께 들어가므로 여유를 둔다. 승인 본문을 잘라 쓰지 않으며(승인되지 않은 내용이 된다),
+# 이보다 긴 본문으로는 안내를 만들지 않아 질문이나 담당자 검토로 간다. 오류로 끝나는 것보다 낫다.
+MAX_GUIDE_CHARS = 3000
+
+
 def _guide(target: ProblemProposal, hits: list[KnowledgeHit]) -> GuideProposal | None:
-    """직원 공개 가이드 근거가 있을 때만 그 승인 본문으로 안내를 구성한다."""
+    """직원 공개 가이드 근거가 있을 때만 그 승인 본문으로 안내를 구성한다.
+
+    첫 직원 공개 가이드의 본문이 너무 길면 안내를 만들지 않는다. 뒤의 다른 가이드로 대신하지 않는다:
+    판정이 인용한 근거와 안내가 다른 문서가 되면 안 된다.
+    """
     for hit in hits:
         if hit.evidence.kind == "GUIDE" and hit.evidence.accessScope == "EMPLOYEE":
+            message = f"{hit.content}\n\n참고 자료: {hit.evidence.title}"
+            if len(message) > MAX_GUIDE_CHARS:
+                return None
             return GuideProposal(
-                messageText=f"{hit.content}\n\n참고 자료: {hit.evidence.title}",
+                messageText=message,
                 evidenceIds=[hit.evidence.id],
                 problemRef=target.problemRef,
             )

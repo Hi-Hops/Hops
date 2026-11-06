@@ -260,11 +260,22 @@ async def test_found_results_are_assessed_once_and_kept_in_state() -> None:
     assert state["guide"] is not None, "안내는 판정과 무관하게 승인 본문으로 만든다"
 
 
-async def test_evidence_text_is_cut_to_a_bounded_length() -> None:
-    _, llm = await run_knowledge(draft(), hits=[hit(content="가" * 5000)])
+async def test_evidence_text_is_cut_to_a_bounded_length_keeping_the_head_and_the_tail() -> None:
+    long_text = "처음" + "가" * 6000 + "한계는 여기에 적혀 있다"
+    _, llm = await run_knowledge(draft(), hits=[hit(content=long_text)])
 
     [item] = json.loads(llm.requests[0].messages[1].content)["evidence"]
-    assert len(item["text"]) == 2000
+    assert len(item["text"]) < 4100
+    assert item["text"].startswith("처음") and item["text"].endswith("한계는 여기에 적혀 있다")
+    assert "중략" in item["text"]
+
+
+async def test_evidence_within_the_limit_is_sent_whole() -> None:
+    whole = "가" * 4000
+    _, llm = await run_knowledge(draft(), hits=[hit(content=whole)])
+
+    [item] = json.loads(llm.requests[0].messages[1].content)["evidence"]
+    assert item["text"] == whole
 
 
 async def test_zero_results_become_no_match_without_calling_the_model() -> None:

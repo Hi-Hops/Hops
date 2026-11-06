@@ -24,6 +24,9 @@ from hops_ai.rules.intent_policy import policy_for
 
 # 판정 하나가 담을 수 있는 항목 수와 문장 길이. 모델이 길게 쓴 값은 거부한다.
 MAX_MISSING_INFORMATION = 5
+# 부족한 정보 중 관계 확인 항목의 수. 한 번에 사용자에게 물을 수 있는 양이 정해져 있고(질문 묶음
+# 3개), 프롬프트의 최대 3개 규칙을 모델이 어긴 사례가 있어 코드로 강제한다.
+MAX_CHECK_ITEM_REFS = 3
 MAX_CANDIDATE_CAUSES = 3
 MAX_CAUSE_TEXT = 200
 MAX_RATIONALE = 500
@@ -45,6 +48,21 @@ def check_item_ids(relations: RelationNeighbors | None) -> frozenset[str]:
     if relations is None:
         return frozenset()
     return frozenset(check.id for symptom in relations.symptoms for check in symptom.checkItems)
+
+
+def limit_check_items(assessment: Assessment) -> Assessment:
+    """확인 항목 참조를 앞에서부터 MAX_CHECK_ITEM_REFS개만 남긴다. 판정 전체를 거부하지 않는다."""
+    kept: list = []
+    checks = 0
+    for item in assessment.missingInformation:
+        if item.kind == "CHECK_ITEM":
+            checks += 1
+            if checks > MAX_CHECK_ITEM_REFS:
+                continue
+        kept.append(item)
+    if len(kept) == len(assessment.missingInformation):
+        return assessment
+    return assessment.model_copy(update={"missingInformation": kept})
 
 
 def no_match_assessment(problem_ref: str) -> Assessment:
@@ -111,6 +129,8 @@ def validate_assessment(
     missing = assessment.missingInformation
     if len(missing) > MAX_MISSING_INFORMATION or not _unique(f"{m.kind}:{m.ref}" for m in missing):
         raise OutputRejected("부족한 정보의 개수가 많거나 중복됐다")
+    if sum(item.kind == "CHECK_ITEM" for item in missing) > MAX_CHECK_ITEM_REFS:
+        raise OutputRejected("부족한 정보의 확인 항목이 너무 많다")
     fields = set(allowed_fields(intent))
     for item in missing:
         vocabulary = fields if item.kind == "FIELD" else allowed_check_items
