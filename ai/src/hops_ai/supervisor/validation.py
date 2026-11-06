@@ -47,18 +47,20 @@ def only_greetings(text: str) -> bool:
 def greeting_confirmed(state: "SupervisorState") -> bool:
     """아직 분석하지 않은 사용자 메시지가 모두 확인된 인사 표현인지.
 
-    기존 문제가 없으면 전체 사용자 메시지를, 있으면 문제에 연결되지 않은 메시지와 마지막
-    사용자 메시지를 본다. 앞서 분석되지 못한 문의가 인사 뒤에 묻히지 않게 한다.
+    기존 문제가 없으면 전체 사용자 메시지를 본다. 앞선 실행이 실패해 분석되지 못한 문의가
+    인사 뒤에 묻히지 않게 한다. 기존 문제가 있으면 마지막 AI 답변 이후의 사용자 메시지만
+    본다. Spring은 사용자가 대상을 고르지 않은 메시지를 문제에 연결하지 않으므로, 연결
+    여부로는 이미 분석한 메시지와 새 메시지를 구분할 수 없다.
     """
     request = state["input"]
     user_messages = [message for message in request.messages if message.sender == "USER"]
-    latest = max(user_messages, key=lambda message: message.sequenceNo, default=None)
-    relevant = [
-        message
-        for message in user_messages
-        if not request.problems or not message.problemIds or message == latest
-    ]
-    return bool(relevant) and all(only_greetings(message.content) for message in relevant)
+    if request.problems:
+        answered = max(
+            (message.sequenceNo for message in request.messages if message.sender == "AI"),
+            default=0,
+        )
+        user_messages = [message for message in user_messages if message.sequenceNo > answered]
+    return bool(user_messages) and all(only_greetings(message.content) for message in user_messages)
 
 
 def reply_allowed(state: "SupervisorState") -> bool:

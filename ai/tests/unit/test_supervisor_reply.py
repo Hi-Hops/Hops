@@ -211,14 +211,51 @@ def allowed_roles(llm) -> list[str]:
     return json.loads(llm.requests[0].messages[1].content)["allowedRoles"]
 
 
-async def test_confirmed_greeting_with_a_pending_problem_cannot_call_inquiry() -> None:
-    """처리 중인 문제가 있어도 인사만 오면 Inquiry가 이전 질문을 반복하지 않는다."""
-    request = with_extra_user_message(make_request(), "안녕하세요", problemIds=[])
+def pending_problem_conversation(*user_messages: str) -> AiRunRequest:
+    """Spring이 실제로 보내는 형태: 첫 메시지는 문제에 연결되지 않은 채 남고 AI가 질문했다."""
+    fields = make_request().model_dump(mode="json")
+    first = fields["messages"][0]
+    first["problemIds"] = []
+    fields["messages"].append(
+        {
+            **first,
+            "id": "00000000-0000-0000-0000-000000000099",
+            "sequenceNo": 2,
+            "sender": "AI",
+            "content": "언제부터 그랬나요?",
+        }
+    )
+    for index, content in enumerate(user_messages):
+        fields["messages"].append(
+            {
+                **first,
+                "id": f"00000000-0000-0000-0000-0000000000{90 + index}",
+                "sequenceNo": 3 + index,
+                "content": content,
+            }
+        )
+    return AiRunRequest.model_validate(fields)
 
-    result, llm = await analyze(request, reply("GREETING"))
+
+async def test_confirmed_greeting_with_a_pending_problem_cannot_call_inquiry() -> None:
+    """처리 중인 문제가 있어도 인사만 오면 Inquiry가 이전 질문을 반복하지 않는다.
+
+    이미 분석한 첫 메시지가 문제에 연결되지 않았더라도 마지막 AI 답변 이전이므로 보지 않는다.
+    """
+    result, llm = await analyze(pending_problem_conversation("안녕하세요"), reply("GREETING"))
 
     assert "INQUIRY" not in allowed_roles(llm)
     assert result.answer == FOLLOW_UP_GREETING_ANSWER
+
+
+@pytest.mark.parametrize(
+    "messages", [("오늘 2시부터요", "안녕하세요"), ("안녕하세요 오늘 2시부터요",)]
+)
+async def test_unanswered_supplement_keeps_inquiry_available(messages) -> None:
+    result, llm = await analyze(pending_problem_conversation(*messages), reply("GREETING"))
+
+    assert "INQUIRY" in allowed_roles(llm)
+    assert result.answer == CLARIFY_ANSWER
 
 
 @pytest.mark.parametrize(
