@@ -116,6 +116,14 @@ public class Message extends BaseEntity {
         return payload;
     }
 
+    /** AI 메시지에 질문 묶음·문제 연결을 기록한 payload로 바꾼다. 결과 반영 거래 안에서만 쓴다. */
+    public void recordQuestionBundles(String payload) {
+        if (senderType != SenderType.AI) {
+            throw new IllegalStateException("AI 메시지의 payload만 질문 묶음으로 바꿀 수 있다");
+        }
+        this.payload = payload;
+    }
+
     public void recordResolution(String payload) {
         this.payload = payload;
     }

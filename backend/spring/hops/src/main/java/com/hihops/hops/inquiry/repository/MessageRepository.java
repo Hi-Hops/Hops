@@ -81,6 +81,17 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     Optional<Message> findLatestGuide(UUID inquiryId, UUID problemId);
 
     /**
+     * 이 문제에 같은 bundleRef의 질문 묶음을 이미 저장한 AI 메시지가 있는지 (payload.questionBundles, docs/DATA.md 11.3).
+     * 재분석·재전달이 같은 묶음을 다시 세지 않게 한다. probe는 {"questionBundles":[{"problemId":..,"bundleRef":..}]} 형식 JSON이다.
+     */
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM message
+                WHERE inquiry_id = :inquiryId AND sender_type = 'AI' AND deleted_at IS NULL
+                  AND payload @> CAST(:probe AS jsonb))
+            """, nativeQuery = true)
+    boolean existsQuestionBundle(UUID inquiryId, String probe);
+
+    /**
      * 보완 대상을 아직 정하지 못한 메시지 ID (InquiryResult.pendingTargetMessageIds), 보낸 순서대로.
      * payload.pendingTarget=true로 표시한다 (docs/DATA.md 11.3).
      */

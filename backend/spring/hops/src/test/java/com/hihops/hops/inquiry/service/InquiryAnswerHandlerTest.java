@@ -42,6 +42,7 @@ class InquiryAnswerHandlerTest {
     private InquiryRepository inquiries;
     private MessageRepository messages;
     private AiAnswerMessageWriter writer;
+    private ProblemQuestionWriter problemQuestions;
     private InquiryAnswerHandler handler;
     private Inquiry inquiry;
     private Member member;
@@ -52,8 +53,10 @@ class InquiryAnswerHandlerTest {
         inquiries = mock(InquiryRepository.class);
         messages = mock(MessageRepository.class);
         writer = mock(AiAnswerMessageWriter.class);
+        problemQuestions = mock(ProblemQuestionWriter.class);
+        when(problemQuestions.apply(any(), any(), any(), any(), any(), any())).thenReturn(ProblemQuestionWriter.Applied.NONE);
         handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events, mock(GuideResultWriter.class),
-                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class));
+                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class), problemQuestions);
 
         member = mock(Member.class);
         when(member.getId()).thenReturn(memberId);

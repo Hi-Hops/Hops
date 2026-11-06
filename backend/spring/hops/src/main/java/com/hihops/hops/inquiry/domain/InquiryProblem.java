@@ -29,6 +29,9 @@ import jakarta.persistence.UniqueConstraint;
         uniqueConstraints = @UniqueConstraint(name = "uk_inquiry_problem_inquiry_problem_no", columnNames = {"inquiry_id", "problem_no"}))
 public class InquiryProblem extends BaseEntity {
 
+    /** 문제당 추가 질문 묶음 최대 횟수 (docs/ERD.md clarify_count) */
+    public static final int MAX_CLARIFY_COUNT = 5;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "inquiry_id", nullable = false)
     private Inquiry inquiry;
@@ -141,6 +144,28 @@ public class InquiryProblem extends BaseEntity {
         resolvedAt = resolved ? at : null;
         confirmRequestedAt = null;
         if (reanalysis != null) agentRun = reanalysis;
+    }
+
+    /**
+     * 문제에 추가 질문 묶음 하나를 저장했다. 질문 수를 1 올리고 문의자의 답을 기다리는 상태로 둔다.
+     * 문제당 5회 한도는 여기서 막는다 (docs/DATA.md 4절).
+     */
+    public void recordQuestion(AgentRun run) {
+        if (clarifyCount >= MAX_CLARIFY_COUNT) {
+            throw new IllegalStateException("문제당 질문은 " + MAX_CLARIFY_COUNT + "회까지다");
+        }
+        clarifyCount++;
+        problemStatus = ProblemStatus.CLARIFYING;
+        agentRun = run;
+    }
+
+    /** 질문 없이 끝난 분석 결과의 상태(시스템 확인 대기 또는 지원 범위 밖)를 이 문제에 반영한다. */
+    public void recordAnalysisOutcome(ProblemStatus status, AgentRun run) {
+        if (status != ProblemStatus.SYSTEM_PENDING && status != ProblemStatus.OUT_OF_SCOPE) {
+            throw new IllegalArgumentException("분석 결과로 정할 수 없는 상태다: " + status);
+        }
+        problemStatus = status;
+        agentRun = run;
     }
 
     public void requestGuideConfirmation(AgentRun run, Instant at) {
