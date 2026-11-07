@@ -4,6 +4,8 @@
 """
 
 import json
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -21,12 +23,13 @@ from evaluation.flywheel.e2e import (
     Context,
     Outcome,
     Recorder,
+    case_needles,
     check_draft,
     drive_inquiry,
     evaluate_followup,
 )
 from evaluation.flywheel.e2e_api import Api, ApiError, wait_until
-from evaluation.flywheel.e2e_observer import QuestionMessage
+from evaluation.flywheel.e2e_observer import QuestionMessage, like_patterns
 
 BUNDLE = load_bundle()
 CASE_ID = "11111111-1111-4111-8111-111111111111"
@@ -122,6 +125,7 @@ class FakeObserver:
         }
         self.text = ""
         self.evidence_total = 3
+        self.needles: list[str] = []
 
     def latest_question(self, inquiry_id: str, after_sequence: int) -> QuestionMessage | None:
         return self.questions.pop(0) if self.questions else None
@@ -132,7 +136,8 @@ class FakeObserver:
     def uses_internal_judgement(self, inquiry_id: str) -> bool | None:
         return self.profile
 
-    def mentions(self, inquiry_id: str, needle: str) -> dict[str, bool]:
+    def mentions(self, inquiry_id: str, needles: Sequence[str]) -> dict[str, bool]:
+        self.needles = list(needles)
         return self.mentions_result
 
     def request_text(self, inquiry_id: str) -> str:
@@ -429,3 +434,81 @@ def test_blocked_is_not_counted_as_a_failure() -> None:
     recorder.add("A1", "접수", PASS)
 
     assert recorder.count(FAIL) == 0 and recorder.count(BLOCKED) == 1
+
+
+# 사례 A를 근거에서 알아보는 값
+
+DOCUMENT_ID = "22222222-2222-4222-8222-222222222222"
+
+
+def test_needles_include_the_knowledge_document_id_not_only_the_case_id() -> None:
+    """상담 근거는 지식 문서 id·제목·발췌를 담고 사례 번호를 담지 않는다."""
+    needles = case_needles({**_case(), "document_id": DOCUMENT_ID})
+
+    assert DOCUMENT_ID in needles
+    assert CARD_TITLE in needles and CARD_CAUSE in needles
+
+
+def test_needles_before_approval_have_no_document_id_and_skip_empty_values() -> None:
+    needles = case_needles({**_case(), "document_id": None, "title": ""})
+
+    assert needles == [CARD_CAUSE, CASE_ID]
+
+
+def test_followup_searches_evidence_with_the_document_id_after_approval() -> None:
+    observer = FakeObserver([])
+    ctx = _ctx(FakeApi([]), observer)
+    case = {**_case(), "document_id": DOCUMENT_ID}
+
+    evaluate_followup(ctx, "X", "B", _outcome(), case, approved=True)
+
+    assert DOCUMENT_ID in observer.needles
+
+
+def test_like_patterns_escape_wildcards_and_drop_empty_values() -> None:
+    assert like_patterns(["a%b", "c_d", "", "e\\f"]) == ["%a\\%b%", "%c\\_d%", "%e\\\\f%"]
+
+
+# 오류가 나도 보고서는 남는다
+
+
+class _Boom:
+    """로그인에서 ApiError가 아닌 예외를 내는 API 대역(예: 전송 오류)."""
+
+    def __init__(self, *_: Any, **__: Any) -> None:
+        pass
+
+    def login(self, *_: Any) -> None:
+        raise httpx.ConnectError("연결 끊김")
+
+
+class _Seeded(FakeObserver):
+    closed = False
+
+    def __init__(self, *_: Any) -> None:
+        super().__init__([])
+
+    def counts(self) -> dict[str, int]:
+        return {"members": 8, "cases": 6, "symptoms": 5}
+
+    def close(self) -> None:
+        type(self).closed = True
+
+
+def test_unexpected_error_still_writes_the_report_and_closes_the_observer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOPS_E2E_DB_DSN", "postgresql://unused")
+    monkeypatch.setenv("HOPS_E2E_PASSWORD", "pw")
+    monkeypatch.setattr(e2e, "Observer", _Seeded)
+    monkeypatch.setattr(e2e, "Api", _Boom)
+    out = tmp_path / "report.json"
+
+    code = e2e.main(["--preflight", "--out", str(out)])
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 1
+    assert any(
+        step["id"] == "ERROR" and "ConnectError" in step["detail"] for step in report["steps"]
+    )
+    assert _Seeded.closed

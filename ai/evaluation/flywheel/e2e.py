@@ -38,7 +38,6 @@ PASS, FAIL, BLOCKED, INFO = "PASS", "FAIL", "BLOCKED", "INFO"
 RUN_TIMEOUT_SECONDS = 240.0
 CURATOR_TIMEOUT_SECONDS = 240.0
 MAX_TURNS = 8
-TERMINAL_RUN_STATUSES = {"SUCCEEDED", "FAILED", "TIMED_OUT"}
 
 
 class BudgetExceeded(RuntimeError):
@@ -97,7 +96,8 @@ class Context:
     password: str
     max_runs: int
     run_baseline: int
-    sleep_budget_note: str = ""
+    # 대화록은 중간에 오류가 나도 보고서에 남도록 실행 중에 여기에 쌓는다.
+    transcripts: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
 
     def check_budget(self) -> None:
         used = self.observer.run_total() - self.run_baseline
@@ -231,7 +231,7 @@ def check_draft(ctx: Context, draft: dict[str, Any]) -> None:
     gold = ctx.bundle.roles["A"].gold["expectedCase"]
     card = ctx.bundle.card
     resolved = card["workLogs"][1]
-    candidates = json.loads(draft["relation_candidates"] or "[]")
+    candidates = json.loads(draft["relation_candidates"] or "[]") or []
     found = {(item["relation"], item["targetId"]) for item in candidates}
     wanted = {
         (
@@ -262,6 +262,17 @@ def check_draft(ctx: Context, draft: dict[str, Any]) -> None:
 
 
 # 문의 B·C 평가
+
+
+def case_needles(case: dict[str, Any]) -> list[str]:
+    """상담 근거에서 사례 A를 알아보는 값들.
+
+    상담 근거는 사례 번호(`resolved_case.id`)를 담지 않는다. 승인된 사례는 새 지식 문서가 되어
+    근거에 그 문서 id(`documentId`)·제목·발췌로 나온다. 그래서 문서 id(승인 뒤에만 있음)와 사례의
+    제목·확인된 원인 문장을 함께 찾고, 사례 번호도 혹시 모를 경우를 위해 넣는다.
+    """
+    keys = ("document_id", "title", "confirmed_cause", "id")
+    return [str(case[key]) for key in keys if case.get(key)]
 
 
 def evaluate_followup(
@@ -295,7 +306,7 @@ def evaluate_followup(
     )
     internal = observer.uses_internal_judgement(outcome.inquiry_id)
     profile = {None: None, False: "DEFAULT", True: "INTERNAL_JUDGEMENT"}[internal]
-    mentions = observer.mentions(outcome.inquiry_id, case["id"])
+    mentions = observer.mentions(outcome.inquiry_id, case_needles(case))
     in_evidence = mentions["related_knowledge"] or mentions["run_result"]
     evidence_total = observer.evidence_count(outcome.inquiry_id)
     if not approved:
@@ -349,7 +360,8 @@ def run_flywheel(ctx: Context) -> dict[str, Any]:
         PASS if outcome_a.end == "TICKET" else FAIL,
         f"끝 상태 {outcome_a.end}, 질문 {outcome_a.turns}회",
     )
-    transcripts = {"A": outcome_a.messages}
+    transcripts = ctx.transcripts
+    transcripts["A"] = outcome_a.messages
     if outcome_a.end != "TICKET" or not outcome_a.ticket_id:
         return {"transcripts": transcripts, "profile": None}
     ticket_id = outcome_a.ticket_id
@@ -405,11 +417,22 @@ def run_flywheel(ctx: Context) -> dict[str, Any]:
             ctx, prefix, role, outcome, draft, approved=False
         )
 
+    # 초안을 읽은 뒤 B·C 문의에 수 분이 걸린다. 오래된 버전으로 승인하지 않게 직전에 다시 읽는다.
+    version = observer.case_version(draft["id"])
+    if version is None:
+        version = draft["version_no"]
+    elif version != draft["version_no"]:
+        rec.add(
+            "A8.1",
+            "초안을 확인한 뒤 사례 버전이 바뀜",
+            INFO,
+            f"{draft['version_no']} → {version}. A7은 이전 버전 기준이다",
+        )
     try:
         api.command(
             bundle.assignee,
             f"/cases/{draft['id']}/approvals",
-            {"expectedCaseVersion": draft["version_no"]},
+            {"expectedCaseVersion": version},
         )
         rec.add("A9", "담당자가 사례 A를 승인", PASS)
     except ApiError as error:
@@ -418,12 +441,13 @@ def run_flywheel(ctx: Context) -> dict[str, Any]:
     document = observer.case_document(draft["id"])
     approved_doc = bool(document) and document["document_status"] == "APPROVED"
     rec.add("A10", "승인 사례가 검색 문서로 저장됨", PASS if approved_doc else FAIL, str(document))
+    approved_case = {**draft, "document_id": (document or {}).get("document_id")}
     for store in ("VECTOR", "NEO4J"):
         try:
             api.command(
                 bundle.assignee,
                 f"/cases/{draft['id']}/index-checks",
-                {"expectedCaseVersion": draft["version_no"], "store": store},
+                {"expectedCaseVersion": version, "store": store},
             )
             rec.add(
                 f"A11.{store}",
@@ -454,7 +478,7 @@ def run_flywheel(ctx: Context) -> dict[str, Any]:
         outcome = drive_inquiry(ctx, bundle.roles[role])
         transcripts[f"{role}-after"] = outcome.messages
         profiles[f"{role}-after"] = evaluate_followup(
-            ctx, prefix, role, outcome, draft, approved=True
+            ctx, prefix, role, outcome, approved_case, approved=True
         )
     detected = {value for value in profiles.values() if value}
     return {"transcripts": transcripts, "profile": sorted(detected), "caseId": draft["id"]}
@@ -476,6 +500,14 @@ def preflight(ctx: Context) -> None:
     counts = ctx.observer.counts()
     ok = counts["members"] >= 8 and counts["cases"] >= 6 and counts["symptoms"] >= 5
     rec.add("P2", "시드(직원·시드 사례·관계)가 들어 있음", PASS if ok else FAIL, str(counts))
+
+
+def _runs_used_or_none(ctx: Context) -> int | None:
+    """보고서를 쓰는 시점에 DB가 끊겨 있어도 보고서 자체는 남기려고 실패하면 None으로 둔다."""
+    try:
+        return ctx.runs_used()
+    except Exception:
+        return None
 
 
 def _git_revision() -> str:
@@ -516,6 +548,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"환경변수 {name}가 필요하다", file=sys.stderr)
             return 2
     observer = Observer(os.environ["HOPS_E2E_DB_DSN"])
+    try:
+        return _execute(args, observer)
+    finally:
+        observer.close()
+
+
+def _execute(args: argparse.Namespace, observer: Observer) -> int:
     ctx = Context(
         api=Api(os.environ.get("HOPS_E2E_BASE_URL", "http://127.0.0.1:8080")),
         observer=observer,
@@ -537,6 +576,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         ctx.recorder.add("BUDGET", "AI 실행 수 상한", FAIL, str(error))
     except ApiError as error:
         ctx.recorder.add("ERROR", "예기치 않은 API 오류", FAIL, str(error))
+    except Exception as error:  # 모델 비용이 든 실행의 기록을 어떤 오류로도 잃지 않는다.
+        ctx.recorder.add(
+            "ERROR", "예기치 않은 오류", FAIL, f"{type(error).__name__}: {error}"[:300]
+        )
     report = {
         "bundleId": ctx.bundle.bundle_id,
         "mode": "run" if args.run else "preflight",
@@ -548,10 +591,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "assessment": args.assessment,
             "note": args.note,
         },
-        "aiRunsStarted": ctx.runs_used(),
+        "aiRunsStarted": _runs_used_or_none(ctx),
         "maxRuns": args.max_runs,
         "totals": {s: ctx.recorder.count(s) for s in (PASS, FAIL, BLOCKED, INFO)},
         "steps": [asdict(step) for step in ctx.recorder.steps],
+        "transcripts": ctx.transcripts,
         **extra,
     }
     out = (

@@ -5,11 +5,21 @@
 업무 데이터를 바꾸지 않으며, 관찰한 값을 AI나 Spring의 입력으로 되돌리지 않는다.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
+
+
+def like_patterns(needles: Sequence[str]) -> list[str]:
+    """LIKE 패턴 목록. 빈 값은 버리고 %·_·\\는 글자 그대로 찾도록 이스케이프한다."""
+    return [
+        "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        for needle in needles
+        if needle
+    ]
 
 
 @dataclass(frozen=True)
@@ -95,24 +105,33 @@ class Observer:
             return None
         return any(run["has_retrieval_scopes"] for run in analysis)
 
-    def mentions(self, inquiry_id: str, needle: str) -> dict[str, bool]:
-        """문의의 저장된 값 어디에 needle이 나오는지(상담 근거, 실행 결과, AI 메시지)."""
+    def mentions(self, inquiry_id: str, needles: Sequence[str]) -> dict[str, bool]:
+        """문의의 저장된 값 어디에 needles 중 하나라도 나오는지(상담 근거, 실행 결과, AI 메시지).
+
+        상담 근거(KnowledgeEvidence)는 사례 번호(resolved_case.id)가 아니라 지식 문서 id·제목·발췌를
+        담는다. 호출하는 쪽이 사례를 가리키는 값(문서 id, 제목 등)을 모두 넘겨야 한다.
+        """
+        patterns = like_patterns(needles)
+        if not patterns:
+            return {"related_knowledge": False, "run_result": False, "employee_message": False}
         row = self._one(
             """
             SELECT
               EXISTS (SELECT 1 FROM standard_request sr
                       JOIN inquiry_problem p ON p.id = sr.inquiry_problem_id
-                      WHERE p.inquiry_id = %(i)s AND sr.related_knowledge::text LIKE %(n)s)
+                      WHERE p.inquiry_id = %(i)s
+                        AND sr.related_knowledge::text LIKE ANY (%(n)s::text[]))
                 AS related_knowledge,
               EXISTS (SELECT 1 FROM agent_run r
                       WHERE r.inquiry_id = %(i)s AND r.task <> 'CASE_DRAFT'
-                        AND r.result::text LIKE %(n)s) AS run_result,
+                        AND r.result::text LIKE ANY (%(n)s::text[])) AS run_result,
               EXISTS (SELECT 1 FROM message m
                       WHERE m.inquiry_id = %(i)s AND m.sender_type = 'AI'
-                        AND (m.content LIKE %(n)s OR m.payload::text LIKE %(n)s))
+                        AND (m.content LIKE ANY (%(n)s::text[])
+                             OR m.payload::text LIKE ANY (%(n)s::text[])))
                 AS employee_message
             """,
-            {"i": inquiry_id, "n": f"%{needle}%"},
+            {"i": inquiry_id, "n": patterns},
         )
         return {key: bool(value) for key, value in (row or {}).items()}
 
@@ -166,10 +185,17 @@ class Observer:
             (ticket_id,),
         )
 
+    def case_version(self, case_id: str) -> int | None:
+        """사례의 현재 version_no. 승인 직전에 다시 읽어 오래된 값으로 승인하지 않게 한다."""
+        row = self._one("SELECT version_no FROM resolved_case WHERE id = %s::uuid", (case_id,))
+        return int(row["version_no"]) if row else None
+
     def case_document(self, case_id: str) -> dict[str, Any] | None:
+        """승인된 사례의 검색 문서. document_id는 상담 근거(KnowledgeEvidence.documentId)와 같다."""
         return self._one(
             """
-            SELECT v.review_status AS version_status, d.review_status AS document_status
+            SELECT d.id::text AS document_id,
+                   v.review_status AS version_status, d.review_status AS document_status
             FROM knowledge_document_version v
             JOIN knowledge_document d ON d.id = v.knowledge_document_id
             WHERE v.source_metadata::text LIKE %s ORDER BY v.created_at DESC LIMIT 1
