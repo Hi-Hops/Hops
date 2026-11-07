@@ -451,7 +451,7 @@ runId=agent_run.id, 외부 CASE_DRAFT=DB task CURATION, 외부 role INQUIRY=DB a
 - 연결마다 `evidenceIds`가 필수이며 모델은 근거마다 그 텍스트에 한 글자도 바꾸지 않은 인용을 내야 한다. 코드가 인용을 대조해 확인되지 않은 연결을 버린다(연결은 후보일 뿐 원인을 확정하지 않는다).
 - 관계 근거로 쓸 수 있는 ID는 입력 메시지 ID(AI 질문·답변 포함)와 이 티켓의 처리 기록 ID(원 기록·이전 기록)다. 사례의 `sourceMessageIds`는 계속 사용자 메시지만 허용한다. 상담 근거 문서 ID는 관계 근거로 쓰지 않는다.
 - `link` 모델 호출이 실패하면 연결 없는 사례로 바꾸지 않고 실행을 실패시킨다.
-- 연결은 담당자 승인 전에는 검색에 공개되지 않는다. Spring은 AI 출력을 신뢰하지 않고 대상·근거를 DB에서 다시 확인한다.
+- 연결은 담당자 승인 전에는 검색에 공개되지 않는다. Spring은 AI 출력을 신뢰하지 않고 결과 적용 때 다시 확인한다. 대상은 입력의 `linkCandidates`에 있으면서 지금도 승인되어 실행 주체에게 보이는 노드여야 하고, 근거는 입력에 고정한 이 문제의 메시지·이 티켓의 처리 기록·검증된 지식 근거 중 하나여야 한다. 어긋나면 사례 초안만 `INVALID_OUTPUT`으로 거절하고 처리 기록과 확인 요청은 보존한다.
 
 WorkRecordContext에는 실제 담당자가 입력한 confirmedCause와 appliesToSystemVersion을 nullable로 전달한다. Curator는 모델 추정을 확인된 원인으로 확정하지 않으며 서버가 원 기록에서 CASE의 confirmedCause/caseType을 투영한다. 재사용 가능한 CaseProposal에는 problemStatement가 필수이고 reusable=false에는 null이다. 신규 TicketProposal은 SERVICE_REQUEST/INVESTIGATION/CHANGE_REQUEST/REVIEW_REQUIRED만 허용하며 같은 problemRef의 ProblemProposal.processingType과 일치해야 한다. 실제 INCIDENT 확정은 현재 담당자의 처리 유형 정정 명령으로 수행한다. 제목은200자·적용 버전은100자 제한이다.
 

@@ -25,6 +25,7 @@ import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.StandardRequestRepository;
 import com.hihops.hops.itsystem.service.ItSystemService;
+import com.hihops.hops.relation.service.RelationLinkCandidateReader;
 import com.hihops.hops.ticket.domain.TicketWorkLog;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.domain.WorkLogType;
@@ -70,16 +71,17 @@ public class CurationInputFactory {
     private final TicketEventRepository ticketEvents;
     private final StandardRequestRepository standardRequestRows;
     private final TicketKnowledgeReader knowledge;
+    private final RelationLinkCandidateReader linkCandidates;
 
     /**
-     * AI wire의 WorkRecordContext. 앞 12개는 원 처리 기록이고 뒤 3개는 문의 전체 과정의 맥락이다(모두 가산 필드).
-     * 맥락은 오래된 순이며 원 기록과 원 기록의 확인 요청은 포함하지 않는다.
+     * AI wire의 WorkRecordContext. 앞 12개는 원 처리 기록이고 뒤 4개는 가산 필드다. 앞의 3개는 문의 전체 과정의 맥락(오래된 순,
+     * 원 기록과 원 기록의 확인 요청은 제외)이고 linkCandidates는 사례를 연결할 수 있는 같은 시스템의 기존 증상·확인 항목이다.
      */
     public record WorkRecord(UUID id, UUID ticketId, UUID problemId, UUID systemId, String kind,
             String action, String verification, String confirmedCause, String appliesToSystemVersion,
             String createdAt, UUID resolutionRequestId, String confirmationState,
             List<RelatedRecord> relatedRecords, List<ResolutionEntry> resolutionHistory,
-            List<KnowledgeEvidenceResponse> consultedKnowledge) {}
+            List<KnowledgeEvidenceResponse> consultedKnowledge, List<RelationLinkCandidateReader.Candidate> linkCandidates) {}
 
     /** 같은 티켓의 다른 처리 기록. 진행·실패 시도도 담지만 사례의 조치·검증·원인으로 쓰이지 않는다. */
     public record RelatedRecord(UUID id, String kind, String action, @Nullable String verification,
@@ -107,7 +109,7 @@ public class CurationInputFactory {
                 record.getConfirmedCause(), record.getAppliedVersion(), AiRunRequest.time(record.getCreatedAt()),
                 confirmation.id(), confirmation.state(),
                 relatedRecords(ticket, record), resolutionHistory(ticket, inquiryMessages, confirmation.id()),
-                consultedKnowledge(problem.getId(), actor));
+                consultedKnowledge(problem.getId(), actor), linkCandidates.candidates(system.getId(), actor.getId()));
         var request = new AiRunRequest(properties.schemaVersion(), run.getId(), "CASE_DRAFT", ticket.getInquiry().getId(),
                 run.getInputVersion(), null, List.of(problem.getId()), sourceMessages(ticket, inquiryMessages), List.of(inputProblem),
                 List.of(systems.responses(List.of(system)).get(system.getId())),

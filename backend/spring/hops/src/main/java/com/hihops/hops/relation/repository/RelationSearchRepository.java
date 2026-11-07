@@ -158,6 +158,30 @@ public class RelationSearchRepository {
                 (rs, row) -> new CauseCheckRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)));
     }
 
+    public record SystemCheckRow(UUID id, String catalogKey, String label) {
+    }
+
+    /**
+     * 시스템의 승인된 확인 항목 전체(증상과 무관). 사례를 연결할 후보를 정하는 데 쓴다. 직원 공개 표시가 있거나 공개 범위·담당 조건을
+     * 만족하는 항목만 돌려주며 catalogKey 순이다.
+     */
+    public List<SystemCheckRow> findSystemCheckItems(UUID systemId, Collection<String> levels, Viewer viewer) {
+        if (levels.isEmpty()) {
+            return List.of();
+        }
+        return jdbc.query("""
+                SELECT k.id, k.catalog_key, k.label
+                FROM relation_check_item k
+                JOIN it_system sys ON sys.id = k.it_system_id AND sys.deleted_at IS NULL
+                WHERE k.deleted_at IS NULL AND k.review_status = 'APPROVED' AND k.it_system_id = :systemId
+                  AND (k.employee_disclosable OR (k.access_level IN (:levels)
+                       AND (k.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))))
+                ORDER BY k.catalog_key
+                """, new MapSqlParameterSource("systemId", systemId).addValue("levels", levels)
+                .addValue("memberId", viewer.memberId()).addValue("internalRead", viewer.internalRead()),
+                (rs, row) -> new SystemCheckRow(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3)));
+    }
+
     /** 증상을 다룬 승인 사례(ADDRESSES). 연결의 공개 범위·담당 조건만 보며 사례 문서의 현재 공개 판정은 호출 쪽이 다시 한다. */
     public List<CaseLinkRow> findCaseLinks(Collection<UUID> symptomIds, Collection<String> levels, Viewer viewer) {
         if (symptomIds.isEmpty() || levels.isEmpty()) {

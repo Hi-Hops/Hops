@@ -240,7 +240,8 @@ START → collect → draft → link → validate → END
 | 사례 출처 | 사용자 메시지만 허용. 입력에 AI 메시지가 들어오므로 AI 병합에서도 거부한다 |
 | 초안 양식 개선(`curator-draft-v2`) | 구현. 맥락을 프롬프트에 쓰고, 해결되지 않은 시도는 코드가 처리 기록 값 그대로 한계로 덧붙인다 |
 | 사례 그래프 | 구현. Curator 안의 서브그래프 `collect → draft → link → validate`. `CASE_DRAFT`는 선택지가 하나라 Supervisor 모델을 부르지 않는다(모델 호출 3회 → 초안 1회 + link 1회) |
-| `link`(`ADDRESSES`·`USES_CHECK`) | AI 구현(`curator-link-v1`): 후보 안에서만 고르고 근거 인용을 대조한다. 후보(`linkCandidates`) 전송과 Spring 결과 적용은 커밋 ②의 Spring 쪽 |
+| `link`(`ADDRESSES`·`USES_CHECK`) | 구현. AI(`curator-link-v1`)가 후보 안에서만 고르고 근거 인용을 대조한다. Spring이 후보(`linkCandidates`)를 보내고(`RelationLinkCandidateReader`), 결과 적용 때 대상이 입력의 후보이면서 지금도 승인·가시인지, 근거가 입력 메시지·이 티켓의 처리 기록·검증된 근거인지, 관계 유형·중복·개수를 다시 확인한다 |
+| 승인 뒤 관계 테이블 반영 | 미구현. 승인된 사례의 `entityLinks`는 JSON(`relation_candidates`)과 색인 요청에만 있고 `relation_case_symptom`·`relation_case_check`를 쓰는 코드는 시드 밖에 없다(#201과 함께 결정) |
 | Curator 평가 | 미구현(커밋 ③) |
 
 ## 8. 관계 데이터

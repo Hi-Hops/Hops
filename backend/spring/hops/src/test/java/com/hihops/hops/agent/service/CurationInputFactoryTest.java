@@ -25,8 +25,11 @@ class CurationInputFactoryTest extends TicketCommandFixture {
     private final UUID document = UUID.randomUUID();
     private int sequence = 1;
 
+    private CurationRelationRows rows;
+
     @AfterEach
     void 지식_정리() {
+        if (rows != null) rows.clear();
         jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", document);
         jdbc.update("DELETE FROM knowledge_document WHERE id=?", document);
     }
@@ -280,8 +283,54 @@ class CurationInputFactoryTest extends TicketCommandFixture {
         assertThat(work.path("relatedRecords").size()).isZero();
         assertThat(work.path("resolutionHistory").size()).isZero();
         assertThat(work.path("consultedKnowledge").size()).isZero();
+        assertThat(work.path("linkCandidates").isArray()).isTrue();
+        assertThat(work.path("linkCandidates").size()).isZero();
         // 원 기록 필드와 권한 문맥은 그대로다.
         assertThat(curationInput().path("accessContext").path("purpose").asString()).isEqualTo("CASE_DRAFT");
         assertThat(ids(curationInput().path("accessContext").path("allowedDocumentScopes"))).containsExactly("SYSTEM_STAFF");
+    }
+
+    @Test
+    void 연결_후보는_이_시스템의_승인된_증상과_확인_항목만_종류와_이름과_함께_담는다() throws Exception {
+        rows = new CurationRelationRows(jdbc, system);
+        var symptom = rows.symptom(system, "sym-a", "첨부파일이 열리지 않음", "EMPLOYEE", "APPROVED");
+        var staffSymptom = rows.symptom(system, "sym-b", "담당자만 보는 증상", "STAFF", "APPROVED");
+        var pendingSymptom = rows.symptom(system, "sym-c", "미승인 증상", "EMPLOYEE", "PENDING");
+        var otherSystemSymptom = rows.symptom(otherSystem, "sym-d", "다른 시스템 증상", "EMPLOYEE", "APPROVED");
+        var disclosable = rows.check(system, "chk-a", "첨부 권한 확인", true, "EMPLOYEE", "APPROVED");
+        var staffCheck = rows.check(system, "chk-b", "서버 로그 확인", false, "STAFF", "APPROVED");
+        var pendingCheck = rows.check(system, "chk-c", "미승인 확인", true, "EMPLOYEE", "PENDING");
+        var otherSystemCheck = rows.check(otherSystem, "chk-d", "다른 시스템 확인", true, "EMPLOYEE", "APPROVED");
+
+        record("VERIFIED_RESOLUTION");
+
+        var candidates = curationInput().path("workRecord").path("linkCandidates");
+        var byId = new java.util.LinkedHashMap<String, JsonNode>();
+        candidates.forEach(item -> byId.put(item.path("id").asString(), item));
+        assertThat(byId.keySet()).containsExactlyInAnyOrder(symptom.toString(), staffSymptom.toString(),
+                disclosable.toString(), staffCheck.toString());
+        assertThat(byId).doesNotContainKeys(pendingSymptom.toString(), otherSystemSymptom.toString(),
+                pendingCheck.toString(), otherSystemCheck.toString());
+        assertThat(byId.get(symptom.toString()).path("kind").asString()).isEqualTo("SYMPTOM");
+        assertThat(byId.get(symptom.toString()).path("label").asString()).isEqualTo("첨부파일이 열리지 않음");
+        assertThat(byId.get(staffCheck.toString()).path("kind").asString()).isEqualTo("CHECK_ITEM");
+        byId.values().forEach(item -> assertThat(item.path("systemId").asString()).isEqualTo(system.toString()));
+    }
+
+    @Test
+    void 연결_후보는_종류별_상한까지만_담는다() throws Exception {
+        rows = new CurationRelationRows(jdbc, system);
+        for (int index = 0; index < 33; index++) {
+            rows.symptom(system, String.format("sym-%02d", index), "증상 " + index, "EMPLOYEE", "APPROVED");
+        }
+        for (int index = 0; index < 43; index++) {
+            rows.check(system, String.format("chk-%02d", index), "확인 " + index, true, "EMPLOYEE", "APPROVED");
+        }
+
+        record("VERIFIED_RESOLUTION");
+
+        var candidates = curationInput().path("workRecord").path("linkCandidates");
+        assertThat(candidates.valueStream().filter(item -> "SYMPTOM".equals(item.path("kind").asString())).count()).isEqualTo(30);
+        assertThat(candidates.valueStream().filter(item -> "CHECK_ITEM".equals(item.path("kind").asString())).count()).isEqualTo(40);
     }
 }
