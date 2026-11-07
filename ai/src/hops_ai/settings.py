@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # (검색 결과가 있는 문제마다 모델 1회), Inquiry는 분석과 질문을 나누고, Supervisor가 문제별로
     # 합법 행동 중 하나를 고른다. 아직 실모델로 측정하기 전이라 기본은 끈다.
     knowledge_assessment: bool = False
+    # 켜면 Knowledge 안내문을 승인 본문 전체가 아니라 문의에 답하는 문단만 골라 만들고, 답하는
+    # 문서가 없으면 안내하지 않는다(안내 후보가 있을 때 모델 1회). 끄면 본문 전체로 안내한다.
+    guide_excerpt: bool = True
     # Spring 지식 검색·관계 조회 요청 한 번의 제한 시간. 남은 실행 기한보다 길게 기다리지 않는다.
     knowledge_http_timeout_seconds: float = Field(default=5, gt=0, le=30)
     langfuse_public_key: SecretStr | None = Field(
