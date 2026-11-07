@@ -3,15 +3,17 @@
 합법 행동 규칙 자체는 `rules.legal_actions`의 순수 함수이고, 이 모듈은 그 입력을 State에서 읽는
 어댑터다. 값마다 읽는 곳을 정해 두어 규칙과 State 사이의 해석이 한 곳에만 있게 한다.
 
-- 질문 가능 여부는 분석이 쓰던 양식 규칙(`agents.inquiry.asking.question_plan`)으로 계산한다. 그래서
-  합법 행동에 질문이 있으면 ASK 행동이 실제로 질문을 만들 수 있다.
+- 질문 가능 여부는 분석이 쓰던 양식 규칙에 판정이 지목한 확인 항목을 더한 질문 계획
+  (`agents.inquiry.asking.question_plan`)으로 계산한다. 그래서 합법 행동에 질문이 있으면 ASK 행동이
+  실제로 질문을 만들 수 있다. 필수 정보를 갖췄는지는 양식 필드만의 계획으로 본다
+  (`form_question_plan`).
 - 답변은 판정이 SUFFICIENT이고 그 판정이 인용한 근거로 안내가 만들어졌을 때만 가능하다(안내문은
   승인된 직원 공개 가이드 본문으로만 조립한다).
 - 평가는 검색 호출 안에서 함께 끝나므로 따로 호출할 평가는 없다(assessment_pending은 거짓).
 - 안내 뒤 미해결 응답(5.3절 티켓 (c))은 멀티턴(#189)이 만든다. 그 전까지는 거짓이다.
 """
 
-from hops_ai.agents.inquiry.asking import answerable, question_plan
+from hops_ai.agents.inquiry.asking import answerable, form_question_plan, question_plan
 from hops_ai.agents.inquiry.forms import FIELD_LABELS, SYSTEM
 from hops_ai.agents.knowledge.agent import next_query, research_used
 from hops_ai.contracts.roles import KnowledgeResult
@@ -44,7 +46,9 @@ def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
     scopes = request.accessContext.allowedDocumentScopes
     search_state = _latest_search_state(state, ref)
     assessment = state["assessments"].get(ref)
-    plan = question_plan(state, ref, searched=search_state is not None)
+    searched = search_state is not None
+    plan = question_plan(state, ref, searched=searched)
+    form_plan = form_question_plan(state, ref, searched=searched)
     return ProblemFacts(
         out_of_scope=(
             problem.intent == "OUT_OF_SCOPE"
@@ -63,7 +67,7 @@ def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
         assess_budget_ok=True,
         remaining_questions=QUESTION_LIMIT - (original.questionCount if original else 0),
         askable=plan.action == "ASK",
-        required_info_secured=plan.action == "COMPLETE",
+        required_info_secured=form_plan.action == "COMPLETE",
         direct_ticket_intent=policy_for(problem.intent).ticket_when_ready,
         unresolved_without_other_evidence=False,
     )

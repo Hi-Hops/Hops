@@ -40,7 +40,9 @@ from hops_ai.agents.knowledge.assessment import (
     PROMPT_VERSION,
     RESERVED_CALLS,
     SYSTEM_PROMPT,
+    AskedChecks,
     AssessmentDraft,
+    asked_checks,
     build_user_payload,
     to_assessment,
 )
@@ -139,7 +141,9 @@ class SearchKnowledgeAgent:
             guide=_guide_for(state, call, target, hits),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
-            assessment=await self._assess(target, hits, relations, services),
+            assessment=await self._assess(
+                target, hits, relations, services, asked_checks(state, target.problemRef, relations)
+            ),
             relations=relations,
         )
         return RoleResponse(
@@ -154,6 +158,7 @@ class SearchKnowledgeAgent:
         hits: list[KnowledgeHit],
         relations: RelationNeighbors | None,
         services: SharedServices,
+        asked: AskedChecks,
     ) -> Assessment | None:
         """검색 근거의 충분성 판정. 만들지 못하면 None(평가 없음)이며 흐름을 막지 않는다.
 
@@ -172,7 +177,7 @@ class SearchKnowledgeAgent:
                 LLMRequest(
                     messages=[
                         LLMMessage("system", SYSTEM_PROMPT),
-                        LLMMessage("user", build_user_payload(target, hits, relations)),
+                        LLMMessage("user", build_user_payload(target, hits, relations, asked)),
                     ],
                     response_model=AssessmentDraft,
                     max_output_tokens=MAX_OUTPUT_TOKENS,

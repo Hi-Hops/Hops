@@ -104,9 +104,9 @@ def check_b7(trace: RunTrace) -> list[Violation]:
 def check_b8(trace: RunTrace) -> list[Violation]:
     """B8. 생성된 질문이 판정이 부족하다고 한 정보를 겨냥한다.
 
-    판정의 부족한 정보(양식 필드)가 있는 문제에 질문이 나갔다면, 질문이 요청한 필드에 그 중 하나
-    이상이 있어야 한다. 이미 확보했거나 모른다고 한 필드는 질문에서 제외되므로 부족한 정보가 모두
-    그런 필드이면 겨냥할 수 없다(이 검사기는 그 경우도 관찰로 남긴다).
+    판정의 부족한 정보(양식 필드 또는 관계 확인 항목)가 있는 문제에 질문이 나갔다면, 질문이 요청한
+    항목에 그 중 하나 이상이 있어야 한다. 이미 확보했거나 모른다고 했거나 이미 물은 항목은 질문에서
+    제외되므로 부족한 정보가 모두 그런 항목이면 겨냥할 수 없다(이 검사기는 그 경우도 관찰로 남긴다).
     """
     found: list[Violation] = []
     for index, turn in enumerate(trace.turns):
@@ -116,11 +116,7 @@ def check_b8(trace: RunTrace) -> list[Violation]:
         assessments = _last_assessments(turn)
         for question in result.questions:
             assessment = assessments.get(question.problemRef)
-            missing = (
-                {ref for kind, ref in assessment.missing_information if kind == "FIELD"}
-                if assessment
-                else set()
-            )
+            missing = {ref for _, ref in assessment.missing_information} if assessment else set()
             if missing and not missing & set(question.requestedFields):
                 found.append(
                     BehaviorFinding(

@@ -1,8 +1,9 @@
 """규칙 기반 사용자 모사. 모델이 아니므로 같은 질문에는 항상 같은 답이 나간다.
 
-`ASKED_FIELD_ONLY`: AI가 물은 필드에 해당하는 값만 답한다. 묻지 않은 정보를 먼저 주지 않아야 질문
-선택 규칙을 시험할 수 있다. 사용자가 모르는 필드는 "모르겠다"는 문장으로 답하며, 이 문장이 원문에
-남아 AI가 미확인을 보존하는 근거가 된다.
+`ASKED_FIELD_ONLY`: AI가 물은 필드에 해당하는 값만 답한다. 확인 항목 질문에는 시나리오의
+`checkAnswers`(확인 항목 ID → 답)로 답하고, 없으면 모른다고 답한다. 묻지 않은 정보를 먼저 주지
+않아야 질문 선택 규칙을 시험할 수 있다. 사용자가 모르는 필드는 "모르겠다"는 문장으로 답하며,
+이 문장이 원문에 남아 AI가 미확인을 보존하는 근거가 된다.
 """
 
 from collections.abc import Sequence
@@ -39,6 +40,8 @@ class UserReply:
 def _answer(scenario: Scenario, name: str) -> str | None:
     """필드에 대한 답. 모르거나 아는 값이 없으면 None이다."""
     # 시스템 질문(`system`)의 모름 선언은 시나리오에서 `systemCode`로 쓴다.
+    if name in scenario.check_answers:
+        return scenario.check_answers[name]
     if (SYSTEM_CODE_FIELD if name == SYSTEM_FIELD else name) in scenario.unknown_fields:
         return None
     if name == SYSTEM_FIELD:
@@ -66,8 +69,11 @@ def reply_to(scenario: Scenario, questions: Sequence[QuestionProposal], turn: in
             answered.add(name)
             answer = _answer(scenario, name)
             if answer is None:
-                phrase = _FIELD_PHRASES.get(name, name)
-                sentences.append(f"{phrase}은(는) 잘 모르겠어요.")
+                phrase = _FIELD_PHRASES.get(name)
+                # 양식 필드가 아니면 확인 항목 질문이다. 답이 시나리오에 없으면 모른다고 답한다.
+                sentences.append(
+                    f"{phrase}은(는) 잘 모르겠어요." if phrase else "그 확인 내용은 잘 모르겠어요."
+                )
                 unknown.append((question.problemRef, name))
             else:
                 sentences.append(answer if answer.endswith((".", "요", "다")) else f"{answer}.")

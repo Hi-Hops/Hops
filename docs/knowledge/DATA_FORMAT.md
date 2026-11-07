@@ -135,6 +135,7 @@ questions:
 | `caseFamily` | 같은 사건에서 나온 변형을 묶는 식별자. 분할은 사건 계열 단위로 한다. |
 | `userKnowledge` | 사용자가 아는 사실. 질문을 받기 전에는 공개하지 않는다. |
 | `unknownFields` | 사용자가 모른다고 답할 필드. 원문에 모름 표현을 둔다. |
+| `checkAnswers` | (선택) 확인 항목 ID → 사용자가 그 질문에 할 답. 증상 시나리오에서 관계의 확인 항목 질문에 답하게 한다. 없는 항목을 물으면 모른다고 답한다. 동결 시나리오에는 추가하지 않는다. |
 | `revealRule` | 사용자 모사 규칙. `ASKED_FIELD_ONLY`는 AI가 물은 필드에 해당하는 값만 답한다. |
 | `corrections` | (선택) `{afterTurn, text}` 목록. AI가 `afterTurn`번째 질문을 한 뒤의 응답 끝에 `text`(정정 문장)를 덧붙인다. 한 turn에 하나. |
 | `followUp` | (선택) `{text, resolution}`. AI가 질문 없이 안내로 끝낸 뒤 사용자가 보내는 응답이다. `resolution`은 현재 `UNRESOLVED`만 쓴다. 재생기 지원은 멀티턴 작업(#189)에서 하며, 그 전에는 파일에 두고 첫 실행만 재생한다. |

@@ -8,7 +8,7 @@ import json
 
 import pytest
 
-from evaluation.harness.checks import check_p10, check_p11, check_trace
+from evaluation.harness.checks import check_p10, check_p11, check_p12, check_trace
 from evaluation.harness.recorders import CallLog, RecordingAgent, RecordingLLM
 from evaluation.harness.trace import AssessmentRecord, RoleCall
 from evaluation.harness.trace_io import trace_from_dict, trace_to_dict
@@ -272,3 +272,43 @@ def test_pilot_summary_has_no_assessment_section_without_a_search() -> None:
     request = request_with((("m1", "전자결재에서 문서가 안 보여요"),))
 
     assert "assessments" not in _turn_summary(1, turn(request, None))
+
+
+# --- P12 ---
+
+
+def asking_trace(requested: list[str], *check_ids: str):
+    request = request_with((("m1", "전자결재에서 문서가 안 보여요"),))
+    result = ai_result(
+        request,
+        answer="질문",
+        questions=[
+            {
+                "problemRef": PROBLEM,
+                "bundleRef": "b-1",
+                "text": "질문",
+                "requestedFields": requested,
+            }
+        ],
+    )
+    return run_trace(turn(request, result, calls=(call_with_relations(None, *check_ids),)))
+
+
+def test_p12_accepts_form_fields_the_system_and_looked_up_check_items() -> None:
+    trace = asking_trace(["system", "taskOrScreen", "check-a"], "check-a", "check-b")
+
+    assert check_p12(trace) == []
+
+
+def test_p12_flags_an_item_the_search_did_not_offer() -> None:
+    found = check_p12(asking_trace(["check-z"], "check-a"))
+
+    assert ids(found) == ["P12"] and "check-z" in found[0].message
+
+
+def test_p12_flags_a_check_item_when_no_relations_were_looked_up() -> None:
+    assert ids(check_p12(asking_trace(["check-a"]))) == ["P12"]
+
+
+def test_p12_is_part_of_the_safety_checks() -> None:
+    assert ids(check_trace(asking_trace(["check-z"], "check-a"))).count("P12") == 1
