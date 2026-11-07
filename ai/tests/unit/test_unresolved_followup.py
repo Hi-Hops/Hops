@@ -139,6 +139,34 @@ async def test_without_the_unresolved_mark_the_same_guide_is_found_as_before() -
     assert state["guide"] is not None
 
 
+def same_document(number: int):
+    """같은 문서·버전의 다른 근거(청크). 검색 상한을 채워 그 문서가 자리를 차지한 상황을 만든다."""
+    return make_evidence(id=uid(120 + number), documentId=GUIDE.documentId)
+
+
+async def test_a_full_page_of_guided_chunks_is_marked_as_possibly_crowding_out_others() -> None:
+    chunks = [hit(same_document(number)) for number in range(5)]
+
+    state, result, llm = await search(unresolved_request(), *chunks)
+
+    assert result.search.state == "EMPTY" and result.crowdedOut is True
+    assert llm.requests == [] and state["guide"] is None
+
+
+async def test_a_partial_page_that_is_all_guided_is_not_marked_as_crowded() -> None:
+    _, result, _ = await search(unresolved_request(), hit(same_document(1)), hit(same_document(2)))
+
+    assert result.search.state == "EMPTY" and result.crowdedOut is False
+
+
+async def test_nothing_is_marked_crowded_without_the_unresolved_mark() -> None:
+    chunks = [hit(same_document(number)) for number in range(5)]
+
+    _, result, _ = await search(unresolved_request(state=None), *chunks, outcomes=(draft(),))
+
+    assert result.crowdedOut is False
+
+
 # -- 합법 행동 (c) ----------------------------------------------------------------------------
 
 
@@ -166,6 +194,21 @@ def test_after_a_search_with_nothing_new_the_only_legal_action_is_a_ticket() -> 
 
     assert facts.unresolved_without_other_evidence is True
     assert legal_actions(facts) == {"TICKET"}
+
+
+def test_a_crowded_search_does_not_prove_there_is_no_other_evidence() -> None:
+    from tests.unit.test_knowledge_empty_handoff import empty_search
+
+    request = unresolved_request()
+    crowded = empty_search(problem_ref=PROBLEM).model_copy(update={"crowdedOut": True})
+    state = {**running_state(request), "roleResults": {crowded.invocationId: crowded}}
+
+    facts = problem_facts(state, PROBLEM)
+
+    assert facts.unresolved_without_other_evidence is False
+    assert legal_actions(
+        facts
+    )  # 합법 행동은 비지 않는다(다른 질의로 다시 찾거나 일반 규칙을 따른다)
 
 
 def test_a_search_error_is_not_treated_as_nothing_new() -> None:

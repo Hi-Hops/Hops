@@ -150,8 +150,9 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     private String validationOf(JsonNode result, GuideResultWriter.Applied guide, ProblemQuestionWriter.Applied stored,
             boolean requiresFollowUp) {
         boolean proposalsApplied = proposalsApplied(result, guide, stored);
+        // 모든 질문이 새로 저장됐거나 이미 저장된 묶음이어서 건너뛴 경우에만 반영된 것이다
         boolean questionsApplied = result.path("questions").isArray() && !result.path("questions").isEmpty()
-                && stored.questions() > 0;
+                && stored.questions() + stored.repeated() == result.path("questions").size();
         List<String> unapplied = new ArrayList<>();
         for (String field : LIST_FIELDS) {
             if (result.path(field).isArray() && !result.path(field).isEmpty()) {

@@ -168,6 +168,11 @@ class KnowledgeResult(ContractModel):
     # 이 검색에 쓴 질의의 지문. 같은 질의의 반복 검색을 피하는 데 쓰며, 비어 있으면 같은 문제를
     # 다시 검색하지 않는다. 질의가 바뀌었을 때(새 사실이 더해진 뒤)만 다시 검색할 수 있다.
     queryDigest: str | None = None
+    # 안내 뒤 미해결 응답으로 이미 안내한 문서를 결과에서 뺐는데, 검색이 상한(top-k)을 가득
+    # 채워 돌려줘서 그 문서들이 자리를 차지했을 수 있다. 참이면 "다른 근거가 없다"고 단정할 수
+    # 없다(순위 밖의 다른 문서를 보지 못했을 수 있다). 제외한 것이 없거나 상한을 채우지 않았으면
+    # 거짓이다.
+    crowdedOut: bool = False
     # 이 검색과 함께 조회한 관계 데이터(확인 항목). 관계를 조회하지 않은 호출은 None이다.
     # problemRef가 있는 결과에만 붙는다.
     relations: RelationNeighbors | None = None

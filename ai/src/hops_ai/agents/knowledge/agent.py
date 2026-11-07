@@ -129,7 +129,11 @@ class SearchKnowledgeAgent:
             )
         services.runtime.ensure_active()
         # 안내 뒤 미해결로 응답한 문제는 이미 안내한 근거로 다시 안내하지 않는다. 다 빠지면 0건이다.
+        found = len(hits)
         hits = without_guided(state, target.problemRef, hits, lambda hit: hit.evidence)
+        # 이미 안내한 문서를 뺐고 검색이 상한을 가득 채웠다면, 그 문서가 자리를 차지해
+        # 다른 문서를 못 봤을 수 있다
+        crowded = len(hits) < found and found >= query.top_k
 
         evidence = tuple(hit.evidence for hit in hits)
         # 관계를 먼저 조회한다: 판정이 확인 항목을 부족한 정보로 지목할 수 있게 입력으로 준다.
@@ -144,6 +148,7 @@ class SearchKnowledgeAgent:
             guide=_guide_for(state, call, target, hits),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
+            crowdedOut=crowded,
             assessment=await self._assess(
                 target, hits, relations, services, asked_checks(state, target.problemRef, relations)
             ),

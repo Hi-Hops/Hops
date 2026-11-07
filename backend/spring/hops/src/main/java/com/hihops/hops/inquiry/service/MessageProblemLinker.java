@@ -46,8 +46,10 @@ public class MessageProblemLinker {
         ArrayNode links = payload.path("problemLinks").isArray() ? (ArrayNode) payload.get("problemLinks")
                 : payload.putArray("problemLinks");
         for (var link : links) {
-            if (problemId.toString().equals(link.path("problemId").asString())
-                    && link.path("revision").asInt(-1) == message.getRevision()) {
+            // revision이 없는 예전 연결은 모든 차수에 걸린 연결이다 (MessagePayload.problemIds, TicketCreationService)
+            boolean sameRevision = link.path("revision").isMissingNode() || link.path("revision").isNull()
+                    || link.path("revision").asInt(-1) == message.getRevision();
+            if (problemId.toString().equals(link.path("problemId").asString()) && sameRevision) {
                 return;
             }
         }

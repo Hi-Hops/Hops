@@ -11,6 +11,8 @@ import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
 
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -61,6 +63,7 @@ import static com.hihops.hops.inquiry.service.GuideResultWriter.uuid;
 @RequiredArgsConstructor
 public class ProblemQuestionWriter {
 
+    private static final Logger log = LoggerFactory.getLogger(ProblemQuestionWriter.class);
     private static final Pattern NEW_REF = Pattern.compile("new:[A-Za-z0-9_-]+");
     private static final int MAX_TITLE_CODE_POINTS = 200;
     private static final int MAX_BUNDLE_REF_LENGTH = 200;
@@ -79,10 +82,11 @@ public class ProblemQuestionWriter {
 
     /**
      * @param handledRefs 이번 결과에서 이미 저장됐거나 다른 저장 경로(안내·티켓)가 맡아 더 저장할 것이 없는 문제 참조
-     * @param questions   저장한 질문 묶음 수
+     * @param questions   이번에 새로 저장한 질문 묶음 수
+     * @param repeated    같은 (문제, bundleRef)가 이미 저장돼 있어 세지 않고 건너뛴 질문 수
      */
-    public record Applied(Set<String> handledRefs, int questions) {
-        public static final Applied NONE = new Applied(Set.of(), 0);
+    public record Applied(Set<String> handledRefs, int questions, int repeated) {
+        public static final Applied NONE = new Applied(Set.of(), 0, 0);
     }
 
     /**
@@ -97,6 +101,9 @@ public class ProblemQuestionWriter {
         try {
             return save(run, inquiry, answerId, input, result, guideRef);
         } catch (IllegalArgumentException | IllegalStateException | JacksonException exception) {
+            // 거부 사유를 운영에서 찾을 수 있게 예외 종류와 위치를 남긴다. 예외 문구에는 AI 결과의 값이 들어갈 수 있어 싣지 않는다
+            StackTraceElement at = exception.getStackTrace().length > 0 ? exception.getStackTrace()[0] : null;
+            log.warn("문제·질문 제안을 거부합니다: runId={}, {} at {}", run.getId(), exception.getClass().getSimpleName(), at);
             throw invalid("문제·질문 제안을 현재 문의 상태와 대조할 수 없습니다");
         }
     }
@@ -130,6 +137,7 @@ public class ProblemQuestionWriter {
         ObjectNode answerPayload = (ObjectNode) mapper.readTree(messages.findById(answerId).orElseThrow().getPayload());
         Set<String> handled = new LinkedHashSet<>();
         int storedQuestions = 0;
+        int repeatedQuestions = 0;
         for (var proposal : proposals) {
             String ref = proposal.path("problemRef").asString();
             if (owned.contains(ref)) {
@@ -151,7 +159,10 @@ public class ProblemQuestionWriter {
                 continue; // 저장할 상태를 정할 수 없다. 미적용으로 남긴다
             }
             InquiryProblem problem = store(context, proposal, existing, outcome);
-            if (question != null && recordQuestion(context, answerPayload, problem, question)) storedQuestions++;
+            if (question != null) {
+                if (recordQuestion(context, answerPayload, problem, question)) storedQuestions++;
+                else repeatedQuestions++;
+            }
             handled.add(ref);
         }
         if (storedQuestions > 0) {
@@ -159,7 +170,7 @@ public class ProblemQuestionWriter {
         }
         // 질문은 모두 대응하는 문제 제안이 저장돼야 한다. 대응하지 못한 질문이 남으면 거부한다.
         require(handled.containsAll(questionByRef.keySet()));
-        return new Applied(Set.copyOf(handled), storedQuestions);
+        return new Applied(Set.copyOf(handled), storedQuestions, repeatedQuestions);
     }
 
     private record Context(AgentRun run, Inquiry inquiry, JsonNode input, JsonNode result, String answer,
@@ -267,8 +278,7 @@ public class ProblemQuestionWriter {
         if (messages.existsQuestionBundle(context.inquiry().getId(), probe)) {
             return false;
         }
-        require(problem.getClarifyCount() < InquiryProblem.MAX_CLARIFY_COUNT);
-        problem.recordQuestion(context.run());
+        problem.recordQuestion(context.run()); // 5회 한도는 도메인이 검사한다(넘으면 IllegalStateException)
 
         ObjectNode bundle = array(answerPayload, "questionBundles").addObject();
         bundle.put("problemId", problem.getId().toString()).put("bundleRef", bundleRef);

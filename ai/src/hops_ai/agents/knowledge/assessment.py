@@ -144,12 +144,20 @@ def asked_checks(
     if not asked:
         return AskedChecks()
     messages = sorted(state["input"].messages, key=lambda message: message.sequenceNo)
-    first_question = next((m.sequenceNo for m in messages if m.sender == "AI"), None)
+    # 그 문제에 물은 첫 AI 메시지(질문 문구가 이 문제에 연결된 메시지) 뒤의 답만 본다.
+    # 연결 정보가 없는 예전 입력은 문의의 첫 AI 메시지를 기준으로 한다.
+    ai_messages = [message for message in messages if message.sender == "AI"]
+    linked = [message for message in ai_messages if problem_ref in message.problemIds]
+    first_question = (linked or ai_messages)[0].sequenceNo if ai_messages else None
+    # 다른 문제에 연결된 사용자 메시지는 이 문제의 답이 아니다.
+    # 연결이 없으면(대상을 고르지 않은 답) 쓴다.
     replies = (
         [
             message.content[:MAX_REPLY_CHARS]
             for message in messages
-            if message.sender == "USER" and message.sequenceNo > first_question
+            if message.sender == "USER"
+            and message.sequenceNo > first_question
+            and (not message.problemIds or problem_ref in message.problemIds)
         ]
         if first_question is not None
         else []

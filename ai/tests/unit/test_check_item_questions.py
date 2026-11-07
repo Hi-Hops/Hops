@@ -24,7 +24,7 @@ from hops_ai.contracts.roles import (
 )
 from hops_ai.contracts.wire import AiRunRequest
 from hops_ai.supervisor.facts import problem_facts
-from tests.supervisor_fixtures import EVIDENCE, PROBLEM, make_details, make_evidence
+from tests.supervisor_fixtures import EVIDENCE, PROBLEM, make_details, make_evidence, uid
 from tests.unit.test_problem_decisions import base_state, request_for
 from tests.unit.test_question_generation import ask, asked
 
@@ -323,6 +323,45 @@ def test_asked_checks_and_the_replies_after_the_first_question_reach_the_judgmen
     assert payload["userReplies"] == ["최근 3개월로 두고 조회했어요"]
     # 이미 물은 항목은 다시 지목할 후보에서 빠진다
     assert "check-period" not in [item["id"] for item in payload["checkItems"]]
+
+
+def test_replies_are_scoped_to_the_problem_that_was_asked_about() -> None:
+    other = str(uid(500))
+    request = conversation(
+        request_with(["check-period"], question_count=1),
+        ("USER", "첫 문의 외 다른 말"),
+        ("AI", "다른 문제에 대한 질문"),
+        ("USER", "다른 문제의 답"),
+        ("AI", "이 문제에 대한 확인 질문"),
+        ("USER", "이 문제의 답"),
+        ("USER", "대상을 고르지 않은 답"),
+    )
+    fields = request.model_dump(mode="json")
+    # 같은 문의에 다른 문제가 하나 더 있다(메시지의 문제 참조는 입력의 문제여야 한다)
+    fields["problems"].append({**fields["problems"][0], "id": other})
+    # 순번: 1 첫 문의, 2 사용자, 3 AI(다른 문제), 4 사용자(다른 문제), 5 AI(이 문제), 6·7 사용자
+    by_number = {message["sequenceNo"]: message for message in fields["messages"]}
+    by_number[3]["problemIds"] = [other]
+    by_number[4]["problemIds"] = [other]
+    by_number[5]["problemIds"] = [PROBLEM]
+    by_number[6]["problemIds"] = [PROBLEM]
+    state = judged(base_state(AiRunRequest.model_validate(fields)))
+
+    context = asked_checks(state, PROBLEM, state["relations"][PROBLEM])
+
+    assert context.replies == ("이 문제의 답", "대상을 고르지 않은 답")
+
+
+def test_replies_fall_back_to_the_first_ai_message_when_no_message_is_linked() -> None:
+    request = conversation(
+        request_with(["check-period"], question_count=1),
+        ("USER", "질문 전의 말"),
+        ("AI", "질문"),
+        ("USER", "답"),
+    )
+    state = judged(base_state(request))
+
+    assert asked_checks(state, PROBLEM, state["relations"][PROBLEM]).replies == ("답",)
 
 
 def test_replies_are_the_latest_few_and_are_cut_to_the_limit() -> None:

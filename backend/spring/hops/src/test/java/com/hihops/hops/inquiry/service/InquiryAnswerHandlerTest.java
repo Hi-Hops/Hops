@@ -156,6 +156,30 @@ class InquiryAnswerHandlerTest {
     }
 
     @Test
+    void 질문이_모두_저장됐거나_이미_저장된_묶음이면_questions를_반영한_것으로_기록한다() {
+        String extra = ",\"questions\":[{\"problemRef\":\"a\"},{\"problemRef\":\"b\"}]";
+        when(problemQuestions.apply(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new ProblemQuestionWriter.Applied(java.util.Set.of(), 1, 1));
+
+        String validation = handler.apply(run, input(), result(extra));
+
+        assertThat(mapper.readTree(validation).path("applied")).extracting(JsonNode::asString).contains("questions");
+        assertThat(mapper.readTree(validation).path("unapplied")).extracting(JsonNode::asString).doesNotContain("questions");
+    }
+
+    @Test
+    void 질문_일부를_저장도_건너뛰지도_않았으면_questions를_미적용으로_남긴다() {
+        String extra = ",\"questions\":[{\"problemRef\":\"a\"},{\"problemRef\":\"b\"}]";
+        when(problemQuestions.apply(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new ProblemQuestionWriter.Applied(java.util.Set.of(), 1, 0));
+
+        String validation = handler.apply(run, input(), result(extra));
+
+        assertThat(mapper.readTree(validation).path("unapplied")).extracting(JsonNode::asString).contains("questions");
+        assertThat(mapper.readTree(validation).path("applied")).extracting(JsonNode::asString).doesNotContain("questions");
+    }
+
+    @Test
     void 결과를_쓰기_직전에_권한_세대가_바뀌었으면_답변을_저장하지_않는다() {
         // 접수 때(policyRevision=3)는 유효했지만 AI가 답하는 동안 바뀌었다
         when(member.getPolicyRevision()).thenReturn(4);

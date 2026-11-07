@@ -11,7 +11,8 @@
   승인된 직원 공개 가이드 본문으로만 조립한다).
 - 평가는 검색 호출 안에서 함께 끝나므로 따로 호출할 평가는 없다(assessment_pending은 거짓).
 - 안내 뒤 미해결 응답(5.3절 티켓 (c))은 입력의 `resolutionContext`가 미해결이고, 이미 안내한 근거를
-  뺀 검색을 마쳤는데 안내할 수 있는 근거가 없을 때 참이다(`rules.resolution`).
+  뺀 검색을 마쳤는데 안내할 수 있는 근거가 없을 때 참이다(`rules.resolution`). 검색이 상한을 채워
+  이미 안내한 문서가 자리를 차지했을 수 있으면(`crowdedOut`) 다른 근거가 없다고 단정하지 않는다.
 """
 
 from hops_ai.agents.inquiry.asking import answerable, form_question_plan, question_plan
@@ -31,13 +32,18 @@ def pending_problem_refs(state: SupervisorState) -> list[str]:
     return [item["problemRef"] for item in get_problem_progress(state) if item["outcome"] is None]
 
 
-def _latest_search_state(state: SupervisorState, ref: str) -> str | None:
-    states = [
-        result.search.state
+def _latest_knowledge(state: SupervisorState, ref: str) -> KnowledgeResult | None:
+    results = [
+        result
         for result in state["roleResults"].values()
         if isinstance(result, KnowledgeResult) and result.problemRef == ref
     ]
-    return states[-1] if states else None
+    return results[-1] if results else None
+
+
+def _latest_search_state(state: SupervisorState, ref: str) -> str | None:
+    latest = _latest_knowledge(state, ref)
+    return latest.search.state if latest is not None else None
 
 
 def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
@@ -47,6 +53,8 @@ def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
     original = next((item for item in request.problems if item.id == ref), None)
     scopes = request.accessContext.allowedDocumentScopes
     search_state = _latest_search_state(state, ref)
+    latest = _latest_knowledge(state, ref)
+    crowded = latest is not None and latest.crowdedOut
     assessment = state["assessments"].get(ref)
     searched = search_state is not None
     plan = question_plan(state, ref, searched=searched)
@@ -74,6 +82,7 @@ def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
         unresolved_without_other_evidence=(
             is_unresolved(state, ref)
             and search_state in ("FOUND", "EMPTY")
+            and not crowded
             and not answerable(state, ref)
         ),
     )

@@ -35,7 +35,9 @@ def get_handoff_readiness(state: SupervisorState) -> list[HandoffReadiness]:
     missingForHandoff가 비어 있으면 담당자 전달에 필요한 항목이 모두 확보됐다는 뜻이다.
     역할 선택을 정하지 않으며, 사용자가 모른다고 답한 항목은 누락에서 뺀다.
     remainingQuestions는 더 물을 수 있는 질문 수다. 누락 항목이 모두 이미 물은 항목이면
-    질문 한도가 남아도 같은 질문을 다시 할 수 없으므로 0이다.
+    질문 한도가 남아도 같은 질문을 다시 할 수 없으므로 0이다. 양식 필드만 본다: 판정이 지목한
+    확인 항목 질문(`asking.question_plan`)은 문제별 행동 경로(판정 모드)에서만 나가고, 이 계산은
+    역할 단위 결정 경로의 것이라 확인 항목을 세지 않는다.
     """
     no_guide = problems_without_guide(state)
     if not no_guide:
