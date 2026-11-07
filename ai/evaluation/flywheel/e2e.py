@@ -566,6 +566,7 @@ def _execute(args: argparse.Namespace, observer: Observer) -> int:
     )
     started = datetime.now(UTC)
     extra: dict[str, Any] = {}
+    interrupted = False
     try:
         preflight(ctx)
         if args.run and ctx.recorder.count(FAIL) == 0:
@@ -576,7 +577,10 @@ def _execute(args: argparse.Namespace, observer: Observer) -> int:
         ctx.recorder.add("BUDGET", "AI 실행 수 상한", FAIL, str(error))
     except ApiError as error:
         ctx.recorder.add("ERROR", "예기치 않은 API 오류", FAIL, str(error))
-    except Exception as error:  # 모델 비용이 든 실행의 기록을 어떤 오류로도 잃지 않는다.
+    except KeyboardInterrupt:  # 사람이 도중에 멈춰도 이미 쓴 비용의 기록은 남긴다.
+        interrupted = True
+        ctx.recorder.add("INTERRUPT", "사용자가 실행을 중단함", FAIL)
+    except Exception as error:  # 실행이 시작된 뒤에는 어떤 오류로도 기록을 잃지 않는다.
         ctx.recorder.add(
             "ERROR", "예기치 않은 오류", FAIL, f"{type(error).__name__}: {error}"[:300]
         )
@@ -605,6 +609,8 @@ def _execute(args: argparse.Namespace, observer: Observer) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     print(f"결과: {out}  {report['totals']}  AI 실행 {report['aiRunsStarted']}개", file=sys.stderr)
+    if interrupted:
+        return 130
     return 1 if ctx.recorder.count(FAIL) else 0
 
 

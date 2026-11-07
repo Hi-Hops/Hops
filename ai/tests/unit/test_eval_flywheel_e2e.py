@@ -4,6 +4,7 @@
 """
 
 import json
+import os
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,7 @@ from evaluation.flywheel.e2e import (
     evaluate_followup,
 )
 from evaluation.flywheel.e2e_api import Api, ApiError, wait_until
-from evaluation.flywheel.e2e_observer import QuestionMessage, like_patterns
+from evaluation.flywheel.e2e_observer import Observer, QuestionMessage, like_patterns
 
 BUNDLE = load_bundle()
 CASE_ID = "11111111-1111-4111-8111-111111111111"
@@ -466,7 +467,15 @@ def test_followup_searches_evidence_with_the_document_id_after_approval() -> Non
 
 
 def test_like_patterns_escape_wildcards_and_drop_empty_values() -> None:
-    assert like_patterns(["a%b", "c_d", "", "e\\f"]) == ["%a\\%b%", "%c\\_d%", "%e\\\\f%"]
+    assert like_patterns(["a%b", "c_d", ""]) == ["%a\\%b%", "%c\\_d%"]
+
+
+def test_like_patterns_also_search_the_json_escaped_form() -> None:
+    """jsonb::text 열은 따옴표와 줄바꿈이 이스케이프된 채 저장되므로 그 형태도 찾는다."""
+    patterns = like_patterns(['제목 "상태" 조건\n끝'])
+
+    assert '%제목 "상태" 조건\n끝%' in patterns
+    assert '%제목 \\\\"상태\\\\" 조건\\\\n끝%' in patterns
 
 
 # 오류가 나도 보고서는 남는다
@@ -483,16 +492,23 @@ class _Boom:
 
 
 class _Seeded(FakeObserver):
-    closed = False
+    created: list["_Seeded"] = []
 
     def __init__(self, *_: Any) -> None:
         super().__init__([])
+        self.closed = False
+        type(self).created.append(self)
 
     def counts(self) -> dict[str, int]:
         return {"members": 8, "cases": 6, "symptoms": 5}
 
     def close(self) -> None:
-        type(self).closed = True
+        self.closed = True
+
+
+class _Interrupted(_Boom):
+    def login(self, *_: Any) -> None:
+        raise KeyboardInterrupt
 
 
 def test_unexpected_error_still_writes_the_report_and_closes_the_observer(
@@ -502,6 +518,7 @@ def test_unexpected_error_still_writes_the_report_and_closes_the_observer(
     monkeypatch.setenv("HOPS_E2E_PASSWORD", "pw")
     monkeypatch.setattr(e2e, "Observer", _Seeded)
     monkeypatch.setattr(e2e, "Api", _Boom)
+    _Seeded.created.clear()
     out = tmp_path / "report.json"
 
     code = e2e.main(["--preflight", "--out", str(out)])
@@ -511,4 +528,69 @@ def test_unexpected_error_still_writes_the_report_and_closes_the_observer(
     assert any(
         step["id"] == "ERROR" and "ConnectError" in step["detail"] for step in report["steps"]
     )
-    assert _Seeded.closed
+    assert [observer.closed for observer in _Seeded.created] == [True]
+
+
+def test_ctrl_c_still_writes_the_report_and_exits_130(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOPS_E2E_DB_DSN", "postgresql://unused")
+    monkeypatch.setenv("HOPS_E2E_PASSWORD", "pw")
+    monkeypatch.setattr(e2e, "Observer", _Seeded)
+    monkeypatch.setattr(e2e, "Api", _Interrupted)
+    _Seeded.created.clear()
+    out = tmp_path / "report.json"
+
+    code = e2e.main(["--preflight", "--out", str(out)])
+
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert code == 130
+    assert any(step["id"] == "INTERRUPT" for step in report["steps"])
+    assert [observer.closed for observer in _Seeded.created] == [True]
+
+
+# 실제 PostgreSQL에서 mentions 쿼리 확인 (선택)
+
+
+def test_mentions_query_finds_json_escaped_and_plain_values_in_postgres() -> None:
+    """임시 테이블만 만들어 실제 LIKE ANY 쿼리를 확인한다. DSN이 없으면 건너뛴다."""
+    dsn = os.environ.get("HOPS_E2E_TEST_DSN")
+    if not dsn:
+        pytest.skip("HOPS_E2E_TEST_DSN이 설정되지 않았다")
+    observer = Observer(dsn)
+    inquiry = "11111111-1111-4111-8111-111111111111"
+    title = '문서 "상태" 조건\n좁음'
+    plain = '직원 메시지 "인용" 포함'
+    # 읽기 전용 세션 기본값을 이 연결에서만 풀고 임시 테이블에만 쓴다(연결을 닫으면 사라진다).
+    observer._conn.execute("SET default_transaction_read_only = off")
+    for statement in (
+        "CREATE TEMP TABLE inquiry_problem (id uuid, inquiry_id uuid)",
+        "CREATE TEMP TABLE standard_request (inquiry_problem_id uuid, related_knowledge jsonb)",
+        "CREATE TEMP TABLE agent_run (inquiry_id uuid, task text, result jsonb)",
+        "CREATE TEMP TABLE message "
+        "(inquiry_id uuid, sender_type text, content text, payload jsonb)",
+    ):
+        observer._conn.execute(statement)
+    problem = "22222222-2222-4222-8222-222222222222"
+    observer._conn.execute(
+        "INSERT INTO inquiry_problem VALUES (%s::uuid, %s::uuid)", (problem, inquiry)
+    )
+    observer._conn.execute(
+        "INSERT INTO standard_request VALUES (%s::uuid, %s::jsonb)",
+        (problem, json.dumps([{"title": title, "documentId": DOCUMENT_ID}])),
+    )
+    observer._conn.execute(
+        "INSERT INTO message VALUES (%s::uuid, 'AI', %s, '{}'::jsonb)", (inquiry, plain)
+    )
+    try:
+        by_title = observer.mentions(inquiry, [title])
+        by_document = observer.mentions(inquiry, [DOCUMENT_ID])
+        by_message = observer.mentions(inquiry, [plain])
+        wildcard = observer.mentions(inquiry, ["문서 _상태_ 조건"])
+        nothing = observer.mentions(inquiry, ["", "없는 값"])
+    finally:
+        observer.close()
+
+    assert by_title["related_knowledge"] and by_document["related_knowledge"]
+    assert by_message["employee_message"]
+    assert not any(wildcard.values()) and not any(nothing.values())

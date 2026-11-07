@@ -5,6 +5,7 @@
 업무 데이터를 바꾸지 않으며, 관찰한 값을 AI나 Spring의 입력으로 되돌리지 않는다.
 """
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -14,12 +15,20 @@ from psycopg.rows import dict_row
 
 
 def like_patterns(needles: Sequence[str]) -> list[str]:
-    """LIKE 패턴 목록. 빈 값은 버리고 %·_·\\는 글자 그대로 찾도록 이스케이프한다."""
-    return [
-        "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        for needle in needles
-        if needle
-    ]
+    """LIKE 패턴 목록. 빈 값은 버리고 %·_·\\는 글자 그대로 찾도록 이스케이프한다.
+
+    `message.content`는 원문으로, `jsonb::text` 열은 JSON 이스케이프(따옴표 `\\"`, 줄바꿈 `\\n`)된
+    문자열로 저장된다. 그래서 값마다 원문과 JSON 이스케이프한 형태를 모두 찾는다.
+    """
+    patterns: list[str] = []
+    for needle in needles:
+        if not needle:
+            continue
+        for form in (needle, json.dumps(needle, ensure_ascii=False)[1:-1]):
+            escaped = form.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            if f"%{escaped}%" not in patterns:
+                patterns.append(f"%{escaped}%")
+    return patterns
 
 
 @dataclass(frozen=True)
