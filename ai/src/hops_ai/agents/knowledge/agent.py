@@ -4,8 +4,8 @@
 문의 전체의 주제일 때만 요약과 사용자 원문을 함께 쓰고, 한 문의에 다른 문제가 함께 있으면 그
 문제의 단어로 검색이 오염되므로 원문과 모델이 쓴 요약은 쓰지 않고 검증된 상세 값만 쓴다.
 검색 범위(공개 범위·시스템)는 서버가 확정한 접근 문맥에서만 가져온다. 안내문은 근거 문서의
-승인된 본문을 그대로 쓰고 출처 제목만 덧붙인다. 모델이 문구를 새로 쓰지 않으므로 안내가
-근거와 어긋나거나 근거 밖 내용을 담을 수 없다.
+승인된 본문(excerpt_guides를 켜면 그중 문의에 답하는 문단)을 그대로 쓰고 출처 제목만 덧붙인다.
+모델이 문구를 새로 쓰지 않으므로 안내가 근거와 어긋나거나 근거 밖 내용을 담을 수 없다.
 
 - 검색 0건(EMPTY)에는 안내를 만들지 않고, 검색 오류(ERROR)를 0건으로 바꾸지 않는다.
 - 안내는 직원 공개 GUIDE 근거가 있을 때만 제안한다. 담당자 전용 자료는 근거에 포함될 수
@@ -45,6 +45,30 @@ from hops_ai.agents.knowledge.assessment import (
     asked_checks,
     build_user_payload,
     to_assessment,
+)
+from hops_ai.agents.knowledge.excerpt import (
+    MAX_OUTPUT_TOKENS as EXCERPT_MAX_OUTPUT_TOKENS,
+)
+from hops_ai.agents.knowledge.excerpt import (
+    PROMPT_VERSION as EXCERPT_PROMPT_VERSION,
+)
+from hops_ai.agents.knowledge.excerpt import (
+    RESERVED_CALLS as EXCERPT_RESERVED_CALLS,
+)
+from hops_ai.agents.knowledge.excerpt import (
+    SOURCE_PREFIX,
+    ExcerptDecision,
+    GuideExcerptDraft,
+    InvalidExcerpt,
+    assemble,
+    guide_candidates,
+    question_text,
+)
+from hops_ai.agents.knowledge.excerpt import (
+    SYSTEM_PROMPT as EXCERPT_SYSTEM_PROMPT,
+)
+from hops_ai.agents.knowledge.excerpt import (
+    build_user_payload as build_excerpt_payload,
 )
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
@@ -100,14 +124,20 @@ class SearchKnowledgeAgent:
         *,
         assess_evidence: bool = False,
         relation_source: RelationSource | None = None,
+        excerpt_guides: bool = False,
     ) -> None:
         """assess_evidence가 참이면 검색 결과의 충분성 판정을 함께 만든다(문제당 모델 1회).
 
         relation_source를 주면 증상 문의의 검색에 관계 조회(확인 항목)를 더한다. 모델 호출은 없다.
+
+        excerpt_guides가 참이면 안내문을 승인 본문 전체가 아니라 문의에 답하는 문단만 골라
+        만든다(안내 후보가 있을 때 모델 1회, excerpt.py). 맞는 문서가 없다고 판단하면 안내를
+        만들지 않는다. 모델 오류·검증 거부·예산 부족이면 본문 전체로 안내한다(발췌 전 동작).
         """
         self._source = source
         self._assess_evidence = assess_evidence
         self._relation_source = relation_source
+        self._excerpt_guides = excerpt_guides
 
     async def run(self, call: RoleRequest, services: SharedServices) -> RoleResponse:
 
@@ -138,6 +168,10 @@ class SearchKnowledgeAgent:
         evidence = tuple(hit.evidence for hit in hits)
         # 관계를 먼저 조회한다: 판정이 확인 항목을 부족한 정보로 지목할 수 있게 입력으로 준다.
         relations = await self._look_up_relations(call, target, services)
+        # 판정을 먼저 한다: 판정이 인용한 근거로만 발췌해야 판정과 안내가 같은 문서를 가리킨다
+        assessment = await self._assess(
+            target, hits, relations, services, asked_checks(state, target.problemRef, relations)
+        )
         result = KnowledgeResult(
             invocationId=call.invocation_id,
             search=(
@@ -145,13 +179,11 @@ class SearchKnowledgeAgent:
                 if hits
                 else SearchResult(state="EMPTY", evidence=[], error=None)
             ),
-            guide=_guide_for(state, call, target, hits),
+            guide=await self._guide_for(state, call, target, hits, services, assessment),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
             crowdedOut=crowded,
-            assessment=await self._assess(
-                target, hits, relations, services, asked_checks(state, target.problemRef, relations)
-            ),
+            assessment=assessment,
             relations=relations,
         )
         return RoleResponse(
@@ -159,6 +191,76 @@ class SearchKnowledgeAgent:
             authorized_refs=tuple(hit.reference for hit in hits),
             verified_evidence=evidence,
         )
+
+    async def _guide_for(
+        self,
+        state: SupervisorState,
+        call: RoleRequest,
+        target: ProblemProposal,
+        hits: list[KnowledgeHit],
+        services: SharedServices,
+        assessment: Assessment | None = None,
+    ) -> GuideProposal | None:
+        """이 검색 결과로 만들 수 있는 안내. 문제별 행동 경로에서는 다른 문제의 안내를 덮어쓰지
+        않는다.
+
+        응답 계약이 안내를 하나만 허용하므로(`AiResult.guide`) 안내 칸이 다른 문제로 이미 차 있으면
+        이 문제는 안내를 만들지 않는다. 그 문제는 답변할 수 없는 것으로 계산돼 질문이나 담당자
+        검토로 간다.
+
+        판정이 근거를 인용했으면 그 근거만 발췌 후보로 쓴다. 판정과 다른 문서를 발췌하면 판정이
+        충분해도 답할 수 없는 것으로 계산돼(rules.assessment.answerable) 호출만 늘어난다.
+        """
+        existing = state["guide"]
+        if call.targets and existing is not None and existing.problemRef != target.problemRef:
+            return None
+        if self._excerpt_guides:
+            supported = set(assessment.supportingEvidenceIds) if assessment else set()
+            candidates = [hit for hit in hits if not supported or hit.evidence.id in supported]
+            decision = await self._excerpt(target, candidates, services)
+            if decision is not None:
+                return decision.guide
+        return _guide(target, hits)
+
+    async def _excerpt(
+        self, target: ProblemProposal, hits: list[KnowledgeHit], services: SharedServices
+    ) -> ExcerptDecision | None:
+        """문의에 답하는 문단만 고른 안내. 만들지 못하면 None(본문 전체로 대신한다).
+
+        후보가 없으면 모델을 부르지 않는다. 예산·취소·기한 예외는 발췌 실패가 아니라 실행 실패이므로
+        그대로 전달한다.
+        """
+        candidates = guide_candidates(hits)
+        if not candidates:
+            return None
+        budget = services.runtime.budget
+        # 발췌가 실행 예산을 다 써서 이후의 필수 호출(판단·질문·티켓)을 막지 않게 한다.
+        if budget.max_llm_calls - budget.llm_calls_used < 1 + EXCERPT_RESERVED_CALLS:
+            return None
+        try:
+            response = await services.llm.generate(
+                LLMRequest(
+                    messages=[
+                        LLMMessage("system", EXCERPT_SYSTEM_PROMPT),
+                        LLMMessage(
+                            "user",
+                            build_excerpt_payload(
+                                question_text(target, _detail_values(target)), candidates
+                            ),
+                        ),
+                    ],
+                    response_model=GuideExcerptDraft,
+                    max_output_tokens=EXCERPT_MAX_OUTPUT_TOKENS,
+                    prompt_version=EXCERPT_PROMPT_VERSION,
+                )
+            )
+        except (OutputRejected, TransientError):
+            return None
+        services.runtime.ensure_active()
+        try:
+            return assemble(target.problemRef, response.parsed, candidates, MAX_GUIDE_CHARS)
+        except (InvalidExcerpt, ValidationError):
+            return None
 
     async def _assess(
         self,
@@ -320,20 +422,6 @@ def _targeted_search(
     if query is None:
         raise OutputRejected("아직 하지 않은 새 질의가 없다")
     return problem, query
-
-
-def _guide_for(
-    state: SupervisorState, call: RoleRequest, target: ProblemProposal, hits: list[KnowledgeHit]
-) -> GuideProposal | None:
-    """이 검색 결과로 만들 수 있는 안내. 문제별 행동 경로에서는 다른 문제의 안내를 덮어쓰지 않는다.
-
-    응답 계약이 안내를 하나만 허용하므로(`AiResult.guide`) 안내 칸이 다른 문제로 이미 차 있으면 이
-    문제는 안내를 만들지 않는다. 그 문제는 답변할 수 없는 것으로 계산돼 질문이나 담당자 검토로 간다.
-    """
-    existing = state["guide"]
-    if call.targets and existing is not None and existing.problemRef != target.problemRef:
-        return None
-    return _guide(target, hits)
 
 
 def candidate_queries(
@@ -499,7 +587,7 @@ def _guide(target: ProblemProposal, hits: list[KnowledgeHit]) -> GuideProposal |
     """
     for hit in hits:
         if hit.evidence.kind == "GUIDE" and hit.evidence.accessScope == "EMPLOYEE":
-            message = f"{hit.content}\n\n참고 자료: {hit.evidence.title}"
+            message = f"{hit.content}\n\n{SOURCE_PREFIX}{hit.evidence.title}"
             if len(message) > MAX_GUIDE_CHARS:
                 return None
             return GuideProposal(

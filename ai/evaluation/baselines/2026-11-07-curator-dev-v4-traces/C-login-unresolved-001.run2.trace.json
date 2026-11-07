@@ -1,0 +1,253 @@
+{
+ "format": 1,
+ "scenario_id": "C-login-unresolved-001",
+ "request": {
+  "contractVersion": "hops-system-1",
+  "runId": "300a51f3-a1e5-5d10-aadd-fe9c299fb0c2",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "00f1e68a-076a-5d4c-b765-2165c9b5cedd",
+  "inquiryVersion": 1,
+  "answerMessageId": null,
+  "problemIds": [
+   "0eb9b8a5-7335-5502-84cf-4d2a28277147"
+  ],
+  "messages": [
+   {
+    "id": "61b7f21e-8344-589c-a728-8ceca308b87e",
+    "revision": 1,
+    "sequenceNo": 1,
+    "sender": "USER",
+    "content": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아와요.",
+    "problemIds": [
+     "0eb9b8a5-7335-5502-84cf-4d2a28277147"
+    ],
+    "createdAt": "2026-11-02T00:01:00Z"
+   },
+   {
+    "id": "dfbb1169-a1ed-5cf4-9ee1-f4384d2c8304",
+    "revision": 1,
+    "sequenceNo": 2,
+    "sender": "AI",
+    "content": "로그인이 반복되면 불편하시겠어요. 확인한 내용을 정리해 공통 로그인 담당자에게 접수했습니다.",
+    "problemIds": [
+     "0eb9b8a5-7335-5502-84cf-4d2a28277147"
+    ],
+    "createdAt": "2026-11-02T00:02:00Z"
+   }
+  ],
+  "problems": [
+   {
+    "id": "0eb9b8a5-7335-5502-84cf-4d2a28277147",
+    "summary": "사내 포털 로그인 후 로그인 화면이 반복됨",
+    "intent": "OBSERVED_SYMPTOM",
+    "processingType": "INVESTIGATION",
+    "reportedSystemId": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+    "reportedFeatureId": null,
+    "state": "WAITING_CONFIRMATION",
+    "questionCount": 0,
+    "askedFields": [],
+    "standardRequest": {
+     "summary": "사내 포털에 로그인해도 다시 로그인 화면으로 돌아온다.",
+     "confirmedFacts": [
+      {
+       "text": "로그인 뒤 다시 로그인 화면으로 돌아온다.",
+       "sourceMessageIds": [
+        "61b7f21e-8344-589c-a728-8ceca308b87e"
+       ],
+       "knowledgeEvidenceIds": []
+      }
+     ],
+     "assumptions": [],
+     "unknowns": [
+      "사용 중인 브라우저"
+     ],
+     "responsibleSystemCandidateId": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+     "responsibilityEvidenceIds": [],
+     "details": {
+      "taskOrScreen": "사내 포털 로그인",
+      "requestedAccess": null,
+      "businessPurpose": null,
+      "expectedBehavior": "로그인 뒤 포털 화면이 열림",
+      "actualBehavior": "다시 로그인 화면으로 돌아옴",
+      "occurredAt": null,
+      "currentWorkflow": null,
+      "desiredChange": null,
+      "acceptanceCriteria": []
+     },
+     "knowledge": []
+    },
+    "resolutionContext": null
+   }
+  ],
+  "systems": [
+   {
+    "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+    "code": "COMMON_LOGIN",
+    "name": "공통 로그인",
+    "features": [
+     {
+      "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+      "name": "로그인·SSO"
+     },
+     {
+      "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+      "name": "계정 접근"
+     },
+     {
+      "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+      "name": "권한 신청"
+     }
+    ]
+   }
+  ],
+  "accessContext": {
+   "actorId": "1165df37-928f-5f72-86a3-0237b0bcbb81",
+   "purpose": "CASE_DRAFT",
+   "systemIds": [
+    "8ae35be5-1857-58c0-a478-e05b4217ff95"
+   ],
+   "allowedDocumentScopes": [
+    "EMPLOYEE",
+    "SYSTEM_STAFF"
+   ],
+   "policyRevision": 1,
+   "retrievalScopes": null
+  },
+  "existingWorkItems": [
+   {
+    "workItemId": "0eb9b8a5-7335-5502-84cf-4d2a28277147",
+    "problemId": "0eb9b8a5-7335-5502-84cf-4d2a28277147",
+    "inquiryVersion": 1,
+    "outcome": "STORED",
+    "ticketId": "2b7138e6-18b2-59f4-93e5-0aacc1d2ff65"
+   }
+  ],
+  "workRecord": {
+   "id": "01e669b3-f533-58b4-9f7d-04fbc18d114a",
+   "ticketId": "2b7138e6-18b2-59f4-93e5-0aacc1d2ff65",
+   "problemId": "0eb9b8a5-7335-5502-84cf-4d2a28277147",
+   "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+   "kind": "VERIFIED_RESOLUTION",
+   "action": "문의자에게 포털 도메인의 쿠키를 허용하도록 안내했다.",
+   "verification": "담당자가 안내 직후 문의자 화면에서 로그인 유지를 확인했다.",
+   "createdAt": "2026-11-02T02:00:00Z",
+   "resolutionRequestId": "52c4ef6b-4427-5505-a925-3d9095c69734",
+   "confirmationState": "UNRESOLVED",
+   "confirmedCause": "브라우저가 쿠키를 차단해 세션이 저장되지 않았다.",
+   "appliesToSystemVersion": null,
+   "relatedRecords": [
+    {
+     "id": "b7d94fb5-c567-5b86-b6be-1354968dc582",
+     "kind": "PROGRESS",
+     "action": "단말의 날짜·시간 설정을 확인했고 정상이었다.",
+     "verification": null,
+     "confirmedCause": null,
+     "appliesToSystemVersion": null,
+     "createdAt": "2026-11-02T01:00:00Z"
+    }
+   ],
+   "resolutionHistory": [],
+   "consultedKnowledge": [],
+   "linkCandidates": [
+    {
+     "id": "bed926e5-95ef-51ad-a97c-42175e33a5e8",
+     "kind": "SYMPTOM",
+     "label": "로그인했는데 다시 로그인 화면으로 돌아옴",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "a4498651-19cb-59a5-8eff-8d15abb911ab",
+     "kind": "SYMPTOM",
+     "label": "권한 신청이 오래 승인되지 않음",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "a9e27417-a5c2-52eb-a94d-46187438e8e1",
+     "kind": "CHECK_ITEM",
+     "label": "브라우저의 쿠키 차단 설정 여부",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "21874d96-aaf7-5c39-8193-2e56ed9ff053",
+     "kind": "CHECK_ITEM",
+     "label": "다른 브라우저나 시크릿 창에서도 같은지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "4a778d21-85a4-5b41-a29c-3496d4a66b82",
+     "kind": "CHECK_ITEM",
+     "label": "단말의 날짜·시간 설정이 맞는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "ba6502bf-9f97-5cd9-ad6e-52d519e32fec",
+     "kind": "CHECK_ITEM",
+     "label": "신청한 권한 종류(읽기·쓰기·관리)",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "cd063c6a-b98e-5c6f-bb1e-943d256f6067",
+     "kind": "CHECK_ITEM",
+     "label": "사내 포털에서 직접 로그인하면 되는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "abc1ab88-b3e0-5fab-b3ba-f5934df194b8",
+     "kind": "CHECK_ITEM",
+     "label": "어느 시스템에서 로그인 화면이 반복되는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "9a1c525d-db15-5000-8d2c-4386cf968cc6",
+     "kind": "CHECK_ITEM",
+     "label": "소속 팀장 확인을 요청했는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    }
+   ]
+  },
+  "expiresAt": "2026-11-07T08:54:28Z",
+  "limits": {
+   "maxModelCalls": 8,
+   "maxInputTokens": 60000,
+   "maxOutputTokens": 12000,
+   "maxToolCalls": 10,
+   "maxRetries": 2
+  }
+ },
+ "result": {
+  "contractVersion": "hops-system-1",
+  "runId": "300a51f3-a1e5-5d10-aadd-fe9c299fb0c2",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "00f1e68a-076a-5d4c-b765-2165c9b5cedd",
+  "inquiryVersion": 1,
+  "status": "SUCCEEDED",
+  "answer": null,
+  "problemProposals": [],
+  "questions": [],
+  "guide": null,
+  "ticketProposals": [],
+  "caseProposal": {
+   "reusable": false,
+   "title": null,
+   "action": null,
+   "verification": null,
+   "applicability": null,
+   "limitations": [],
+   "appliesToSystemVersion": null,
+   "accessScope": null,
+   "sourceMessageIds": [],
+   "entityLinks": [],
+   "problemStatement": null
+  },
+  "evidence": [],
+  "error": null,
+  "requiresFollowUp": false,
+  "ticketCreationResults": []
+ },
+ "model_calls": 0,
+ "input_tokens": 0,
+ "output_tokens": 0,
+ "elapsed_seconds": 0.004521667025983334,
+ "error": null,
+ "failure_detail": null
+}

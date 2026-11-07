@@ -54,4 +54,6 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Curator 상한 값 계약 테스트가 읽는 문서. 문서만 바뀌어도 테스트가 UP-TO-DATE로 건너뛰지 않게 입력으로 등록한다.
+    inputs.file("../../../contracts/agents/README.md")
 }

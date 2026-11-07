@@ -52,7 +52,7 @@ tests/
 └── integration/              골격 앱의 생존·준비 상태와 옛 API 비노출 검증
 ```
 
-`src/` 밖의 `evaluation/`은 정리 전후의 동작을 같은 기준으로 비교하는 평가 하네스다(안전 성질 P1~P11 검사기, 시나리오 재생기, 규칙 사용자 모사). 운영 코드와 실행 이미지에 들어가지 않는다. 사용법과 한계는 [evaluation/README.md](evaluation/README.md)를 본다. Fake 모델 결과는 실제 모델 품질이 아니다.
+`src/` 밖의 `evaluation/`은 정리 전후의 동작을 같은 기준으로 비교하는 평가 하네스다(안전 성질 P1~P11 검사기, 시나리오 재생기, 규칙 사용자 모사). 운영 코드와 실행 이미지에 들어가지 않는다. 사용법과 한계는 [evaluation/README.md](evaluation/README.md)를 본다. Curator(사례 초안·관계 판단)는 별도 평가(`evaluation/curator/`, 성질 C1~C5·CB1~CB4)를 둔다. Fake 모델 결과는 실제 모델 품질이 아니다.
 
 `contracts/wire.py`는 상담·사례 초안 실행 요청과 결과·이벤트의 전송 형식 및 일부 조건을 검증한다. 내부 실행 API는 이 요청 형식과 저장된 snapshot을 검증하며, 실행 파이프라인이 주입된 경우에만 새 실행을 접수한다. 실행기는 파이프라인 결과를 같은 run·문의·버전의 `AiResult`로 다시 검증한 뒤에만 저장한다. 참조의 실제 존재·현재 권한·질문 한도 누적·실행 간 이벤트 순서 검증은 실행기와 Spring에서 별도로 구현해야 한다. 나머지 내부 자료형과 검색 인터페이스도 Spring의 권한 검증·승인 상태를 대신하지 않는다.
 
@@ -176,7 +176,7 @@ python3 -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token
 
 ### Knowledge 개발용 고정 자료
 
-`ai/.env`에 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`를 추가하면 `real` 모드에서 Knowledge 역할이 켜진다(Compose도 같은 이름으로 AI 컨테이너에 전달한다). `spring`이면 Spring 내부 API(`/internal/v2/runs/{runId}/knowledge-searches`)로 DB의 승인 문서를 읽는다. `HOPS_AI_SPRING_BASE_URL`과 `SPRING_SERVICE_TOKEN`이 없으면 시작을 거부하고, 접근 범위는 요청이 아니라 Spring이 실행에서 확정한다. 검색 0건은 빈 결과, 검색 실패·접근 범위 초과(`DENIED`)는 검색 오류(`RetrievalUnavailable`)이며 빈 결과로 바꾸지 않는다. 호출마다 실행 전체 도구 호출 한도(`toolCalls`)를 소비하고 제한 시간은 `HOPS_AI_KNOWLEDGE_HTTP_TIMEOUT_SECONDS`(기본 5초)와 남은 기한 중 짧은 쪽이다. 관계 조회용 `SpringRelationSource`(증상→확인 항목→질문 문구)는 클라이언트까지만 있고 상담 흐름에는 연결하지 않았다. `fixture`는 테스트·오프라인용이다. 기본값 `none`에서는 Knowledge가 연결 전 자리로 남고 Inquiry도 기존 양식 규칙을 그대로 쓴다. 설정을 바꾸면 AI를 다시 시작해야 한다.
+`ai/.env`에 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`를 추가하면 `real` 모드에서 Knowledge 역할이 켜진다(Compose도 같은 이름으로 AI 컨테이너에 전달한다). `spring`이면 Spring 내부 API(`/internal/v2/runs/{runId}/knowledge-searches`)로 DB의 승인 문서를 읽는다. `HOPS_AI_SPRING_BASE_URL`과 `SPRING_SERVICE_TOKEN`이 없으면 시작을 거부하고, 접근 범위는 요청이 아니라 Spring이 실행에서 확정한다. 검색 0건은 빈 결과, 검색 실패·접근 범위 초과(`DENIED`)는 검색 오류(`RetrievalUnavailable`)이며 빈 결과로 바꾸지 않는다. 호출마다 실행 전체 도구 호출 한도(`toolCalls`)를 소비하고 제한 시간은 `HOPS_AI_KNOWLEDGE_HTTP_TIMEOUT_SECONDS`(기본 5초)와 남은 기한 중 짧은 쪽이다. 관계 조회용 `SpringRelationSource`(증상→확인 항목→질문 문구)는 클라이언트까지만 있고 상담 흐름에는 연결하지 않았다. `fixture`는 테스트·오프라인용이다. 기본값 `none`에서는 Knowledge가 연결 전 자리로 남고 Inquiry도 기존 양식 규칙을 그대로 쓴다. 안내문은 `HOPS_AI_GUIDE_EXCERPT`(기본 `true`)가 켜져 있으면 승인 본문을 빈 줄 기준 문단으로 나눠 모델이 문의에 답하는 문서 하나와 문단 번호만 고르고, 코드가 그 문단을 원래 순서대로 이어 만든다(`agents/knowledge/excerpt.py`). 답하는 문서가 없다고 판단하면 안내하지 않고, 모델 오류·검증 거부·예산 부족이면 본문 전체로 안내한다. Spring은 저장할 때 안내문의 각 문단이 공개 근거의 승인 본문에 있는지 다시 확인한다. 설정을 바꾸면 AI를 다시 시작해야 한다.
 
 - 자료는 코드에 들어 있는 합성 가이드·점검 문서 몇 건이며 `origin=SYNTHETIC`으로 표시된다. 사용법 안내 흐름을 확인하는 용도이고, 검색 품질이나 운영 지식을 뜻하지 않는다. 실제 pgvector·Neo4j 검색과 Spring 권한 서버 연동은 이 설정에 포함되지 않는다.
 - 검색은 서버가 허용한 문서 범위와 문제의 보고 시스템으로 먼저 좁힌 뒤 키워드 일치 수로 순위를 매긴다. 질의는 그 문제 자신의 정보로 만든다. 문제가 하나뿐일 때는 요약, 확인한 상세 값, 최근 사용자 원문을 함께 쓰고, 문제가 여럿이면 다른 문제의 단어가 섞이지 않게 원문과 모델이 쓴 요약을 쓰지 않고 사용자 인용으로 검증된 상세 값만 쓴다. 직원 대상 가이드(`EMPLOYEE`)만 사용자 안내가 되며 담당자 전용 문서는 안내로 쓰지 않는다.
@@ -276,7 +276,7 @@ DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 
 
 - **Inquiry·Ticket:** 의도와 내부 처리 유형을 분리한다. 질문 묶음은 독립 문제당 최대 5회다. 보고 시스템·책임 시스템 후보·근거와 미확인을 보존한다. 구체 질문 전이·서버 저장 검증은 구현 전이다.
 - **Knowledge:** 권한이 허용된 가이드·업무 정책·런북·승인 사례를 검색한다. 조건부 분석을 포함하며 그래프 연결만으로 원인을 확정하지 않는다. 검색 0건과 검색 오류를 구분한다.
-- **Curator·색인:** 처리 기록으로 초안을 제안한다(`agents/curator/`, 프롬프트 `curator-draft-v1`). 문의자가 미해결로 답한 기록은 모델 호출 없이 사례 없음이며, 모델·형식 오류와 USER 원문에서 확인되는 출처가 없는 재사용 초안은 사례 없음으로 바꾸지 않고 실패한다. 증상·점검 엔티티 연결(`ADDRESSES`·`USES_CHECK`)은 그래프 검색 연결 후 추가한다. 문의자 해결 확인·시스템 담당자 승인과 같은 승인 버전의 양쪽 반영 성공 전에는 사례를 어느 검색 경로에서도 공개하지 않는다. 업무 승인·공개 확정은 Spring의 책임이다.
+- **Curator·색인:** 처리 기록으로 초안을 제안한다(`agents/curator/`, 프롬프트 `curator-draft-v4`). 입력(`WorkRecordContext`)은 같은 티켓의 이전 처리 기록·해결 확인 이력·상담에 쓴 근거와 AI 질문·답변을 가산 필드로 받아 초안 프롬프트의 맥락으로 쓰며(#198), 사례 출처는 사용자 원문만 허용한다. 문의자가 미해결로 답한 기록은 모델 호출 없이 사례 없음이며, 모델·형식 오류와 USER 원문에서 확인되는 출처가 없는 재사용 초안은 사례 없음으로 바꾸지 않고 실패한다. 증상·확인 항목 연결(`ADDRESSES`·`USES_CHECK`)은 Spring이 보낸 후보(`linkCandidates`) 안에서만 모델이 고르고(`curator-link-v1`) 근거 인용을 코드가 대조한다. 후보가 없으면 모델을 부르지 않고 `APPLIES_TO`만 만든다. `CASE_DRAFT`는 Supervisor 모델을 부르지 않는다. 문의자 해결 확인·시스템 담당자 승인과 같은 승인 버전의 양쪽 반영 성공 전에는 사례를 어느 검색 경로에서도 공개하지 않는다. 업무 승인·공개 확정은 Spring의 책임이다.
 - **공통:** Python은 업무 DB에 직접 쓰지 않는다. 실행/SSE·오류·인증·멱등성·취소·버전·공개 검증은 공통·에이전트 계약의 채택값을 적용하고 생산자·소비자의 실제 연결을 검증한다. 읽기 전용 도구 Mock은 해당 기능 명세에 따라 구현하며 실제 운영 관측과 구분한다.
 
 먼저 [가상 기업 명세](../docs/knowledge/VIRTUAL_COMPANY.md)와 [데이터 구축 계획](../docs/knowledge/DATASETS.md)으로 소량 데이터를 검토한다. [에이전트 계약](../contracts/agents/README.md)과 [목표 공통 계약](../specs/contracts/TARGET_CONTRACT.md)을 구체화한 뒤 검색·실행·역할을 연결한다. Curator 담당 범위는 관련 담당자와 합의한다.

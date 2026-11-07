@@ -143,8 +143,100 @@ class InquiryAnswerFlowTest {
         }
     }
 
+    @Test
+    void 승인_본문에서_고른_문단과_출처_줄로_만든_안내를_저장한다() throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        var snapshot = guideSnapshot(runId, inquiryId);
+        // 승인 본문은 문단 셋이고 안내는 그중 ANSWER 문단만 골랐다
+        String content = "## 목적\n문서 조회를 안내한다.\n\n" + ANSWER + "\n\n## 참고\n보존 기간이 지난 문서는 보이지 않는다.";
+        jdbc.update("UPDATE knowledge_document_version SET content=?, content_digest=? WHERE knowledge_document_id=?", content,
+                java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8))), guideDocument);
+        String text = ANSWER + "\n\n참고 자료: 가상 직원 가이드";
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        result.put("answer", text);
+        ((tools.jackson.databind.node.ObjectNode) result.path("guide")).put("messageText", text);
+        when(client.snapshot(runId.toString())).thenReturn(snapshot);
+
+        dispatcher.deliver(runId);
+
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+        var messages = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("items");
+        assertThat(messages.get(1).path("content").asString()).isEqualTo(text);
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"withdrawn", "uncited", "unknown-problem", "unsupported-system", "staff", "null-details", "conflicting-ticket"})
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"withdrawn", "deleted", "staff"})
+    void 안내_뒤_근거를_볼_수_없게_되면_문의자_화면에서_안내_본문과_확인_요약을_숨긴다(String change) throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        when(client.snapshot(runId.toString())).thenReturn(guideSnapshot(runId, inquiryId));
+        dispatcher.deliver(runId);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+
+        switch (change) {
+            case "withdrawn" -> jdbc.update("UPDATE knowledge_document SET review_status='PENDING' WHERE id=?", guideDocument);
+            case "deleted" -> jdbc.update("UPDATE knowledge_document SET deleted_at=now() WHERE id=?", guideDocument);
+            case "staff" -> jdbc.update("UPDATE knowledge_document SET access_level='STAFF' WHERE id=?", guideDocument);
+            default -> throw new IllegalArgumentException(change);
+        }
+
+        var messages = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("items");
+        String shown = messages.get(1).path("content").asString();
+        assertThat(shown).doesNotContain(ANSWER).contains("안내 내용을 숨겼어요");
+        var problem = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("problems").get(0);
+        assertThat(problem.path("guide").path("evidence").isEmpty()).isTrue();
+        assertThat(problem.path("activeResolutionRequest").path("resultSummary").asString())
+                .doesNotContain(ANSWER).contains("안내 내용을 숨겼어요");
+        // 확인 요청을 직접 조회해도 요약을 숨긴다
+        String requestPath = "/api/v2/resolution-requests/" + problem.path("activeResolutionRequest").path("id").asString();
+        mockMvc.perform(as(get(requestPath))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.resultSummary").value(org.hamcrest.Matchers.containsString("안내 내용을 숨겼어요")))
+                .andExpect(jsonPath("$.resultSummary").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(ANSWER))));
+        // 저장된 원문은 바꾸지 않는다
+        assertThat(jdbc.queryForObject("SELECT content FROM message WHERE id=?", String.class, answerMessageIdOf(runId)))
+                .isEqualTo(ANSWER);
+    }
+
+    @Test
+    void 인용한_근거_중_하나만_볼_수_없게_돼도_안내를_숨긴다() throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        var snapshot = guideSnapshot(runId, inquiryId);
+        // 두 번째 공개 가이드도 인용한다(안내 문단은 첫 가이드의 것)
+        String otherText = "공통 로그인 화면에서 비밀번호 재설정 메뉴를 먼저 확인해 보세요.";
+        jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 직원 가이드 2','EMPLOYEE_GUIDE',?,'EMPLOYEE','RAG','APPROVED')", otherDocument, systemId);
+        jdbc.update("INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status) VALUES (?,1,?,?,?::jsonb,'APPROVED')", otherDocument, otherText,
+                java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(otherText.getBytes(java.nio.charset.StandardCharsets.UTF_8))),
+                "{\"origin\":\"SYNTHETIC\",\"applicability\":\"가상 로그인 화면\",\"appliesToSystemVersion\":null}");
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        ((tools.jackson.databind.node.ArrayNode) result.path("guide").path("evidenceIds")).add(otherEvidence.toString());
+        ((tools.jackson.databind.node.ArrayNode) result.path("evidence")).add(jsonMapper.valueToTree(
+                new com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse(otherEvidence, otherDocument, 1,
+                        "GUIDE", "가상 직원 가이드 2", otherText, systemId, null, "가상 로그인 화면", "EMPLOYEE", "SYNTHETIC")));
+        when(client.snapshot(runId.toString())).thenReturn(snapshot);
+        dispatcher.deliver(runId);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+
+        jdbc.update("UPDATE knowledge_document SET access_level='STAFF' WHERE id=?", otherDocument);
+
+        var messages = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("items");
+        assertThat(messages.get(1).path("content").asString()).doesNotContain(ANSWER).contains("안내 내용을 숨겼어요");
+        var problem = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("problems").get(0);
+        // 아직 볼 수 있는 근거는 근거 목록에 남는다
+        assertThat(problem.path("guide").path("evidence").size()).isEqualTo(1);
+        assertThat(problem.path("activeResolutionRequest").path("resultSummary").asString()).contains("안내 내용을 숨겼어요");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"withdrawn", "uncited", "unknown-problem", "unsupported-system", "staff", "null-details", "conflicting-ticket", "invented-text", "other-source"})
     void 잘못된_안내는_답변과_GUIDE_요청을_함께_저장하지_않는다(String invalid) throws Exception {
         UUID inquiryId = createInquiry("로그인 방법을 알려 주세요");
         UUID runId = runOf(inquiryId);
@@ -160,6 +252,17 @@ class InquiryAnswerFlowTest {
             case "staff" -> jdbc.update("UPDATE knowledge_document SET access_level='STAFF' WHERE id=?", guideDocument);
             case "null-details" -> ((tools.jackson.databind.node.ObjectNode) result.path("problemProposals").get(0)).putNull("details");
             case "conflicting-ticket" -> result.putArray("ticketProposals").addObject().put("problemRef", "new:guide");
+            // 승인 본문에 없는 문장(모델이 쓴 안내)과, 출처 줄 뒤에 붙인 다른 문장은 저장하지 않는다
+            case "invented-text" -> {
+                String invented = "전자결재 설정 메뉴에서 캐시를 지우면 해결돼요.";
+                result.put("answer", invented);
+                guide.put("messageText", invented);
+            }
+            case "other-source" -> {
+                String text = ANSWER + "\n\n참고 자료: 가상 직원 가이드\n\n관리자에게 직접 연락하세요.";
+                result.put("answer", text);
+                guide.put("messageText", text);
+            }
             default -> throw new IllegalArgumentException(invalid);
         }
         when(client.snapshot(runId.toString())).thenReturn(snapshot);

@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
 import type { InquiryResult, Problem } from '@/shared/api/types/hopsSystem1';
 import { Button } from '@/shared/ui/Button';
+import { MarkdownText } from '@/shared/ui/MarkdownText';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { ResolutionControls } from './ResolutionControls';
 import { SystemCommandButton } from './SystemCommandButton';
@@ -207,7 +208,11 @@ function ProblemRow({ inquiry, problem }: { inquiry: InquiryResult; problem: Pro
           <strong>
             {e.title} · 문서 v{e.documentVersion}
           </strong>
-          <p>{e.excerpt}</p>
+          {/* 안내 본문은 채팅에 있으므로 근거 원문은 접어 둔다 */}
+          <details className={styles.excerpt}>
+            <summary>원문 보기</summary>
+            <MarkdownText text={e.excerpt} />
+          </details>
           <small>
             {e.systemId === null ? '공통 정책' : '직원용 안내'} · 적용 버전{' '}
             {e.appliesToSystemVersion ?? '미확인'} · {e.applicability}

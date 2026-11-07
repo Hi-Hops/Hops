@@ -119,6 +119,13 @@
 .evidence small {
   color: var(--color-text-muted);
 }
+.excerpt summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+.excerpt[open] summary {
+  margin-bottom: var(--space-2);
+}
 .systemDock {
   display: grid;
   gap: var(--space-2);

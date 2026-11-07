@@ -20,8 +20,30 @@
 | `harness/trace_io.py` | 실행 기록(`RunTrace`)을 JSON으로 저장·복원. 원본이 있어야 검사기를 고친 뒤 같은 기록을 다시 판정할 수 있다 |
 | `recheck.py` | 저장된 기록을 현재 검사기로 다시 판정한다(모델 호출 없음) |
 | `harness/validate.py` | 시나리오·정답 형식·정합성 검사, 정본 문서의 표(문서 카탈로그·시나리오 카탈로그) 읽기 |
+| `curator/` | Curator(사례 초안·관계 판단) 평가. 별도 시나리오(`curator_scenarios/`)·정답(`curator_golds/`)으로 사례 한 건의 문의 전체 과정을 `CASE_DRAFT`로 재생한다. 안전 성질 C1~C5 검사기, 행동 성질 CB1~CB4, Spring 입력 대역(`request.py`), 후보 노드 카탈로그(코퍼스 선언), 재생기, 반복 실행·보고(`pilot.py`), 기록 재판정(`recheck.py`), 형식 검사(`validate.py`) |
 | `baselines/` | 정리 전 구조의 실제 모델 기준선(개발용 12개 × 1회)의 원본 보고서와 해석. 비교의 출발점이며 일반 성능이 아니다 |
 | `scenarios/`, `golds/` | 시나리오 20개(`DEV` 12·`TEST` 8)와 평가 정답, 파일 이름은 `scenarioId`. 정답은 런타임이 읽지 못하는 이 위치에만 둔다 |
+
+## Curator 평가
+
+대화 하네스와 분리된 `curator/` 패키지다. 설명과 성질은 [평가 방식](../../docs/knowledge/EVALUATION.md#curator-평가-사례-초안관계-판단)을 본다.
+
+```bash
+cd ai
+uv run pytest tests/unit/test_eval_curator*.py
+uv run python -m evaluation.curator.validate
+```
+
+**아래 `evaluation.curator.pilot`은 실제 모델을 호출하며 비용이 든다.** 모델·반복 횟수·호출 상한을 승인한 뒤 직접 실행한다. TEST 시나리오는 동결이라 `--allow-test` 없이는 돌지 않는다.
+
+```bash
+OPENAI_API_KEY=... uv run python -m evaluation.curator.pilot --split DEV --repeat 5 --max-calls 80 --out /tmp/curator-dev.json --trace-dir /tmp/curator-traces
+uv run python -m evaluation.curator.recheck /tmp/curator-traces
+```
+
+- 실행 하나는 모델을 최대 2번(초안, link) 부른다. 일시 오류 재시도를 포함한 한 실행의 최대 호출 수가 남아 있을 때만 시작하고, 상한에 닿으면 남은 실행을 건너뛴 것으로 센다(종료 코드 1).
+- 보고서는 시나리오·성질별 통과율을 따로 낸다. 안전 위반, 실패한 실행(`FAILED` 등), 건너뜀이 있으면 종료 코드가 1이다.
+- Fake 모델 결과는 하네스가 이어지는지만 보며 모델 품질이 아니다. 후보 노드와 입력은 대역이고 실제 Spring 조회·권한 확인이 아니다.
 
 ## 읽을 때 알아둘 것
 

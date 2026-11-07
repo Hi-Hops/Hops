@@ -1,0 +1,48 @@
+{
+  "scenarioId": "C-ea-doc-no-permission-001",
+  "acceptedReusable": [
+    true
+  ],
+  "expectedLinks": [
+    {
+      "relation": "ADDRESSES",
+      "target": "sym-ea-doc-not-listed"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-participation"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-view-permission-record"
+    }
+  ],
+  "forbiddenLinks": [
+    {
+      "relation": "ADDRESSES",
+      "target": "sym-ea-attach-not-open"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-submit-state"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-filter-condition"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-file-format"
+    }
+  ],
+  "forbiddenPhrases": [
+    "임시 저장",
+    "조회 기간을 늘"
+  ],
+  "behaviorProperties": [
+    "CB1",
+    "CB2",
+    "CB3",
+    "CB4"
+  ]
+}

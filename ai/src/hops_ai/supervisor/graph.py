@@ -13,7 +13,7 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from hops_ai.agents.base import Agent, pending_agents
+from hops_ai.agents.base import Agent, PendingAgent, pending_agents
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import InquiryResult
@@ -22,7 +22,11 @@ from hops_ai.harness.errors import InputRejected, OutputRejected
 from hops_ai.rules.legal_actions import legal_actions, run_actions
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.choices import Choices, compute_choices
-from hops_ai.supervisor.decision import SupervisorDecision, decide_next_action
+from hops_ai.supervisor.decision import (
+    SupervisorDecision,
+    decide_next_action,
+    validate_supervisor_decision,
+)
 from hops_ai.supervisor.decisions import apply_decision, apply_reply, prepare_decision
 from hops_ai.supervisor.execution import execute_role
 from hops_ai.supervisor.facts import pending_problem_refs, problem_facts
@@ -206,10 +210,20 @@ class Supervisor:
         """현재 상태로 다음 행동을 요청하고 검증된 판단만 기록한다."""
         state = _enter(runtime, data, "SUPERVISOR")
         choices = compute_choices(state, self._agents, restrict=self._restrict_roles)
+        forced = self._forced_case_decision(state)
         with runtime.services.tracing.observe(
-            "SUPERVISOR", {"registeredRoles": sorted(role.value for role in choices.registered)}
+            "SUPERVISOR",
+            {
+                "registeredRoles": sorted(role.value for role in choices.registered),
+                # 사례 실행은 선택지가 하나라 모델 없이 코드가 정한다(같은 검증을 거친다)
+                "forced": forced is not None,
+            },
         ) as span:
-            decision = await decide_next_action(state, runtime.services, choices)
+            if forced is not None:
+                validate_supervisor_decision(state, forced)
+                decision = forced
+            else:
+                decision = await decide_next_action(state, runtime.services, choices)
             if span is not None:
                 span.update(
                     output={
@@ -223,6 +237,27 @@ class Supervisor:
         # 모델의 공개 요약도 검증되지 않은 문구다. 최종 답변은 최종화 단계에서
         # 준비된 제안과 서버가 제공한 기존 상태를 기준으로 한 번만 구성한다.
         return _GraphState(state=state, decision=decision, choices=choices)
+
+    def _forced_case_decision(self, state: SupervisorState) -> SupervisorDecision | None:
+        """사례 실행에서 선택지가 하나뿐인 판단. Curator가 연결돼 있을 때만 모델 없이 정한다.
+
+        사례 제안이 없으면 Curator를 호출하고, 있으면 끝낸다. 상담 실행과 Curator가 연결되지 않은
+        구성은 기존대로 모델이 판단한다(연결 전 역할 호출은 안전한 실패로 끝난다).
+        """
+        if state["input"].kind != RunKind.CASE_DRAFT:
+            return None
+        curator = self._agents.get(AgentRole.CURATOR)
+        if curator is None or isinstance(curator, PendingAgent):
+            return None
+        if state["caseProposal"] is None:
+            return SupervisorDecision(
+                nextAction="CALL_ROLE",
+                role=AgentRole.CURATOR,
+                publicSummary="사례 초안을 정리합니다.",
+            )
+        return SupervisorDecision(
+            nextAction="FINISH", role=None, publicSummary="사례 초안 정리를 마칩니다."
+        )
 
     def _role_node(
         self, runtime: SupervisorRuntime, role: AgentRole

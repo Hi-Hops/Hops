@@ -39,6 +39,7 @@ class SupervisorPipeline:
         assess_evidence: bool = False,
         problem_actions: bool | None = None,
         relation_source: RelationSource | None = None,
+        guide_excerpt: bool = False,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
@@ -62,6 +63,7 @@ class SupervisorPipeline:
                 defer_questions=assess_evidence,
                 generate_questions=assess_evidence,
                 relation_source=relation_source,
+                excerpt_guides=guide_excerpt,
             )
             if agents is None
             else agents

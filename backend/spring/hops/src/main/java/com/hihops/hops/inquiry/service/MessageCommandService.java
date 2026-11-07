@@ -52,6 +52,7 @@ import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.repository.TicketRepository;
 
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -80,6 +81,8 @@ import tools.jackson.databind.json.JsonMapper;
  * 대기 메시지는 대상이 정해질 때까지 AI 입력의 대화에서 빠지고 그 메시지 자체로는 분석하지 않는다. 다른 메시지의 분석은 막지 않는다.
  * 대상이 모두 이미 배정된 문제인 입력도 보완 정보일 뿐이라 자기 분석을 만들지 않는다(자동 새 티켓·재배정 없음).
  * 그래도 입력 버전은 올라가 진행 중이던 실행의 결과는 버려지므로, 그 실행의 대상은 새 실행으로 잇는다({@link #continueAnalysis}).
+ * 배정된 문제가 없는데 대상을 고르지 않은 메시지는 실행 대상은 비워 분석이 정하게 두되, 직전 AI 질문·안내의 답으로 그 문제에 잇는다
+ * ({@link #repliedProblems}). 잇지 않으면 AI가 그 답을 기존 문제의 출처로 쓸 수 없다.
  *
  * <p>저장·정정·대상 확정한 메시지는 {@link MessageStoredEvent}로 문의 구독(SSE)에 commit 뒤 알린다.
  *
@@ -150,12 +153,14 @@ public class MessageCommandService {
                 pending = true;
             }
         }
+        // 배정된 문제가 없으면 실행 대상은 비워 분석이 정하게 두고, 직전 AI 질문·안내의 답으로 문제에만 잇는다
+        List<UUID> links = problemIds.isEmpty() && !pending ? repliedProblems(inquiryId, scope) : problemIds;
 
         inquiry.recordInput();
         int sequenceNo = Math.incrementExact(messageRepository.findLastSequenceNo(inquiryId));
         Message message = messageRepository.saveAndFlush(new Message(inquiry, sequenceNo, SenderType.USER,
                 command.content(),
-                UserMessagePayload.json(jsonMapper, command.requestId(), null, problemIds, command.content(), pending),
+                UserMessagePayload.json(jsonMapper, command.requestId(), null, links, command.content(), pending),
                 MessageStatus.COMPLETED));
         continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
@@ -208,6 +213,46 @@ public class MessageCommandService {
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
         return inquiry.getId();
+    }
+
+    /**
+     * 대상 없이 보낸 메시지가 답하는 문제. 가장 최근 AI 메시지 뒤의 첫 사용자 메시지일 때만 정한다. 그 AI 메시지가
+     * 질문(questionBundles)하거나 안내(guide)한 문제 중 아직 보완할 수 있는 문제이고, 그런 문제가 없으면 보완할 수 있는 문제가
+     * 하나일 때만 그 문제다. 여럿이면 어느 문제인지 모르므로 잇지 않는다.
+     *
+     * <p>그 AI 메시지 뒤에 이미 사용자 메시지가 있으면 그 질문은 답을 받았으므로 잇지 않는다. AI 답변이 생성 중이거나 실패해 직전 AI
+     * 메시지가 바뀌지 않은 사이 보낸 다른 이야기를 지난 질문의 문제에 묶지 않기 위해서다.
+     *
+     * <p>AI는 문제에 연결된 메시지만 그 문제의 사실 출처로 쓸 수 있다(AI rules/progress.py get_problem_message_ids). 질문에 답한
+     * 메시지를 잇지 않으면 그 답을 인용한 분석이 출처 검증에서 거절돼 실행이 INVALID_OUTPUT으로 끝난다.
+     */
+    private List<UUID> repliedProblems(UUID inquiryId, ProblemScope scope) {
+        Optional<Message> latestAnswer = messageRepository
+                .findFirstByInquiry_IdAndSenderTypeAndMessageStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+                        inquiryId, SenderType.AI, MessageStatus.COMPLETED);
+        if (latestAnswer.isEmpty() || messageRepository.existsByInquiry_IdAndSenderTypeAndSequenceNoGreaterThanAndDeletedAtIsNull(
+                inquiryId, SenderType.USER, latestAnswer.get().getSequenceNo())) {
+            return List.of();
+        }
+        Set<UUID> replied = new LinkedHashSet<>();
+        JsonNode payload = jsonMapper.readTree(latestAnswer.get().getPayload());
+        payload.path("questionBundles").forEach(bundle -> addProblem(replied, bundle.path("problemId")));
+        addProblem(replied, payload.path("guide").path("problemId"));
+        replied.retainAll(scope.linkable());
+        if (replied.isEmpty() && scope.linkable().size() == 1) {
+            return List.copyOf(scope.linkable());
+        }
+        return List.copyOf(replied);
+    }
+
+    private static void addProblem(Set<UUID> problems, JsonNode id) {
+        if (id.isString()) {
+            try {
+                problems.add(UUID.fromString(id.asString()));
+            } catch (IllegalArgumentException ignored) {
+                // 형식이 맞지 않는 예전 기록은 연결 근거로 쓰지 않는다
+            }
+        }
     }
 
     private Message userMessage(UUID inquiryId, UUID messageId) {

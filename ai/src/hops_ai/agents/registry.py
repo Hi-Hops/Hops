@@ -22,6 +22,7 @@ def build_registry(
     defer_questions: bool = False,
     generate_questions: bool = False,
     relation_source: RelationSource | None = None,
+    excerpt_guides: bool = False,
 ) -> Mapping[AgentRole, Agent]:
     """서버 실행에 쓰는 역할 조합.
 
@@ -44,12 +45,18 @@ def build_registry(
 
     relation_source를 주면 Knowledge가 증상 문의의 검색에 관계 조회(확인 항목)를 더한다. 문제별
     행동 경로에서만 쓰이고 knowledge_source가 있을 때만 의미가 있다.
+
+    excerpt_guides가 참이면 Knowledge가 안내문을 문의에 답하는 문단만 골라 만든다.
+    knowledge_source가 있을 때만 의미가 있다.
     """
     knowledge: Agent = (
         PendingAgent(AgentRole.KNOWLEDGE)
         if knowledge_source is None
         else SearchKnowledgeAgent(
-            knowledge_source, assess_evidence=assess_evidence, relation_source=relation_source
+            knowledge_source,
+            assess_evidence=assess_evidence,
+            relation_source=relation_source,
+            excerpt_guides=excerpt_guides,
         )
     )
     return MappingProxyType(

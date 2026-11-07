@@ -1,0 +1,12 @@
+{
+  "scenarioId": "C-login-unresolved-001",
+  "acceptedReusable": [
+    false
+  ],
+  "expectedLinks": [],
+  "forbiddenLinks": [],
+  "forbiddenPhrases": [],
+  "behaviorProperties": [
+    "CB1"
+  ]
+}

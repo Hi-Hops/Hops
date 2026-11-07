@@ -56,6 +56,7 @@ public class InquiryQueryService {
     private final MessageRevisionRepository messageRevisionRepository;
     private final RunSummaryReader runSummaryReader;
     private final ProblemProjector problemProjector;
+    private final GuideVisibility guideVisibility;
     private final JsonMapper jsonMapper;
 
     /** 내 문의 목록 한 페이지. page·size 범위는 컨트롤러에서 검사한다. */
@@ -81,13 +82,14 @@ public class InquiryQueryService {
 
     /**
      * 내 문의의 대화 한 페이지. 가장 최근 size개, 또는 beforeSequenceNo보다 앞선 size개를 오래된 것부터 돌려준다.
+     * AI 안내의 근거를 지금 문의자가 볼 수 없으면 그 안내 부분을 숨긴다({@link GuideVisibility}).
      *
      * @param beforeSequenceNo 이 순번 미만만 (null이면 최신 페이지)
      */
     @Transactional(readOnly = true)
     public MessagePageResponse findMyMessages(UUID requesterId, UUID inquiryId, int size,
             @Nullable Integer beforeSequenceNo) {
-        myInquiry(requesterId, inquiryId);
+        Inquiry inquiry = myInquiry(requesterId, inquiryId);
         // 하나 더 읽어서 이전 메시지가 남았는지 안다
         Limit limit = Limit.of(size + 1);
         List<Message> newestFirst = beforeSequenceNo == null
@@ -98,8 +100,10 @@ public class InquiryQueryService {
         Collections.reverse(messages);
 
         Map<UUID, List<MessageRevision>> revisions = revisionsOf(messages);
+        Map<UUID, GuideVisibility.GuideView> guides = guideVisibility.viewsOf(inquiry, messages);
         List<ChatMessageResponse> items = messages.stream()
-                .map(message -> ChatMessageResponse.of(message, payloadOf(message),
+                .map(message -> ChatMessageResponse.of(message, guides.get(message.getId()).contentOf(message),
+                        payloadOf(message),
                         MessageRevisionResponse.listOf(message, revisions.getOrDefault(message.getId(), List.of()))))
                 .toList();
         return new MessagePageResponse(items, hasOlder ? messages.getFirst().getSequenceNo() : null);

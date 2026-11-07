@@ -167,7 +167,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 | Ticket | TicketProposal(problemRef,title,processingType,responsibleSystemCandidateId,evidenceIds,standardRequestSnapshot) | 담당자·티켓 번호·저장 성공 필드 없음. Spring이 PRIMARY와 유일 작업 검증 |
 | Curator | 원 WorkRecord·확인 요청·허용 기존 엔티티 → CaseProposal(reusable,title,action,verification,applicability,limitations,appliesToSystemVersion,accessScope,sourceMessageIds,entityLinks) | reusable=false는 사례 생성 없음. 신규 관계 유형·새 인물/시스템 생성 제안 거부 |
 
-GuideProposal은 messageText,evidenceIds,problemRef를 가지며 승인된 EMPLOYEE 근거가 실제 존재해야 한다. 저장된 AI 안내 메시지를 만든 뒤 Spring이 GUIDE 확인 요청을 생성한다. AI의 '해결됐습니다' 문구를 문의자 확인으로 저장하지 않는다.
+GuideProposal은 messageText,evidenceIds,problemRef를 가지며 승인된 EMPLOYEE 근거가 실제 존재해야 한다. messageText는 인용한 근거의 승인 본문을 빈 줄 기준 문단으로 나눈 것 중 일부(또는 전부)를 원래 순서로 이은 것이고, 끝에 선택적으로 `참고 자료: {근거 제목}` 줄을 둔다. 모델은 문단 번호만 고르고 문장을 쓰지 않는다. Spring은 저장할 때 출처 줄을 뗀 각 문단이 인용한 공개 근거 승인 본문을 같은 규칙으로 나눈 문단과 글자 그대로 같은지 확인하고(문단 일부만 떼어 낸 문장은 거부), 아니면 INVALID_OUTPUT이다. 문의자 조회(대화·문의 상세·확인 요청 조회) 때 인용 근거 중 하나라도 지금 볼 수 없으면 안내 부분과 GUIDE 확인 요약을 숨김 문구로 바꿔 보여 주며(안내 부분을 찾지 못하면 본문 전체) 저장값은 바꾸지 않는다. 저장된 AI 안내 메시지를 만든 뒤 Spring이 GUIDE 확인 요청을 생성한다. AI의 '해결됐습니다' 문구를 문의자 확인으로 저장하지 않는다.
 
 Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검색에서 반환된 참조만 가능하다. 담당자 보완 대화의 대상이 불명확하면 확인 필요를 제안하고 임의의 티켓에 복사하지 않는다. Curator는 INQUIRY_ANALYSIS의 매 메시지 경로에 넣지 않고 검증 완료 WorkRecord commit 뒤 Spring이 CASE_DRAFT를 호출한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다.
 
@@ -237,7 +237,7 @@ AiEvent는 contractVersion/runId/seq/eventType/payload envelope다. progress pay
 | AiRunRequest | 실행/문의/입력 버전·kind·answerMessageId·대상 문제 ID, 허용 메시지/기존 문제/작업, 시스템 목록, accessContext, nullable 원 처리 기록, expiresAt·limits |
 | InputMessage | 원 messageId/revision/sequenceNo·sender·허용된 content·problemIds·시각. CASE_DRAFT는 관련 구간만 투영 |
 | InputProblem | DB problemId·의도·처리 유형·보고 시스템/기능·상태·질문 수·이미 물은 항목·표준 요청 스냅샷. questionCount와 askedFields는 Spring 값 |
-| WorkRecordContext | 실제 기록 ID·티켓/문제/시스템·종류·조치/검증·확인 요청/상태. Curator에게 해결 확인 전 PENDING도 전달 가능 |
+| WorkRecordContext | 실제 기록 ID·티켓/문제/시스템·종류·조치/검증·확인 요청/상태. Curator에게 해결 확인 전 PENDING도 전달 가능. 문의 전체 과정의 맥락을 가산 필드로 담는다(아래 "Curator 입력의 문의 전체 과정") |
 | AccessContext | actorId·purpose·systemIds·allowedDocumentScopes·policyRevision(·retrievalScopes 선택). Spring이 생성하며 모델은 수정 불가 |
 
 메시지 목록이 길면 원문 저장을 자르지 않고 실행용 범위를 서버가 선택한다. 표준 요청과 출처 ID를 유지하고 토큰 한도를 넘으면 안전한 실패로 반환한다. AI가 접근 범위를 넓혀 과거 원문을 임의 조회하지 않는다.
@@ -434,6 +434,43 @@ F006의 해결 응답과 F007의 수동 정정은 Spring의 업무 명령이며 
 ### E1. 병합 ERD의 역할·자료 매핑
 
 runId=agent_run.id, 외부 CASE_DRAFT=DB task CURATION, 외부 role INQUIRY=DB agent_type INQUERY로 Spring이 변환한다. 작업 ID와 source_work_log_id·기존 이벤트/메시지의 확인 응답을 함께 검사한다. INQUERY나 CURATION을 외부 DTO에 별도 역할/kind로 추가하지 않는다. QUEUED는 실행 시작 전이며 DB started_at=null, CANCELLED는 외부 SUPERSEDED다.
+
+**Curator 입력의 문의 전체 과정(가산 필드, #198).** CASE_DRAFT의 `messages`는 해당 문제에 연결된 구간의 USER 메시지 전부와 AI 질문·답변(가장 최근 30개)이다. `WorkRecordContext`는 아래 세 목록을 더 가진다. 모두 생략하면 빈 목록이며(이전 생산자와 호환), 오래된 순이고, 개수 상한을 넘으면 AI wire가 거부한다.
+
+| 필드 | 내용 | 상한 |
+|---|---|---|
+| relatedRecords | 같은 티켓의 다른 처리 기록(id·kind·action·verification?·confirmedCause?·appliesToSystemVersion?·createdAt). 진행·실패 시도 포함, 원 기록 제외. 문장은 4000자 | 20 |
+| resolutionHistory | 이 문제의 해결 확인 요청(requestId·source GUIDE/WORK_RECORD·sourceId·state·requestedAt·respondedAt?). 같은 요청은 최신 상태 하나, 원 기록의 확인 요청 제외 | 20 |
+| consultedKnowledge | 상담에 쓰인 `KnowledgeEvidence`. 문제의 적용된 요청서에서 최신 순으로 모으고 실행 주체의 현재 권한·승인 상태로 다시 확인한 것만 | 10 |
+| linkCandidates | 사례를 연결할 수 있는 같은 시스템의 기존 노드(id·kind SYMPTOM/CHECK_ITEM·label·systemId). 승인된 것만, 실행 주체에게 보이는 것만. 원인(Cause)은 대상이 아니다 | 증상 30·확인 항목 40 |
+
+이 맥락은 초안의 한계·적용 조건을 이해하는 데만 쓴다. 사례의 조치·검증·확인된 원인·적용 버전은 계속 원 기록 값이고 실패 시도는 사례를 만들지 않는다. 사례의 `sourceMessageIds`는 **USER 메시지만** 허용하며 AI 메시지·처리 기록은 출처가 아니다(AI는 병합에서, Spring은 결과 적용에서 각각 거부한다). Curator는 이 맥락을 초안 프롬프트(`curator-draft-v4`)에 쓰고, 코드가 `limitations`에 처리 기록 값으로 조립해 항상 남기는 문장이 있다. 해결되지 않은 시도(최근 2건, "시도했지만 해결되지 않은 조치: …")와 기록에 원인·적용 버전이 없을 때의 "확인된 원인이 기록되지 않았다."·"적용 시스템 버전이 확인되지 않았다."다. 모델이 쓴 한계는 남은 자리(전체 최대 5개)만큼 담고 같은 문장은 한 번만 남긴다.
+
+**Curator 입력·결과의 상한 값(Spring과 AI가 같은 값을 쓴다).** 한쪽만 바꾸면 다른 쪽이 입력이나 결과 전체를 거부하므로(AI는 입력 검증에서, Spring은 결과 적용에서) 값을 여기에 두고 양쪽 테스트(`test_contract_limits.py`, `CurationLimitsContractTest`)가 코드의 상수와 이 블록을 대조한다. 값을 바꾸려면 이 블록과 양쪽 코드를 함께 고친다.
+
+```curator-limits
+aiMessages=30
+relatedRecords=20
+resolutionHistory=20
+consultedKnowledge=10
+symptomCandidates=30
+checkCandidates=40
+maxApplies=1
+maxAddresses=3
+maxUsesCheck=5
+recordText=4000
+```
+
+`aiMessages`는 Spring이 입력에 싣는 AI 질문·답변의 최대 개수이고 AI는 이 수를 검사하지 않는다. `recordText`는 처리 기록 문장의 길이 상한(코드 포인트)이다. `maxApplies`·`maxAddresses`·`maxUsesCheck`는 사례 하나의 관계별 연결 수이며 AI(`link`의 상한과 병합 검증)와 Spring(결과 적용)이 모두 확인한다. 인용의 최소 길이(공백 제외 8자)는 AI만 적용하는 값이라 이 블록에 없다.
+
+**CASE_DRAFT의 접근 범위(#198).** `accessContext.purpose=CASE_DRAFT`의 `allowedDocumentScopes`는 **실행 주체인 현재 주담당자가 볼 수 있는 범위**, 즉 `["EMPLOYEE", "SYSTEM_STAFF"]`다. 담당자는 해당 시스템의 직원 공개 가이드·정책과 담당자 전용 런북·사례를 모두 볼 수 있고, 사례 초안 자체의 공개 범위(`accessScope`)는 `SYSTEM_STAFF`로 고정이라 직원에게 닿는 경로는 늘지 않는다. 시스템 범위 `systemIds`는 책임 시스템 하나로 좁게 유지한다(담당자 전용 자료의 접근 경계이기도 하다). Spring은 입력에 싣는 상담 근거를 이 두 범위로 걸러 보낸다. 공개 범위가 허용 범위 안이고 시스템이 책임 시스템이거나 시스템 없는 공통 `POLICY`인 근거만 싣고, 빠진 근거를 인용한 확인 사실·책임 판단 근거도 함께 뺀다. AI는 입력의 근거를 같은 기준으로 검증하며(`validate_evidence_scope`) 어긋나면 실행을 거부하고, 결과의 `evidence`는 입력의 근거를 그대로 되돌려 Spring이 같은 범위로 다시 확인한다. 이전에는 범위가 `SYSTEM_STAFF`뿐이어서 직원 공개 가이드가 요청서에 있는 티켓의 사례 실행이 거부되었다. 사례 실행은 내부 검색·관계 API를 호출할 수 없고(작업·목적이 상담 실행이어야 한다) Knowledge 역할도 호출하지 않으므로 범위를 넓혀도 검색 범위는 늘지 않는다. SEC-09(현재 사용자·목적·시스템 범위의 자료만 모델 입력에 쓴다)는 담당자 본인이 이미 보는 자료와 책임 시스템으로 좁힌 근거에 대해 지켜진다.
+
+**관계 판단(`link`).** `linkCandidates`가 있으면 Curator가 후보 안에서만 `ADDRESSES`(증상)·`USES_CHECK`(확인 항목) 연결을 고르는 모델 호출을 한 번 더 한다(`curator-link-v1`, 후보가 없거나 사례 없음이면 호출하지 않는다). `APPLIES_TO`는 대상이 원 기록의 시스템 하나라 코드가 만든다. 규칙은 다음과 같다.
+- 대상은 후보 ID뿐이며 새 노드·새 관계 유형을 만들 수 없다. 관계 종류는 후보 종류와 맞아야 한다(`ADDRESSES`↔SYMPTOM, `USES_CHECK`↔CHECK_ITEM). 종류별 최대 개수는 `ADDRESSES` 3·`USES_CHECK` 5이고 같은 연결은 한 번만 낸다.
+- 연결마다 `evidenceIds`가 필수이며 모델은 근거마다 그 텍스트에 한 글자도 바꾸지 않은 인용을 내야 한다. 인용은 공백 제외 8자 이상이어야 한다("로그인"·"확인" 같은 짧은 구절은 어느 메시지에나 있다). 코드가 인용을 대조해 확인되지 않은 연결을 버린다(연결은 후보일 뿐 원인을 확정하지 않는다).
+- 관계 근거로 쓸 수 있는 ID는 입력 메시지 ID(AI 질문·답변 포함)와 이 티켓의 처리 기록 ID(원 기록·이전 기록)다. 단 **`USES_CHECK`(그 확인을 했다는 연결)의 근거에는 AI 메시지를 쓸 수 없다.** AI가 "쿠키 설정을 확인해 보셨나요?"라고 물은 구절만으로는 확인했다는 증거가 아니므로 처리 기록과 사용자 메시지(질문에 답한 내용)의 인용만 근거가 된다. AI(`ground_links`·병합 검증)와 Spring(결과 적용)이 모두 확인한다. 사례의 `sourceMessageIds`는 계속 사용자 메시지만 허용한다. 상담 근거 문서 ID는 관계 근거로 쓰지 않는다(필요해지면 결과의 `evidence`로 되돌려 Spring이 검증하게 해야 한다).
+- `link` 모델 호출이 실패하면 연결 없는 사례로 바꾸지 않고 실행을 실패시킨다.
+- 연결은 담당자 승인 전에는 검색에 공개되지 않는다. Spring은 AI 출력을 신뢰하지 않고 결과 적용 때 다시 확인한다. 대상은 입력의 `linkCandidates`에 있으면서 지금도 승인되어 실행 주체에게 보이는 노드여야 하고, 근거는 입력에 고정한 이 문제의 메시지·이 티켓의 처리 기록·검증된 지식 근거 중 하나여야 한다. 어긋나면 사례 초안만 `INVALID_OUTPUT`으로 거절하고 처리 기록과 확인 요청은 보존한다.
 
 WorkRecordContext에는 실제 담당자가 입력한 confirmedCause와 appliesToSystemVersion을 nullable로 전달한다. Curator는 모델 추정을 확인된 원인으로 확정하지 않으며 서버가 원 기록에서 CASE의 confirmedCause/caseType을 투영한다. 재사용 가능한 CaseProposal에는 problemStatement가 필수이고 reusable=false에는 null이다. 신규 TicketProposal은 SERVICE_REQUEST/INVESTIGATION/CHANGE_REQUEST/REVIEW_REQUIRED만 허용하며 같은 problemRef의 ProblemProposal.processingType과 일치해야 한다. 실제 INCIDENT 확정은 현재 담당자의 처리 유형 정정 명령으로 수행한다. 제목은200자·적용 버전은100자 제한이다.
 
