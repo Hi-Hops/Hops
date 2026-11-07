@@ -22,12 +22,20 @@ class HandoffReadiness(TypedDict):
     remainingQuestions: int
 
 
+def _asked_fields(state: SupervisorState, ref: str) -> set[str]:
+    """Spring이 저장한 질문 이력에서 그 문제에 이미 물은 항목. 새 문제나 이력이 없으면 비어 있다."""
+    original = next((item for item in state["input"].problems if item.id == ref), None)
+    return set(original.askedFields) if original is not None else set()
+
+
 def get_handoff_readiness(state: SupervisorState) -> list[HandoffReadiness]:
     """Knowledge가 안내를 만들지 못한 뒤, 처리 결과가 없는 그 사용법 문제별로 계산한다.
 
     모델이 "정보가 충분한가"를 추측하지 않도록 코드가 양식 규칙(forms)으로 센 사실이다.
     missingForHandoff가 비어 있으면 담당자 전달에 필요한 항목이 모두 확보됐다는 뜻이다.
     역할 선택을 정하지 않으며, 사용자가 모른다고 답한 항목은 누락에서 뺀다.
+    remainingQuestions는 더 물을 수 있는 질문 수다. 누락 항목이 모두 이미 물은 항목이면
+    질문 한도가 남아도 같은 질문을 다시 할 수 없으므로 0이다.
     """
     no_guide = problems_without_guide(state)
     if not no_guide:
@@ -47,17 +55,20 @@ def get_handoff_readiness(state: SupervisorState) -> list[HandoffReadiness]:
         declared_unknown = {
             names_by_label[label] for label in problem.unknowns if label in names_by_label
         }
+        missing = missing_fields(
+            problem.intent,
+            known,
+            system_known=problem.reportedSystemCandidateId is not None,
+            unknown=declared_unknown,
+            handoff=True,
+        )
+        asked = _asked_fields(state, item["problemRef"])
+        can_ask = any(name not in asked for name in missing)
         readiness.append(
             HandoffReadiness(
                 problemRef=item["problemRef"],
-                missingForHandoff=missing_fields(
-                    problem.intent,
-                    known,
-                    system_known=problem.reportedSystemCandidateId is not None,
-                    unknown=declared_unknown,
-                    handoff=True,
-                ),
-                remainingQuestions=item["remainingQuestions"],
+                missingForHandoff=missing,
+                remainingQuestions=item["remainingQuestions"] if can_ask else 0,
             )
         )
     return readiness
@@ -113,6 +124,8 @@ def inquiry_has_nothing_left_to_do(state: SupervisorState) -> bool:
                 names_by_label[label] for label in problem.unknowns if label in names_by_label
             },
         )
-        if missing and item["remainingQuestions"] > 0:
+        asked = _asked_fields(state, item["problemRef"])
+        # 누락 항목이 모두 이미 물은 것이면 다시 물을 수 없으므로 Inquiry가 더 할 일이 없다.
+        if item["remainingQuestions"] > 0 and any(name not in asked for name in missing):
             return False
     return bool(progress)

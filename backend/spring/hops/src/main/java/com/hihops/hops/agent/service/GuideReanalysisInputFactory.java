@@ -28,13 +28,15 @@ public class GuideReanalysisInputFactory {
     private final SystemQueryService systems;
     private final StandardRequestRepository standardRequests;
     private final TicketStandardRequestReader standardReader;
+    private final InputProblemReader problemReader;
 
     public String snapshot(AgentRun run, Inquiry inquiry, InquiryProblem problem,
             ResolutionRequestResponse response, Instant now) {
         var context = Map.of("requestId", response.id(), "source", "GUIDE", "sourceId", response.sourceId(),
                 "sourceVersion", response.sourceVersion(), "state", "UNRESOLVED");
+        var asked = problemReader.askedFields(inquiry.getId()).getOrDefault(problem.getId(), List.of());
         var target = new InputProblem(problem.getId(), problem.getTitle(), "UNKNOWN", "KNOWLEDGE_QA", null, null,
-                "ANALYZING", problem.getClarifyCount(), null, context);
+                "ANALYZING", problem.getClarifyCount(), asked, null, context);
         var saved = standardRequests.findAppliedNewestFirst(List.of(problem.getId())).stream().findFirst();
         if (saved.isPresent()) {
             var standard = saved.get();
@@ -45,7 +47,7 @@ public class GuideReanalysisInputFactory {
             target = new InputProblem(problem.getId(), standard.getSummary(), standard.getIntent().name(),
                     standard.getWorkType().name(), standard.getReportedSystem() == null ? null : standard.getReportedSystem().getId(),
                     standard.getReportedFeature() == null ? null : standard.getReportedFeature().getId(),
-                    "ANALYZING", problem.getClarifyCount(), body, context);
+                    "ANALYZING", problem.getClarifyCount(), asked, body, context);
         }
         return analysisInputs.snapshot(run, inquiry, messages.findAllCompletedInOrder(inquiry.getId()),
                 new InputProblemReader.ProblemInputs(List.of(target), List.of()), List.of(problem.getId()),

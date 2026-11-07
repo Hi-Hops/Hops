@@ -154,12 +154,41 @@ class InquiryQuestionFlowTest {
         JsonNode input = next.path("problems").get(0);
         assertThat(input.path("id").asString()).isEqualTo(problemId.toString());
         assertThat(input.path("questionCount").asInt()).isEqualTo(1);
+        assertThat(input.path("askedFields").size()).isEqualTo(1);
+        assertThat(input.path("askedFields").get(0).asString()).isEqualTo("taskOrScreen");
         assertThat(input.path("intent").asString()).isEqualTo("OBSERVED_SYMPTOM");
         assertThat(input.path("reportedSystemId").asString()).isEqualTo(systemId.toString());
         assertThat(input.path("standardRequest").path("confirmedFacts").size()).isEqualTo(1);
         assertThat(input.path("standardRequest").path("unknowns").get(0).asString()).isEqualTo("화면");
         // 사용자 메시지에 문제 연결이 생겨 AI가 어느 문제의 메시지인지 알 수 있다
         assertThat(next.path("messages").get(0).path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+    }
+
+    @Test
+    void 물은_항목은_묶음마다_모아_중복_없이_물은_순서대로_입력에_돌려준다() throws Exception {
+        UUID inquiryId = createInquiry("결재 문서가 안 열려요");
+        assertThat(jsonMapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE inquiry_id=?",
+                String.class, inquiryId)).path("problems").size()).isZero();
+        UUID runId = runOf(inquiryId);
+        when(client.snapshot(runId.toString())).thenReturn(snapshot(runId, inquiryId, 1, QUESTION,
+                List.of(proposal("new:p1", "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, userMessageOf(inquiryId))),
+                List.of(question("new:p1", "b1", QUESTION, "taskOrScreen"))));
+        dispatcher.deliver(runId);
+        UUID problemId = problemOf(inquiryId);
+
+        JsonNode second = secondRunInput(inquiryId, "잘 모르겠어요");
+        UUID secondRun = UUID.fromString(second.path("runId").asString());
+        Map<String, Object> asked = question(problemId.toString(), "b2", QUESTION, "expectedBehavior");
+        asked.put("requestedFields", List.of("expectedBehavior", "taskOrScreen"));
+        when(client.snapshot(secondRun.toString())).thenReturn(snapshot(secondRun, inquiryId, 2, QUESTION,
+                List.of(proposal(problemId.toString(), "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, userMessageOf(inquiryId))),
+                List.of(asked)));
+        dispatcher.deliver(secondRun);
+
+        JsonNode third = secondRunInput(inquiryId, "그것도 모르겠어요");
+        assertThat(third.path("problems").get(0).path("questionCount").asInt()).isEqualTo(2);
+        assertThat(third.path("problems").get(0).path("askedFields").toString())
+                .isEqualTo("[\"taskOrScreen\",\"expectedBehavior\"]");
     }
 
     @Test

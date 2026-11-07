@@ -3,6 +3,7 @@ package com.hihops.hops.agent.service;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,9 +17,11 @@ import com.hihops.hops.agent.dto.AiRunRequest.StandardRequestBody;
 import com.hihops.hops.inquiry.domain.CreationOutcome;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.InquiryProblem;
+import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.ProblemStateView;
 import com.hihops.hops.inquiry.domain.StandardRequest;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
+import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.StandardRequestRepository;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.dto.StandardRequestResponse;
@@ -26,6 +29,8 @@ import com.hihops.hops.ticket.repository.TicketRepository;
 import com.hihops.hops.ticket.service.TicketStandardRequestReader;
 
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * 문의의 기존 문제를 AI 입력 InputProblem·ExistingWorkItem으로 바꾼다 (contracts/agents/README.md, docs/DATA.md 11.2).
@@ -51,6 +56,8 @@ public class InputProblemReader {
     private final StandardRequestRepository standardRequestRepository;
     private final TicketRepository ticketRepository;
     private final TicketStandardRequestReader standardRequestReader;
+    private final MessageRepository messageRepository;
+    private final JsonMapper jsonMapper;
 
     /** AiRunRequest의 problems와 existingWorkItems. */
     public record ProblemInputs(List<InputProblem> problems, List<ExistingWorkItem> existingWorkItems) {
@@ -73,20 +80,40 @@ public class InputProblemReader {
         Map<UUID, StandardRequest> latest = new LinkedHashMap<>();
         standardRequestRepository.findAppliedNewestFirst(problems.stream().map(InquiryProblem::getId).toList())
                 .forEach(request -> latest.putIfAbsent(request.getInquiryProblem().getId(), request));
+        Map<UUID, List<String>> asked = askedFields(inquiry.getId());
         List<InputProblem> inputs = new ArrayList<>();
         List<ExistingWorkItem> workItems = new ArrayList<>();
         for (InquiryProblem problem : problems) {
             Optional<Ticket> ticket = ticketRepository.findByInquiryProblem_Id(problem.getId())
                     .filter(found -> !found.isDeleted());
             inputs.add(input(inquiry, problem, latest.get(problem.getId()), ticket,
-                    targetProblemIds.contains(problem.getId())));
+                    targetProblemIds.contains(problem.getId()), asked.getOrDefault(problem.getId(), List.of())));
             workItemOf(problem, ticket).ifPresent(workItems::add);
         }
         return new ProblemInputs(List.copyOf(inputs), List.copyOf(workItems));
     }
 
+    /**
+     * 문제별로 이미 물은 항목. 질문을 저장한 AI 메시지의 payload.questionBundles[].requestedFields를 보낸 순서대로 모으고
+     * 중복은 한 번만 둔다. 답을 못 얻은 항목도 포함해, 같은 항목을 다시 묻지 않게 한다.
+     */
+    public Map<UUID, List<String>> askedFields(UUID inquiryId) {
+        Map<UUID, LinkedHashSet<String>> asked = new LinkedHashMap<>();
+        for (Message message : messageRepository.findAiMessagesWithQuestionBundles(inquiryId)) {
+            for (JsonNode bundle : jsonMapper.readTree(message.getPayload()).path("questionBundles")) {
+                String problemId = bundle.path("problemId").asString("");
+                if (problemId.isEmpty()) continue;
+                LinkedHashSet<String> fields = asked.computeIfAbsent(UUID.fromString(problemId), id -> new LinkedHashSet<>());
+                bundle.path("requestedFields").forEach(field -> fields.add(field.asString()));
+            }
+        }
+        Map<UUID, List<String>> result = new LinkedHashMap<>();
+        asked.forEach((id, fields) -> result.put(id, List.copyOf(fields)));
+        return result;
+    }
+
     private InputProblem input(Inquiry inquiry, InquiryProblem problem, StandardRequest request, Optional<Ticket> ticket,
-            boolean targeted) {
+            boolean targeted, List<String> askedFields) {
         if (request == null) {
             throw new IllegalStateException("적용된 표준 요청서가 없는 문제다: " + problem.getId());
         }
@@ -95,7 +122,7 @@ public class InputProblemReader {
                 request.getWorkType().name(),
                 request.getReportedSystem() == null ? null : request.getReportedSystem().getId(),
                 request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
-                stateOf(problem, ticket, targeted), problem.getClarifyCount(),
+                stateOf(problem, ticket, targeted), problem.getClarifyCount(), askedFields,
                 new StandardRequestBody(body.summary(), body.confirmedFacts(), body.assumptions(), body.unknowns(),
                         body.responsibleSystemCandidateId(), body.responsibilityEvidenceIds(), body.details(),
                         body.knowledge()),

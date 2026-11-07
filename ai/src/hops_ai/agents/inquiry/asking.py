@@ -7,8 +7,8 @@
 - 가이드를 먼저 찾을 수 있는 의도(사용법)는 검색 전에는 검색에 필요한 필드만 요구한다.
 - 검색을 했는데 직원에게 안내할 수 없으면 담당자 전달에 필요한 필드를 요구한다.
   안내할 수 있다는 것은 판정이 SUFFICIENT이고 그 판정이 인용한 근거로 안내가 만들어졌다는 뜻이다.
-- 이미 물은 필드는 State에 기록이 없어 알 수 없으므로(멀티턴은 #189) 넘기지 않는다. 분석이 쓰던
-  것과 같다.
+- 이미 물은 필드는 Spring이 저장한 질문 이력(`InputProblem.askedFields`)에서 받아 다시 묻지 않는다.
+  이 실행 안에서 새로 만든 질문은 실행을 끝내므로 같은 실행에서 이어 묻는 일은 없다.
 """
 
 from collections.abc import Mapping
@@ -64,6 +64,7 @@ def question_plan(state: SupervisorState, ref: str, *, searched: bool) -> Questi
         system_known=problem.reportedSystemCandidateId is not None,
         system_names=[system.name for system in state["input"].systems],
         question_count=original.questionCount if original is not None else 0,
+        asked=original.askedFields if original is not None else (),
         unknown=_declared_unknown(problem),
         guide_first=True,
         handoff=searched and not answerable(state, ref),

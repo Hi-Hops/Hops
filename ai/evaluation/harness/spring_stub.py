@@ -1,16 +1,16 @@
 """Spring이 AI 결과를 받아 다음 실행 입력을 만드는 일을 흉내 내는 얇은 대역.
 
-**이 모듈의 동작은 하네스의 가정이다.** 현재 Spring은 문제·질문을 저장해 다음 실행 입력에 돌려주지
-않는다(#189에서 구현). 그래서 여러 번 오가는 시나리오를 재생하려고 최소한의 규칙을 여기서 흉내 낸다.
+실제 Spring(#189 ②·③)의 저장 규칙을 따라 최소한만 흉내 낸다. 실제 동작과 다르면 이 대역을 고친다.
 
 - 새 문제 참조(`new:...`)에는 문제 ID를 부여한다.
-- 질문이 있었던 문제는 질문 횟수를 올린다.
+- 질문이 있었던 문제는 질문 횟수를 올리고, 물은 항목(`requestedFields`)을 `askedFields`에 쌓는다.
 - 문제의 표준 요청은 AI가 제안한 문제 제안(사실·미확인·세부 정보)을 그대로 옮긴다.
-- 문제의 사실이 인용한 메시지를 그 문제에 연결한다(실제 서비스의 메시지-문제 연결 대신).
+- 문제의 사실이 인용한 메시지를 그 문제에 연결한다(실제 Spring도 인용한 사용자 메시지를 잇는다).
 - 사용자 응답을 새 메시지로 추가하고 입력 버전을 올린다. 사용자가 답한 뒤의 새 실행에서 문제는
   `ANALYZING`이다.
 
-실제 Spring 구현이 생기면 이 가정을 실제 동작과 대조해 바꾼다.
+실제 Spring과 다른 점: 질문 묶음 중복(같은 bundleRef)을 다시 세지 않는 규칙과 5회 초과 거부는 흉내
+내지 않는다(5회에서 멈춘다). 시스템 확인 대기·범위 밖의 저장 상태는 범위 밖만 구분한다.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -136,9 +136,11 @@ class SpringStub:
             return ref
 
         asked: dict[str, int] = {}
+        asked_fields: dict[str, list[str]] = {}
         for question in result.questions:
             problem_id = resolve(question.problemRef)
             asked[problem_id] = asked.get(problem_id, 0) + 1
+            asked_fields.setdefault(problem_id, []).extend(question.requestedFields)
         for proposal in result.problemProposals:
             problem_id = resolve(proposal.problemRef)
             previous = self._problems.get(problem_id)
@@ -152,6 +154,14 @@ class SpringStub:
                 "reportedFeatureId": None,
                 "state": "OUT_OF_SCOPE" if proposal.intent == "OUT_OF_SCOPE" else "ANALYZING",
                 "questionCount": min(count, 5),
+                "askedFields": list(
+                    dict.fromkeys(
+                        [
+                            *(previous["askedFields"] if previous else []),
+                            *asked_fields.get(problem_id, []),
+                        ]
+                    )
+                ),
                 "standardRequest": {
                     "summary": proposal.summary,
                     "confirmedFacts": [fact.model_dump() for fact in proposal.facts],

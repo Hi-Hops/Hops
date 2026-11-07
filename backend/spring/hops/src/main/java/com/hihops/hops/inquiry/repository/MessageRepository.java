@@ -81,6 +81,20 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     Optional<Message> findLatestGuide(UUID inquiryId, UUID problemId);
 
     /**
+     * 질문 묶음을 담은 AI 메시지, 보낸 순서대로. 문제별로 이미 물은 항목(askedFields)을 모은다 (docs/DATA.md 11.3).
+     */
+    @Query(value = """
+            SELECT * FROM message
+            WHERE inquiry_id = :inquiryId
+              AND sender_type = 'AI'
+              AND message_status = 'COMPLETED'
+              AND deleted_at IS NULL
+              AND jsonb_array_length(COALESCE(payload -> 'questionBundles', '[]'::jsonb)) > 0
+            ORDER BY sequence_no
+            """, nativeQuery = true)
+    List<Message> findAiMessagesWithQuestionBundles(UUID inquiryId);
+
+    /**
      * 이 문제에 같은 bundleRef의 질문 묶음을 이미 저장한 AI 메시지가 있는지 (payload.questionBundles, docs/DATA.md 11.3).
      * 재분석·재전달이 같은 묶음을 다시 세지 않게 한다. probe는 {"questionBundles":[{"problemId":..,"bundleRef":..}]} 형식 JSON이다.
      */
