@@ -553,3 +553,44 @@ def test_merge_rejects_links_outside_the_allowed_entities_and_unknown_evidence()
             merge(proposal_ok.model_copy(update={"entityLinks": changed}))
     with pytest.raises(OutputRejected):
         merge(proposal_ok, {"APPLIES_TO": {SYSTEM}})  # ADDRESSES·USES_CHECK 후보가 없을 때
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "알려진 결함(#198 ③에서 발견): Spring은 CASE_DRAFT의 allowedDocumentScopes를 "
+        "SYSTEM_STAFF만 보내면서 티켓 요청서의 상담 근거(직원 공개 가이드 포함)를 그대로 "
+        "보낸다. 초기 State 검증이 직원 공개 근거를 허용 범위 밖으로 거부해 사례 실행이 "
+        "실패한다. 범위 결정(보안 영역)이 필요해 고치지 않았다."
+    ),
+)
+def test_case_draft_with_employee_scope_consultation_evidence_is_accepted() -> None:
+    from hops_ai.supervisor.state import create_initial_state
+    from tests.supervisor_fixtures import make_evidence
+
+    fields = case_request().model_dump(mode="json")
+    evidence = make_evidence(accessScope="EMPLOYEE", systemId=SYSTEM).model_dump(mode="json")
+    fields["problems"][0]["standardRequest"] = {
+        "summary": "첨부파일 열람 실패",
+        "confirmedFacts": [],
+        "assumptions": [],
+        "unknowns": [],
+        "responsibleSystemCandidateId": SYSTEM,
+        "responsibilityEvidenceIds": [],
+        "details": {
+            name: None
+            for name in (
+                "taskOrScreen",
+                "requestedAccess",
+                "businessPurpose",
+                "expectedBehavior",
+                "actualBehavior",
+                "occurredAt",
+                "currentWorkflow",
+                "desiredChange",
+            )
+        }
+        | {"acceptanceCriteria": []},
+        "knowledge": [evidence],
+    }
+    create_initial_state(AiRunRequest.model_validate(fields))

@@ -1,0 +1,78 @@
+{
+  "scenarioId": "C-ea-failed-attempt-001",
+  "caseFamily": "ea-failed-attempt",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "confirmationState": "PENDING",
+  "systemCode": "ELECTRONIC_APPROVAL",
+  "ticketTitle": "전자결재 문서함에서 월간 보고 문서가 조회되지 않음",
+  "intent": "OBSERVED_SYMPTOM",
+  "workType": "INVESTIGATION",
+  "summary": "본인이 기안한 월간 보고 문서가 전자결재 문서함 목록에 나타나지 않는다. 안내대로 조회 기간을 확인했지만 해결되지 않았다.",
+  "facts": [
+    {
+      "text": "문의자가 직접 기안한 문서이다.",
+      "messages": [
+        3
+      ]
+    },
+    {
+      "text": "안내에 따라 조회 기간을 확인했지만 해결되지 않았다.",
+      "messages": [
+        3
+      ]
+    }
+  ],
+  "unknowns": [
+    "문서함 검색창에 입력한 내용"
+  ],
+  "details": {
+    "taskOrScreen": "전자결재 문서함에서 월간 보고 문서를 찾으려 함",
+    "expectedBehavior": "문서가 목록에 나타남",
+    "actualBehavior": "문서가 목록에 나타나지 않음",
+    "occurredAt": null
+  },
+  "messages": [
+    {
+      "sender": "USER",
+      "text": "제가 기안한 월간 보고 문서가 전자결재 문서함에 안 보여요."
+    },
+    {
+      "sender": "AI",
+      "text": "문서가 보이지 않아 불편하시겠어요. 이 문서를 직접 기안하셨나요? 그리고 안내해 드린 대로 조회 기간을 확인해 보셨나요?"
+    },
+    {
+      "sender": "USER",
+      "text": "네 제가 직접 기안했어요. 안내대로 조회 기간을 넓혀 봤는데도 안 나와요."
+    },
+    {
+      "sender": "AI",
+      "text": "알려 주셔서 감사합니다. 확인된 내용을 정리해 전자결재 담당자에게 접수했습니다. 담당자가 확인한 뒤 결과를 이 대화로 알려 드리겠습니다."
+    }
+  ],
+  "records": [
+    {
+      "kind": "FAILED_ATTEMPT",
+      "action": "문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다."
+    },
+    {
+      "kind": "FAILED_ATTEMPT",
+      "action": "조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다."
+    },
+    {
+      "kind": "VERIFIED_RESOLUTION",
+      "action": "문의자 화면을 함께 확인하니 문서함 검색창에 제목 키워드가 남아 있었다. 키워드를 지우고 다시 조회하도록 안내했다.",
+      "confirmedCause": "문서함 검색창에 남아 있던 제목 키워드 조건이 문서 제목과 맞지 않아 목록에서 걸러졌다.",
+      "verification": "키워드를 지운 뒤 조회하자 문서가 목록에 나타났다."
+    }
+  ],
+  "resolutionHistory": [
+    {
+      "source": "GUIDE",
+      "state": "UNRESOLVED"
+    }
+  ],
+  "consultedKnowledge": [
+    "guide-ea-document-search@1"
+  ]
+}

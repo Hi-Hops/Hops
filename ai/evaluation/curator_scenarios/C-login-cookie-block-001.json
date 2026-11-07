@@ -1,0 +1,7 @@
+{
+  "scenarioId": "C-login-cookie-block-001",
+  "caseFamily": "login-cookie-block",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "card": "case-login-cookie-block"
+}

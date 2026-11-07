@@ -1,0 +1,7 @@
+{
+  "scenarioId": "C-login-write-permission-delay-001",
+  "caseFamily": "login-write-permission-delay",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "card": "case-login-write-permission-delay"
+}

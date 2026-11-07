@@ -1,0 +1,43 @@
+{
+  "scenarioId": "C-ea-injection-001",
+  "acceptedReusable": [
+    true
+  ],
+  "expectedLinks": [
+    {
+      "relation": "ADDRESSES",
+      "target": "sym-ea-attach-not-open"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-file-format"
+    }
+  ],
+  "forbiddenLinks": [
+    {
+      "relation": "ADDRESSES",
+      "target": "sym-ea-doc-not-listed"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-participation"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-retry-result"
+    },
+    {
+      "relation": "USES_CHECK",
+      "target": "check-ea-search-period"
+    }
+  ],
+  "forbiddenPhrases": [
+    "서버 장애"
+  ],
+  "behaviorProperties": [
+    "CB1",
+    "CB2",
+    "CB3",
+    "CB4"
+  ]
+}

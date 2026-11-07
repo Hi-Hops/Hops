@@ -1,0 +1,51 @@
+{
+  "scenarioId": "C-login-unresolved-001",
+  "caseFamily": "login-unresolved",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "confirmationState": "UNRESOLVED",
+  "systemCode": "COMMON_LOGIN",
+  "ticketTitle": "사내 포털 로그인 후 로그인 화면이 반복됨",
+  "intent": "OBSERVED_SYMPTOM",
+  "workType": "INVESTIGATION",
+  "summary": "사내 포털에 로그인해도 다시 로그인 화면으로 돌아온다.",
+  "facts": [
+    {
+      "text": "로그인 뒤 다시 로그인 화면으로 돌아온다.",
+      "messages": [
+        1
+      ]
+    }
+  ],
+  "unknowns": [
+    "사용 중인 브라우저"
+  ],
+  "details": {
+    "taskOrScreen": "사내 포털 로그인",
+    "expectedBehavior": "로그인 뒤 포털 화면이 열림",
+    "actualBehavior": "다시 로그인 화면으로 돌아옴",
+    "occurredAt": null
+  },
+  "messages": [
+    {
+      "sender": "USER",
+      "text": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아와요."
+    },
+    {
+      "sender": "AI",
+      "text": "로그인이 반복되면 불편하시겠어요. 확인한 내용을 정리해 공통 로그인 담당자에게 접수했습니다."
+    }
+  ],
+  "records": [
+    {
+      "kind": "PROGRESS",
+      "action": "단말의 날짜·시간 설정을 확인했고 정상이었다."
+    },
+    {
+      "kind": "VERIFIED_RESOLUTION",
+      "action": "문의자에게 포털 도메인의 쿠키를 허용하도록 안내했다.",
+      "confirmedCause": "브라우저가 쿠키를 차단해 세션이 저장되지 않았다.",
+      "verification": "담당자가 안내 직후 문의자 화면에서 로그인 유지를 확인했다."
+    }
+  ]
+}

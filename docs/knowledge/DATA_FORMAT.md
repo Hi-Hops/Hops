@@ -205,6 +205,17 @@ questions:
 
 문서만 늘리지 않고 한 묶음으로 만든다: 첫 문의 A → 검수한 사례 A → 표현이 다른 후속 문의 B → 같은 증상·다른 원인의 방해 문의 C. 초안·승인·반영 상태가 다른 자료도 포함한다. B와 C의 정답과 미래 처리 기록은 평가 파일에만 둔다. 이 묶음의 평가 방식은 [평가](EVALUATION.md)에서 다룬다.
 
+## Curator 평가 시나리오 (`ai/evaluation/curator_scenarios/*.json`, 정답 `curator_golds/*.json`)
+
+사례 한 건이 만들어지기까지의 문의 전체 과정이 시나리오이고 모델 입력이다. 파일 이름은 `scenarioId`(`C-{caseFamily}-001`)다. 형식은 두 가지다.
+
+- **카드 기반**: `{"scenarioId", "caseFamily", "split", "origin", "card": "case-…"}`와 선택 필드(`confirmationState`, `resolutionHistory`, `consultedKnowledge`)만 쓴다. 문답·표준 요청·처리 기록은 `docs/knowledge/cases/{card}.yml`에서 읽는다. 카드의 `case`(사례 문구)와 `relation`(연결)은 입력에 쓰지 않는다.
+- **직접 작성**: `systemCode`, `ticketTitle`, `intent`, `workType`, `summary`, `facts`(문장과 근거 메시지 번호), `unknowns`, `details`, `messages`(`sender` USER/AI와 `text`), `records`(`kind` PROGRESS/FAILED_ATTEMPT/VERIFIED_RESOLUTION, 마지막이 원 기록)를 모두 쓴다.
+
+선택 필드: `confirmationState`(PENDING 기본/RESOLVED/UNRESOLVED), `resolutionHistory`(`source` GUIDE/WORK_RECORD, `state`), `consultedKnowledge`(`문서키@버전` 목록).
+
+정답: `acceptedReusable`(허용 bool 집합), `expectedLinks`·`forbiddenLinks`(`relation`과 노드 카탈로그 키 `target`), `forbiddenPhrases`, `behaviorProperties`(CB1~CB4). 노드 키는 코퍼스 런북·정책이 선언한 증상·확인 항목 ID이며 평가 대역이 시드와 같은 규칙의 UUID로 바꾼다. 검사 `uv run python -m evaluation.curator.validate`는 형식·짝·노드의 종류와 시스템·카드와의 일치·입력에 노드 키가 새지 않았는지·필수 상황(미해결, 해결되지 않은 시도, 원인 미확인, 삽입된 지시문)을 본다. 성질은 [평가 방식](EVALUATION.md#curator-평가-사례-초안관계-판단)에 있다.
+
 ## 그래프 시드
 
 Cypher 파일로 저장소에 두고 반복 적재해도 같은 결과가 나오게 한다(`MERGE`와 유일성 제약).
