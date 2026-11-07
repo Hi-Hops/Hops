@@ -392,6 +392,33 @@ class InquiryQuestionFlowTest {
     }
 
     @Test
+    void 질문_한도_초과_거부는_형식_오류가_아니라_상태_위반으로_로그에_남는다() throws Exception {
+        UUID inquiryId = askOnce("결재 문서가 안 열려요");
+        UUID problemId = problemOf(inquiryId);
+        for (int round = 2; round <= 5; round++) askAgain(inquiryId, problemId, "b" + round, "추가 답변 " + round);
+        JsonNode next = secondRunInput(inquiryId, "추가 답변 6");
+        UUID sixth = UUID.fromString(next.path("runId").asString());
+        when(client.snapshot(sixth.toString())).thenReturn(snapshot(sixth, inquiryId, next.path("inquiryVersion").asInt(), QUESTION,
+                List.of(proposal(problemId.toString(), "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, userMessageOf(inquiryId))),
+                List.of(question(problemId.toString(), "b6", QUESTION, "taskOrScreen"))));
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
+                com.hihops.hops.inquiry.service.ProblemQuestionWriter.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            dispatcher.deliver(sixth);
+
+            assertThat(appender.list).extracting(event -> event.getFormattedMessage()).anySatisfy(message -> {
+                assertThat(message).contains("INVALID_STATE").doesNotContain("INVALID_FORMAT");
+                assertThat(message).contains("InquiryProblem.recordQuestion");
+            });
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
     void 더_새_입력이_생긴_문의의_늦은_질문_결과는_저장하지_않는다() throws Exception {
         UUID inquiryId = createInquiry("결재 문서가 안 열려요");
         UUID runId = runOf(inquiryId);

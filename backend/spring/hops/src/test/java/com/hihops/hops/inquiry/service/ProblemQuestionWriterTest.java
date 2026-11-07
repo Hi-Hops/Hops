@@ -28,4 +28,16 @@ class ProblemQuestionWriterTest {
 
         assertThat(ProblemQuestionWriter.appFrame(exception)).isEqualTo("unknown");
     }
+
+    @Test
+    void GuideResultWriter에서_빌려_쓰는_검증_도우미_프레임은_건너뛰고_호출한_쪽을_위치로_쓴다() {
+        var exception = new RuntimeException();
+        exception.setStackTrace(new StackTraceElement[] {
+                new StackTraceElement("com.hihops.hops.inquiry.service.GuideResultWriter", "invalid", "GuideResultWriter.java", 10),
+                new StackTraceElement("com.hihops.hops.inquiry.service.GuideResultWriter", "require", "GuideResultWriter.java", 20),
+                new StackTraceElement("com.hihops.hops.inquiry.service.GuideResultWriter", "statements", "GuideResultWriter.java", 30),
+                new StackTraceElement("com.hihops.hops.inquiry.service.ProblemQuestionWriter", "store", "ProblemQuestionWriter.java", 217)});
+
+        assertThat(ProblemQuestionWriter.appFrame(exception)).isEqualTo("ProblemQuestionWriter.store:217");
+    }
 }

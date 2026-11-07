@@ -105,22 +105,34 @@ public class ProblemQuestionWriter {
             // 검증이 직접 던진 거부(require·orElseThrow). 사유 코드와 우리 코드의 위치를 남긴다
             log.warn("문제·질문 제안을 거부합니다: runId={}, {} at {}", run.getId(), rejected.getMessage(), appFrame(rejected));
             throw rejected;
-        } catch (IllegalArgumentException | IllegalStateException | JacksonException exception) {
-            // UUID·enum·5회 한도 등에서 난 예외. 예외 문구에는 AI 결과의 값이 들어갈 수 있어 종류와 위치만 남긴다
-            log.warn("문제·질문 제안을 거부합니다: runId={}, {} at {}", run.getId(), exception.getClass().getSimpleName(),
-                    appFrame(exception));
+        } catch (IllegalStateException exception) {
+            // 5회 한도 초과 같은 저장 상태 위반. 형식 오류와 구분해 남긴다
+            log.warn("문제·질문 제안을 거부합니다: runId={}, INVALID_STATE ({} at {})", run.getId(),
+                    exception.getClass().getSimpleName(), appFrame(exception));
+            throw invalid("INVALID_STATE");
+        } catch (IllegalArgumentException | JacksonException exception) {
+            // UUID·enum·JSON 형식 오류. 예외 문구에는 AI 결과의 값이 들어갈 수 있어 종류와 위치만 남긴다
+            log.warn("문제·질문 제안을 거부합니다: runId={}, INVALID_FORMAT ({} at {})", run.getId(),
+                    exception.getClass().getSimpleName(), appFrame(exception));
             throw invalid("INVALID_FORMAT");
         }
     }
 
+    // 검증 도우미(이 클래스의 require·invalid, GuideResultWriter에서 빌려 쓰는 text·uuid·ids·statements)는 위치가 아니다
+    private static boolean isHelper(StackTraceElement frame) {
+        String method = frame.getMethodName();
+        if ("require".equals(method) || "invalid".equals(method)) return true;
+        return frame.getClassName().endsWith("GuideResultWriter")
+                && List.of("text", "uuid", "ids", "statements").contains(method);
+    }
+
     /**
-     * 스택에서 이 프로젝트 코드의 첫 프레임. JDK 내부(UUID.fromString 등)나 검증 도우미(require·invalid)가 아니라
+     * 스택에서 이 프로젝트 코드의 첫 프레임. JDK 내부(UUID.fromString 등)나 검증 도우미가 아니라
      * 어느 검증이 거부했는지 보이는 위치를 찾는다.
      */
     static String appFrame(Throwable throwable) {
         for (StackTraceElement frame : throwable.getStackTrace()) {
-            if (frame.getClassName().startsWith("com.hihops.hops") && !"require".equals(frame.getMethodName())
-                    && !"invalid".equals(frame.getMethodName())) {
+            if (frame.getClassName().startsWith("com.hihops.hops") && !isHelper(frame)) {
                 return frame.getClassName().substring(frame.getClassName().lastIndexOf('.') + 1) + "."
                         + frame.getMethodName() + ":" + frame.getLineNumber();
             }
