@@ -1,6 +1,7 @@
 import { useSession } from '@/features/auth';
 import { useSystemCommand } from '@/shared/api/useSystemCommand';
 import { Button } from '@/shared/ui/Button';
+import { MarkdownText } from '@/shared/ui/MarkdownText';
 import type { ResolutionRequest } from '@/shared/api/types/hopsSystem1';
 import styles from './ResultPanel.module.css';
 import { resolutionResponseCommand } from '../api/systemInquiryApi';
@@ -23,7 +24,18 @@ export function ResolutionControls({ request }: ResolutionControlsProps) {
   return (
     <section className={styles.confirmation} aria-label="문제 해결 확인">
       <strong>이 문제가 해결됐나요?</strong>
-      <p>{request.resultSummary}</p>
+      {request.source === 'GUIDE' ? (
+        // 안내 본문은 채팅에 이미 있으므로 여기서는 접어 둔다
+        <>
+          <p>채팅에서 받은 안내로 해결됐는지 알려 주세요.</p>
+          <details className={styles.excerpt}>
+            <summary>안내 다시 보기</summary>
+            <MarkdownText text={request.resultSummary} />
+          </details>
+        </>
+      ) : (
+        <MarkdownText text={request.resultSummary} />
+      )}
       <p className={styles.meta}>
         {request.source === 'GUIDE'
           ? '저장된 안내'
