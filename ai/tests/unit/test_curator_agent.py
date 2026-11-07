@@ -516,7 +516,11 @@ async def test_draft_receives_the_process_context_but_not_document_bodies() -> N
     _, llm = await run_agent(request, draft(), selection())
 
     sent = llm.requests[0]
-    assert sent.prompt_version == PROMPT_VERSION == "curator-draft-v3"
+    assert sent.prompt_version == PROMPT_VERSION == "curator-draft-v4"
+    # 원인·적용 버전 미확인은 서버가 한계에 적으니 재사용 불가의 이유로 삼지 않게 말한다.
+    system_prompt = sent.messages[0].content
+    assert "확인되지 않았다는 것만으로" in system_prompt
+    assert "reusable을 false로 하지 않는다" in system_prompt
     payload = sent.messages[1].content
     assert '"relatedRecords"' in payload and "캐시를 지워 봄 0" in payload
     assert '"resolutionHistory"' in payload and "UNRESOLVED" in payload

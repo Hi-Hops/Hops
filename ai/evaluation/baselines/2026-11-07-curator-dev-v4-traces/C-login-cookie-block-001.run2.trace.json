@@ -1,0 +1,332 @@
+{
+ "format": 1,
+ "scenario_id": "C-login-cookie-block-001",
+ "request": {
+  "contractVersion": "hops-system-1",
+  "runId": "335a4cdf-8410-570b-9984-8a770b01c90a",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "69ba7335-9427-5915-bac8-da2577b07d12",
+  "inquiryVersion": 1,
+  "answerMessageId": null,
+  "problemIds": [
+   "77c7dff9-f53c-5a9d-9500-3f17817df9ee"
+  ],
+  "messages": [
+   {
+    "id": "d9ec8b3c-73a3-520d-a89d-da4cd5ef39f4",
+    "revision": 1,
+    "sequenceNo": 1,
+    "sender": "USER",
+    "content": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아와요. 계속 반복돼요.",
+    "problemIds": [
+     "77c7dff9-f53c-5a9d-9500-3f17817df9ee"
+    ],
+    "createdAt": "2026-11-02T00:01:00Z"
+   },
+   {
+    "id": "6ebf96d2-8965-5ddf-a084-2770f188c05e",
+    "revision": 1,
+    "sequenceNo": 2,
+    "sender": "AI",
+    "content": "로그인이 반복되면 업무가 어려우시겠어요. 확인할게요. 브라우저에서 쿠키를 차단하는 설정을 해 두셨나요? 그리고 다른 브라우저나 시크릿 창에서 로그인하면 어떤가요?",
+    "problemIds": [
+     "77c7dff9-f53c-5a9d-9500-3f17817df9ee"
+    ],
+    "createdAt": "2026-11-02T00:02:00Z"
+   },
+   {
+    "id": "51ff30ab-7a18-5217-9d83-f8624fdb7905",
+    "revision": 1,
+    "sequenceNo": 3,
+    "sender": "USER",
+    "content": "쿠키 설정은 잘 모르겠어요. 크롬에서만 그렇고 엣지에서는 로그인이 잘 돼요.",
+    "problemIds": [
+     "77c7dff9-f53c-5a9d-9500-3f17817df9ee"
+    ],
+    "createdAt": "2026-11-02T00:03:00Z"
+   },
+   {
+    "id": "2bbeaee4-2df0-5c42-9c2e-12dedddd5f13",
+    "revision": 1,
+    "sequenceNo": 4,
+    "sender": "AI",
+    "content": "알려 주셔서 감사합니다. 확인된 내용을 정리해 공통 로그인 담당자에게 접수했습니다. 담당자가 확인한 뒤 결과를 이 대화로 알려 드리겠습니다.",
+    "problemIds": [
+     "77c7dff9-f53c-5a9d-9500-3f17817df9ee"
+    ],
+    "createdAt": "2026-11-02T00:04:00Z"
+   }
+  ],
+  "problems": [
+   {
+    "id": "77c7dff9-f53c-5a9d-9500-3f17817df9ee",
+    "summary": "포털 로그인 후 로그인 화면 반복(크롬에서만)",
+    "intent": "OBSERVED_SYMPTOM",
+    "processingType": "INVESTIGATION",
+    "reportedSystemId": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+    "reportedFeatureId": null,
+    "state": "WAITING_CONFIRMATION",
+    "questionCount": 1,
+    "askedFields": [],
+    "standardRequest": {
+     "summary": "사내 포털에 로그인해도 다시 로그인 화면으로 돌아온다. 크롬에서만 반복되고 엣지에서는 정상이다.",
+     "confirmedFacts": [
+      {
+       "text": "크롬에서만 로그인 후 로그인 화면이 반복된다.",
+       "sourceMessageIds": [
+        "51ff30ab-7a18-5217-9d83-f8624fdb7905"
+       ],
+       "knowledgeEvidenceIds": []
+      },
+      {
+       "text": "엣지에서는 로그인이 정상이다.",
+       "sourceMessageIds": [
+        "51ff30ab-7a18-5217-9d83-f8624fdb7905"
+       ],
+       "knowledgeEvidenceIds": []
+      }
+     ],
+     "assumptions": [],
+     "unknowns": [
+      "브라우저의 쿠키 차단 설정 여부"
+     ],
+     "responsibleSystemCandidateId": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+     "responsibilityEvidenceIds": [],
+     "details": {
+      "taskOrScreen": "사내 포털 로그인 화면에서 로그인함",
+      "requestedAccess": null,
+      "businessPurpose": null,
+      "expectedBehavior": "로그인 뒤 대상 시스템 화면이 열림",
+      "actualBehavior": "다시 로그인 화면으로 돌아옴",
+      "occurredAt": null,
+      "currentWorkflow": null,
+      "desiredChange": null,
+      "acceptanceCriteria": []
+     },
+     "knowledge": []
+    },
+    "resolutionContext": null
+   }
+  ],
+  "systems": [
+   {
+    "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+    "code": "COMMON_LOGIN",
+    "name": "공통 로그인",
+    "features": [
+     {
+      "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+      "name": "로그인·SSO"
+     },
+     {
+      "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+      "name": "계정 접근"
+     },
+     {
+      "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+      "name": "권한 신청"
+     }
+    ]
+   }
+  ],
+  "accessContext": {
+   "actorId": "9deb766c-e1e2-5f5f-b37d-3bd4694f2400",
+   "purpose": "CASE_DRAFT",
+   "systemIds": [
+    "8ae35be5-1857-58c0-a478-e05b4217ff95"
+   ],
+   "allowedDocumentScopes": [
+    "EMPLOYEE",
+    "SYSTEM_STAFF"
+   ],
+   "policyRevision": 1,
+   "retrievalScopes": null
+  },
+  "existingWorkItems": [
+   {
+    "workItemId": "77c7dff9-f53c-5a9d-9500-3f17817df9ee",
+    "problemId": "77c7dff9-f53c-5a9d-9500-3f17817df9ee",
+    "inquiryVersion": 1,
+    "outcome": "STORED",
+    "ticketId": "f261845e-a175-59f0-b574-db17eaced8bc"
+   }
+  ],
+  "workRecord": {
+   "id": "6cd17340-77e1-5767-be95-ffc3d62a4ed7",
+   "ticketId": "f261845e-a175-59f0-b574-db17eaced8bc",
+   "problemId": "77c7dff9-f53c-5a9d-9500-3f17817df9ee",
+   "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+   "kind": "VERIFIED_RESOLUTION",
+   "action": "문의자에게 크롬에서 포털 도메인의 쿠키를 허용하도록 안내했다.",
+   "verification": "쿠키를 허용한 뒤 크롬에서 로그인하자 대상 시스템 화면이 유지되고 로그인 화면으로 돌아오지 않았다.",
+   "createdAt": "2026-11-02T02:00:00Z",
+   "resolutionRequestId": "6a01edf1-b4f4-52d3-a051-2d285751bbd3",
+   "confirmationState": "PENDING",
+   "confirmedCause": "문의자 크롬의 쿠키 차단 설정 때문에 SSO 세션이 저장되지 않았다.",
+   "appliesToSystemVersion": null,
+   "relatedRecords": [
+    {
+     "id": "054d6994-98c3-52ef-8656-2101d3d01a7b",
+     "kind": "PROGRESS",
+     "action": "문의자 단말의 날짜·시간이 맞는 것을 확인했고, 크롬에서만 반복되는 점을 근거로 브라우저 설정을 확인하기로 했다.",
+     "verification": null,
+     "confirmedCause": null,
+     "appliesToSystemVersion": null,
+     "createdAt": "2026-11-02T01:00:00Z"
+    }
+   ],
+   "resolutionHistory": [],
+   "consultedKnowledge": [],
+   "linkCandidates": [
+    {
+     "id": "bed926e5-95ef-51ad-a97c-42175e33a5e8",
+     "kind": "SYMPTOM",
+     "label": "로그인했는데 다시 로그인 화면으로 돌아옴",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "a4498651-19cb-59a5-8eff-8d15abb911ab",
+     "kind": "SYMPTOM",
+     "label": "권한 신청이 오래 승인되지 않음",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "a9e27417-a5c2-52eb-a94d-46187438e8e1",
+     "kind": "CHECK_ITEM",
+     "label": "브라우저의 쿠키 차단 설정 여부",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "21874d96-aaf7-5c39-8193-2e56ed9ff053",
+     "kind": "CHECK_ITEM",
+     "label": "다른 브라우저나 시크릿 창에서도 같은지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "4a778d21-85a4-5b41-a29c-3496d4a66b82",
+     "kind": "CHECK_ITEM",
+     "label": "단말의 날짜·시간 설정이 맞는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "ba6502bf-9f97-5cd9-ad6e-52d519e32fec",
+     "kind": "CHECK_ITEM",
+     "label": "신청한 권한 종류(읽기·쓰기·관리)",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "cd063c6a-b98e-5c6f-bb1e-943d256f6067",
+     "kind": "CHECK_ITEM",
+     "label": "사내 포털에서 직접 로그인하면 되는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "abc1ab88-b3e0-5fab-b3ba-f5934df194b8",
+     "kind": "CHECK_ITEM",
+     "label": "어느 시스템에서 로그인 화면이 반복되는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    },
+    {
+     "id": "9a1c525d-db15-5000-8d2c-4386cf968cc6",
+     "kind": "CHECK_ITEM",
+     "label": "소속 팀장 확인을 요청했는지",
+     "systemId": "8ae35be5-1857-58c0-a478-e05b4217ff95"
+    }
+   ]
+  },
+  "expiresAt": "2026-11-07T08:54:02Z",
+  "limits": {
+   "maxModelCalls": 8,
+   "maxInputTokens": 60000,
+   "maxOutputTokens": 12000,
+   "maxToolCalls": 10,
+   "maxRetries": 2
+  }
+ },
+ "result": {
+  "contractVersion": "hops-system-1",
+  "runId": "335a4cdf-8410-570b-9984-8a770b01c90a",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "69ba7335-9427-5915-bac8-da2577b07d12",
+  "inquiryVersion": 1,
+  "status": "SUCCEEDED",
+  "answer": null,
+  "problemProposals": [],
+  "questions": [],
+  "guide": null,
+  "ticketProposals": [],
+  "caseProposal": {
+   "reusable": true,
+   "title": "크롬에서 포털 로그인 화면이 반복될 때 포털 도메인 쿠키 허용",
+   "action": "문의자에게 크롬에서 포털 도메인의 쿠키를 허용하도록 안내했다.",
+   "verification": "쿠키를 허용한 뒤 크롬에서 로그인하자 대상 시스템 화면이 유지되고 로그인 화면으로 돌아오지 않았다.",
+   "applicability": "공통 로그인에서 포털 로그인 후 로그인 화면이 반복되고, 크롬에서만 발생하는 경우 포털 도메인의 쿠키를 허용하도록 안내합니다.",
+   "limitations": [
+    "적용 시스템 버전이 확인되지 않았다.",
+    "크롬 외 브라우저에서도 같은 현상이 발생하는 경우에는 적용 조건이 확인되지 않았습니다."
+   ],
+   "appliesToSystemVersion": null,
+   "accessScope": "SYSTEM_STAFF",
+   "sourceMessageIds": [
+    "d9ec8b3c-73a3-520d-a89d-da4cd5ef39f4",
+    "51ff30ab-7a18-5217-9d83-f8624fdb7905"
+   ],
+   "entityLinks": [
+    {
+     "relation": "APPLIES_TO",
+     "targetId": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+     "evidenceIds": [
+      "d9ec8b3c-73a3-520d-a89d-da4cd5ef39f4",
+      "51ff30ab-7a18-5217-9d83-f8624fdb7905"
+     ]
+    },
+    {
+     "relation": "ADDRESSES",
+     "targetId": "bed926e5-95ef-51ad-a97c-42175e33a5e8",
+     "evidenceIds": [
+      "d9ec8b3c-73a3-520d-a89d-da4cd5ef39f4"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "a9e27417-a5c2-52eb-a94d-46187438e8e1",
+     "evidenceIds": [
+      "6cd17340-77e1-5767-be95-ffc3d62a4ed7"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "21874d96-aaf7-5c39-8193-2e56ed9ff053",
+     "evidenceIds": [
+      "51ff30ab-7a18-5217-9d83-f8624fdb7905"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "4a778d21-85a4-5b41-a29c-3496d4a66b82",
+     "evidenceIds": [
+      "054d6994-98c3-52ef-8656-2101d3d01a7b"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "abc1ab88-b3e0-5fab-b3ba-f5934df194b8",
+     "evidenceIds": [
+      "d9ec8b3c-73a3-520d-a89d-da4cd5ef39f4"
+     ]
+    }
+   ],
+   "problemStatement": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아오는 현상이 반복되며, 크롬에서만 발생하고 엣지에서는 로그인이 잘 됩니다."
+  },
+  "evidence": [],
+  "error": null,
+  "requiresFollowUp": false,
+  "ticketCreationResults": []
+ },
+ "model_calls": 2,
+ "input_tokens": 3326,
+ "output_tokens": 691,
+ "elapsed_seconds": 7.450162332970649,
+ "error": null,
+ "failure_detail": null
+}

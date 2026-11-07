@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import InputMessage, InputProblem, WorkRecordContext
 
-PROMPT_VERSION = "curator-draft-v3"
+PROMPT_VERSION = "curator-draft-v4"
 MAX_OUTPUT_TOKENS = 800
 MAX_TITLE_LENGTH = 200
 MAX_TEXT_LENGTH = 1000
@@ -39,7 +39,8 @@ SYSTEM_PROMPT = """\
    처리 기록과 원문에 있는 내용으로만 쓴다.
 5. limitations에는 적용하면 안 되는 경우나 확인되지 않은 점을 짧은 문장으로 적는다.
    원인이나 적용 버전이 확인되지 않았다는 점, 시도했지만 해결되지 않은 조치는 서버가 따로
-   한계에 덧붙이므로 적지 않는다.
+   한계에 덧붙이므로 적지 않는다. 원인이나 적용 버전이 확인되지 않았다는 것만으로
+   reusable을 false로 하지 않는다.
 6. 원인은 workRecord.confirmedCause에 있는 내용만 쓸 수 있다. 원인을 추정하거나 단정하지 않는다.
 7. 실제 조치(action)와 검증(verification)은 다시 쓰지 않는다. 서버가 원 기록을 그대로 사용한다.
 8. sources에는 problemStatement의 근거가 된 USER 메시지 구절을 한 글자도 바꾸지 말고 quote에 옮기고

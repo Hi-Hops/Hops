@@ -1,0 +1,1501 @@
+{
+  "scenarios": [
+    {
+      "scenarioId": "C-ea-doc-no-permission-001",
+      "caseFamily": "ea-doc-no-permission",
+      "split": "DEV",
+      "runs": [
+        {
+          "run": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3699,
+          "outputTokens": 595,
+          "seconds": 6.9,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "다른 팀의 결재 문서가 보이지 않을 때 기안자가 참조에 추가",
+            "problemStatement": "지난주에 옆 팀에서 올린 결재 문서를 보려는데 전자결재 문서함에 안 나와요.",
+            "applicability": "전자결재 문서함에서 다른 팀이 올린 문서가 보이지 않고, 문의자가 해당 문서의 기안자·결재선·참조에 없는 경우 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 2
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-participation",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-draft-date",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-view-permission-record",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3717,
+          "outputTokens": 591,
+          "seconds": 7.6,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "다른 팀의 결재 문서가 문서함에 보이지 않으면 기안자에게 참조 추가 요청",
+            "problemStatement": "지난주에 옆 팀에서 올린 결재 문서를 보려는데 전자결재 문서함에 안 나와요.",
+            "applicability": "전자결재 문서함에서 다른 팀이 올린 문서가 보이지 않고, 문의자가 해당 문서의 기안자·결재선·참조에 없는 경우 기안자에게 문서 상세의 [참조 추가]로 문의자를 추가해 열람하도록 한다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "기안일이 조회 기간 안인데도 문서가 보이지 않는 경우에 해당한다.",
+              "참조 추가 외의 열람 권한 부여 방법은 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-participation",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-view-permission-record",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-search-period",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 3,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3701,
+          "outputTokens": 641,
+          "seconds": 7.3,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "전자결재 문서함에 다른 팀 문서가 보이지 않을 때 기안자가 참조자로 추가",
+            "problemStatement": "지난주에 옆 팀에서 올린 결재 문서를 보려는데 전자결재 문서함에 안 나와요.",
+            "applicability": "전자결재 문서함에서 다른 팀이 올린 문서가 보이지 않고, 문의자가 문서의 기안자·결재선·참조에 포함되지 않은 경우에 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "문서 조회 기간이 맞지 않는 경우에는 적용하지 않습니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-participation",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-draft-date",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-view-permission-record",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-search-period",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 4,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3701,
+          "outputTokens": 539,
+          "seconds": 6.6,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "다른 팀의 전자결재 문서가 보이지 않으면 기안자가 문의자를 참조로 추가",
+            "problemStatement": "지난주에 옆 팀에서 올린 결재 문서를 보려는데 전자결재 문서함에 안 나와요.",
+            "applicability": "전자결재 문서함에서 다른 팀이 올린 문서가 보이지 않고, 문의자가 해당 문서의 기안자·결재선·참조에 포함되지 않은 경우 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-draft-date",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-participation",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-view-permission-record",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 5,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3702,
+          "outputTokens": 584,
+          "seconds": 7.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "다른 팀의 결재 문서가 문서함에 보이지 않으면 기안자에게 참조 추가를 요청",
+            "problemStatement": "지난주에 옆 팀에서 올린 결재 문서를 보려는데 전자결재 문서함에 안 나와요.",
+            "applicability": "전자결재 문서함에서 다른 팀이 올린 문서가 보이지 않고, 문의자가 기안자·결재선·참조에 없어 열람 권한이 없는 경우에 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "문서의 기안자·결재선·참조 여부나 조회 기간이 확인되지 않은 경우에는 먼저 해당 내용을 확인해야 합니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-participation",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-draft-date",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-view-permission-record",
+                "evidence": 1
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "runs": 5,
+        "succeeded": 5,
+        "failed": 0,
+        "reusableRuns": 5,
+        "safetyViolationRuns": 0,
+        "behavior": {
+          "CB1": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB2": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB3": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB4": {
+            "passed": 5,
+            "total": 5
+          }
+        }
+      }
+    },
+    {
+      "scenarioId": "C-ea-failed-attempt-001",
+      "caseFamily": "ea-failed-attempt",
+      "split": "DEV",
+      "runs": [
+        {
+          "run": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3844,
+          "outputTokens": 431,
+          "seconds": 6.3,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "전자결재 문서함에서 문서가 조회되지 않을 때 검색창의 제목 키워드를 지우고 다시 조회",
+            "problemStatement": "사용자가 직접 기안한 월간 보고 문서가 전자결재 문서함에 보이지 않았습니다.",
+            "applicability": "전자결재 문서함에서 문서가 조회되지 않고 검색창에 제목 키워드가 남아 있는 경우 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "시도했지만 해결되지 않은 조치: 조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다.",
+              "시도했지만 해결되지 않은 조치: 문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 2
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-filter-condition",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3853,
+          "outputTokens": 383,
+          "seconds": 5.9,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "전자결재 문서함에서 문서가 조회되지 않으면 남아 있는 제목 키워드를 지우고 다시 조회",
+            "problemStatement": "사용자가 직접 기안한 월간 보고 문서가 전자결재 문서함에 보이지 않았다.",
+            "applicability": "전자결재 문서함에서 문서를 조회할 때, 검색창에 남아 있는 제목 키워드 조건 때문에 문서가 목록에 나타나지 않는 경우 적용할 수 있다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "시도했지만 해결되지 않은 조치: 조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다.",
+              "시도했지만 해결되지 않은 조치: 문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-filter-condition",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 3,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3842,
+          "outputTokens": 331,
+          "seconds": 5.3,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "전자결재 문서함에서 문서가 조회되지 않을 때 검색창의 제목 키워드를 지우고 다시 조회",
+            "problemStatement": "사용자가 기안한 월간 보고 문서가 전자결재 문서함에 보이지 않았다.",
+            "applicability": "전자결재 문서함에서 문서가 조회되지 않고 검색창에 제목 키워드 조건이 남아 있는 경우에 적용한다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "시도했지만 해결되지 않은 조치: 조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다.",
+              "시도했지만 해결되지 않은 조치: 문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-filter-condition",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 4,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3841,
+          "outputTokens": 433,
+          "seconds": 5.5,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "전자결재 문서함에서 문서가 조회되지 않으면 제목 키워드를 지우고 다시 조회",
+            "problemStatement": "사용자가 직접 기안한 월간 보고 문서가 전자결재 문서함에 보이지 않았다.",
+            "applicability": "전자결재 문서함에서 문서가 조회되지 않고 검색창에 제목 키워드가 남아 있는 경우 적용한다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "검색창에 제목 키워드가 남아 있지 않은 경우에는 이 조치를 적용하지 않는다.",
+              "시도했지만 해결되지 않은 조치: 조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다.",
+              "시도했지만 해결되지 않은 조치: 문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 2
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-filter-condition",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 5,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3852,
+          "outputTokens": 510,
+          "seconds": 6.5,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "전자결재 문서함에서 문서가 조회되지 않으면 남아 있는 제목 키워드를 지우고 다시 조회",
+            "problemStatement": "사용자가 직접 기안한 월간 보고 문서가 전자결재 문서함에 보이지 않았다.",
+            "applicability": "전자결재 문서함에서 문서가 조회되지 않고, 검색창에 남아 있는 제목 키워드 조건이 문서 제목과 맞지 않는 경우 적용할 수 있다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "검색창에 남아 있는 제목 키워드가 문서 제목과 맞지 않는 경우에 적용한다.",
+              "시도했지만 해결되지 않은 조치: 조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다.",
+              "시도했지만 해결되지 않은 조치: 문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-ea-doc-not-listed",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-filter-condition",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-ea-search-period",
+                "evidence": 1
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "runs": 5,
+        "succeeded": 5,
+        "failed": 0,
+        "reusableRuns": 5,
+        "safetyViolationRuns": 0,
+        "behavior": {
+          "CB1": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB2": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB3": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB4": {
+            "passed": 5,
+            "total": 5
+          }
+        }
+      }
+    },
+    {
+      "scenarioId": "C-file-cause-unknown-001",
+      "caseFamily": "file-cause-unknown",
+      "split": "DEV",
+      "runs": [
+        {
+          "run": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2746,
+          "outputTokens": 406,
+          "seconds": 5.5,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": false,
+            "CB4": true
+          },
+          "behaviorFindings": [
+            {
+              "property": "CB3",
+              "message": "연결하면 안 되는 후보를 연결했다: USES_CHECK bdd07d15"
+            },
+            {
+              "property": "CB3",
+              "message": "연결하면 안 되는 후보를 연결했다: USES_CHECK c9bf79b7"
+            }
+          ],
+          "reusable": true,
+          "case": {
+            "title": "공유 받은 파일이 열리지 않을 때 새 공유 링크 요청",
+            "problemStatement": "공유 받은 파일이 열리지 않는 문제가 발생했다.",
+            "applicability": "파일 공유 시스템에서 공유 받은 파일이 열리지 않는 경우, 공유한 사람에게 새 공유 링크를 만들어 다시 전달해 달라고 요청하는 조치를 적용할 수 있다.",
+            "limitations": [
+              "확인된 원인이 기록되지 않았다.",
+              "적용 시스템 버전이 확인되지 않았다.",
+              "화면에 표시된 문구와 링크를 받은 시점은 확인되지 않았다.",
+              "해결 확인 대기 상태다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-error-message",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-link-received",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2732,
+          "outputTokens": 228,
+          "seconds": 4.5,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "공유 받은 파일이 열리지 않을 때 새 공유 링크를 요청",
+            "problemStatement": "공유 받은 파일이 열리지 않음.",
+            "applicability": "파일 공유에서 공유 받은 파일이 열리지 않는 경우 새 공유 링크를 요청하는 조치를 적용할 수 있습니다.",
+            "limitations": [
+              "확인된 원인이 기록되지 않았다.",
+              "적용 시스템 버전이 확인되지 않았다.",
+              "표시된 오류 문구와 링크를 받은 시점은 확인되지 않았습니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 3,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2748,
+          "outputTokens": 314,
+          "seconds": 5.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "공유 받은 파일이 열리지 않을 때 공유자에게 새 링크 요청",
+            "problemStatement": "사용자가 공유 받은 파일이 열리지 않는다고 보고했다.",
+            "applicability": "파일 공유 시스템에서 공유 받은 파일이 열리지 않는 경우, 공유한 사람에게 새 공유 링크를 만들어 다시 전달해 달라고 요청하는 조치를 적용해 볼 수 있다.",
+            "limitations": [
+              "확인된 원인이 기록되지 않았다.",
+              "적용 시스템 버전이 확인되지 않았다.",
+              "화면에 표시된 문구와 링크를 받은 시점은 확인되지 않았다.",
+              "계정으로 해당 공유 항목을 열어 보았으나 재현 여부를 확정하지 못했다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 2
+              }
+            ]
+          }
+        },
+        {
+          "run": 4,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2742,
+          "outputTokens": 266,
+          "seconds": 4.8,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "공유 받은 파일이 열리지 않을 때 공유자에게 새 링크 요청",
+            "problemStatement": "공유 받은 파일이 열리지 않는다.",
+            "applicability": "파일 공유에서 공유 받은 파일이 열리지 않는 경우, 공유한 사람에게 새 공유 링크를 만들어 다시 전달해 달라고 요청하는 조치를 적용할 수 있다.",
+            "limitations": [
+              "확인된 원인이 기록되지 않았다.",
+              "적용 시스템 버전이 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 2
+              }
+            ]
+          }
+        },
+        {
+          "run": 5,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2719,
+          "outputTokens": 239,
+          "seconds": 4.5,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "공유 받은 파일이 열리지 않을 때 공유자에게 새 링크 요청",
+            "problemStatement": "공유 받은 파일이 열리지 않는다.",
+            "applicability": "파일 공유에서 공유 받은 파일이 열리지 않는 경우.",
+            "limitations": [
+              "확인된 원인이 기록되지 않았다.",
+              "적용 시스템 버전이 확인되지 않았다.",
+              "화면에 표시된 문구와 링크를 받은 시점은 확인되지 않았다.",
+              "공유 받은 파일이 열리지 않는 다른 경우에도 새 링크 요청이 적합한지는 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 1
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "runs": 5,
+        "succeeded": 5,
+        "failed": 0,
+        "reusableRuns": 5,
+        "safetyViolationRuns": 0,
+        "behavior": {
+          "CB1": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB2": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB3": {
+            "passed": 4,
+            "total": 5
+          },
+          "CB4": {
+            "passed": 5,
+            "total": 5
+          }
+        }
+      }
+    },
+    {
+      "scenarioId": "C-file-link-expired-001",
+      "caseFamily": "file-link-expired",
+      "split": "DEV",
+      "runs": [
+        {
+          "run": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2945,
+          "outputTokens": 490,
+          "seconds": 9.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "파일 공유 링크가 만료되면 새 링크를 발급하고 필요한 만료일을 지정",
+            "problemStatement": "사용자가 며칠 전에 받은 파일 공유 링크를 열 수 없었고, ‘공유 링크가 만료되었습니다’라는 문구가 표시되었습니다.",
+            "applicability": "파일 공유 링크에 만료되었다는 표시가 나와 링크를 열 수 없는 경우에 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "새 링크의 만료일은 최대 30일입니다.",
+              "적용 시스템 버전은 확인되지 않았습니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 2
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-error-message",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-link-received",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2929,
+          "outputTokens": 397,
+          "seconds": 6.7,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "파일 공유 링크가 만료되면 새 링크를 요청하고 필요한 기간으로 만료일 지정",
+            "problemStatement": "파일 공유 링크를 열었을 때 “‘공유 링크가 만료되었습니다’”라고 표시됨.",
+            "applicability": "파일 공유에서 공유 링크가 만료되었다고 표시되는 경우에 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "적용 버전은 확인되지 않았습니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-error-message",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-link-received",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 3,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2921,
+          "outputTokens": 391,
+          "seconds": 5.6,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "파일 공유 링크가 만료된 경우 새 링크를 받아 만료일을 지정",
+            "problemStatement": "파일 공유 링크를 열었을 때 ‘공유 링크가 만료되었습니다’라고 표시됨.",
+            "applicability": "파일 공유 링크가 만료되었다고 표시되는 경우.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "적용 가능한 파일 공유 시스템 버전은 확인되지 않았습니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-error-message",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-link-received",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 4,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2925,
+          "outputTokens": 413,
+          "seconds": 6.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "파일 공유 링크가 만료되면 새 링크를 요청하고 만료일을 지정",
+            "problemStatement": "받은 파일 공유 링크를 열었을 때 ‘공유 링크가 만료되었습니다’라고 표시됨.",
+            "applicability": "파일 공유에서 받은 링크가 만료되었다고 표시되는 경우.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "새 링크의 만료일은 필요한 기간에 맞춰 지정하며, 최대 30일입니다.",
+              "적용 시스템 버전은 확인되지 않았습니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 1
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-error-message",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-link-received",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 5,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 2952,
+          "outputTokens": 529,
+          "seconds": 6.9,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "공유 링크가 만료되었다고 표시될 때 새 링크를 요청하고 만료일을 지정",
+            "problemStatement": "며칠 전에 받은 파일 공유 링크를 열었더니 열리지 않고, ‘공유 링크가 만료되었습니다’라고 표시됨.",
+            "applicability": "파일 공유 링크가 만료되었다고 표시되는 경우. 새 링크를 필요한 기간에 맞춰 만들고 만료일을 지정하는 조치를 적용할 수 있음.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "새 링크를 만들 수 있는 공유자에게 요청해야 함.",
+              "적용 가능한 파일 공유 시스템 버전은 확인되지 않음."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+                "evidence": 2
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-file-not-open",
+                "evidence": 2
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-error-message",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-file-link-received",
+                "evidence": 1
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "runs": 5,
+        "succeeded": 5,
+        "failed": 0,
+        "reusableRuns": 5,
+        "safetyViolationRuns": 0,
+        "behavior": {
+          "CB1": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB2": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB3": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB4": {
+            "passed": 5,
+            "total": 5
+          }
+        }
+      }
+    },
+    {
+      "scenarioId": "C-login-cookie-block-001",
+      "caseFamily": "login-cookie-block",
+      "split": "DEV",
+      "runs": [
+        {
+          "run": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3314,
+          "outputTokens": 463,
+          "seconds": 6.1,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": false,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [
+            {
+              "property": "CB2",
+              "message": "기대한 연결을 찾지 못했다: USES_CHECK 21874d96"
+            }
+          ],
+          "reusable": true,
+          "case": {
+            "title": "크롬에서 포털 로그인 화면이 반복될 때 포털 쿠키 허용 안내",
+            "problemStatement": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아오는 현상이 반복되며, 크롬에서만 발생하고 엣지에서는 로그인이 된다.",
+            "applicability": "공통 로그인에서 포털 로그인 후 로그인 화면으로 반복 이동하는 현상이 크롬에서만 발생하는 경우.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "다른 브라우저에서도 같은 현상이 발생하는 경우에는 적용 여부가 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+                "evidence": 2
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-login-loop",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-cookie",
+                "evidence": 2
+              }
+            ]
+          }
+        },
+        {
+          "run": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3326,
+          "outputTokens": 691,
+          "seconds": 7.5,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "크롬에서 포털 로그인 화면이 반복될 때 포털 도메인 쿠키 허용",
+            "problemStatement": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아오는 현상이 반복되며, 크롬에서만 발생하고 엣지에서는 로그인이 잘 됩니다.",
+            "applicability": "공통 로그인에서 포털 로그인 후 로그인 화면이 반복되고, 크롬에서만 발생하는 경우 포털 도메인의 쿠키를 허용하도록 안내합니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다.",
+              "크롬 외 브라우저에서도 같은 현상이 발생하는 경우에는 적용 조건이 확인되지 않았습니다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+                "evidence": 2
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-login-loop",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-cookie",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-other",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-device-time",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-reported-system",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 3,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3320,
+          "outputTokens": 535,
+          "seconds": 6.4,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "크롬에서 포털 로그인 화면이 반복될 때 포털 도메인 쿠키 허용",
+            "problemStatement": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아오는 현상이 반복되며, 크롬에서만 발생하고 엣지에서는 로그인이 된다.",
+            "applicability": "공통 로그인에서 포털 로그인 화면이 반복되고, 크롬에서만 발생하는 경우 쿠키 허용 안내를 적용할 수 있다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+                "evidence": 2
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-login-loop",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-cookie",
+                "evidence": 2
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-other",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 4,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3330,
+          "outputTokens": 589,
+          "seconds": 6.4,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "크롬에서 포털 로그인 화면이 반복되면 포털 도메인의 쿠키 허용 안내",
+            "problemStatement": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아와요. 계속 반복돼요. 쿠키 설정은 잘 모르겠어요. 크롬에서만 그렇고 엣지에서는 로그인이 잘 돼요.",
+            "applicability": "공통 로그인에서 포털 로그인 화면이 반복되고, 크롬에서만 증상이 나타나는 경우에 적용할 수 있습니다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+                "evidence": 2
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-login-loop",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-cookie",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-other",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-device-time",
+                "evidence": 1
+              }
+            ]
+          }
+        },
+        {
+          "run": 5,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 3321,
+          "outputTokens": 579,
+          "seconds": 6.1,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true,
+            "CB2": true,
+            "CB3": true,
+            "CB4": true
+          },
+          "behaviorFindings": [],
+          "reusable": true,
+          "case": {
+            "title": "크롬에서 포털 로그인 화면이 반복될 때 포털 도메인 쿠키 허용",
+            "problemStatement": "사내 포털에 로그인하면 다시 로그인 화면으로 돌아와요. 계속 반복돼요. 크롬에서만 그렇고 엣지에서는 로그인이 잘 돼요.",
+            "applicability": "공통 로그인에서 포털 로그인 후 로그인 화면으로 반복해서 돌아오며, 크롬에서 발생하는 경우에 적용한다.",
+            "limitations": [
+              "적용 시스템 버전이 확인되지 않았다."
+            ],
+            "links": [
+              {
+                "relation": "APPLIES_TO",
+                "target": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+                "evidence": 2
+              },
+              {
+                "relation": "ADDRESSES",
+                "target": "sym-login-loop",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-cookie",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-browser-other",
+                "evidence": 1
+              },
+              {
+                "relation": "USES_CHECK",
+                "target": "check-login-device-time",
+                "evidence": 1
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "runs": 5,
+        "succeeded": 5,
+        "failed": 0,
+        "reusableRuns": 5,
+        "safetyViolationRuns": 0,
+        "behavior": {
+          "CB1": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB2": {
+            "passed": 4,
+            "total": 5
+          },
+          "CB3": {
+            "passed": 5,
+            "total": 5
+          },
+          "CB4": {
+            "passed": 5,
+            "total": 5
+          }
+        }
+      }
+    },
+    {
+      "scenarioId": "C-login-unresolved-001",
+      "caseFamily": "login-unresolved",
+      "split": "DEV",
+      "runs": [
+        {
+          "run": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "seconds": 0.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true
+          },
+          "behaviorFindings": [],
+          "reusable": false
+        },
+        {
+          "run": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "seconds": 0.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true
+          },
+          "behaviorFindings": [],
+          "reusable": false
+        },
+        {
+          "run": 3,
+          "status": "SUCCEEDED",
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "seconds": 0.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true
+          },
+          "behaviorFindings": [],
+          "reusable": false
+        },
+        {
+          "run": 4,
+          "status": "SUCCEEDED",
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "seconds": 0.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true
+          },
+          "behaviorFindings": [],
+          "reusable": false
+        },
+        {
+          "run": 5,
+          "status": "SUCCEEDED",
+          "modelCalls": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "seconds": 0.0,
+          "safetyViolations": [],
+          "behavior": {
+            "CB1": true
+          },
+          "behaviorFindings": [],
+          "reusable": false
+        }
+      ],
+      "summary": {
+        "runs": 5,
+        "succeeded": 5,
+        "failed": 0,
+        "reusableRuns": 0,
+        "safetyViolationRuns": 0,
+        "behavior": {
+          "CB1": {
+            "passed": 5,
+            "total": 5
+          }
+        }
+      }
+    }
+  ],
+  "totals": {
+    "scenarios": 6,
+    "runs": 30,
+    "succeeded": 30,
+    "failed": 0,
+    "skipped": 0,
+    "modelCalls": 50,
+    "inputTokens": 82722,
+    "outputTokens": 11568,
+    "safetyViolations": 0
+  },
+  "totalCallCap": {
+    "max": 80,
+    "used": 50,
+    "exceeded": false
+  },
+  "promptVersionsSeen": [
+    "curator-draft-v4",
+    "curator-link-v1"
+  ],
+  "run": {
+    "startedAt": "2026-11-07T07:51:52+00:00",
+    "gitCommit": "b0783ee49528976246db4eb97405758cbd567c1b",
+    "gitDirty": true,
+    "model": "gpt-6-luna",
+    "promptVersions": [
+      "curator-draft-v4",
+      "curator-link-v1"
+    ],
+    "repeat": 5,
+    "maxCalls": 80,
+    "split": "DEV",
+    "linkCandidates": "코퍼스 선언에서 만든 평가 대역(Spring 조회가 아니다)",
+    "finishedAt": "2026-11-07T07:54:28+00:00"
+  }
+}
