@@ -64,6 +64,7 @@ import static com.hihops.hops.inquiry.service.GuideResultWriter.uuid;
 public class ProblemQuestionWriter {
 
     private static final Logger log = LoggerFactory.getLogger(ProblemQuestionWriter.class);
+    private static final String MESSAGE = "문제·질문 제안을 현재 문의 상태와 대조할 수 없습니다";
     private static final Pattern NEW_REF = Pattern.compile("new:[A-Za-z0-9_-]+");
     private static final int MAX_TITLE_CODE_POINTS = 200;
     private static final int MAX_BUNDLE_REF_LENGTH = 200;
@@ -100,12 +101,31 @@ public class ProblemQuestionWriter {
         }
         try {
             return save(run, inquiry, answerId, input, result, guideRef);
+        } catch (AgentResultRejectedException rejected) {
+            // 검증이 직접 던진 거부(require·orElseThrow). 사유 코드와 우리 코드의 위치를 남긴다
+            log.warn("문제·질문 제안을 거부합니다: runId={}, {} at {}", run.getId(), rejected.getMessage(), appFrame(rejected));
+            throw rejected;
         } catch (IllegalArgumentException | IllegalStateException | JacksonException exception) {
-            // 거부 사유를 운영에서 찾을 수 있게 예외 종류와 위치를 남긴다. 예외 문구에는 AI 결과의 값이 들어갈 수 있어 싣지 않는다
-            StackTraceElement at = exception.getStackTrace().length > 0 ? exception.getStackTrace()[0] : null;
-            log.warn("문제·질문 제안을 거부합니다: runId={}, {} at {}", run.getId(), exception.getClass().getSimpleName(), at);
-            throw invalid("문제·질문 제안을 현재 문의 상태와 대조할 수 없습니다");
+            // UUID·enum·5회 한도 등에서 난 예외. 예외 문구에는 AI 결과의 값이 들어갈 수 있어 종류와 위치만 남긴다
+            log.warn("문제·질문 제안을 거부합니다: runId={}, {} at {}", run.getId(), exception.getClass().getSimpleName(),
+                    appFrame(exception));
+            throw invalid("INVALID_FORMAT");
         }
+    }
+
+    /**
+     * 스택에서 이 프로젝트 코드의 첫 프레임. JDK 내부(UUID.fromString 등)나 검증 도우미(require·invalid)가 아니라
+     * 어느 검증이 거부했는지 보이는 위치를 찾는다.
+     */
+    static String appFrame(Throwable throwable) {
+        for (StackTraceElement frame : throwable.getStackTrace()) {
+            if (frame.getClassName().startsWith("com.hihops.hops") && !"require".equals(frame.getMethodName())
+                    && !"invalid".equals(frame.getMethodName())) {
+                return frame.getClassName().substring(frame.getClassName().lastIndexOf('.') + 1) + "."
+                        + frame.getMethodName() + ":" + frame.getLineNumber();
+            }
+        }
+        return "unknown";
     }
 
     private Applied save(AgentRun run, Inquiry inquiry, UUID answerId, JsonNode input, JsonNode result,
@@ -126,11 +146,11 @@ public class ProblemQuestionWriter {
         Map<String, JsonNode> questionByRef = new LinkedHashMap<>();
         for (var question : result.path("questions")) {
             String ref = text(question.path("problemRef"));
-            require(questionByRef.put(ref, question) == null && !owned.contains(ref));
+            require(questionByRef.put(ref, question) == null && !owned.contains(ref), "DUPLICATE_OR_OWNED_QUESTION");
         }
         Set<String> proposalRefs = new LinkedHashSet<>();
         for (var proposal : proposals) require(proposalRefs.add(text(proposal.path("problemRef"))));
-        require(proposalRefs.containsAll(questionByRef.keySet()));
+        require(proposalRefs.containsAll(questionByRef.keySet()), "QUESTION_WITHOUT_PROPOSAL");
 
         var context = new Context(run, inquiry, input, result, answer, userMessageIds(input.path("messages")),
                 itemIds(input.path("systems")), itemIds(input.path("problems")), itemIds(result.path("evidence")));
@@ -148,7 +168,8 @@ public class ProblemQuestionWriter {
             if (!NEW_REF.matcher(ref).matches()) {
                 existing = existing(context, ref);
                 if (!reopenable(existing)) {
-                    require(!questionByRef.containsKey(ref)); // 티켓·확인 대기 중인 문제에는 질문할 수 없다
+                    // 티켓·확인 대기 중인 문제에는 질문할 수 없다
+                    require(!questionByRef.containsKey(ref), "QUESTION_FOR_CLOSED_PROBLEM");
                     handled.add(ref);
                     continue;
                 }
@@ -179,8 +200,8 @@ public class ProblemQuestionWriter {
 
     private InquiryProblem existing(Context context, String ref) {
         UUID id = uuid(mapper.valueToTree(ref));
-        require(context.inputProblemIds().contains(id));
-        InquiryProblem problem = problems.findById(id).orElseThrow(() -> invalid());
+        require(context.inputProblemIds().contains(id), "UNKNOWN_PROBLEM_REF");
+        InquiryProblem problem = problems.findById(id).orElseThrow(() -> invalid("PROBLEM_NOT_FOUND"));
         require(!problem.isDeleted() && problem.getInquiry().getId().equals(context.inquiry().getId()));
         return problem;
     }
@@ -207,8 +228,8 @@ public class ProblemQuestionWriter {
         ItSystem system = null;
         if (!proposal.path("reportedSystemCandidateId").isNull()) {
             UUID systemId = uuid(proposal.path("reportedSystemCandidateId"));
-            require(context.systemIds().contains(systemId));
-            system = systems.findForRead(systemId).orElseThrow(() -> invalid());
+            require(context.systemIds().contains(systemId), "UNKNOWN_SYSTEM");
+            system = systems.findForRead(systemId).orElseThrow(() -> invalid("SYSTEM_NOT_FOUND"));
         }
         statements(proposal.path("facts"), context.userMessageIds(), context.evidenceIds(), true);
         statements(proposal.path("assumptions"), context.userMessageIds(), context.evidenceIds(), false);
@@ -265,11 +286,12 @@ public class ProblemQuestionWriter {
     private boolean recordQuestion(Context context, ObjectNode answerPayload, InquiryProblem problem, JsonNode question) {
         String text = text(question.path("text"));
         String bundleRef = text(question.path("bundleRef"));
-        require(bundleRef.length() <= MAX_BUNDLE_REF_LENGTH);
+        require(bundleRef.length() <= MAX_BUNDLE_REF_LENGTH, "BUNDLE_REF_TOO_LONG");
         int offset = context.answer().indexOf(text);
-        require(offset >= 0); // 질문 문구는 사용자에게 보이는 answer 안에 있어야 한다
+        // 질문 문구는 사용자에게 보이는 answer 안에 있어야 한다
+        require(offset >= 0, "QUESTION_NOT_IN_ANSWER");
         var fields = question.path("requestedFields");
-        require(fields.isArray() && fields.size() <= MAX_REQUESTED_FIELDS);
+        require(fields.isArray() && fields.size() <= MAX_REQUESTED_FIELDS, "REQUESTED_FIELDS_INVALID");
         Set<String> requested = new LinkedHashSet<>();
         for (var field : fields) require(requested.add(text(field)));
 
@@ -318,11 +340,16 @@ public class ProblemQuestionWriter {
         if (!valid) throw invalid();
     }
 
-    private static AgentResultRejectedException invalid(String message) {
-        return new AgentResultRejectedException("INVALID_OUTPUT", message);
+    private static void require(boolean valid, String reason) {
+        if (!valid) throw invalid(reason);
+    }
+
+    // reason은 AI 결과의 값이 아닌 고정 사유 코드만 쓴다. 로그에 그대로 남는다
+    private static AgentResultRejectedException invalid(String reason) {
+        return new AgentResultRejectedException("INVALID_OUTPUT", MESSAGE + ": " + reason);
     }
 
     private static AgentResultRejectedException invalid() {
-        return invalid("문제·질문 제안을 현재 문의 상태와 대조할 수 없습니다");
+        return new AgentResultRejectedException("INVALID_OUTPUT", MESSAGE);
     }
 }

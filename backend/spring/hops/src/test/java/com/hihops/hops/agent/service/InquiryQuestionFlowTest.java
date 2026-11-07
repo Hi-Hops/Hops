@@ -364,6 +364,34 @@ class InquiryQuestionFlowTest {
     }
 
     @Test
+    void 거부한_질문_결과는_사유_코드와_코드_위치를_로그로_남긴다() throws Exception {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
+                com.hihops.hops.inquiry.service.ProblemQuestionWriter.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            UUID inquiryId = createInquiry("결재 문서가 안 열려요");
+            UUID runId = runOf(inquiryId);
+            when(client.snapshot(runId.toString())).thenReturn(snapshot(runId, inquiryId, 1, QUESTION,
+                    List.of(proposal("new:p1", "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, userMessageOf(inquiryId))),
+                    List.of(question("new:p1", "b1", "답변에 없는 질문입니다", "taskOrScreen"))));
+
+            dispatcher.deliver(runId);
+
+            assertThat(appender.list).extracting(event -> event.getFormattedMessage()).anySatisfy(message -> {
+                assertThat(message).contains("QUESTION_NOT_IN_ANSWER").contains("runId=" + runId);
+                assertThat(message).contains("ProblemQuestionWriter.recordQuestion");
+            });
+            // 질문 값(AI 결과의 문구)은 로그에 싣지 않는다
+            assertThat(appender.list).extracting(event -> event.getFormattedMessage())
+                    .noneSatisfy(message -> assertThat(message).contains("답변에 없는 질문입니다"));
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
     void 더_새_입력이_생긴_문의의_늦은_질문_결과는_저장하지_않는다() throws Exception {
         UUID inquiryId = createInquiry("결재 문서가 안 열려요");
         UUID runId = runOf(inquiryId);
