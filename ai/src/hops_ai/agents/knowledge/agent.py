@@ -40,7 +40,9 @@ from hops_ai.agents.knowledge.assessment import (
     PROMPT_VERSION,
     RESERVED_CALLS,
     SYSTEM_PROMPT,
+    AskedChecks,
     AssessmentDraft,
+    asked_checks,
     build_user_payload,
     to_assessment,
 )
@@ -67,6 +69,7 @@ from hops_ai.rules.assessment import (
 )
 from hops_ai.rules.intent_policy import is_guide_type, policy_for, search_kinds
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
+from hops_ai.rules.resolution import without_guided
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
@@ -125,6 +128,12 @@ class SearchKnowledgeAgent:
                 result=_error_result(call.invocation_id, target.problemRef, query.digest())
             )
         services.runtime.ensure_active()
+        # 안내 뒤 미해결로 응답한 문제는 이미 안내한 근거로 다시 안내하지 않는다. 다 빠지면 0건이다.
+        found = len(hits)
+        hits = without_guided(state, target.problemRef, hits, lambda hit: hit.evidence)
+        # 이미 안내한 문서를 뺐고 검색이 상한을 가득 채웠다면, 그 문서가 자리를 차지해
+        # 다른 문서를 못 봤을 수 있다
+        crowded = len(hits) < found and found >= query.top_k
 
         evidence = tuple(hit.evidence for hit in hits)
         # 관계를 먼저 조회한다: 판정이 확인 항목을 부족한 정보로 지목할 수 있게 입력으로 준다.
@@ -139,7 +148,10 @@ class SearchKnowledgeAgent:
             guide=_guide_for(state, call, target, hits),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
-            assessment=await self._assess(target, hits, relations, services),
+            crowdedOut=crowded,
+            assessment=await self._assess(
+                target, hits, relations, services, asked_checks(state, target.problemRef, relations)
+            ),
             relations=relations,
         )
         return RoleResponse(
@@ -154,6 +166,7 @@ class SearchKnowledgeAgent:
         hits: list[KnowledgeHit],
         relations: RelationNeighbors | None,
         services: SharedServices,
+        asked: AskedChecks,
     ) -> Assessment | None:
         """검색 근거의 충분성 판정. 만들지 못하면 None(평가 없음)이며 흐름을 막지 않는다.
 
@@ -172,7 +185,7 @@ class SearchKnowledgeAgent:
                 LLMRequest(
                     messages=[
                         LLMMessage("system", SYSTEM_PROMPT),
-                        LLMMessage("user", build_user_payload(target, hits, relations)),
+                        LLMMessage("user", build_user_payload(target, hits, relations, asked)),
                     ],
                     response_model=AssessmentDraft,
                     max_output_tokens=MAX_OUTPUT_TOKENS,

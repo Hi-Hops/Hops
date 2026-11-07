@@ -41,6 +41,7 @@ public class GuideResultWriter {
     private final TicketKnowledgeReader knowledge;
     private final JsonMapper mapper;
     private final Clock clock;
+    private final MessageProblemLinker linker;
 
     public record Applied(String problemRef, UUID problemId, int evidenceCount) { }
 
@@ -125,6 +126,12 @@ public class GuideResultWriter {
         standard.recordAnalysis(proposal.path("facts").toString(), proposal.path("assumptions").toString(),
                 proposal.path("unknowns").toString(), proposal.path("details").toString(), mapper.writeValueAsString(visible));
         requests.saveAndFlush(standard);
+        // 사실이 인용한 사용자 메시지를 이 문제에 잇는다. 연결이 없으면 미해결 뒤 티켓 도구의 출처 검증이 거부한다
+        Set<UUID> cites = new HashSet<>();
+        for (String field : List.of("facts", "assumptions")) {
+            for (var statement : proposal.path(field)) cites.addAll(ids(statement.path("sourceMessageIds")));
+        }
+        for (UUID cite : cites) linker.link(inquiry, cite, problem.getId());
 
         var message = messages.findById(answerId).orElseThrow(GuideResultWriter::invalid);
         var payload = (tools.jackson.databind.node.ObjectNode) mapper.readTree(message.getPayload());
@@ -140,7 +147,7 @@ public class GuideResultWriter {
         return new Applied(ref, problem.getId(), cited.size());
     }
 
-    private static void statements(JsonNode values, Set<UUID> messages, Set<UUID> evidence, boolean confirmed) {
+    static void statements(JsonNode values, Set<UUID> messages, Set<UUID> evidence, boolean confirmed) {
         require(values.isArray());
         for (var statement : values) {
             text(statement.path("text"));
@@ -151,27 +158,27 @@ public class GuideResultWriter {
         }
     }
 
-    private static Set<UUID> ids(JsonNode values) {
+    static Set<UUID> ids(JsonNode values) {
         require(values.isArray());
         Set<UUID> result = new HashSet<>();
         for (var value : values) require(result.add(uuid(value)));
         return result;
     }
 
-    private static UUID uuid(JsonNode value) {
+    static UUID uuid(JsonNode value) {
         String text = text(value);
         UUID id = UUID.fromString(text);
         require(id.toString().equals(text));
         return id;
     }
 
-    private static String text(JsonNode value) {
+    static String text(JsonNode value) {
         require(value.isString() && !value.asString().isBlank());
         return value.asString();
     }
 
-    private static void require(boolean valid) { if (!valid) throw invalid(); }
-    private static AgentResultRejectedException invalid() {
+    static void require(boolean valid) { if (!valid) throw invalid(); }
+    static AgentResultRejectedException invalid() {
         return new AgentResultRejectedException("INVALID_OUTPUT", "안내의 대상·출처 또는 현재 공개 범위를 확인할 수 없습니다");
     }
 }

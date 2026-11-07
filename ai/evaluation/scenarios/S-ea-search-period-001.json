@@ -16,5 +16,12 @@
     "occurredAt": "어제부터 계속 그래요."
   },
   "unknownFields": [],
-  "revealRule": "ASKED_FIELD_ONLY"
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-search-period": "기간은 최근 3개월로 설정해서 조회했어요.",
+    "check-ea-draft-date": "그 문서는 꽤 오래전에, 반년쯤 전에 작성했어요.",
+    "check-ea-filter-condition": "상태나 키워드는 따로 입력하지 않았어요.",
+    "check-ea-submit-state": "사실은 상신한 게 아니라 임시 저장만 해 둔 문서예요.",
+    "check-ea-participation": "제가 직접 기안한 문서예요."
+  }
 }

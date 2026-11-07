@@ -12,6 +12,9 @@ import com.hihops.hops.inquiry.domain.StandardRequest;
 /** standard_request 테이블 저장·조회. 기본 save·findById는 JpaRepository가 제공한다. */
 public interface StandardRequestRepository extends JpaRepository<StandardRequest, UUID> {
 
+    /** 같은 문제·입력 버전·실행의 요청서가 이미 있는지 (uk_standard_request_problem_version_run). */
+    boolean existsByInquiryProblem_IdAndInquiryVersionAndAgentRun_Id(UUID problemId, int inquiryVersion, UUID runId);
+
     /**
      * 성공한 분석 또는 Ticket API journal로 업무 적용된 요청서. API 생성 뒤 AI가 실패해도 업무 기록은 보존한다.
      * 요청서는 버전마다 쌓이는 이력이고 현재 값은 최신 적용 실행의 행이다 (docs/ERD.md standard_request).

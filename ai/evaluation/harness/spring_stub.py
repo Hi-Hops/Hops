@@ -1,16 +1,16 @@
 """Spring이 AI 결과를 받아 다음 실행 입력을 만드는 일을 흉내 내는 얇은 대역.
 
-**이 모듈의 동작은 하네스의 가정이다.** 현재 Spring은 문제·질문을 저장해 다음 실행 입력에 돌려주지
-않는다(#189에서 구현). 그래서 여러 번 오가는 시나리오를 재생하려고 최소한의 규칙을 여기서 흉내 낸다.
+실제 Spring(#189 ②·③)의 저장 규칙을 따라 최소한만 흉내 낸다. 실제 동작과 다르면 이 대역을 고친다.
 
 - 새 문제 참조(`new:...`)에는 문제 ID를 부여한다.
-- 질문이 있었던 문제는 질문 횟수를 올린다.
+- 질문이 있었던 문제는 질문 횟수를 올리고, 물은 항목(`requestedFields`)을 `askedFields`에 쌓는다.
 - 문제의 표준 요청은 AI가 제안한 문제 제안(사실·미확인·세부 정보)을 그대로 옮긴다.
-- 문제의 사실이 인용한 메시지를 그 문제에 연결한다(실제 서비스의 메시지-문제 연결 대신).
+- 문제의 사실이 인용한 메시지를 그 문제에 연결한다(실제 Spring도 인용한 사용자 메시지를 잇는다).
 - 사용자 응답을 새 메시지로 추가하고 입력 버전을 올린다. 사용자가 답한 뒤의 새 실행에서 문제는
   `ANALYZING`이다.
 
-실제 Spring 구현이 생기면 이 가정을 실제 동작과 대조해 바꾼다.
+실제 Spring과 다른 점: 질문 묶음 중복(같은 bundleRef)을 다시 세지 않는 규칙과 5회 초과 거부는 흉내
+내지 않는다(5회에서 멈춘다). 시스템 확인 대기·범위 밖의 저장 상태는 범위 밖만 구분한다.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -118,13 +118,11 @@ class SpringStub:
         return self._request([])
 
     # -- 결과 반영 -----------------------------------------------------------
-    def advance(
-        self, result: AiResult, reply_text: str
-    ) -> tuple[AiRunRequest, tuple[tuple[str, str], ...]]:
-        """이번 결과를 반영하고 사용자 응답으로 다음 실행 입력을 만든다.
+    def _apply_result(self, result: AiResult) -> tuple[dict[str, str], dict[str, int], list[str]]:
+        """이번 결과의 문제·질문을 Spring처럼 저장한다.
 
         Returns:
-            다음 실행 입력과, 이번 결과의 새 문제 참조에 부여한 (참조, 문제 ID).
+            (새 문제 참조 → 문제 ID, 이번에 질문을 받은 문제별 질문 수, 진행 중인 문제 ID 목록).
         """
         ref_map: dict[str, str] = {}
 
@@ -136,13 +134,22 @@ class SpringStub:
             return ref
 
         asked: dict[str, int] = {}
+        asked_fields: dict[str, list[str]] = {}
         for question in result.questions:
             problem_id = resolve(question.problemRef)
             asked[problem_id] = asked.get(problem_id, 0) + 1
+            asked_fields.setdefault(problem_id, []).extend(question.requestedFields)
+        guide = result.guide
         for proposal in result.problemProposals:
             problem_id = resolve(proposal.problemRef)
             previous = self._problems.get(problem_id)
             count = (previous["questionCount"] if previous else 0) + asked.get(problem_id, 0)
+            # 안내한 근거는 요청서의 knowledge에 남는다(GuideResultWriter). 미해결 재분석이 쓴다.
+            guided = (
+                [item.model_dump() for item in result.evidence if item.id in guide.evidenceIds]
+                if guide is not None and resolve(guide.problemRef) == problem_id
+                else []
+            )
             self._problems[problem_id] = {
                 "id": problem_id,
                 "summary": proposal.summary,
@@ -152,6 +159,14 @@ class SpringStub:
                 "reportedFeatureId": None,
                 "state": "OUT_OF_SCOPE" if proposal.intent == "OUT_OF_SCOPE" else "ANALYZING",
                 "questionCount": min(count, 5),
+                "askedFields": list(
+                    dict.fromkeys(
+                        [
+                            *(previous["askedFields"] if previous else []),
+                            *asked_fields.get(problem_id, []),
+                        ]
+                    )
+                ),
                 "standardRequest": {
                     "summary": proposal.summary,
                     "confirmedFacts": [fact.model_dump() for fact in proposal.facts],
@@ -160,7 +175,7 @@ class SpringStub:
                     "responsibleSystemCandidateId": None,
                     "responsibilityEvidenceIds": [],
                     "details": proposal.details.model_dump(),
-                    "knowledge": [],
+                    "knowledge": guided,
                 },
                 "resolutionContext": None,
             }
@@ -171,9 +186,44 @@ class SpringStub:
         active = [
             pid for pid, problem in self._problems.items() if problem["state"] != "OUT_OF_SCOPE"
         ]
+        return ref_map, asked, active
+
+    def advance(
+        self, result: AiResult, reply_text: str
+    ) -> tuple[AiRunRequest, tuple[tuple[str, str], ...]]:
+        """이번 결과를 반영하고 사용자 응답으로 다음 실행 입력을 만든다.
+
+        Returns:
+            다음 실행 입력과, 이번 결과의 새 문제 참조에 부여한 (참조, 문제 ID).
+        """
+        ref_map, asked, active = self._apply_result(result)
         answered = list(asked) or active
         if result.answer:
             self._add_message("AI", result.answer, list(answered))
         self._version += 1
         self._add_message("USER", reply_text, list(answered))
         return self._request(active), tuple(ref_map.items())
+
+    def follow_up(self, result: AiResult) -> tuple[AiRunRequest, tuple[tuple[str, str], ...]]:
+        """안내로 끝난 결과 뒤 사용자가 "해결 안 됨"으로 응답했을 때 Spring이 접수하는 재분석 입력.
+
+        실제 Spring처럼 같은 문의 버전으로 안내한 문제를 대상으로 새 실행을 만든다. 사용자의
+        미해결 응답은 메시지가 아니라 문제의 `resolutionContext`(UNRESOLVED)로 전달되고, 안내한
+        근거는 요청서의 knowledge에 있다. 안내가 없는 결과에는 쓰지 않는다.
+        """
+        guide = result.guide
+        if guide is None:
+            raise ValueError("안내가 없는 결과에는 미해결 응답을 재생할 수 없다")
+        ref_map, _, _ = self._apply_result(result)
+        problem_id = ref_map.get(guide.problemRef, guide.problemRef)
+        guide_message = self._add_message("AI", result.answer or "", [problem_id])
+        problem = self._problems[problem_id]
+        problem["state"] = "ANALYZING"
+        problem["resolutionContext"] = {
+            "requestId": self._new_id("resolution"),
+            "source": "GUIDE",
+            "sourceId": guide_message,
+            "sourceVersion": 1,
+            "state": "UNRESOLVED",
+        }
+        return self._request([problem_id]), tuple(ref_map.items())

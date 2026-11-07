@@ -202,10 +202,18 @@ def test_ticket_a_does_not_wait_for_a_search_the_intent_could_have_made() -> Non
     assert legal_actions(ready) == {"SEARCH", "TICKET"}
 
 
-def test_ticket_c_after_an_unresolved_guide_without_other_evidence() -> None:
-    unresolved = searched("SUFFICIENT", unresolved_without_other_evidence=True)
+def test_ticket_c_after_an_unresolved_guide_without_other_evidence_is_the_only_action() -> None:
+    # 안내 뒤 미해결 응답에 다른 근거가 없으면 같은 질문·재검색 없이 담당자 검토뿐이다(5.3절 (c)).
+    unresolved = searched(
+        "INSUFFICIENT", unresolved_without_other_evidence=True, askable=True, remaining_questions=3
+    )
 
-    assert legal_actions(unresolved) == {"ANSWER", "TICKET"}
+    assert legal_actions(unresolved) == {"TICKET"}
+
+
+def test_an_unresolved_guide_with_other_evidence_can_still_be_answered() -> None:
+    # 다른 근거가 있으면(c)가 아니다. 보통의 답변 규칙을 따른다.
+    assert legal_actions(searched("SUFFICIENT")) == {"ANSWER"}
 
 
 # --- 문서의 필수 회귀 입력 ---

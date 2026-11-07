@@ -1,0 +1,2327 @@
+{
+ "format": 1,
+ "scenario_id": "S-system-correction-001",
+ "extra_forbidden_phrases": [],
+ "truncated": false,
+ "turns": [
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "57a9effb-e752-5572-aaf5-3552dc8d04f9",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 1,
+    "answerMessageId": "88ee79e4-83d1-5f85-b448-524419cbd5dc",
+    "problemIds": [],
+    "messages": [
+     {
+      "id": "056b97f7-db36-5571-9faf-e5a8ed2f3234",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 지운 파일이 안 보여요.",
+      "problemIds": [],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     }
+    ],
+    "problems": [],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "504cb811-95c1-52ab-a49b-c2d840ade786",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-07T02:06:00.036581Z",
+    "limits": {
+     "maxModelCalls": 20,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "57a9effb-e752-5572-aaf5-3552dc8d04f9",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 1,
+    "status": "SUCCEEDED",
+    "answer": "전자결재에서 지운 파일이 보이지 않는다고 하셨는데, 원래는 어떻게 동작하길 기대하셨나요? 언제부터 또는 언제 그런 일이 있었나요?",
+    "problemProposals": [
+     {
+      "problemRef": "new:1",
+      "summary": "전자결재에서 지운 파일이 보이지 않습니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재에서 지운 파일",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": null,
+       "actualBehavior": "지운 파일이 안 보여요.",
+       "occurredAt": null,
+       "currentWorkflow": null,
+       "desiredChange": null,
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [
+     {
+      "problemRef": "new:1",
+      "bundleRef": "inquiry-new-1-1",
+      "text": "전자결재에서 지운 파일이 보이지 않는다고 하셨는데, 원래는 어떻게 동작하길 기대하셨나요? 언제부터 또는 언제 그런 일이 있었나요?",
+      "requestedFields": [
+       "expectedBehavior",
+       "occurredAt"
+      ]
+     }
+    ],
+    "guide": null,
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [
+     {
+      "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+      "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 첨부 파일 열기와 내려받기",
+      "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+      "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+      "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+      "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재에서 새 기안 작성하고 상신하기",
+      "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     }
+    ],
+    "error": null,
+    "requiresFollowUp": false,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [
+      {
+       "problem_ref": "new:1",
+       "keywords": [
+        "전자결재",
+        "파일"
+       ],
+       "feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ],
+       "raw_keywords": [
+        "전자결재",
+        "파일"
+       ],
+       "raw_feature_candidates": [
+        "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4"
+       ]
+      }
+     ],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "new:1",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+       "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+       "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "new:1",
+      "verdict": "INSUFFICIENT",
+      "supporting_evidence_ids": [
+       "05ce0c85-8614-5e6c-8fa4-0701bc652d75"
+      ],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "근거는 전자결재 문서에 첨부된 파일을 열거나 내려받는 방법을 다루지만, 지운 파일이 보이지 않는 증상의 원인이나 복구 방법은 설명하지 않습니다. 현재 제공된 확인 항목도 첨부 파일을 열 수 없는 상황에 관한 질문이라 이 문의의 원인을 가르는 데 직접 도움이 되지 않습니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "new:1",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "new:1",
+      "verdict": "INSUFFICIENT",
+      "supporting_evidence_ids": [
+       "05ce0c85-8614-5e6c-8fa4-0701bc652d75"
+      ],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "근거는 전자결재 첨부 파일을 열거나 내려받는 방법과 열람 권한·파일 형식에 따른 결과를 설명하지만, 지운 파일이 보이지 않는 증상의 원인이나 복구 방법은 다루지 않습니다. 제공된 확인 항목도 첨부 파일을 열지 못하는 상황에 관한 것이어서 이 문의의 원인을 가르는 데 적합하지 않습니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "new:1",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null,
+     "question_source": "MODEL",
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    }
+   ],
+   "model_calls": 7,
+   "error": null,
+   "user_reply": "지운 파일이 다시 보여야 해요. 어제 오후부터요. 아, 전자결재가 아니라 파일 공유 시스템 이야기였어요.",
+   "unknown_after": [],
+   "ref_map": [
+    [
+     "new:1",
+     "17f261f9-d003-57c3-9009-a7565dc4e835"
+    ]
+   ],
+   "input_tokens": 9532,
+   "output_tokens": 615,
+   "elapsed_seconds": 20.24483104189858
+  },
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "d253ef49-0ea8-5b07-bfa0-1cce13a6ee22",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 2,
+    "answerMessageId": "7a92a28f-895f-54f7-a662-23aca20517ba",
+    "problemIds": [
+     "17f261f9-d003-57c3-9009-a7565dc4e835"
+    ],
+    "messages": [
+     {
+      "id": "056b97f7-db36-5571-9faf-e5a8ed2f3234",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 지운 파일이 안 보여요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     },
+     {
+      "id": "6503c69e-b82d-50ff-adb3-dc98d8c4799b",
+      "revision": 1,
+      "sequenceNo": 2,
+      "sender": "AI",
+      "content": "전자결재에서 지운 파일이 보이지 않는다고 하셨는데, 원래는 어떻게 동작하길 기대하셨나요? 언제부터 또는 언제 그런 일이 있었나요?",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:00.000000Z"
+     },
+     {
+      "id": "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126",
+      "revision": 1,
+      "sequenceNo": 3,
+      "sender": "USER",
+      "content": "지운 파일이 다시 보여야 해요. 어제 오후부터요. 아, 전자결재가 아니라 파일 공유 시스템 이야기였어요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:30.000000Z"
+     }
+    ],
+    "problems": [
+     {
+      "id": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "전자결재에서 지운 파일이 보이지 않습니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "reportedFeatureId": null,
+      "state": "ANALYZING",
+      "questionCount": 1,
+      "askedFields": [
+       "expectedBehavior",
+       "occurredAt"
+      ],
+      "standardRequest": {
+       "summary": "전자결재에서 지운 파일이 보이지 않습니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": null,
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재에서 지운 파일",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": null,
+        "actualBehavior": "지운 파일이 안 보여요.",
+        "occurredAt": null,
+        "currentWorkflow": null,
+        "desiredChange": null,
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      },
+      "resolutionContext": null
+     }
+    ],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "504cb811-95c1-52ab-a49b-c2d840ade786",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-07T02:06:20.281867Z",
+    "limits": {
+     "maxModelCalls": 20,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "d253ef49-0ea8-5b07-bfa0-1cce13a6ee22",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 2,
+    "status": "SUCCEEDED",
+    "answer": "1. 열리지 않는 첨부 파일의 형식은 무엇인가요? (예: PDF, DOCX, XLSX)\n2. 첨부 파일을 올린 지 얼마나 되었나요?\n3. 첨부 파일을 열 때 화면에 어떤 문구가 표시되나요?",
+    "problemProposals": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "파일 공유 시스템에서 지운 파일이 보이지 않습니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "발생 시점: 어제 오후부터요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+       "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+       "occurredAt": "어제 오후부터요.",
+       "currentWorkflow": null,
+       "desiredChange": null,
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "bundleRef": "inquiry-17f261f9-d003-57c3-9009-a7565dc4e835-2",
+      "text": "1. 열리지 않는 첨부 파일의 형식은 무엇인가요? (예: PDF, DOCX, XLSX)\n2. 첨부 파일을 올린 지 얼마나 되었나요?\n3. 첨부 파일을 열 때 화면에 어떤 문구가 표시되나요?",
+      "requestedFields": [
+       "check-ea-file-format",
+       "check-ea-upload-time",
+       "check-ea-error-message"
+      ]
+     }
+    ],
+    "guide": null,
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [
+     {
+      "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+      "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 첨부 파일 열기와 내려받기",
+      "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+      "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재에서 새 기안 작성하고 상신하기",
+      "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+      "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재에서 지난 문서 찾기",
+      "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+      "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+      "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     }
+    ],
+    "error": null,
+    "requiresFollowUp": false,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [
+      {
+       "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+       "keywords": [
+        "지운",
+        "파일",
+        "보여요",
+        "파일 공유"
+       ],
+       "feature_candidates": [],
+       "raw_keywords": [
+        "지운",
+        "파일",
+        "보여요",
+        "파일 공유"
+       ],
+       "raw_feature_candidates": [
+        "152e8439-1e01-5e26-9749-f77df1cb65fc"
+       ]
+      }
+     ],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+       "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 지난 문서 찾기",
+       "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+       "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+       "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "INSUFFICIENT",
+      "supporting_evidence_ids": [
+       "05ce0c85-8614-5e6c-8fa4-0701bc652d75"
+      ],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "전자결재 첨부 저장소와 파일 공유는 자동으로 연결되지 않는다고 안내하지만, 지운 파일이 보이지 않는 증상의 원인이나 복구 방법은 다루지 않습니다. 제시된 확인 항목도 첨부 파일 열기 문제에 관한 것이어서 이 증상의 원인을 가르는 데 직접 도움이 되지 않습니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "EMPTY",
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "NO_MATCH",
+      "supporting_evidence_ids": [],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "검색 결과가 없다"
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+       "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 지난 문서 찾기",
+       "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "INSUFFICIENT",
+      "supporting_evidence_ids": [
+       "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "a565bc1c-c190-5627-860c-5d2ba93c6285"
+      ],
+      "missing_information": [
+       [
+        "CHECK_ITEM",
+        "check-ea-file-format"
+       ],
+       [
+        "CHECK_ITEM",
+        "check-ea-upload-time"
+       ],
+       [
+        "CHECK_ITEM",
+        "check-ea-error-message"
+       ]
+      ],
+      "candidate_causes": [],
+      "rationale": "근거는 전자결재 첨부 파일 열람 및 문서 조회 방법을 설명하지만, 지운 파일이 보이지 않는 증상의 원인이나 복구 방법은 다루지 않습니다. 증상 원인을 구분할 관련 확인 항목이 제공되어 있지 않습니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null,
+     "question_source": "MODEL",
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    }
+   ],
+   "model_calls": 4,
+   "error": null,
+   "user_reply": "그 확인 내용은 잘 모르겠어요. 그 확인 내용은 잘 모르겠어요. 그 확인 내용은 잘 모르겠어요.",
+   "unknown_after": [
+    [
+     "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "check-ea-file-format"
+    ],
+    [
+     "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "check-ea-upload-time"
+    ],
+    [
+     "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "check-ea-error-message"
+    ]
+   ],
+   "ref_map": [],
+   "input_tokens": 9350,
+   "output_tokens": 697,
+   "elapsed_seconds": 11.56292120902799
+  },
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "0326c54c-8aa1-5121-98c3-5feb54f65bf7",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 3,
+    "answerMessageId": "09e49f78-b72d-5c06-8782-efc8154fed38",
+    "problemIds": [
+     "17f261f9-d003-57c3-9009-a7565dc4e835"
+    ],
+    "messages": [
+     {
+      "id": "056b97f7-db36-5571-9faf-e5a8ed2f3234",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 지운 파일이 안 보여요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     },
+     {
+      "id": "6503c69e-b82d-50ff-adb3-dc98d8c4799b",
+      "revision": 1,
+      "sequenceNo": 2,
+      "sender": "AI",
+      "content": "전자결재에서 지운 파일이 보이지 않는다고 하셨는데, 원래는 어떻게 동작하길 기대하셨나요? 언제부터 또는 언제 그런 일이 있었나요?",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:00.000000Z"
+     },
+     {
+      "id": "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126",
+      "revision": 1,
+      "sequenceNo": 3,
+      "sender": "USER",
+      "content": "지운 파일이 다시 보여야 해요. 어제 오후부터요. 아, 전자결재가 아니라 파일 공유 시스템 이야기였어요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:30.000000Z"
+     },
+     {
+      "id": "24e7b326-6914-5094-8b28-a7bc630cfca5",
+      "revision": 1,
+      "sequenceNo": 4,
+      "sender": "AI",
+      "content": "1. 열리지 않는 첨부 파일의 형식은 무엇인가요? (예: PDF, DOCX, XLSX)\n2. 첨부 파일을 올린 지 얼마나 되었나요?\n3. 첨부 파일을 열 때 화면에 어떤 문구가 표시되나요?",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:02:00.000000Z"
+     },
+     {
+      "id": "37be60cd-f0a3-5fd7-a373-bbe47068a569",
+      "revision": 1,
+      "sequenceNo": 5,
+      "sender": "USER",
+      "content": "그 확인 내용은 잘 모르겠어요. 그 확인 내용은 잘 모르겠어요. 그 확인 내용은 잘 모르겠어요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:02:30.000000Z"
+     }
+    ],
+    "problems": [
+     {
+      "id": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "파일 공유 시스템에서 지운 파일이 보이지 않습니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "reportedFeatureId": null,
+      "state": "ANALYZING",
+      "questionCount": 2,
+      "askedFields": [
+       "expectedBehavior",
+       "occurredAt",
+       "check-ea-file-format",
+       "check-ea-upload-time",
+       "check-ea-error-message"
+      ],
+      "standardRequest": {
+       "summary": "파일 공유 시스템에서 지운 파일이 보이지 않습니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "발생 시점: 어제 오후부터요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": null,
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+        "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+        "occurredAt": "어제 오후부터요.",
+        "currentWorkflow": null,
+        "desiredChange": null,
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      },
+      "resolutionContext": null
+     }
+    ],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "504cb811-95c1-52ab-a49b-c2d840ade786",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-07T02:06:31.848472Z",
+    "limits": {
+     "maxModelCalls": 20,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "0326c54c-8aa1-5121-98c3-5feb54f65bf7",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 3,
+    "status": "SUCCEEDED",
+    "answer": "잠시 뒤에 다시 열어 보셔도 같은가요?",
+    "problemProposals": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "파일 공유 시스템에서 지운 파일이 보이지 않으며, 어제 오후부터 지운 파일이 다시 보이길 원합니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "발생 시점: 어제 오후부터요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+       "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+       "occurredAt": "어제 오후부터요.",
+       "currentWorkflow": null,
+       "desiredChange": null,
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "bundleRef": "inquiry-17f261f9-d003-57c3-9009-a7565dc4e835-3",
+      "text": "잠시 뒤에 다시 열어 보셔도 같은가요?",
+      "requestedFields": [
+       "check-ea-retry-result"
+      ]
+     }
+    ],
+    "guide": null,
+    "ticketProposals": [],
+    "caseProposal": null,
+    "evidence": [
+     {
+      "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+      "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 첨부 파일 열기와 내려받기",
+      "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+      "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재에서 새 기안 작성하고 상신하기",
+      "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+      "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재에서 지난 문서 찾기",
+      "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+      "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+      "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     }
+    ],
+    "error": null,
+    "requiresFollowUp": false,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [
+      {
+       "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+       "keywords": [
+        "파일",
+        "공유",
+        "지운",
+        "어제",
+        "오후"
+       ],
+       "feature_candidates": [],
+       "raw_keywords": [
+        "파일",
+        "공유",
+        "지운",
+        "어제",
+        "오후"
+       ],
+       "raw_feature_candidates": [
+        "152e8439-1e01-5e26-9749-f77df1cb65fc"
+       ]
+      }
+     ],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+       "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 지난 문서 찾기",
+       "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+       "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+       "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "NO_MATCH",
+      "supporting_evidence_ids": [],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "문의는 파일 공유 시스템에서 삭제한 파일이 다시 보이지 않는 증상이며, 사용자가 전자결재가 아니라고 명확히 정정했습니다. 근거 자료는 전자결재의 첨부 파일·문서 조회·결재 상태만 다뤄 파일 공유 시스템의 삭제 파일 복구와 관련이 없습니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "INSUFFICIENT",
+      "supporting_evidence_ids": [
+       "05ce0c85-8614-5e6c-8fa4-0701bc652d75"
+      ],
+      "missing_information": [
+       [
+        "CHECK_ITEM",
+        "check-ea-retry-result"
+       ]
+      ],
+      "candidate_causes": [],
+      "rationale": "근거는 전자결재 첨부 파일을 열거나 내려받는 방법만 다루며, 파일 공유 시스템에서 지운 파일이 다시 보이지 않는 증상의 원인이나 해결 방법은 안내하지 않습니다. 잠시 뒤 다시 열어도 같은지 확인하면 증상 원인을 가르는 데 도움이 될 수 있습니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null,
+     "question_source": "MODEL",
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    }
+   ],
+   "model_calls": 5,
+   "error": null,
+   "user_reply": "그 확인 내용은 잘 모르겠어요.",
+   "unknown_after": [
+    [
+     "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "check-ea-retry-result"
+    ]
+   ],
+   "ref_map": [],
+   "input_tokens": 9119,
+   "output_tokens": 596,
+   "elapsed_seconds": 12.957842292031273
+  },
+  {
+   "request": {
+    "contractVersion": "hops-system-1",
+    "runId": "803b727f-9fcd-5f81-af97-87c688562826",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 4,
+    "answerMessageId": "e37859e8-0a98-5dfb-8915-9b7b3be6b614",
+    "problemIds": [
+     "17f261f9-d003-57c3-9009-a7565dc4e835"
+    ],
+    "messages": [
+     {
+      "id": "056b97f7-db36-5571-9faf-e5a8ed2f3234",
+      "revision": 1,
+      "sequenceNo": 1,
+      "sender": "USER",
+      "content": "전자결재에서 지운 파일이 안 보여요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:00:30.000000Z"
+     },
+     {
+      "id": "6503c69e-b82d-50ff-adb3-dc98d8c4799b",
+      "revision": 1,
+      "sequenceNo": 2,
+      "sender": "AI",
+      "content": "전자결재에서 지운 파일이 보이지 않는다고 하셨는데, 원래는 어떻게 동작하길 기대하셨나요? 언제부터 또는 언제 그런 일이 있었나요?",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:00.000000Z"
+     },
+     {
+      "id": "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126",
+      "revision": 1,
+      "sequenceNo": 3,
+      "sender": "USER",
+      "content": "지운 파일이 다시 보여야 해요. 어제 오후부터요. 아, 전자결재가 아니라 파일 공유 시스템 이야기였어요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:01:30.000000Z"
+     },
+     {
+      "id": "24e7b326-6914-5094-8b28-a7bc630cfca5",
+      "revision": 1,
+      "sequenceNo": 4,
+      "sender": "AI",
+      "content": "1. 열리지 않는 첨부 파일의 형식은 무엇인가요? (예: PDF, DOCX, XLSX)\n2. 첨부 파일을 올린 지 얼마나 되었나요?\n3. 첨부 파일을 열 때 화면에 어떤 문구가 표시되나요?",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:02:00.000000Z"
+     },
+     {
+      "id": "37be60cd-f0a3-5fd7-a373-bbe47068a569",
+      "revision": 1,
+      "sequenceNo": 5,
+      "sender": "USER",
+      "content": "그 확인 내용은 잘 모르겠어요. 그 확인 내용은 잘 모르겠어요. 그 확인 내용은 잘 모르겠어요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:02:30.000000Z"
+     },
+     {
+      "id": "e00b2e7d-15aa-56e2-b3a3-97b78d3733e1",
+      "revision": 1,
+      "sequenceNo": 6,
+      "sender": "AI",
+      "content": "잠시 뒤에 다시 열어 보셔도 같은가요?",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:03:00.000000Z"
+     },
+     {
+      "id": "41e5eeb8-6e34-5819-8ffa-c8a50e20f056",
+      "revision": 1,
+      "sequenceNo": 7,
+      "sender": "USER",
+      "content": "그 확인 내용은 잘 모르겠어요.",
+      "problemIds": [
+       "17f261f9-d003-57c3-9009-a7565dc4e835"
+      ],
+      "createdAt": "2026-11-05T00:03:30.000000Z"
+     }
+    ],
+    "problems": [
+     {
+      "id": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "파일 공유 시스템에서 지운 파일이 보이지 않으며, 어제 오후부터 지운 파일이 다시 보이길 원합니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "reportedFeatureId": null,
+      "state": "ANALYZING",
+      "questionCount": 3,
+      "askedFields": [
+       "expectedBehavior",
+       "occurredAt",
+       "check-ea-file-format",
+       "check-ea-upload-time",
+       "check-ea-error-message",
+       "check-ea-retry-result"
+      ],
+      "standardRequest": {
+       "summary": "파일 공유 시스템에서 지운 파일이 보이지 않으며, 어제 오후부터 지운 파일이 다시 보이길 원합니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "발생 시점: 어제 오후부터요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": null,
+       "responsibilityEvidenceIds": [],
+       "details": {
+        "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+        "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+        "occurredAt": "어제 오후부터요.",
+        "currentWorkflow": null,
+        "desiredChange": null,
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      },
+      "resolutionContext": null
+     }
+    ],
+    "systems": [
+     {
+      "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "code": "ELECTRONIC_APPROVAL",
+      "name": "전자결재",
+      "features": [
+       {
+        "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+        "name": "문서 작성"
+       },
+       {
+        "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+        "name": "문서 조회"
+       },
+       {
+        "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+        "name": "결재 상태"
+       },
+       {
+        "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+        "name": "첨부 열람"
+       }
+      ]
+     },
+     {
+      "id": "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "code": "COMMON_LOGIN",
+      "name": "공통 로그인",
+      "features": [
+       {
+        "id": "213718e2-a478-56c0-a8ad-456b3607516c",
+        "name": "로그인·SSO"
+       },
+       {
+        "id": "0da3984c-7a69-5337-ba51-7b282f5f2659",
+        "name": "계정 접근"
+       },
+       {
+        "id": "7a361da4-7df4-592d-845f-75829318cd7c",
+        "name": "권한 신청"
+       }
+      ]
+     },
+     {
+      "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "code": "FILE_SHARING",
+      "name": "파일 공유",
+      "features": [
+       {
+        "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+        "name": "파일 열람"
+       },
+       {
+        "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+        "name": "파일 공유"
+       },
+       {
+        "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+        "name": "접근 권한"
+       }
+      ]
+     }
+    ],
+    "accessContext": {
+     "actorId": "504cb811-95c1-52ab-a49b-c2d840ade786",
+     "purpose": "EMPLOYEE_HELP",
+     "systemIds": [
+      "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "8ae35be5-1857-58c0-a478-e05b4217ff95",
+      "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+     ],
+     "allowedDocumentScopes": [
+      "EMPLOYEE"
+     ],
+     "policyRevision": 1,
+     "retrievalScopes": null
+    },
+    "existingWorkItems": [],
+    "workRecord": null,
+    "expiresAt": "2026-11-07T02:06:44.810104Z",
+    "limits": {
+     "maxModelCalls": 20,
+     "maxInputTokens": 60000,
+     "maxOutputTokens": 12000,
+     "maxToolCalls": 10,
+     "maxRetries": 2
+    }
+   },
+   "result": {
+    "contractVersion": "hops-system-1",
+    "runId": "803b727f-9fcd-5f81-af97-87c688562826",
+    "kind": "INQUIRY_ANALYSIS",
+    "inquiryId": "ca0a4cec-fcfa-554d-ae04-71194815644d",
+    "inquiryVersion": 4,
+    "status": "SUCCEEDED",
+    "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+    "problemProposals": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "summary": "파일 공유 시스템에서 지운 파일이 보이지 않으며, 지운 파일이 다시 보이길 원합니다.",
+      "intent": "OBSERVED_SYMPTOM",
+      "processingType": "INVESTIGATION",
+      "reportedSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "facts": [
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+        "sourceMessageIds": [
+         "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+        ],
+        "knowledgeEvidenceIds": []
+       },
+       {
+        "text": "발생 시점: 어제 오후부터요.",
+        "sourceMessageIds": [
+         "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+        ],
+        "knowledgeEvidenceIds": []
+       }
+      ],
+      "assumptions": [],
+      "unknowns": [],
+      "details": {
+       "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+       "requestedAccess": null,
+       "businessPurpose": null,
+       "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+       "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+       "occurredAt": "어제 오후부터요.",
+       "currentWorkflow": null,
+       "desiredChange": null,
+       "acceptanceCriteria": []
+      }
+     }
+    ],
+    "questions": [],
+    "guide": null,
+    "ticketProposals": [
+     {
+      "problemRef": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "title": "파일 공유에서 삭제한 파일이 보이지 않아 다시 확인을 요청",
+      "processingType": "INVESTIGATION",
+      "responsibleSystemCandidateId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+      "evidenceIds": [
+       "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+      ],
+      "standardRequestSnapshot": {
+       "summary": "파일 공유 시스템에서 지운 파일이 보이지 않으며, 지운 파일이 다시 보이길 원합니다.",
+       "confirmedFacts": [
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "하려던 업무·화면: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "기대한 동작: 지운 파일이 다시 보여야 해요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "실제 동작: 전자결재에서 지운 파일이 안 보여요.",
+         "sourceMessageIds": [
+          "056b97f7-db36-5571-9faf-e5a8ed2f3234"
+         ],
+         "knowledgeEvidenceIds": []
+        },
+        {
+         "text": "발생 시점: 어제 오후부터요.",
+         "sourceMessageIds": [
+          "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+         ],
+         "knowledgeEvidenceIds": []
+        }
+       ],
+       "assumptions": [],
+       "unknowns": [],
+       "responsibleSystemCandidateId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+       "responsibilityEvidenceIds": [
+        "31c1a0a9-5ee1-5b2a-8eb3-b0d93811f126"
+       ],
+       "details": {
+        "taskOrScreen": "전자결재에서 지운 파일이 안 보여요.",
+        "requestedAccess": null,
+        "businessPurpose": null,
+        "expectedBehavior": "지운 파일이 다시 보여야 해요.",
+        "actualBehavior": "전자결재에서 지운 파일이 안 보여요.",
+        "occurredAt": "어제 오후부터요.",
+        "currentWorkflow": null,
+        "desiredChange": null,
+        "acceptanceCriteria": []
+       },
+       "knowledge": []
+      }
+     }
+    ],
+    "caseProposal": null,
+    "evidence": [
+     {
+      "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+      "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 첨부 파일 열기와 내려받기",
+      "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+      "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재에서 새 기안 작성하고 상신하기",
+      "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+      "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재에서 지난 문서 찾기",
+      "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     },
+     {
+      "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+      "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+      "documentVersion": 1,
+      "kind": "GUIDE",
+      "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+      "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+      "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+      "appliesToSystemVersion": null,
+      "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+      "accessScope": "EMPLOYEE",
+      "origin": "SYNTHETIC"
+     }
+    ],
+    "error": null,
+    "requiresFollowUp": false,
+    "ticketCreationResults": []
+   },
+   "role_calls": [
+    {
+     "role": "INQUIRY",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [
+      {
+       "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+       "keywords": [
+        "지운",
+        "파일",
+        "보여요"
+       ],
+       "feature_candidates": [],
+       "raw_keywords": [
+        "지운",
+        "파일",
+        "안",
+        "보여요"
+       ],
+       "raw_feature_candidates": [
+        "152e8439-1e01-5e26-9749-f77df1cb65fc"
+       ]
+      }
+     ],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+       "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 지난 문서 찾기",
+       "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "cafd8293-ed30-5623-9971-86c9ee9de0ad",
+       "documentId": "1fe7c7d5-8d78-50c1-95a6-26dbb397f582",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 결재 상태와 결재선 탭 보는 법",
+       "excerpt": "## 목적\n\n전자결재 문서의 결재가 어디까지 진행됐는지 확인하는 방법과, 화면에 나오는 상태의 의미를 안내합니다.\n\n## 전제\n\n- 문서를 열람할 권한이 있어야 합니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서함이나 기안함에서 문서를 열어 상세 화면으로 이동합니다.\n2. `결재선` 탭을 엽니다.\n3. 문서 상태와 결재자별 단계 상태를 확인합니다.\n\n## 확인할 수 있는 결과\n\n문서 상태는 다음 중 하나입니다.\n\n| 상태 | 코드 | 의미 |\n|---|---|---|\n| 임시 저장 | `DRAFT` | 상신하지 않고 저장만 한 상태 |\n| 상신 | `SUBMITTED` | 상신했고 아직 아무도 처리하지 않은 상태 |\n| 결재 중 | `IN_PROGRESS` | 한 단계 이상 처리되었고 결재가 진행 중인 상태 |\n| 승인 | `APPROVED` | 마지막 결재자까지 승인한 상태 |\n| 반려 | `REJECTED` | 반려된 상태. 사유가 함께 표시됩니다 |\n| 회수 | `WITHDRAWN` | 기안자가 회수한 상태 |\n\n결재선의 단계 상태는 \"대기\"(`WAITING`), \"승인\"(`APPROVED`), \"반려\"(`REJECTED`)입니다.\n\n상태는 `임시 저장 → 상신 → 결재 중 → 승인 또는 반려` 순서로 바뀝니다. \"상신\"이나 \"결재 중\"(첫 결재자가 처리하기 전)에서는 기안자가 회수하면 \"회수\"가 됩니다.\n\n## 적용 조건과 한계\n\n- 이 안내는 상태를 읽는 방법만 다룹니다. 결재 자체를 대신 처리하는 방법은 포함하지 않습니다.\n- 열람 권한이 없는 문서의 결재선은 볼 수 없습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 결재 진행 상태와 결재선 탭을 읽는 방법에만 적용한다. 문서를 열람할 수 있는 사용자(기안자, 결재선·참조)에게 해당하며 결재를 대신 처리하는 방법은 포함하지 않는다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "NO_MATCH",
+      "supporting_evidence_ids": [],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "사용자는 파일 공유 시스템에서 삭제한 파일이 보이지 않는 증상을 문의했지만, evidence는 전자결재의 첨부 파일, 기안 및 문서 조회·결재 상태만 다룹니다. 파일 공유 시스템의 삭제 파일 복구나 표시 문제와 관련된 근거가 없습니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "EMPTY",
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "NO_MATCH",
+      "supporting_evidence_ids": [],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "검색 결과가 없다"
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "KNOWLEDGE",
+     "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+     "search_state": "FOUND",
+     "evidence": [
+      {
+       "id": "05ce0c85-8614-5e6c-8fa4-0701bc652d75",
+       "documentId": "4defbbbe-7891-5124-9cb1-19835f4b5d7b",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재 첨부 파일 열기와 내려받기",
+       "excerpt": "## 목적\n\n전자결재 문서에 붙은 첨부 파일을 열어 보거나 내려받는 방법을 안내합니다.\n\n## 전제\n\n- 첨부 파일은 해당 문서를 열람할 권한이 있어야 볼 수 있습니다. 내가 기안했거나 결재선·참조에 포함된 문서가 해당합니다.\n\n## 절차\n\n1. 문서 상세 화면을 엽니다.\n2. `첨부 파일` 영역에서 파일을 찾습니다.\n3. 미리보고 싶으면 [열기]를, 내 컴퓨터에 저장하려면 [내려받기]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- [열기]는 pdf, png, jpg, txt 파일을 화면에서 미리 보여 줍니다.\n- 그 외 형식의 파일은 [열기]가 눌리지 않고 [내려받기]만 사용할 수 있습니다.\n- 첨부 파일 열람 권한이 없으면 \"첨부 파일 열람 권한이 없습니다\"가 표시됩니다.\n- 파일을 열 수 없으면 \"첨부 파일을 열 수 없습니다\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 내려받기는 한 번에 한 파일씩만 할 수 있습니다. 여러 파일을 한꺼번에 내려받는 기능은 지원하지 않습니다.\n- 첨부 파일의 크기·개수·형식 제한은 첨부 제한 정책을 따릅니다.\n- 전자결재의 첨부 저장소는 파일 공유와 자동으로 연결되지 않습니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서의 첨부 파일을 열어 보거나 내려받는 방법에 적용한다. 문서 열람 권한이 필요하고 내려받기는 한 번에 한 파일씩이며, 크기·개수·형식 제한은 첨부 제한 정책을 따른다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "dcf5321e-c12c-5353-b213-c5cf95f1283c",
+       "documentId": "00418c3a-527d-58d0-87b0-98c5e6f07f42",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 새 기안 작성하고 상신하기",
+       "excerpt": "## 목적\n\n전자결재에서 결재 문서를 새로 작성해 상신하는 방법을 안내합니다. 작성하다가 멈춰야 할 때의 임시 저장과, 상신 뒤의 회수도 함께 다룹니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 결재자로 지정할 사람이 정해져 있어야 상신할 수 있습니다.\n\n## 절차\n\n1. `전자결재 > 새 기안`을 엽니다.\n2. 제목을 입력합니다. 제목은 필수이며 100자 이내입니다.\n3. 본문을 입력합니다. 본문은 필수입니다.\n4. 필요하면 첨부 파일을 추가합니다. 첨부는 선택입니다.\n5. 결재선에 결재자를 1명 이상 지정합니다.\n6. 바로 상신하지 않을 때는 [임시 저장]을 누릅니다. 필수 항목을 다 채우지 않아도 저장되며, 저장한 문서는 `기안함 > 임시 저장`에서 다시 열 수 있습니다.\n7. 상신하려면 [상신]을 누릅니다. 이때 필수 항목을 검사합니다.\n\n## 확인할 수 있는 결과\n\n- 상신하면 문서 상태가 \"상신\"(`SUBMITTED`)이 됩니다. 결재 진행 상황은 문서 상세의 `결재선` 탭에서 확인합니다.\n- 필수 항목이 비어 있으면 \"필수 항목을 입력해 주세요\"가 표시됩니다.\n- 결재선이 비어 있으면 \"결재선을 1명 이상 지정해 주세요\"가 표시됩니다.\n- 저장하지 못하면 \"저장하지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 상신한 문서는 수정할 수 없습니다.\n- 첫 결재자가 문서를 처리하기 전까지만 [회수]할 수 있습니다. 한 단계라도 처리된 뒤에는 회수할 수 없습니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`가 아니라 `기안함 > 임시 저장`에 나타납니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재에서 새 문서를 작성해 상신하는 방법과 임시 저장·회수에 적용한다. 상신한 문서는 수정할 수 없고 첫 결재자가 처리하기 전까지만 회수할 수 있다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      },
+      {
+       "id": "a565bc1c-c190-5627-860c-5d2ba93c6285",
+       "documentId": "6daf8f44-2825-5e4c-aaba-25f3315dbbc2",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 지난 문서 찾기",
+       "excerpt": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": {
+      "problem_ref": "17f261f9-d003-57c3-9009-a7565dc4e835",
+      "verdict": "INSUFFICIENT",
+      "supporting_evidence_ids": [
+       "05ce0c85-8614-5e6c-8fa4-0701bc652d75"
+      ],
+      "missing_information": [],
+      "candidate_causes": [],
+      "rationale": "근거는 전자결재 첨부 파일의 열람·내려받기만 다루며, 파일 공유 시스템에서 삭제된 파일을 복원하거나 다시 보이게 하는 방법은 제공하지 않습니다. 파일 공유와 전자결재 첨부 저장소가 자동으로 연결되지 않는다는 안내만 관련됩니다."
+     },
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": "FOUND",
+     "relation_check_ids": [
+      "check-ea-file-format",
+      "check-ea-upload-time",
+      "check-ea-error-message",
+      "check-ea-retry-result"
+     ]
+    },
+    {
+     "role": "TICKET",
+     "problem_ref": null,
+     "search_state": null,
+     "evidence": [],
+     "failed_with": null,
+     "failure_detail": null,
+     "analysis": [],
+     "assessment": null,
+     "question_source": null,
+     "question_fallback": null,
+     "relation_state": null,
+     "relation_check_ids": []
+    }
+   ],
+   "model_calls": 4,
+   "error": null,
+   "user_reply": null,
+   "unknown_after": [],
+   "ref_map": [],
+   "input_tokens": 13420,
+   "output_tokens": 732,
+   "elapsed_seconds": 12.02862387499772
+  }
+ ]
+}

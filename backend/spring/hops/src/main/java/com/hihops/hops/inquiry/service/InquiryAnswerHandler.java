@@ -47,6 +47,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     private final ApplicationEventPublisher eventPublisher;
     private final GuideResultWriter guides;
     private final InquiryProblemRepository problems;
+    private final ProblemQuestionWriter problemQuestions;
 
     @Override
     public AgentTask task() {
@@ -99,10 +100,12 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
 
         answerWriter.insert(inquiry.getId(), answerMessageId, run.getId(), answer);
         var guide = guides.apply(run, inquiry, answerMessageId, input, result);
+        var stored = problemQuestions.apply(run, inquiry, answerMessageId, input, result,
+                guide == null ? null : guide.problemRef());
         // 저장한 AI 답변을 문의 구독에 알린다. 결과 반영 거래가 commit된 뒤에만 전달된다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), answerMessageId, null));
         if (!requiresFollowUp) completeResolvedInquiry(inquiry, result);
-        return validationOf(result, guide, requiresFollowUp);
+        return validationOf(result, guide, stored, requiresFollowUp);
     }
 
     private static boolean requiresFollowUp(JsonNode result) {
@@ -144,11 +147,17 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     }
 
     // 반영한 것과 받았지만 아직 저장하지 않는 AI 제안을 구분해 남긴다.
-    private String validationOf(JsonNode result, GuideResultWriter.Applied guide, boolean requiresFollowUp) {
+    private String validationOf(JsonNode result, GuideResultWriter.Applied guide, ProblemQuestionWriter.Applied stored,
+            boolean requiresFollowUp) {
+        boolean proposalsApplied = proposalsApplied(result, guide, stored);
+        // 모든 질문이 새로 저장됐거나 이미 저장된 묶음이어서 건너뛴 경우에만 반영된 것이다
+        boolean questionsApplied = result.path("questions").isArray() && !result.path("questions").isEmpty()
+                && stored.questions() + stored.repeated() == result.path("questions").size();
         List<String> unapplied = new ArrayList<>();
         for (String field : LIST_FIELDS) {
             if (result.path(field).isArray() && !result.path(field).isEmpty()) {
-                if (guide != null && "problemProposals".equals(field) && result.path(field).size() == 1) continue;
+                if ("problemProposals".equals(field) && proposalsApplied) continue;
+                if ("questions".equals(field) && questionsApplied) continue;
                 if (guide != null && "evidence".equals(field) && result.path(field).size() == guide.evidenceCount()) continue;
                 unapplied.add(field);
             }
@@ -160,19 +169,31 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
             }
         }
         var validation = jsonMapper.createObjectNode();
-        validation.putArray("applied").add("answer");
+        var applied = validation.putArray("applied").add("answer");
         if (requiresFollowUp) validation.put("requiresFollowUp", true);
         if (guide != null) {
-            ((tools.jackson.databind.node.ArrayNode) validation.path("applied")).add("guide");
-            if (result.path("problemProposals").size() == 1)
-                ((tools.jackson.databind.node.ArrayNode) validation.path("applied")).add("problemProposals");
-            if (result.path("evidence").size() == guide.evidenceCount())
-                ((tools.jackson.databind.node.ArrayNode) validation.path("applied")).add("evidence");
+            applied.add("guide");
+            if (result.path("evidence").size() == guide.evidenceCount()) applied.add("evidence");
             validation.put("appliedGuideProblemRef", guide.problemRef());
             validation.put("appliedGuideProblemId", guide.problemId().toString());
         }
+        if (proposalsApplied) applied.add("problemProposals");
+        if (questionsApplied) applied.add("questions");
         var ignored = validation.putArray("unapplied");
         unapplied.forEach(ignored::add);
         return validation.toString();
+    }
+
+    // 문제 제안이 모두 저장됐거나 안내·티켓 경로가 맡았으면 반영된 것이다. 하나라도 저장하지 못했으면 미적용으로 남긴다.
+    private static boolean proposalsApplied(JsonNode result, GuideResultWriter.Applied guide,
+            ProblemQuestionWriter.Applied stored) {
+        var proposals = result.path("problemProposals");
+        if (!proposals.isArray() || proposals.isEmpty()) return false;
+        if (guide != null && proposals.size() == 1) return true;
+        for (var proposal : proposals) {
+            String ref = proposal.path("problemRef").asString();
+            if (!stored.handledRefs().contains(ref) && (guide == null || !guide.problemRef().equals(ref))) return false;
+        }
+        return true;
     }
 }

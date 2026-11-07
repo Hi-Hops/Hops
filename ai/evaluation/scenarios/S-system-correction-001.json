@@ -22,5 +22,10 @@
       "afterTurn": 1,
       "text": "아, 전자결재가 아니라 파일 공유 시스템 이야기였어요."
     }
-  ]
+  ],
+  "checkAnswers": {
+    "check-file-error-message": "오류 문구는 없고 그냥 목록에 안 나와요.",
+    "check-file-access-route": "폴더 목록에서 찾으려고 했어요.",
+    "check-file-recent-change": "어제 제가 직접 지운 파일이에요."
+  }
 }

@@ -53,7 +53,7 @@ public class CurationInputFactory {
                 standard.details(), standard.knowledge());
         var inputProblem = new InputProblem(problem.getId(), ticket.getTitle(), ticket.getStandardRequest().getIntent().name(),
                 ticket.getWorkType().name(), ticket.getStandardRequest().getReportedSystem().getId(), null,
-                "WAITING_CONFIRMATION", problem.getClarifyCount(), body, null);
+                "WAITING_CONFIRMATION", problem.getClarifyCount(), List.of(), body, null);
         var work = new WorkRecord(record.getId(), ticket.getId(), problem.getId(), system.getId(),
                 WorkRecordResponse.from(record).kind(), record.getActionDetail(), record.getVerificationResult(),
                 record.getConfirmedCause(), record.getAppliedVersion(), AiRunRequest.time(record.getCreatedAt()),

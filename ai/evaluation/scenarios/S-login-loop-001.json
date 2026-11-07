@@ -16,5 +16,10 @@
     "occurredAt": "오늘 오전부터요."
   },
   "unknownFields": [],
-  "revealRule": "ASKED_FIELD_ONLY"
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-login-browser-cookie": "쿠키를 막아 둔 적은 없어요.",
+    "check-login-device-time": "컴퓨터 날짜와 시간은 맞게 되어 있어요.",
+    "check-login-portal-direct": "사내 포털에서 직접 로그인하면 잘 돼요."
+  }
 }

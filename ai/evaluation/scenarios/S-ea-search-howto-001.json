@@ -14,5 +14,9 @@
     "currentWorkflow": "지금은 목록을 계속 넘기면서 찾고 있어요."
   },
   "unknownFields": [],
-  "revealRule": "ASKED_FIELD_ONLY"
+  "revealRule": "ASKED_FIELD_ONLY",
+  "followUp": {
+    "text": "안내대로 해 봤는데 제목으로는 여전히 문서가 찾아지지 않아요. 해결되지 않았어요.",
+    "resolution": "UNRESOLVED"
+  }
 }

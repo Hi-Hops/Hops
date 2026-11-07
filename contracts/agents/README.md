@@ -236,7 +236,7 @@ AiEvent는 contractVersion/runId/seq/eventType/payload envelope다. progress pay
 |---|---|
 | AiRunRequest | 실행/문의/입력 버전·kind·answerMessageId·대상 문제 ID, 허용 메시지/기존 문제/작업, 시스템 목록, accessContext, nullable 원 처리 기록, expiresAt·limits |
 | InputMessage | 원 messageId/revision/sequenceNo·sender·허용된 content·problemIds·시각. CASE_DRAFT는 관련 구간만 투영 |
-| InputProblem | DB problemId·의도·처리 유형·보고 시스템/기능·상태·질문 수·표준 요청 스냅샷. questionCount는 Spring 값 |
+| InputProblem | DB problemId·의도·처리 유형·보고 시스템/기능·상태·질문 수·이미 물은 항목·표준 요청 스냅샷. questionCount와 askedFields는 Spring 값 |
 | WorkRecordContext | 실제 기록 ID·티켓/문제/시스템·종류·조치/검증·확인 요청/상태. Curator에게 해결 확인 전 PENDING도 전달 가능 |
 | AccessContext | actorId·purpose·systemIds·allowedDocumentScopes·policyRevision(·retrievalScopes 선택). Spring이 생성하며 모델은 수정 불가 |
 
@@ -264,7 +264,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | ExecutionLimits | maxModelCalls:int, maxInputTokens:int, maxOutputTokens:int, maxToolCalls:int, maxRetries:int |
 | InputMessage | id:Uuid, revision:int, sequenceNo:int, sender:USER / AI, content:string, problemIds:Uuid[], createdAt:time |
 | StandardRequestBody | summary:string, confirmedFacts:EvidenceStatement[], assumptions:EvidenceStatement[], unknowns:string[], responsibleSystemCandidateId:Uuid 또는 null, responsibilityEvidenceIds:Uuid[], details:RequestDetails, knowledge:KnowledgeEvidence[] |
-| InputProblem | id:Uuid, summary:string, intent:HOW_TO / ACCESS_REQUEST / OBSERVED_SYMPTOM / FEATURE_REQUEST / IMPROVEMENT_REQUEST / UNKNOWN / OUT_OF_SCOPE, processingType:KNOWLEDGE_QA / SERVICE_REQUEST / INVESTIGATION / INCIDENT / CHANGE_REQUEST / REVIEW_REQUIRED / OUT_OF_SCOPE, reportedSystemId:Uuid 또는 null, reportedFeatureId:Uuid 또는 null, state:ANALYZING / WAITING_USER / WAITING_SYSTEM / TICKET_PENDING / IN_SERVICE / WAITING_CONFIRMATION / RESOLVED / OUT_OF_SCOPE, questionCount:int, standardRequest:StandardRequestBody 또는 null, resolutionContext:ResolutionContext 또는 null |
+| InputProblem | id:Uuid, summary:string, intent:HOW_TO / ACCESS_REQUEST / OBSERVED_SYMPTOM / FEATURE_REQUEST / IMPROVEMENT_REQUEST / UNKNOWN / OUT_OF_SCOPE, processingType:KNOWLEDGE_QA / SERVICE_REQUEST / INVESTIGATION / INCIDENT / CHANGE_REQUEST / REVIEW_REQUIRED / OUT_OF_SCOPE, reportedSystemId:Uuid 또는 null, reportedFeatureId:Uuid 또는 null, state:ANALYZING / WAITING_USER / WAITING_SYSTEM / TICKET_PENDING / IN_SERVICE / WAITING_CONFIRMATION / RESOLVED / OUT_OF_SCOPE, questionCount:int, askedFields:string[], standardRequest:StandardRequestBody 또는 null, resolutionContext:ResolutionContext 또는 null |
 | ExistingWorkItem | workItemId:Uuid, problemId:Uuid, inquiryVersion:int, outcome:PENDING / STORED / NOT_CREATED / UNKNOWN, ticketId:Uuid 또는 null |
 | WorkRecordContext | id:Uuid, ticketId:Uuid, problemId:Uuid, systemId:Uuid, kind:VERIFIED_RESOLUTION / IMPLEMENTED_VERIFIED, action:string, verification:string, createdAt:time, resolutionRequestId:Uuid, confirmationState:PENDING / RESOLVED / UNRESOLVED, confirmedCause:string 또는 null, appliesToSystemVersion:string 또는 null |
 | AiRunRequest | contractVersion:hops-system-1, runId:Uuid, kind:INQUIRY_ANALYSIS / CASE_DRAFT, inquiryId:Uuid, inquiryVersion:int, answerMessageId:Uuid 또는 null, problemIds:Uuid[], messages:InputMessage[], problems:InputProblem[], systems:SupportedSystem[], accessContext:AccessContext, existingWorkItems:ExistingWorkItem[], workRecord:WorkRecordContext 또는 null, expiresAt:time, limits:ExecutionLimits |
@@ -343,7 +343,7 @@ roleResults에는 구조화된 결과·오류·근거 참조만 저장한다. �
 
 INQUIRY_ANALYSIS에서 Supervisor는 Inquiry·Knowledge·Ticket을 필요한 순서로 선택한다. Curator는 허용하지 않는다. CASE_DRAFT에서는 Curator와 필요한 읽기 전용 Knowledge만 허용한다. 모든 역할을 매번 호출하거나 고정 순서로 성공을 강제하지 않는다. 한도의 정본은 input.limits/expiresAt이며 역할 전환·재시도에서 초기화하지 않는다.
 
-questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 반환하지 않는다. 기존 문제별 `5-questionCount` 이내의 새 번들만 허용하며 Spring의 질문 메시지 commit 때만 집계한다. 기존 STORED 작업의 문제에는 새 티켓 제안을 허용하지 않는다. 기존 문제 ID/작업 ID/실제 담당자·저장 여부를 모델이 교체하지 못한다.
+askedFields는 그 문제의 질문 묶음 requestedFields를 물은 순서대로 모은 중복 없는 목록이며 물은 적 없으면 빈 목록이다(가산 필드: AI는 생략을 빈 목록으로 읽는다). 답을 못 얻은 항목도 포함하며 AI는 여기 있는 항목을 다시 묻지 않는다. questionCount는 내부 State가 임의 증가시켜 Spring에 확정값으로 반환하지 않는다. 기존 문제별 `5-questionCount` 이내의 새 번들만 허용하며 Spring의 질문 메시지 commit 때만 집계한다. 기존 STORED 작업의 문제에는 새 티켓 제안을 허용하지 않는다. 기존 문제 ID/작업 ID/실제 담당자·저장 여부를 모델이 교체하지 못한다.
 
 ### S5. 저장·재시작·적용 경계
 

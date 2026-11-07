@@ -50,6 +50,22 @@ def check_item_ids(relations: RelationNeighbors | None) -> frozenset[str]:
     return frozenset(check.id for symptom in relations.symptoms for check in symptom.checkItems)
 
 
+def approved_questions(relations: RelationNeighbors | None) -> dict[str, str]:
+    """조회한 관계의 확인 항목 ID → 직원에게 물을 승인된 질문 문구(항목의 첫 질문).
+
+    질문이 없는 항목은 뺀다. 직원 상담의 관계에는 직원 공개로 승인된 항목과 보이는 질문만 있으므로
+    이 문구만 직원 질문에 쓴다(P12). 같은 항목이 여러 증상에 있으면 처음 것을 쓴다.
+    """
+    items: dict[str, str] = {}
+    if relations is None:
+        return items
+    for symptom in relations.symptoms:
+        for check in symptom.checkItems:
+            if check.questions:
+                items.setdefault(check.id, check.questions[0].text)
+    return items
+
+
 def limit_check_items(assessment: Assessment) -> Assessment:
     """확인 항목 참조를 앞에서부터 MAX_CHECK_ITEM_REFS개만 남긴다. 판정 전체를 거부하지 않는다."""
     kept: list = []

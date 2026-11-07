@@ -37,7 +37,7 @@ class TicketKnowledgeScopeTest {
         // 다른 문제에 이미 저장된 동일 근거가 있어도 현재 문제의 허용 목록은 아니다.
         return new AiRunRequest("hops-system-1", UUID.randomUUID(), "ANALYZE", UUID.randomUUID(), 1, null,
                 List.of(), List.of(), List.of(new InputProblem(UUID.randomUUID(), "다른 문제", "OBSERVED_SYMPTOM",
-                "INVESTIGATION", system, null, "ANALYZING", 0, snapshot(), null)),
+                "INVESTIGATION", system, null, "ANALYZING", 0, List.of(), snapshot(), null)),
                 List.of(new SupportedSystemResponse(system, SystemCode.COMMON_LOGIN, "공통 로그인", List.of())),
                 new AccessContext(UUID.randomUUID(), "INQUIRY", List.of(system), List.of("EMPLOYEE"), 1),
                 List.of(), null, null, null);

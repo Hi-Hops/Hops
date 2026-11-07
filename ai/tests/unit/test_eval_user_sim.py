@@ -95,3 +95,33 @@ def test_scenario_file_loader_reads_json(tmp_path) -> None:
     path.write_text(json.dumps(SCENARIO, ensure_ascii=False), encoding="utf-8")
 
     assert load_scenario(path).case_family == "ea-search-time-unknown"
+
+
+def test_user_answers_a_check_item_question_from_the_scenarios_check_answers() -> None:
+    scenario = parse_scenario(
+        {**SCENARIO, "checkAnswers": {"check-ea-search-period": "기간을 최근 3개월로 두었어요"}}
+    )
+
+    reply = reply_to(scenario, [ask("check-ea-search-period")])
+
+    assert reply.text == "기간을 최근 3개월로 두었어요"
+    assert reply.unknown == ()
+
+
+def test_user_does_not_know_a_check_item_the_scenario_has_no_answer_for() -> None:
+    scenario = parse_scenario(SCENARIO)
+
+    reply = reply_to(scenario, [ask("check-ea-search-period")])
+
+    assert "잘 모르겠어요" in reply.text
+    assert reply.unknown == (("new:1", "check-ea-search-period"),)
+    assert "check-ea" not in reply.text
+
+
+def test_check_answers_must_not_be_blank() -> None:
+    with pytest.raises(ScenarioFormatError):
+        parse_scenario({**SCENARIO, "checkAnswers": {"check-a": "  "}})
+
+
+def test_scenarios_without_check_answers_still_parse() -> None:
+    assert parse_scenario(SCENARIO).check_answers == {}

@@ -293,6 +293,7 @@ def _assemble(
         system_known=system_id is not None,
         system_names=system_names,
         question_count=original.questionCount if original is not None else 0,
+        asked=original.askedFields if original is not None else (),
         unknown=declared_unknown,
         guide_first=guide_first,
         handoff=knowledge_empty and is_guide_type(processing_type),

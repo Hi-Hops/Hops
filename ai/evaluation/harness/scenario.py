@@ -5,7 +5,7 @@
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +65,8 @@ class Scenario:
     corrections: tuple[Correction, ...] = ()
     follow_up: FollowUp | None = None
     faults: tuple[str, ...] = ()
+    # 확인 항목 ID → 사용자가 그 질문에 할 답. 없는 항목을 물으면 모른다고 답한다.
+    check_answers: Mapping[str, str] = field(default_factory=dict)
 
 
 def _parse_corrections(raw: Any) -> tuple[Correction, ...]:
@@ -129,6 +131,10 @@ def parse_scenario(data: Mapping[str, Any]) -> Scenario:
     bad_faults = [name for name in faults if name not in FAULTS]
     if bad_faults:
         raise ScenarioFormatError(f"알 수 없는 faults: {bad_faults}")
+    check_answers = dict(data.get("checkAnswers", {}))
+    bad_answers = [key for key, text in check_answers.items() if not str(text).strip()]
+    if bad_answers:
+        raise ScenarioFormatError(f"checkAnswers의 답이 비어 있다: {bad_answers}")
     return Scenario(
         scenario_id=str(data["scenarioId"]),
         case_family=str(data["caseFamily"]),
@@ -142,6 +148,7 @@ def parse_scenario(data: Mapping[str, Any]) -> Scenario:
         corrections=_parse_corrections(data.get("corrections", [])),
         follow_up=_parse_follow_up(data.get("followUp")),
         faults=faults,
+        check_answers={key: str(text).strip() for key, text in check_answers.items()},
     )
 
 

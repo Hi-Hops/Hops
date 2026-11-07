@@ -331,6 +331,10 @@ class InputProblem(WireModel):
     reportedFeatureId: WireUuid | None
     state: ProblemState
     questionCount: QuestionCount
+    # 이 문제에 이미 물은 항목(질문 묶음 requestedFields의 합집합). Spring이 저장한 질문 이력이다.
+    # 이전 생산자는 보내지 않으므로 생략하면 빈 목록이다. 이미 물은 항목은 답을 못 얻어도
+    # 다시 묻지 않는다.
+    askedFields: list[WireText] = Field(default_factory=list)
     standardRequest: StandardRequestBody | None
     resolutionContext: ResolutionContext | None
 

@@ -42,6 +42,7 @@ class InquiryAnswerHandlerTest {
     private InquiryRepository inquiries;
     private MessageRepository messages;
     private AiAnswerMessageWriter writer;
+    private ProblemQuestionWriter problemQuestions;
     private InquiryAnswerHandler handler;
     private Inquiry inquiry;
     private Member member;
@@ -52,8 +53,10 @@ class InquiryAnswerHandlerTest {
         inquiries = mock(InquiryRepository.class);
         messages = mock(MessageRepository.class);
         writer = mock(AiAnswerMessageWriter.class);
+        problemQuestions = mock(ProblemQuestionWriter.class);
+        when(problemQuestions.apply(any(), any(), any(), any(), any(), any())).thenReturn(ProblemQuestionWriter.Applied.NONE);
         handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events, mock(GuideResultWriter.class),
-                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class));
+                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class), problemQuestions);
 
         member = mock(Member.class);
         when(member.getId()).thenReturn(memberId);
@@ -150,6 +153,30 @@ class InquiryAnswerHandlerTest {
         JsonNode unapplied = mapper.readTree(validation).path("unapplied");
         assertThat(unapplied).extracting(JsonNode::asString).containsExactlyInAnyOrder("questions", "ticketProposals");
         verify(writer).insert(any(), any(), any(), anyString());
+    }
+
+    @Test
+    void 질문이_모두_저장됐거나_이미_저장된_묶음이면_questions를_반영한_것으로_기록한다() {
+        String extra = ",\"questions\":[{\"problemRef\":\"a\"},{\"problemRef\":\"b\"}]";
+        when(problemQuestions.apply(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new ProblemQuestionWriter.Applied(java.util.Set.of(), 1, 1));
+
+        String validation = handler.apply(run, input(), result(extra));
+
+        assertThat(mapper.readTree(validation).path("applied")).extracting(JsonNode::asString).contains("questions");
+        assertThat(mapper.readTree(validation).path("unapplied")).extracting(JsonNode::asString).doesNotContain("questions");
+    }
+
+    @Test
+    void 질문_일부를_저장도_건너뛰지도_않았으면_questions를_미적용으로_남긴다() {
+        String extra = ",\"questions\":[{\"problemRef\":\"a\"},{\"problemRef\":\"b\"}]";
+        when(problemQuestions.apply(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new ProblemQuestionWriter.Applied(java.util.Set.of(), 1, 0));
+
+        String validation = handler.apply(run, input(), result(extra));
+
+        assertThat(mapper.readTree(validation).path("unapplied")).extracting(JsonNode::asString).contains("questions");
+        assertThat(mapper.readTree(validation).path("applied")).extracting(JsonNode::asString).doesNotContain("questions");
     }
 
     @Test

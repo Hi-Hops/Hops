@@ -104,9 +104,9 @@ def check_b7(trace: RunTrace) -> list[Violation]:
 def check_b8(trace: RunTrace) -> list[Violation]:
     """B8. 생성된 질문이 판정이 부족하다고 한 정보를 겨냥한다.
 
-    판정의 부족한 정보(양식 필드)가 있는 문제에 질문이 나갔다면, 질문이 요청한 필드에 그 중 하나
-    이상이 있어야 한다. 이미 확보했거나 모른다고 한 필드는 질문에서 제외되므로 부족한 정보가 모두
-    그런 필드이면 겨냥할 수 없다(이 검사기는 그 경우도 관찰로 남긴다).
+    판정의 부족한 정보(양식 필드 또는 관계 확인 항목)가 있는 문제에 질문이 나갔다면, 질문이 요청한
+    항목에 그 중 하나 이상이 있어야 한다. 이미 확보했거나 모른다고 했거나 이미 물은 항목은 질문에서
+    제외되므로 부족한 정보가 모두 그런 항목이면 겨냥할 수 없다(이 검사기는 그 경우도 관찰로 남긴다).
     """
     found: list[Violation] = []
     for index, turn in enumerate(trace.turns):
@@ -116,11 +116,7 @@ def check_b8(trace: RunTrace) -> list[Violation]:
         assessments = _last_assessments(turn)
         for question in result.questions:
             assessment = assessments.get(question.problemRef)
-            missing = (
-                {ref for kind, ref in assessment.missing_information if kind == "FIELD"}
-                if assessment
-                else set()
-            )
+            missing = {ref for _, ref in assessment.missing_information} if assessment else set()
             if missing and not missing & set(question.requestedFields):
                 found.append(
                     BehaviorFinding(
@@ -130,9 +126,43 @@ def check_b8(trace: RunTrace) -> list[Violation]:
     return found
 
 
+def check_b10(trace: RunTrace) -> list[Violation]:
+    """B10. 안내 뒤 미해결로 응답한 문제에 같은 근거로 다시 안내하지 않는다.
+
+    미해결 응답으로 접수한 실행(문제의 `resolutionContext`가 UNRESOLVED)에서, 이미 안내한 근거
+    (`standardRequest.knowledge`)와 같은 문서·버전으로 안내가 나가면 관찰로 남긴다. 다른 문서나 새
+    버전으로 안내하거나 담당자 검토로 넘기는 것은 위반이 아니다.
+    """
+    found: list[Violation] = []
+    for index, turn in enumerate(trace.turns):
+        result = turn.result
+        if result is None or result.status != "SUCCEEDED" or result.guide is None:
+            continue
+        guide = result.guide
+        problem = next((p for p in turn.request.problems if p.id == guide.problemRef), None)
+        context = problem.resolutionContext if problem is not None else None
+        if problem is None or context is None or context.state != "UNRESOLVED":
+            continue
+        guided = {
+            (item.documentId, item.documentVersion)
+            for item in (problem.standardRequest.knowledge if problem.standardRequest else [])
+        }
+        used = {
+            (item.documentId, item.documentVersion)
+            for item in result.evidence
+            if item.id in guide.evidenceIds
+        }
+        if used & guided:
+            found.append(
+                BehaviorFinding("B10", index, "미해결 응답 뒤 이미 안내한 근거로 다시 안내했다")
+            )
+    return found
+
+
 BEHAVIOR_CHECKS: dict[str, Callable[[RunTrace], list[Violation]]] = {
     "B7": check_b7,
     "B8": check_b8,
+    "B10": check_b10,
     "B9": check_b9,
 }
 

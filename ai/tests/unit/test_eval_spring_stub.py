@@ -85,3 +85,27 @@ def test_question_count_accumulates_across_turns() -> None:
     assert no_new == ()
     assert third.problems[0].questionCount == 2
     assert third.inquiryVersion == request.inquiryVersion + 2
+
+
+def test_advance_accumulates_the_fields_that_were_asked() -> None:
+    harness = stub()
+    request = harness.first_request()
+    first = first_result(request)
+    second_request, ref_map = harness.advance(first, "전자결재 문서 조회 화면입니다.")
+    problem_id = ref_map[0][1]
+    assert second_request.problems[0].askedFields == ["taskOrScreen"]
+
+    second = ai_result(
+        second_request,
+        answer="기대한 동작은 무엇인가요?",
+        problems=[
+            problem_dict(
+                problem_id, [fact_from("하려던 업무·화면: 문서 조회", request.messages[0].id)]
+            )
+        ],
+        questions=[question(problem_id, "기대한 동작은 무엇인가요?", "expectedBehavior")],
+    )
+    third_request, _ = harness.advance(second, "모르겠어요")
+
+    assert third_request.problems[0].questionCount == 2
+    assert third_request.problems[0].askedFields == ["taskOrScreen", "expectedBehavior"]

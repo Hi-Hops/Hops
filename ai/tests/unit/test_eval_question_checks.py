@@ -24,7 +24,7 @@ from tests.eval_fixtures import (
 REF = "new:1"
 
 
-def assessed(verdict: str, *missing: str) -> RoleCall:
+def assessed(verdict: str, *missing: str, checks: tuple[str, ...] = ()) -> RoleCall:
     return RoleCall(
         AgentRole.KNOWLEDGE,
         problem_ref=REF,
@@ -33,7 +33,10 @@ def assessed(verdict: str, *missing: str) -> RoleCall:
         assessment=AssessmentRecord(
             problem_ref=REF,
             verdict=verdict,
-            missing_information=tuple(("FIELD", name) for name in missing),
+            missing_information=(
+                *(("FIELD", name) for name in missing),
+                *(("CHECK_ITEM", name) for name in checks),
+            ),
         ),
     )
 
@@ -112,6 +115,20 @@ def test_b8_accepts_a_question_that_includes_a_missing_field_among_others() -> N
     asking = [question(REF, "여러 가지", "taskOrScreen", "actualBehavior")]
 
     assert check_b8(trace([assessed("PARTIAL", "actualBehavior")], questions=asking)) == []
+
+
+def test_b8_accepts_a_question_that_asks_a_designated_check_item() -> None:
+    asking = [question(REF, "조회 기간은요?", "check-period")]
+
+    assert check_b8(trace([assessed("PARTIAL", checks=("check-period",))], questions=asking)) == []
+
+
+def test_b8_flags_a_question_that_skips_the_designated_check_item() -> None:
+    asking = [question(REF, "언제부터인가요?", "occurredAt")]
+
+    found = check_b8(trace([assessed("PARTIAL", checks=("check-period",))], questions=asking))
+
+    assert [item.property_id for item in found] == ["B8"]
 
 
 def test_b8_has_nothing_to_check_without_missing_information_or_a_question() -> None:

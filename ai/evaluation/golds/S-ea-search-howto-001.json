@@ -34,7 +34,16 @@
       ],
       "forbiddenEvidence": [
         "runbook-ea-document-not-listed@1"
-      ]
+      ],
+      "afterFollowUp": {
+        "allowedFinalActions": [
+          "ANSWER_GUIDE",
+          "PROPOSE_TICKET"
+        ],
+        "mustNotRepeatEvidence": [
+          "guide-ea-document-search@1"
+        ]
+      }
     }
   ],
   "behaviorProperties": [

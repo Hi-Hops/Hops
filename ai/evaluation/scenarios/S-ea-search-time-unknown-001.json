@@ -18,5 +18,9 @@
   "unknownFields": [
     "occurredAt"
   ],
-  "revealRule": "ASKED_FIELD_ONLY"
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-search-period": "조회 기간은 처음 화면에 있던 기본값 그대로 뒀어요.",
+    "check-ea-participation": "제가 직접 올린 문서예요."
+  }
 }

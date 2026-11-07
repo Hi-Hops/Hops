@@ -113,7 +113,11 @@ def legal_actions(facts: ProblemFacts) -> frozenset[Action]:
     1. 범위 밖이면 범위 밖 하나뿐이다.
     2. 시스템이 정해지지 않았으면 질문이 가능할 때 질문, 사용자가 모른다고 했거나 질문을 더 할
        수 없으면 시스템 확인 대기(평가 유무와 무관).
-    3. 시스템이 정해졌으면 선행 행동(검색·평가)이 남은 동안은 그것과 질문·바로 티켓만 가능하고,
+    3. 시스템이 정해졌고 안내 뒤 미해결 응답에 안내할 다른 근거가 없으면 티켓 (c) 하나뿐이다.
+       이 규칙은 안내(사용법) 문제에 적용되며, 이미 안내한 문서를 뺀 검색 결과가 비었거나 있어도
+       판정이 안내할 수 없다고 한 경우를 모두 포함한다. 사용법 문의는 관계 확인 항목을 쓰지
+       않으므로 확인 항목 질문과 겹치지 않는다.
+    4. 시스템이 정해졌으면 선행 행동(검색·평가)이 남은 동안은 그것과 질문·바로 티켓만 가능하고,
        선행 행동이 끝나면 답변 조건을 만족할 때 답변, 질문이 가능할 때 질문, 재검색할 수 있으면
        재검색, 그 밖에 질문도 재검색도 더 할 수 없으면 티켓 (b)다.
     """
@@ -127,6 +131,11 @@ def legal_actions(facts: ProblemFacts) -> frozenset[Action]:
         if facts.system_declared_unknown or not facts.can_ask:
             actions.add("HOLD")
         return frozenset(actions)
+
+    # 5.3절 티켓 (c): 안내 뒤 미해결로 응답했는데 다른 근거가 없으면 담당자 검토뿐이다.
+    # 같은 질문이나 재검색을 되풀이하지 않는다. 필수 정보가 비어 있어도 미확인으로 보존해 넘긴다.
+    if facts.unresolved_without_other_evidence:
+        return frozenset({"TICKET"})
 
     actions = set()
     searched = facts.search_state is not None

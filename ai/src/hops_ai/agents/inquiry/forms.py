@@ -235,10 +235,14 @@ def compose_question(
     fields: Sequence[str], system_names: Sequence[str] = (), *, handoff: bool = False
 ) -> str:
     """필드 목록을 한 번의 질문 문구로 만든다. 같은 입력이면 항상 같은 문구다."""
-    parts = [_prompt(name, system_names, handoff=handoff) for name in fields]
-    if len(parts) == 1:
-        return parts[0]
-    lines = "\n".join(f"{index}. {part}" for index, part in enumerate(parts, start=1))
+    return compose_from_prompts([_prompt(name, system_names, handoff=handoff) for name in fields])
+
+
+def compose_from_prompts(prompts: Sequence[str]) -> str:
+    """항목마다의 질문 문구를 한 번의 질문으로 묶는다. 하나면 그대로, 둘 이상이면 번호 목록이다."""
+    if len(prompts) == 1:
+        return prompts[0]
+    lines = "\n".join(f"{index}. {part}" for index, part in enumerate(prompts, start=1))
     return f"처리에 필요한 내용을 알려 주시겠어요?\n{lines}"
 
 

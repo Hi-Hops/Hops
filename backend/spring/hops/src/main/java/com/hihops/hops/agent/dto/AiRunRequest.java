@@ -39,10 +39,14 @@ public record AiRunRequest(String contractVersion, UUID runId, String kind, UUID
     /**
      * 기존 문제. 상태·질문 수는 inquiry_problem, 의도·처리 유형·시스템·요청서는 최신 적용 실행의 standard_request에서 읽는다.
      * state·intent·processingType은 계약 값 이름 그대로다.
+     *
+     * <p>askedFields는 이 문제에 이미 물은 항목이다(AI 메시지 payload.questionBundles[].requestedFields의 합집합, 물은 순서).
+     * 답을 못 얻은 항목도 AI가 다시 묻지 않게 하려는 질문 이력이다. 물은 적 없으면 빈 목록이다.
      */
     public record InputProblem(UUID id, String summary, String intent, String processingType,
             @Nullable UUID reportedSystemId, @Nullable UUID reportedFeatureId, String state, int questionCount,
-            @Nullable StandardRequestBody standardRequest, @Nullable Object resolutionContext) {
+            List<String> askedFields, @Nullable StandardRequestBody standardRequest,
+            @Nullable Object resolutionContext) {
     }
 
     /** 문제별 표준 요청서 본문. 공개 범위는 문의자(직원) 기준으로 거른 값이다. */
