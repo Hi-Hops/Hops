@@ -242,7 +242,8 @@ START → collect → draft → link → validate → END
 | 사례 그래프 | 구현. Curator 안의 서브그래프 `collect → draft → link → validate`. `CASE_DRAFT`는 선택지가 하나라 Supervisor 모델을 부르지 않는다(모델 호출 3회 → 초안 1회 + link 1회) |
 | `link`(`ADDRESSES`·`USES_CHECK`) | 구현. AI(`curator-link-v1`)가 후보 안에서만 고르고 근거 인용을 대조한다. Spring이 후보(`linkCandidates`)를 보내고(`RelationLinkCandidateReader`), 결과 적용 때 대상이 입력의 후보이면서 지금도 승인·가시인지, 근거가 입력 메시지·이 티켓의 처리 기록·검증된 근거인지, 관계 유형·중복·개수를 다시 확인한다 |
 | 승인 뒤 관계 테이블 반영 | 미구현. 승인된 사례의 `entityLinks`는 JSON(`relation_candidates`)과 색인 요청에만 있고 `relation_case_symptom`·`relation_case_check`를 쓰는 코드는 시드 밖에 없다(#201과 함께 결정) |
-| Curator 평가 | 구현(커밋 ③). 별도 시나리오 10개(DEV 6·TEST 4), 안전 성질 C1~C5, 행동 성질 CB1~CB4([평가 방식](../knowledge/EVALUATION.md#curator-평가-사례-초안관계-판단)). 알려진 결함: 직원 공개 상담 근거가 요청서에 있으면 사례 실행이 입력 단계에서 거부된다(`allowedDocumentScopes`가 `SYSTEM_STAFF`뿐). 범위 결정이 필요해 고치지 않았다 |
+| Curator 평가 | 구현(커밋 ③). 별도 시나리오 10개(DEV 6·TEST 4), 안전 성질 C1~C5, 행동 성질 CB1~CB4([평가 방식](../knowledge/EVALUATION.md#curator-평가-사례-초안관계-판단)). |
+| 사례 실행의 접근 범위 | 구현. `allowedDocumentScopes=["EMPLOYEE","SYSTEM_STAFF"]`(실행 주체인 주담당자가 볼 수 있는 범위), `systemIds`는 책임 시스템 하나. Spring이 입력의 상담 근거를 이 범위로 걸러 보낸다([계약](../../contracts/agents/README.md)). 이전에는 직원 공개 상담 근거가 요청서에 있으면 사례 실행이 입력 단계에서 거부되었다 |
 
 ## 8. 관계 데이터
 

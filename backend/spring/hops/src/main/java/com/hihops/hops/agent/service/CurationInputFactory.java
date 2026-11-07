@@ -3,9 +3,12 @@ package com.hihops.hops.agent.service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.UUID;
 
 import org.jspecify.annotations.Nullable;
@@ -61,6 +64,13 @@ public class CurationInputFactory {
     /** 맥락 처리 기록의 문장 길이 상한(Unicode 코드 포인트). AI wire와 같다. */
     static final int MAX_RECORD_TEXT = 4000;
 
+    /**
+     * 사례 초안 실행이 읽을 수 있는 자료 범위. 실행 주체는 해당 시스템의 현재 주담당자라서 직원 공개 자료와 담당자 전용 자료를
+     * 모두 볼 수 있다. 사례 자체의 공개 범위는 따로 {@code SYSTEM_STAFF}로 고정된다(Curator).
+     * 시스템 범위({@code accessContext.systemIds})는 책임 시스템 하나로 좁게 유지하고, 그 밖의 시스템 근거는 입력에서 뺀다.
+     */
+    static final List<String> ALLOWED_SCOPES = List.of("EMPLOYEE", "SYSTEM_STAFF");
+
     private final AnalysisRunProperties properties;
     private final TicketStandardRequestReader standardRequests;
     private final ItSystemService systems;
@@ -97,9 +107,9 @@ public class CurationInputFactory {
         var problem = ticket.getInquiryProblem();
         var system = ticket.getResponsibleSystem();
         var standard = standardRequests.read(ticket.getStandardRequest(), actor);
-        var body = new StandardRequestBody(standard.summary(), standard.confirmedFacts(), standard.assumptions(),
-                standard.unknowns(), standard.responsibleSystemCandidateId(), standard.responsibilityEvidenceIds(),
-                standard.details(), standard.knowledge());
+        var inRange = inRange(system.getId());
+        var keptKnowledge = standard.knowledge().stream().filter(inRange).toList();
+        var body = scoped(standard, keptKnowledge, system.getId());
         var inputProblem = new InputProblem(problem.getId(), ticket.getTitle(), ticket.getStandardRequest().getIntent().name(),
                 ticket.getWorkType().name(), ticket.getStandardRequest().getReportedSystem().getId(), null,
                 "WAITING_CONFIRMATION", problem.getClarifyCount(), List.of(), body, null);
@@ -109,14 +119,52 @@ public class CurationInputFactory {
                 record.getConfirmedCause(), record.getAppliedVersion(), AiRunRequest.time(record.getCreatedAt()),
                 confirmation.id(), confirmation.state(),
                 relatedRecords(ticket, record), resolutionHistory(ticket, inquiryMessages, confirmation.id()),
-                consultedKnowledge(problem.getId(), actor), linkCandidates.candidates(system.getId(), actor.getId()));
+                consultedKnowledge(problem.getId(), actor, inRange),
+                linkCandidates.candidates(system.getId(), actor.getId()));
         var request = new AiRunRequest(properties.schemaVersion(), run.getId(), "CASE_DRAFT", ticket.getInquiry().getId(),
                 run.getInputVersion(), null, List.of(problem.getId()), sourceMessages(ticket, inquiryMessages), List.of(inputProblem),
                 List.of(systems.responses(List.of(system)).get(system.getId())),
-                new AccessContext(actor.getId(), "CASE_DRAFT", List.of(system.getId()), List.of("SYSTEM_STAFF"), actor.getPolicyRevision()),
+                new AccessContext(actor.getId(), "CASE_DRAFT", List.of(system.getId()), ALLOWED_SCOPES, actor.getPolicyRevision()),
                 List.of(new ExistingWorkItem(problem.getId(), problem.getId(), run.getInputVersion(), "STORED", ticket.getId())),
                 work, AiRunRequest.time(now.plus(properties.deadline())), properties.limits());
         return mapper.writeValueAsString(request);
+    }
+
+    /**
+     * 입력에 실을 수 있는 근거인지: 공개 범위가 이 실행의 {@link #ALLOWED_SCOPES} 안이고 시스템이 책임 시스템이거나
+     * 시스템 없는 공통 정책이어야 한다. AI의 입력 검증과 결과 적용 확인이 같은 기준으로 근거를 대조하므로 어긋난 근거를
+     * 보내면 사례 실행 전체가 거부된다. 보고 시스템이 책임 시스템과 다른 티켓의 보고 시스템 문서가 여기서 빠진다.
+     */
+    private static Predicate<KnowledgeEvidenceResponse> inRange(UUID systemId) {
+        return item -> ALLOWED_SCOPES.contains(item.accessScope())
+                && (item.systemId() == null ? "POLICY".equals(item.kind()) : systemId.equals(item.systemId()));
+    }
+
+    /**
+     * 표준 요청서에서 범위 밖 근거와 그 근거를 가리키는 값을 뺀 본문. 사실이 범위 밖 근거를 인용하면 그 사실을 통째로 빼고
+     * (일부 인용만 지우지 않는다. TicketStandardRequestReader가 보이지 않는 근거를 다루는 규칙과 같다), 책임 판단 근거에서도
+     * 뺀다. 남겨 두면 AI가 입력에 없는 근거를 가리키는 참조로 보고 실행을 거부한다. 빠진 개수는 로그에 남기고 내용은 남기지 않는다.
+     */
+    private StandardRequestBody scoped(com.hihops.hops.ticket.dto.StandardRequestResponse standard,
+            List<KnowledgeEvidenceResponse> kept, UUID systemId) {
+        Set<UUID> keptIds = new HashSet<>();
+        kept.forEach(item -> keptIds.add(item.id()));
+        Set<UUID> droppedIds = new HashSet<>();
+        standard.knowledge().forEach(item -> {
+            if (!keptIds.contains(item.id())) droppedIds.add(item.id());
+        });
+        var facts = standard.confirmedFacts().stream().filter(item -> keptIds.containsAll(item.knowledgeEvidenceIds())).toList();
+        var assumptions = standard.assumptions().stream().filter(item -> keptIds.containsAll(item.knowledgeEvidenceIds())).toList();
+        var responsibility = standard.responsibilityEvidenceIds().stream().filter(id -> !droppedIds.contains(id)).toList();
+        int dropped = droppedIds.size() + (standard.confirmedFacts().size() - facts.size())
+                + (standard.assumptions().size() - assumptions.size());
+        if (dropped > 0) {
+            log.info("사례 초안 입력에서 책임 시스템 범위 밖 근거와 그 인용을 뺍니다: systemId={}, 근거 {}건, 사실 {}건",
+                    systemId, droppedIds.size(),
+                    (standard.confirmedFacts().size() - facts.size()) + (standard.assumptions().size() - assumptions.size()));
+        }
+        return new StandardRequestBody(standard.summary(), facts, assumptions, standard.unknowns(),
+                standard.responsibleSystemCandidateId(), responsibility, standard.details(), kept);
     }
 
     /** 계약의 처리 기록 종류 이름. */
@@ -188,13 +236,15 @@ public class CurationInputFactory {
 
     /**
      * 이 문제의 상담에 쓰인 근거. 문제의 모든 적용된 요청서(안내 때와 티켓 생성 때)에서 최신 순으로 모으되
-     * 실행 주체의 현재 권한·승인 상태로 다시 확인한 것만 담는다(TicketKnowledgeReader). DB 장애는 빈 목록으로 숨기지 않는다.
+     * 실행 주체의 현재 권한·승인 상태로 다시 확인하고 이 실행의 범위 안인 것만 담는다(TicketKnowledgeReader, inRange).
+     * DB 장애는 빈 목록으로 숨기지 않는다.
      */
-    private List<KnowledgeEvidenceResponse> consultedKnowledge(UUID problemId, Member actor) {
+    private List<KnowledgeEvidenceResponse> consultedKnowledge(UUID problemId, Member actor,
+            Predicate<KnowledgeEvidenceResponse> inRange) {
         Map<UUID, KnowledgeEvidenceResponse> byId = new LinkedHashMap<>();
         for (var request : standardRequestRows.findAppliedNewestFirst(List.of(problemId))) {
             for (var item : knowledge.visible(request.getRelatedKnowledge(), actor)) {
-                byId.putIfAbsent(item.id(), item);
+                if (inRange.test(item)) byId.putIfAbsent(item.id(), item);
             }
             if (byId.size() >= MAX_CONSULTED_KNOWLEDGE) break;
         }

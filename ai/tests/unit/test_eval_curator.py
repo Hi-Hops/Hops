@@ -87,6 +87,11 @@ def test_authored_scenario_covers_the_process_context() -> None:
     assert [item.kind for item in record.relatedRecords] == ["FAILED_ATTEMPT", "FAILED_ATTEMPT"]
     assert [item.state for item in record.resolutionHistory] == ["UNRESOLVED"]
     assert [item.kind for item in record.consultedKnowledge] == ["GUIDE"]
+    request = build_request(scenario, CATALOG, now=NOW)
+    assert request.accessContext.allowedDocumentScopes == ["EMPLOYEE", "SYSTEM_STAFF"]
+    assert [item.accessScope for item in request.problems[0].standardRequest.knowledge] == [
+        "EMPLOYEE"
+    ]
 
 
 def test_split_selection_keeps_test_scenarios_frozen() -> None:
@@ -402,3 +407,14 @@ async def test_batch_exit_code_flags_safety_violations_and_failed_runs() -> None
         [(scenario, gold)], llm=failing, repeat=1, max_calls=20, catalog=CATALOG
     )
     assert report["totals"]["failed"] == 1 and exit_code(report) == 1
+
+
+async def test_case_with_employee_scope_consultation_evidence_completes_end_to_end() -> None:
+    """직원 공개 상담 근거가 요청서에 있는 사례도 끝까지 돈다(#198 범위 결함 회귀)."""
+    scenario, gold = BY_FAMILY["ea-failed-attempt"]
+
+    trace = await run_case(scenario, CATALOG, llm=scripted_llm(scenario, gold))
+
+    assert trace.result.status == "SUCCEEDED" and trace.result.caseProposal.reusable
+    assert [item.accessScope for item in trace.result.evidence] == ["EMPLOYEE"]
+    assert check_trace(trace) == []

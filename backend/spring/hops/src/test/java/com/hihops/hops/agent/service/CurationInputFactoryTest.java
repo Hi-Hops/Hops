@@ -26,10 +26,15 @@ class CurationInputFactoryTest extends TicketCommandFixture {
     private int sequence = 1;
 
     private CurationRelationRows rows;
+    private final List<UUID> extraDocuments = new ArrayList<>();
 
     @AfterEach
     void 지식_정리() {
         if (rows != null) rows.clear();
+        for (var extra : extraDocuments) {
+            jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", extra);
+            jdbc.update("DELETE FROM knowledge_document WHERE id=?", extra);
+        }
         jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", document);
         jdbc.update("DELETE FROM knowledge_document WHERE id=?", document);
     }
@@ -287,7 +292,7 @@ class CurationInputFactoryTest extends TicketCommandFixture {
         assertThat(work.path("linkCandidates").size()).isZero();
         // 원 기록 필드와 권한 문맥은 그대로다.
         assertThat(curationInput().path("accessContext").path("purpose").asString()).isEqualTo("CASE_DRAFT");
-        assertThat(ids(curationInput().path("accessContext").path("allowedDocumentScopes"))).containsExactly("SYSTEM_STAFF");
+        assertThat(ids(curationInput().path("accessContext").path("allowedDocumentScopes"))).containsExactly("EMPLOYEE", "SYSTEM_STAFF");
     }
 
     @Test
@@ -332,5 +337,84 @@ class CurationInputFactoryTest extends TicketCommandFixture {
         var candidates = curationInput().path("workRecord").path("linkCandidates");
         assertThat(candidates.valueStream().filter(item -> "SYMPTOM".equals(item.path("kind").asString())).count()).isEqualTo(30);
         assertThat(candidates.valueStream().filter(item -> "CHECK_ITEM".equals(item.path("kind").asString())).count()).isEqualTo(40);
+    }
+
+    /** 문서(와 승인된 버전)를 만들고 표준 요청서에 담을 근거를 돌려준다. systemId가 null이면 시스템 없는 공통 문서다. */
+    private tools.jackson.databind.node.ObjectNode document(UUID evidenceId, UUID systemId, String type, String level,
+            String kind, String scope) throws Exception {
+        UUID id = UUID.randomUUID();
+        extraDocuments.add(id);
+        String content = "가상 본문 " + id;
+        String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 문서',?,?,?,'RAG','APPROVED')",
+                id, type, systemId, level);
+        jdbc.update("INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status) VALUES (?,1,?,?,?::jsonb,'APPROVED')",
+                id, content, digest, "{\"origin\":\"SYNTHETIC\",\"applicability\":\"가상 시연\",\"appliesToSystemVersion\":null}");
+        var item = mapper.createObjectNode();
+        item.put("id", evidenceId.toString()).put("documentId", id.toString()).put("documentVersion", 1)
+                .put("kind", kind).put("title", "가상 문서").put("excerpt", content);
+        if (systemId == null) item.putNull("systemId"); else item.put("systemId", systemId.toString());
+        item.putNull("appliesToSystemVersion").put("applicability", "가상 시연").put("accessScope", scope).put("origin", "SYNTHETIC");
+        return item;
+    }
+
+    private void useKnowledge(tools.jackson.databind.node.ObjectNode... items) {
+        var array = mapper.createArrayNode();
+        for (var item : items) array.add(item);
+        jdbc.update("UPDATE standard_request SET related_knowledge=?::jsonb WHERE id=?", array.toString(), standard);
+    }
+
+    @Test
+    void 직원_공개_담당자_전용_공통_정책_근거는_책임_시스템_범위로_유지하고_다른_시스템_근거와_그_인용만_뺀다() throws Exception {
+        var ownGuide = UUID.randomUUID();
+        var ownRunbook = UUID.randomUUID();
+        var commonPolicy = UUID.randomUUID();
+        var otherGuide = UUID.randomUUID();
+        useKnowledge(
+                document(ownGuide, system, "EMPLOYEE_GUIDE", "EMPLOYEE", "GUIDE", "EMPLOYEE"),
+                document(ownRunbook, system, "STAFF_RUNBOOK", "STAFF", "RUNBOOK", "SYSTEM_STAFF"),
+                document(commonPolicy, null, "POLICY", "EMPLOYEE", "POLICY", "EMPLOYEE"),
+                document(otherGuide, otherSystem, "EMPLOYEE_GUIDE", "EMPLOYEE", "GUIDE", "EMPLOYEE"));
+        // 다른 시스템 근거만 인용한 사실과 유지되는 근거를 인용한 사실
+        var facts = mapper.createArrayNode();
+        facts.addObject().put("text", "다른 시스템 안내에서 확인").putArray("sourceMessageIds");
+        ((tools.jackson.databind.node.ObjectNode) facts.get(0)).putArray("knowledgeEvidenceIds").add(otherGuide.toString());
+        facts.addObject().put("text", "책임 시스템 안내에서 확인").putArray("sourceMessageIds");
+        ((tools.jackson.databind.node.ObjectNode) facts.get(1)).putArray("knowledgeEvidenceIds").add(ownGuide.toString());
+        jdbc.update("UPDATE standard_request SET confirmed_facts=?::jsonb WHERE id=?", facts.toString(), standard);
+
+        record("VERIFIED_RESOLUTION");
+
+        var input = curationInput();
+        var request = input.path("problems").get(0).path("standardRequest");
+        assertThat(ids(request.path("knowledge").valueStream().map(item -> item.path("id")).collect(
+                mapper::createArrayNode, (array, node) -> array.add(node), (a, b) -> a.addAll(b))))
+                .containsExactlyInAnyOrder(ownGuide.toString(), ownRunbook.toString(), commonPolicy.toString());
+        assertThat(request.path("confirmedFacts").size()).isEqualTo(1);
+        assertThat(request.path("confirmedFacts").get(0).path("text").asString()).isEqualTo("책임 시스템 안내에서 확인");
+        var consulted = input.path("workRecord").path("consultedKnowledge");
+        assertThat(ids(consulted.valueStream().map(item -> item.path("id")).collect(
+                mapper::createArrayNode, (array, node) -> array.add(node), (a, b) -> a.addAll(b))))
+                .containsExactlyInAnyOrder(ownGuide.toString(), ownRunbook.toString(), commonPolicy.toString());
+        assertThat(ids(input.path("accessContext").path("allowedDocumentScopes"))).containsExactly("EMPLOYEE", "SYSTEM_STAFF");
+        assertThat(ids(input.path("accessContext").path("systemIds"))).containsExactly(system.toString());
+    }
+
+    @Test
+    void 범위_밖_근거를_가리키는_책임_판단_근거도_입력에서_뺀다() throws Exception {
+        var otherGuide = UUID.randomUUID();
+        var ownGuide = UUID.randomUUID();
+        useKnowledge(document(otherGuide, otherSystem, "EMPLOYEE_GUIDE", "EMPLOYEE", "GUIDE", "EMPLOYEE"),
+                document(ownGuide, system, "EMPLOYEE_GUIDE", "EMPLOYEE", "GUIDE", "EMPLOYEE"));
+        var candidates = mapper.createArrayNode();
+        candidates.addObject().put("systemId", system.toString()).putArray("evidenceIds")
+                .add(otherGuide.toString()).add(ownGuide.toString());
+        jdbc.update("UPDATE standard_request SET system_candidates=?::jsonb, responsible_system_id=? WHERE id=?", candidates.toString(), system, standard);
+
+        record("VERIFIED_RESOLUTION");
+
+        var evidenceIds = curationInput().path("problems").get(0).path("standardRequest").path("responsibilityEvidenceIds");
+        assertThat(ids(evidenceIds)).containsExactly(ownGuide.toString());
     }
 }

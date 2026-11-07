@@ -191,7 +191,9 @@ def build_request(
                     "responsibleSystemCandidateId": sys_id,
                     "responsibilityEvidenceIds": [],
                     "details": _details(scenario),
-                    "knowledge": [],
+                    # 실제 Spring은 티켓 요청서의 상담 근거를 범위로 걸러 싣는다. 대역은 상담
+                    # 근거 전체를 싣는다.
+                    "knowledge": knowledge,
                 },
                 "resolutionContext": None,
             }
@@ -201,7 +203,9 @@ def build_request(
             "actorId": actor_id,
             "purpose": "CASE_DRAFT",
             "systemIds": [sys_id],
-            "allowedDocumentScopes": ["SYSTEM_STAFF"],
+            # 실제 Spring과 같다: 실행 주체(주담당자)가 볼 수 있는 범위. 사례 자체의 공개 범위는
+            # 담당자 전용이다.
+            "allowedDocumentScopes": ["EMPLOYEE", "SYSTEM_STAFF"],
             "policyRevision": 1,
         },
         "existingWorkItems": [

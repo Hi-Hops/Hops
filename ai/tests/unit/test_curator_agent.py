@@ -555,21 +555,14 @@ def test_merge_rejects_links_outside_the_allowed_entities_and_unknown_evidence()
         merge(proposal_ok, {"APPLIES_TO": {SYSTEM}})  # ADDRESSES·USES_CHECK 후보가 없을 때
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "알려진 결함(#198 ③에서 발견): Spring은 CASE_DRAFT의 allowedDocumentScopes를 "
-        "SYSTEM_STAFF만 보내면서 티켓 요청서의 상담 근거(직원 공개 가이드 포함)를 그대로 "
-        "보낸다. 초기 State 검증이 직원 공개 근거를 허용 범위 밖으로 거부해 사례 실행이 "
-        "실패한다. 범위 결정(보안 영역)이 필요해 고치지 않았다."
-    ),
-)
-def test_case_draft_with_employee_scope_consultation_evidence_is_accepted() -> None:
-    from hops_ai.supervisor.state import create_initial_state
+def request_with_consultation_evidence(*, scopes: list[str], **evidence_changes) -> AiRunRequest:
+    """티켓 요청서에 상담 근거가 있는 CASE_DRAFT 입력(Spring이 범위로 걸러 보낸 형태)."""
     from tests.supervisor_fixtures import make_evidence
 
     fields = case_request().model_dump(mode="json")
-    evidence = make_evidence(accessScope="EMPLOYEE", systemId=SYSTEM).model_dump(mode="json")
+    fields["accessContext"]["allowedDocumentScopes"] = scopes
+    fields["accessContext"]["systemIds"] = [SYSTEM]  # 책임 시스템 하나
+    evidence = make_evidence(**{"accessScope": "EMPLOYEE", "systemId": SYSTEM, **evidence_changes})
     fields["problems"][0]["standardRequest"] = {
         "summary": "첨부파일 열람 실패",
         "confirmedFacts": [],
@@ -591,6 +584,40 @@ def test_case_draft_with_employee_scope_consultation_evidence_is_accepted() -> N
             )
         }
         | {"acceptanceCriteria": []},
-        "knowledge": [evidence],
+        "knowledge": [evidence.model_dump(mode="json")],
     }
-    create_initial_state(AiRunRequest.model_validate(fields))
+    return AiRunRequest.model_validate(fields)
+
+
+def test_case_draft_accepts_employee_scope_consultation_evidence_for_the_owner() -> None:
+    """담당자 본인이 볼 수 있는 직원 공개 상담 근거는 허용 범위(직원 공개+담당자 전용) 안이다."""
+    from hops_ai.supervisor.state import create_initial_state
+
+    state = create_initial_state(
+        request_with_consultation_evidence(scopes=["EMPLOYEE", "SYSTEM_STAFF"])
+    )
+
+    assert len(state["evidence"]) == 1
+
+
+async def test_case_draft_with_employee_scope_evidence_completes_and_returns_it() -> None:
+    """입력의 근거는 결과에 그대로 돌아가 Spring이 같은 범위로 다시 확인한다."""
+    request = request_with_consultation_evidence(scopes=["EMPLOYEE", "SYSTEM_STAFF"])
+    services, _ = services_for(request, draft())
+
+    result = await Supervisor({AgentRole.CURATOR: ModelCuratorAgent()}).analyze(request, services)
+
+    assert result.status == "SUCCEEDED"
+    assert [item.accessScope for item in result.evidence] == ["EMPLOYEE"]
+
+
+def test_scope_validation_still_rejects_evidence_outside_the_declared_scopes_or_system() -> None:
+    """범위를 넓힌 것이 검증을 푼 것이 아니다. 선언한 범위·시스템 밖 근거는 여전히 거부한다."""
+    from hops_ai.supervisor.state import create_initial_state
+
+    with pytest.raises(OutputRejected, match="자료 범위"):
+        create_initial_state(request_with_consultation_evidence(scopes=["SYSTEM_STAFF"]))
+    with pytest.raises(OutputRejected, match="시스템"):
+        create_initial_state(
+            request_with_consultation_evidence(scopes=["EMPLOYEE", "SYSTEM_STAFF"], systemId=uid(2))
+        )
