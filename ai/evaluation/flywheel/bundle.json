@@ -1,0 +1,13 @@
+{
+  "bundleId": "flywheel-ea-001",
+  "systemCode": "ELECTRONIC_APPROVAL",
+  "assignee": "ea_owner",
+  "observer": "requester4",
+  "card": "case-ea-filter-narrow",
+  "profiles": ["DEFAULT", "INTERNAL_JUDGEMENT"],
+  "roles": {
+    "A": {"scenarioId": "F-ea-filter-first-001", "requester": "requester1"},
+    "B": {"scenarioId": "F-ea-filter-rephrased-001", "requester": "requester2"},
+    "C": {"scenarioId": "F-ea-doc-permission-decoy-001", "requester": "requester3"}
+  }
+}

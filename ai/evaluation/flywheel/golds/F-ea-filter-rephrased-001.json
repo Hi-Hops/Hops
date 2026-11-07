@@ -1,0 +1,19 @@
+{
+  "scenarioId": "F-ea-filter-rephrased-001",
+  "bundleRole": "B",
+  "problem": {
+    "acceptedIntents": ["OBSERVED_SYMPTOM"],
+    "reportedSystemCode": "ELECTRONIC_APPROVAL",
+    "responsibleSystemCodes": ["ELECTRONIC_APPROVAL"],
+    "allowedFinalActions": ["PROPOSE_TICKET"]
+  },
+  "truth": {"cause": "cause-ea-filter-narrow"},
+  "caseA": {
+    "DEFAULT": {"caseEvidence": "ABSENT", "relationCaseNeighbor": "ABSENT"},
+    "INTERNAL_JUDGEMENT": {"caseEvidence": "CITED_AS_EVIDENCE", "relationCaseNeighbor": "PRESENT"}
+  },
+  "employeeVisibleMustNotContain": [
+    "전자결재 문서가 목록에 안 보임 - 조회 조건의 상태·제목 키워드가 좁음",
+    "조회 조건의 상태를 '승인'으로 골라 두어, 결재 중인 해당 문서가 조건에 맞지 않아 목록에서 제외됐다."
+  ]
+}

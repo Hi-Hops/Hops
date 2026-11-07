@@ -1,0 +1,24 @@
+{
+  "scenarioId": "F-ea-doc-permission-decoy-001",
+  "caseFamily": "ea-doc-permission-decoy",
+  "split": "BUNDLE",
+  "origin": "SYNTHETIC",
+  "actor": {"role": "EMPLOYEE", "primarySystemCodes": []},
+  "firstMessage": "전자결재 문서함에서 동료가 알려 준 결재 문서를 찾는데 목록에 나오지 않아요. 확인해 주실 수 있나요?",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "전자결재 > 문서함 > 전체 문서에서 동료가 알려 준 문서를 찾으려고 했어요.",
+    "expectedBehavior": "동료가 알려 준 문서가 목록에 보여야 해요.",
+    "actualBehavior": "목록에서 그 문서를 찾을 수 없어요. 동료가 보낸 링크로 열면 '열람 권한이 없는 문서입니다'라고 나와요.",
+    "occurredAt": "어제 오후에 동료에게 전달받았어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-search-period": "기간은 기본값 그대로 뒀어요.",
+    "check-ea-draft-date": "동료가 지난달에 올린 문서라고 들었어요.",
+    "check-ea-filter-condition": "아무 조건도 넣지 않고 전체로 조회했어요.",
+    "check-ea-submit-state": "동료가 상신했다고 했어요.",
+    "check-ea-participation": "저는 그 문서의 기안자도 결재선도 참조도 아닌 것 같아요."
+  }
+}

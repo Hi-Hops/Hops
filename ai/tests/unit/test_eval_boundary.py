@@ -9,7 +9,7 @@ AI_ROOT = Path(__file__).resolve().parents[2]
 def test_runtime_package_never_imports_or_reads_the_evaluation_package() -> None:
     importing = re.compile(r"^\s*(from|import)\s+evaluation\b", re.MULTILINE)
     referring = re.compile(
-        r"evaluation[/\\](golds|scenarios|harness|curator|curator_golds|curator_scenarios)"
+        r"evaluation[/\\](golds|scenarios|harness|curator|curator_golds|curator_scenarios|flywheel)"
     )
     offenders = []
     for path in (AI_ROOT / "src").rglob("*.py"):
