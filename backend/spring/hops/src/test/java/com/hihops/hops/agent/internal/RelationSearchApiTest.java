@@ -86,6 +86,8 @@ class RelationSearchApiTest extends InternalRunApiTestBase {
             assertThat(check.path("questions").size()).isPositive();
             for (JsonNode question : check.path("questions")) {
                 assertThat(question.path("text").asString()).isNotBlank();
+                assertThat(question.has("employeeDisclosable")).isFalse();
+                assertThat(question.path("basis").path("visible").asBoolean()).isFalse();
             }
         }
 
