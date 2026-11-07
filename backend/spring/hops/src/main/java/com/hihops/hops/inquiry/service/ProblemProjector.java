@@ -125,6 +125,15 @@ public class ProblemProjector {
                         : guideMessage.map(message -> guideResolutionOf(inquiry, problem, message, guideView.orElseThrow())).orElse(null));
     }
 
+    /**
+     * 한 문제의 티켓 생성 작업 결과. 문의 상세의 creationResult와 같은 값이다. 작업이 없으면 null.
+     *
+     * @throws IllegalStateException 생성 결과와 저장된 티켓이 어긋난 경우
+     */
+    public @Nullable CreationResultResponse creation(InquiryProblem problem) {
+        return creationOf(problem, ticketRepository.findByInquiryProblem_Id(problem.getId()).filter(found -> !found.isDeleted()));
+    }
+
     private @Nullable CreationResultResponse creationOf(InquiryProblem problem, Optional<Ticket> ticket) {
         CreationOutcome outcome = problem.getCreationOutcome();
         if (outcome == null) {
