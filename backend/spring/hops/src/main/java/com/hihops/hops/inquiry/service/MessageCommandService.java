@@ -211,20 +211,28 @@ public class MessageCommandService {
     }
 
     /**
-     * 대상 없이 보낸 메시지가 답하는 문제. 가장 최근 AI 메시지가 질문(questionBundles)하거나 안내(guide)한 문제 중 아직 보완할 수
-     * 있는 문제다. 그런 문제가 없으면 보완할 수 있는 문제가 하나일 때만 그 문제다. 여럿이면 어느 문제인지 모르므로 잇지 않는다.
+     * 대상 없이 보낸 메시지가 답하는 문제. 가장 최근 AI 메시지 뒤의 첫 사용자 메시지일 때만 정한다. 그 AI 메시지가
+     * 질문(questionBundles)하거나 안내(guide)한 문제 중 아직 보완할 수 있는 문제이고, 그런 문제가 없으면 보완할 수 있는 문제가
+     * 하나일 때만 그 문제다. 여럿이면 어느 문제인지 모르므로 잇지 않는다.
+     *
+     * <p>그 AI 메시지 뒤에 이미 사용자 메시지가 있으면 그 질문은 답을 받았으므로 잇지 않는다. AI 답변이 생성 중이거나 실패해 직전 AI
+     * 메시지가 바뀌지 않은 사이 보낸 다른 이야기를 지난 질문의 문제에 묶지 않기 위해서다.
      *
      * <p>AI는 문제에 연결된 메시지만 그 문제의 사실 출처로 쓸 수 있다(AI rules/progress.py get_problem_message_ids). 질문에 답한
      * 메시지를 잇지 않으면 그 답을 인용한 분석이 출처 검증에서 거절돼 실행이 INVALID_OUTPUT으로 끝난다.
      */
     private List<UUID> repliedProblems(UUID inquiryId, ProblemScope scope) {
+        Optional<Message> latestAnswer = messageRepository
+                .findFirstByInquiry_IdAndSenderTypeAndMessageStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+                        inquiryId, SenderType.AI, MessageStatus.COMPLETED);
+        if (latestAnswer.isEmpty() || messageRepository.existsByInquiry_IdAndSenderTypeAndSequenceNoGreaterThanAndDeletedAtIsNull(
+                inquiryId, SenderType.USER, latestAnswer.get().getSequenceNo())) {
+            return List.of();
+        }
         Set<UUID> replied = new LinkedHashSet<>();
-        messageRepository.findFirstByInquiry_IdAndSenderTypeAndMessageStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
-                inquiryId, SenderType.AI, MessageStatus.COMPLETED).ifPresent(answer -> {
-                    JsonNode payload = jsonMapper.readTree(answer.getPayload());
-                    payload.path("questionBundles").forEach(bundle -> addProblem(replied, bundle.path("problemId")));
-                    addProblem(replied, payload.path("guide").path("problemId"));
-                });
+        JsonNode payload = jsonMapper.readTree(latestAnswer.get().getPayload());
+        payload.path("questionBundles").forEach(bundle -> addProblem(replied, bundle.path("problemId")));
+        addProblem(replied, payload.path("guide").path("problemId"));
         replied.retainAll(scope.linkable());
         if (replied.isEmpty() && scope.linkable().size() == 1) {
             return List.copyOf(scope.linkable());

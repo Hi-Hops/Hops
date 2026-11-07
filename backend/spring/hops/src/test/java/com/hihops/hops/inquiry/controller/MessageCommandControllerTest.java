@@ -295,14 +295,51 @@ class MessageCommandControllerTest {
         String firstRunId = succeedFirstRun();
         UUID problemId = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
         insertStandardRequest(problemId, firstRunId, "로그인 실패 조사", "[]");
+        insertAiMessage(2, "{\"questionBundles\": []}");
 
         send(memberId, UUID.randomUUID(), 1, "어제부터 그래요", List.of()).andExpect(status().isOk());
 
         JsonNode input = currentInput();
         assertThat(input.path("problemIds").isEmpty()).isTrue();
         assertThat(input.path("problems").get(0).path("state").asString()).isEqualTo("WAITING_USER");
-        // 보완할 문제가 하나뿐이면 그 문제의 답으로 이어 AI가 이 메시지를 그 문제의 출처로 쓸 수 있다
-        assertThat(input.path("messages").get(1).path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+        // 보완할 문제가 하나뿐이면 AI 답변 뒤 첫 답을 그 문제에 이어 AI가 이 메시지를 그 문제의 출처로 쓸 수 있다
+        assertThat(input.path("messages").get(2).path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+    }
+
+    @Test
+    void 이미_답을_받은_AI_메시지_뒤에_대상_없이_보낸_메시지는_지난_질문의_문제에_잇지_않는다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID asked = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        insertStandardRequest(asked, firstRunId, "로그인 실패 조사", "[]");
+        insertAiMessage(2, "{\"questionBundles\": [{\"problemId\": \"" + asked + "\", \"bundleRef\": \"b-1\"}]}");
+
+        send(memberId, UUID.randomUUID(), 1, "오늘 2시부터요", List.of()).andExpect(status().isOk());
+        // AI 답변이 아직 저장되지 않은 사이 다른 이야기를 보낸다
+        send(memberId, UUID.randomUUID(), 2, "그리고 프린터도 안 돼요", List.of()).andExpect(status().isOk());
+
+        assertThat(payloadOf(messageIdAt(3)).path("problemLinks").get(0).path("problemId").asString())
+                .isEqualTo(asked.toString());
+        assertThat(payloadOf(messageIdAt(4)).path("problemLinks").isEmpty()).isTrue();
+        assertThat(currentInput().path("problemIds").isEmpty()).isTrue();
+    }
+
+    @Test
+    void 서버가_답으로_이은_메시지를_정정하면_다른_연결과_같이_이은_문제를_대상으로_분석한다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID asked = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        UUID other = insertProblem(2, "CLARIFYING", 0, null, firstRunId);
+        insertStandardRequest(asked, firstRunId, "로그인 실패 조사", "[]");
+        insertStandardRequest(other, firstRunId, "비밀번호 변경 문의", "[]");
+        insertAiMessage(2, "{\"questionBundles\": [{\"problemId\": \"" + asked + "\", \"bundleRef\": \"b-1\"}]}");
+        send(memberId, UUID.randomUUID(), 1, "오늘 2시부터요", List.of()).andExpect(status().isOk());
+
+        revise(memberId, messageIdAt(3), UUID.randomUUID(), 2, 1, "오늘 3시부터요").andExpect(status().isOk());
+
+        // 정정은 연결이 어떻게 생겼는지와 관계없이 이어진 문제를 대상으로 한다 (MessageProblemLinker 연결과 같은 규칙)
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").size()).isEqualTo(1);
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(asked.toString());
+        assertThat(input.path("messages").get(2).path("problemIds").get(0).asString()).isEqualTo(asked.toString());
     }
 
     @Test
