@@ -25,10 +25,6 @@
     {
       "relation": "USES_CHECK",
       "target": "check-login-portal-direct"
-    },
-    {
-      "relation": "USES_CHECK",
-      "target": "check-login-reported-system"
     }
   ],
   "forbiddenPhrases": [

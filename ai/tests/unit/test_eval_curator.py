@@ -19,7 +19,7 @@ from evaluation.curator.pilot import (
     exit_code,
     run_batch,
 )
-from evaluation.curator.recheck import recheck
+from evaluation.curator.recheck import recheck, rejudge_behavior
 from evaluation.curator.request import build_request
 from evaluation.curator.runner import run_case
 from evaluation.curator.scenario import CuratorScenarioError, parse_scenario
@@ -314,6 +314,11 @@ async def test_trace_round_trip_and_recheck(tmp_path: Path) -> None:
     assert path.name == "C-file-link-expired-001.run1.trace.json"
     assert loaded.request == trace.request and loaded.result == trace.result
     assert recheck([tmp_path]) == {path.name: []}
+    assert rejudge_behavior([tmp_path]) == {
+        "C-file-link-expired-001": {
+            name: {"passed": 1, "total": 1} for name in gold.behavior_properties
+        }
+    }
 
 
 async def test_batch_reports_per_scenario_rates_and_respects_the_call_cap() -> None:
