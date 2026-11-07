@@ -311,6 +311,9 @@ class MessageCommandControllerTest {
         UUID asked = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
         UUID guided = insertProblem(2, "CLARIFYING", 0, null, firstRunId);
         UUID other = insertProblem(3, "CLARIFYING", 0, null, firstRunId);
+        for (UUID problem : List.of(asked, guided, other)) {
+            insertStandardRequest(problem, firstRunId, "로그인 실패 조사", "[]");
+        }
         insertAiMessage(2, "{\"questionBundles\": [{\"problemId\": \"" + asked + "\", \"bundleRef\": \"b-1\"}], "
                 + "\"guide\": {\"problemId\": \"" + guided + "\", \"text\": \"안내\", \"evidenceIds\": []}}");
 
@@ -328,8 +331,8 @@ class MessageCommandControllerTest {
     @Test
     void 질문한_문제가_없고_문제가_여럿이면_어느_문제에도_잇지_않는다() throws Exception {
         String firstRunId = succeedFirstRun();
-        insertProblem(1, "CLARIFYING", 0, null, firstRunId);
-        insertProblem(2, "CLARIFYING", 0, null, firstRunId);
+        insertStandardRequest(insertProblem(1, "CLARIFYING", 0, null, firstRunId), firstRunId, "로그인 실패 조사", "[]");
+        insertStandardRequest(insertProblem(2, "CLARIFYING", 0, null, firstRunId), firstRunId, "비밀번호 변경 문의", "[]");
         insertAiMessage(2, "{\"questionBundles\": []}");
 
         send(memberId, UUID.randomUUID(), 1, "추가로 알려 드려요", List.of()).andExpect(status().isOk());
