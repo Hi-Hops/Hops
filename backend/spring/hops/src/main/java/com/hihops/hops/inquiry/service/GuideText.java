@@ -2,14 +2,17 @@ package com.hihops.hops.inquiry.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * AI 안내문(GuideProposal.messageText)이 승인 본문에서 나왔는지 확인한다.
  *
  * <p>AI는 승인 본문을 빈 줄 기준 문단으로 나눠 문의에 답하는 문단만 골라 원래 순서로 잇고, 끝에 "참고 자료: 제목" 줄을 붙인다
- * (ai/src/hops_ai/agents/knowledge/excerpt.py). 그래서 출처 줄을 뗀 안내문의 문단은 모두 근거 문서 본문의 연속된 부분 문자열이어야 한다.
- * 모델이 쓴 문장이나 다른 문서의 문단은 통과하지 못한다. 본문 전체를 그대로 쓴 안내도 같은 규칙으로 통과한다.
+ * (ai/src/hops_ai/agents/knowledge/excerpt.py). 그래서 출처 줄을 뗀 안내문의 문단은 모두 근거 문서 본문을 같은 규칙으로 나눈 문단과
+ * 글자 그대로 같아야 한다. 문단의 일부만 떼어 내 뜻이 바뀐 문장, 모델이 쓴 문장, 다른 문서의 문단은 통과하지 못한다.
+ * 본문 전체를 그대로 쓴 안내도 같은 규칙으로 통과한다. AI가 나누는 본문은 검색이 돌려준 승인 버전 본문 그대로다.
  */
 final class GuideText {
 
@@ -32,9 +35,10 @@ final class GuideText {
                 break;
             }
         }
-        List<String> approved = contents.stream().map(GuideText::normalize).toList();
+        Set<String> approved = new HashSet<>();
+        contents.forEach(content -> approved.addAll(blocks(content)));
         List<String> blocks = blocks(body);
-        return !blocks.isEmpty() && blocks.stream().allMatch(block -> approved.stream().anyMatch(content -> content.contains(block)));
+        return !blocks.isEmpty() && approved.containsAll(blocks);
     }
 
     /** 빈 줄 기준 문단. AI의 split_blocks와 같은 규칙이다. */

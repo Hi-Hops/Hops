@@ -112,19 +112,17 @@ public class ProblemProjector {
         boolean answered = analyzing.contains(problem.getId().toString());
         String state = ProblemStateView.of(problem, ticket, problem.getClarifyCount() > 0 && !answered);
         Optional<Message> guideMessage = messageRepository.findLatestGuide(inquiry.getId(), problem.getId());
+        // 안내 근거는 한 번만 확인해 근거 목록과 확인 요약에 같이 쓴다
+        Optional<GuideVisibility.GuideView> guideView = guideMessage.map(message -> guideVisibility.viewOf(inquiry, message));
         boolean systemUnknown = "WAITING_SYSTEM".equals(state);
         return new ProblemResponse(problem.getId(), inquiry.getId(), request.getSummary(), request.getIntent().name(),
                 request.getWorkType().name(),
                 systemUnknown || request.getReportedSystem() == null ? null : request.getReportedSystem().getId(),
                 systemUnknown || request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
-                state, problem.getClarifyCount(), guideMessage.map(message -> guideOf(inquiry, message)).orElse(null),
+                state, problem.getClarifyCount(), guideMessage.map(message -> new GuideAnswerResponse(message.getId(), guideView.orElseThrow().evidence())).orElse(null),
                 creationOf(problem, ticket), ticket.map(this::summaryOf).orElse(null),
                 ticket.isPresent() ? resolutionOf(ticket.get())
-                        : guideMessage.map(message -> guideResolutionOf(inquiry, problem, message)).orElse(null));
-    }
-
-    private GuideAnswerResponse guideOf(Inquiry inquiry, Message message) {
-        return new GuideAnswerResponse(message.getId(), guideVisibility.visibleEvidence(inquiry, message));
+                        : guideMessage.map(message -> guideResolutionOf(inquiry, problem, message, guideView.orElseThrow())).orElse(null));
     }
 
     private @Nullable CreationResultResponse creationOf(InquiryProblem problem, Optional<Ticket> ticket) {
@@ -170,7 +168,8 @@ public class ProblemProjector {
      *
      * @throws IllegalStateException 저장된 요청이 이 문의·문제·안내 메시지와 맞지 않을 때
      */
-    private @Nullable ResolutionRequestResponse guideResolutionOf(Inquiry inquiry, InquiryProblem problem, Message message) {
+    private @Nullable ResolutionRequestResponse guideResolutionOf(Inquiry inquiry, InquiryProblem problem, Message message,
+            GuideVisibility.GuideView view) {
         JsonNode stored = jsonMapper.readTree(message.getPayload()).path("resolutionRequest");
         if (stored.isMissingNode() || stored.isNull()) {
             return null;
@@ -181,6 +180,6 @@ public class ProblemProjector {
                 || request.ticketId() != null) {
             throw new IllegalStateException("안내 확인 요청이 안내 메시지와 맞지 않는다: " + message.getId());
         }
-        return guideVisibility.resolutionFor(inquiry, message, request);
+        return view.resolutionOf(request);
     }
 }

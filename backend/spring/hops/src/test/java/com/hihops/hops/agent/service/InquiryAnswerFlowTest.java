@@ -192,9 +192,47 @@ class InquiryAnswerFlowTest {
         assertThat(problem.path("guide").path("evidence").isEmpty()).isTrue();
         assertThat(problem.path("activeResolutionRequest").path("resultSummary").asString())
                 .doesNotContain(ANSWER).contains("안내 내용을 숨겼어요");
+        // 확인 요청을 직접 조회해도 요약을 숨긴다
+        String requestPath = "/api/v2/resolution-requests/" + problem.path("activeResolutionRequest").path("id").asString();
+        mockMvc.perform(as(get(requestPath))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.resultSummary").value(org.hamcrest.Matchers.containsString("안내 내용을 숨겼어요")))
+                .andExpect(jsonPath("$.resultSummary").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString(ANSWER))));
         // 저장된 원문은 바꾸지 않는다
         assertThat(jdbc.queryForObject("SELECT content FROM message WHERE id=?", String.class, answerMessageIdOf(runId)))
                 .isEqualTo(ANSWER);
+    }
+
+    @Test
+    void 인용한_근거_중_하나만_볼_수_없게_돼도_안내를_숨긴다() throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        var snapshot = guideSnapshot(runId, inquiryId);
+        // 두 번째 공개 가이드도 인용한다(안내 문단은 첫 가이드의 것)
+        String otherText = "공통 로그인 화면에서 비밀번호 재설정 메뉴를 먼저 확인해 보세요.";
+        jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 직원 가이드 2','EMPLOYEE_GUIDE',?,'EMPLOYEE','RAG','APPROVED')", otherDocument, systemId);
+        jdbc.update("INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status) VALUES (?,1,?,?,?::jsonb,'APPROVED')", otherDocument, otherText,
+                java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(otherText.getBytes(java.nio.charset.StandardCharsets.UTF_8))),
+                "{\"origin\":\"SYNTHETIC\",\"applicability\":\"가상 로그인 화면\",\"appliesToSystemVersion\":null}");
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        ((tools.jackson.databind.node.ArrayNode) result.path("guide").path("evidenceIds")).add(otherEvidence.toString());
+        ((tools.jackson.databind.node.ArrayNode) result.path("evidence")).add(jsonMapper.valueToTree(
+                new com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse(otherEvidence, otherDocument, 1,
+                        "GUIDE", "가상 직원 가이드 2", otherText, systemId, null, "가상 로그인 화면", "EMPLOYEE", "SYNTHETIC")));
+        when(client.snapshot(runId.toString())).thenReturn(snapshot);
+        dispatcher.deliver(runId);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+
+        jdbc.update("UPDATE knowledge_document SET access_level='STAFF' WHERE id=?", otherDocument);
+
+        var messages = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("items");
+        assertThat(messages.get(1).path("content").asString()).doesNotContain(ANSWER).contains("안내 내용을 숨겼어요");
+        var problem = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("problems").get(0);
+        // 아직 볼 수 있는 근거는 근거 목록에 남는다
+        assertThat(problem.path("guide").path("evidence").size()).isEqualTo(1);
+        assertThat(problem.path("activeResolutionRequest").path("resultSummary").asString()).contains("안내 내용을 숨겼어요");
     }
 
     @org.junit.jupiter.params.ParameterizedTest

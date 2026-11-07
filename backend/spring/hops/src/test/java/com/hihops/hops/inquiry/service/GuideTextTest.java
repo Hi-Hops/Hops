@@ -24,8 +24,11 @@ class GuideTextTest {
     @Test
     void 본문에_없는_문장이나_섞인_문단은_거부한다() {
         assertThat(GuideText.fromApproved("캐시를 지우면 해결돼요.", TITLES, List.of(CONTENT))).isFalse();
-        // 승인 문단 안의 문장을 바꾸면 그 문단은 본문의 부분 문자열이 아니다
+        // 승인 문단 안의 문장을 바꾸면 그 문단은 승인 문단과 같지 않다
         assertThat(GuideText.fromApproved("## 절차\n1. 설정을 연다.", TITLES, List.of(CONTENT))).isFalse();
+        // 승인 문단의 일부만 떼어 내면 뜻이 바뀔 수 있어 문단 전체가 같아야 한다
+        assertThat(GuideText.fromApproved("## 참고\n보존 기간이 지나면", TITLES, List.of(CONTENT))).isFalse();
+        assertThat(GuideText.fromApproved("1. 메뉴를 연다.", TITLES, List.of(CONTENT))).isFalse();
         // 서로 다른 문단을 한 문단으로 붙이면 본문에 없는 조합이다
         assertThat(GuideText.fromApproved("문서 조회를 안내한다.\n## 절차", TITLES, List.of(CONTENT))).isFalse();
         // 인용하지 않은 제목의 출처 줄은 본문으로 보고 검사한다

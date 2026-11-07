@@ -100,8 +100,9 @@ public class InquiryQueryService {
         Collections.reverse(messages);
 
         Map<UUID, List<MessageRevision>> revisions = revisionsOf(messages);
+        Map<UUID, GuideVisibility.GuideView> guides = guideVisibility.viewsOf(inquiry, messages);
         List<ChatMessageResponse> items = messages.stream()
-                .map(message -> ChatMessageResponse.of(message, guideVisibility.contentFor(inquiry, message),
+                .map(message -> ChatMessageResponse.of(message, guides.get(message.getId()).contentOf(message),
                         payloadOf(message),
                         MessageRevisionResponse.listOf(message, revisions.getOrDefault(message.getId(), List.of()))))
                 .toList();

@@ -10,6 +10,7 @@ import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
+import com.hihops.hops.inquiry.service.GuideVisibility;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.ticket.domain.Ticket;
@@ -32,6 +33,7 @@ public class ResolutionRequestReader {
     private final InquiryRepository inquiries;
     private final InquiryProblemRepository problems;
     private final TicketStoredData data;
+    private final GuideVisibility guideVisibility;
     public record Stored(ResolutionRequestResponse request, Ticket ticket, Message guide) { }
 
     public Stored stored(UUID id) {
@@ -68,7 +70,9 @@ public class ResolutionRequestReader {
         if (!inquiry.getRequester().getId().equals(actor.getId())) {
             if (stored.ticket == null || !authorization.isCurrentPrimary(actor, stored.ticket)) notFound();
         }
-        return stored.request;
+        // 안내 확인 요청의 요약은 안내 문구다. 근거를 지금 볼 수 없으면 숨긴다 (SEC-09)
+        return stored.guide == null ? stored.request
+                : guideVisibility.viewOf(inquiry, stored.guide).resolutionOf(stored.request);
     }
 
     @Transactional(readOnly = true)
