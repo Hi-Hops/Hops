@@ -193,4 +193,5 @@ class CorpusRelationSource:
         return RelationResult(
             symptoms=tuple(symptom for _, symptom in scored[: query.limit]),
             internal_judgement=False,
+            employee_view=True,
         )

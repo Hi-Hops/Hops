@@ -21,8 +21,9 @@
   조회 오류(ERROR)는 0건(EMPTY)과 구분해 기록하되 검색 결과와 안내를 막지 않으며, 도구 호출 예산이
   이미 소진됐으면 조회하지 않는다. 취소·기한 예외는 그대로 전달한다.
 - assess_evidence를 켜면 검색 뒤에 근거의 충분성 판정(Assessment)을 한 번 더 만든다. 결과가
-  1건 이상일 때만 모델을 부르고(문제당 1회), 0건은 코드가 NO_MATCH로 확정한다. 검색 오류는
-  평가하지 않는다. 모델 오류·검증 거부·예산 부족은 "평가 없음"으로 두고 검색 결과와 안내는
+  1건 이상일 때만 모델을 부르고(문제당 1회), 0건은 코드가 NO_MATCH로 확정하면서 승인된 관계
+  질문을 후보로 남긴다. 검색 오류는 평가하지 않는다. 모델 오류·검증 거부·예산 부족은 "평가
+  없음"으로 두고 검색 결과와 안내는
   그대로 돌려준다. 안내는 판정과 무관하게 지금처럼 승인 본문으로 조립한다(판정을 읽는 것은
   Supervisor의 행동 선택이다).
 
@@ -86,6 +87,7 @@ from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
 from hops_ai.rules.assessment import (
+    approved_questions,
     check_item_ids,
     limit_check_items,
     no_match_assessment,
@@ -277,7 +279,10 @@ class SearchKnowledgeAgent:
         if not self._assess_evidence:
             return None
         if not hits:
-            return no_match_assessment(target.problemRef)
+            return no_match_assessment(
+                target.problemRef,
+                [key for key in approved_questions(relations) if key not in asked.ids],
+            )
         budget = services.runtime.budget
         # 평가가 실행 예산을 다 써서 이후의 필수 호출(판단·질문·티켓)을 막지 않게 한다.
         if budget.max_llm_calls - budget.llm_calls_used < 1 + RESERVED_CALLS:
@@ -354,9 +359,10 @@ def _relation_query(
 
 
 def _neighbors(result: RelationResult) -> RelationNeighbors:
-    """직원에게 쓸 수 있는 확인 항목만 남긴다: 직원 공개로 승인됐고 질문 문구가 보이는 항목.
+    """직원 공개로 승인된 확인 항목 ID와 질문 문구만 남긴다.
 
-    원인 이름과 담당자 전용 항목은 받아도 버린다(조회 응답이 이미 걸렀더라도 한 번 더 확인한다).
+    accessScope와 basis.visible은 항목 자체와 출처 문서의 열람 범위다. 직원에게 물을 수 있는지는
+    질문에 별도로 적용된 공개 조건으로 판단한다.
     """
     symptoms = []
     for symptom in result.symptoms:
@@ -364,12 +370,16 @@ def _neighbors(result: RelationResult) -> RelationNeighbors:
             continue
         checks = []
         for item in symptom.checkItems:
-            if not item.employeeDisclosable or item.accessScope != "EMPLOYEE":
+            if not item.employeeDisclosable:
                 continue
             questions = [
                 RelationQuestion(id=question.id, text=question.text)
                 for question in item.questions
-                if question.basis.visible
+                if question.text.strip()
+                and (
+                    question.employeeDisclosable is True
+                    or (question.employeeDisclosable is None and result.employee_view)
+                )
             ]
             if questions:
                 checks.append(RelationCheck(id=item.id, questions=questions))
