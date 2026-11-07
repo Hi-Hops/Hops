@@ -24,15 +24,34 @@ class CurationLimitsContractTest {
 
     private Map<String, Integer> documented() throws IOException {
         assertThat(CONTRACT).as("계약 문서 위치(backend/spring/hops 기준)").exists();
-        String text = Files.readString(CONTRACT, StandardCharsets.UTF_8);
-        var block = Pattern.compile("```curator-limits\n(.*?)```", Pattern.DOTALL).matcher(text);
+        return parse(Files.readString(CONTRACT, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 문서 본문에서 curator-limits 블록의 값을 읽는다. 줄바꿈은 LF·CRLF·CR 모두 같게 다룬다. 저장소에 .gitattributes가 없어
+     * core.autocrlf=true인 Windows 체크아웃에서는 문서가 CRLF이기 때문이다.
+     */
+    static Map<String, Integer> parse(String text) {
+        var block = Pattern.compile("```curator-limits\\R(.*?)```", Pattern.DOTALL).matcher(text);
         assertThat(block.find()).as("curator-limits 블록").isTrue();
         Map<String, Integer> values = new HashMap<>();
-        for (String line : block.group(1).strip().split("\n")) {
-            var parts = line.split("=");
-            values.put(parts[0], Integer.parseInt(parts[1]));
+        for (String line : block.group(1).strip().split("\\R")) {
+            if (line.isBlank()) continue;
+            var parts = line.strip().split("=");
+            values.put(parts[0].strip(), Integer.parseInt(parts[1].strip()));
         }
         return values;
+    }
+
+    @Test
+    void 줄바꿈이_CRLF나_CR이어도_같은_값을_읽는다() {
+        String block = "앞 설명\n```curator-limits\naiMessages=30\nrelatedRecords=20\n```\n뒤 설명\n";
+
+        var expected = Map.of("aiMessages", 30, "relatedRecords", 20);
+
+        assertThat(parse(block)).isEqualTo(expected);
+        assertThat(parse(block.replace("\n", "\r\n"))).isEqualTo(expected);
+        assertThat(parse(block.replace("\n", "\r"))).isEqualTo(expected);
     }
 
     @Test
