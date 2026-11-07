@@ -452,11 +452,18 @@ def merge_curator_result(
             # 입력에는 과정을 이해하도록 AI 질문·답변도 담긴다.
             # 사례의 출처는 사용자 원문만 허용한다.
             raise OutputRejected("사례 원문 출처는 사용자 메시지여야 한다")
+        # 관계 근거로 쓸 수 있는 처리 기록: 원 기록과 같은 티켓의 이전 기록
+        record_ids = {record.id} | {item.id for item in record.relatedRecords}
         for link in proposal.entityLinks:
             if link.targetId not in allowed_entity_ids.get(link.relation, set()):
                 raise OutputRejected("허용된 기존 엔티티가 아니다")
             if link.relation == "APPLIES_TO" and link.targetId != record.systemId:
                 raise OutputRejected("사례의 적용 시스템이 원 처리 기록과 다르다")
-            if not set(link.evidenceIds) <= (set(state["evidence"]) | message_ids):
+            if not link.evidenceIds or len(link.evidenceIds) != len(set(link.evidenceIds)):
+                raise OutputRejected("사례 관계의 근거가 없거나 중복됐다")
+            if not set(link.evidenceIds) <= (set(state["evidence"]) | message_ids | record_ids):
                 raise OutputRejected("사례 관계에 실제로 없는 근거를 사용했다")
+        keys = [(link.relation, link.targetId) for link in proposal.entityLinks]
+        if len(keys) != len(set(keys)):
+            raise OutputRejected("같은 사례 관계가 중복됐다")
     return _complete_merge({**state, "caseProposal": proposal}, result)

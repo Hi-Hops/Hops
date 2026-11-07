@@ -236,9 +236,11 @@ START → collect → draft → link → validate → END
 
 | 영역 | 상태 |
 |---|---|
-| 입력 확장(Spring `CurationInputFactory`, AI wire `WorkRecordContext`) | 구현. AI 질문·답변(최근 30개), 같은 티켓의 이전 처리 기록(20), 해결 확인 이력(20), 상담에 쓴 근거(10). 가산 필드이며 모델 입력에는 아직 쓰지 않는다 |
+| 입력 확장(Spring `CurationInputFactory`, AI wire `WorkRecordContext`) | 구현(커밋 ①). AI 질문·답변(최근 30개), 같은 티켓의 이전 처리 기록(20), 해결 확인 이력(20), 상담에 쓴 근거(10). 가산 필드 |
 | 사례 출처 | 사용자 메시지만 허용. 입력에 AI 메시지가 들어오므로 AI 병합에서도 거부한다 |
-| 초안 양식 개선, `link`(`ADDRESSES`·`USES_CHECK`), 사례 그래프 노드화 | 미구현(커밋 ②) |
+| 초안 양식 개선(`curator-draft-v2`) | 구현. 맥락을 프롬프트에 쓰고, 해결되지 않은 시도는 코드가 처리 기록 값 그대로 한계로 덧붙인다 |
+| 사례 그래프 | 구현. Curator 안의 서브그래프 `collect → draft → link → validate`. `CASE_DRAFT`는 선택지가 하나라 Supervisor 모델을 부르지 않는다(모델 호출 3회 → 초안 1회 + link 1회) |
+| `link`(`ADDRESSES`·`USES_CHECK`) | AI 구현(`curator-link-v1`): 후보 안에서만 고르고 근거 인용을 대조한다. 후보(`linkCandidates`) 전송과 Spring 결과 적용은 커밋 ②의 Spring 쪽 |
 | Curator 평가 | 미구현(커밋 ③) |
 
 ## 8. 관계 데이터

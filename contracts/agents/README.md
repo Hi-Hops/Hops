@@ -442,8 +442,16 @@ runId=agent_run.id, 외부 CASE_DRAFT=DB task CURATION, 외부 role INQUIRY=DB a
 | relatedRecords | 같은 티켓의 다른 처리 기록(id·kind·action·verification?·confirmedCause?·appliesToSystemVersion?·createdAt). 진행·실패 시도 포함, 원 기록 제외. 문장은 4000자 | 20 |
 | resolutionHistory | 이 문제의 해결 확인 요청(requestId·source GUIDE/WORK_RECORD·sourceId·state·requestedAt·respondedAt?). 같은 요청은 최신 상태 하나, 원 기록의 확인 요청 제외 | 20 |
 | consultedKnowledge | 상담에 쓰인 `KnowledgeEvidence`. 문제의 적용된 요청서에서 최신 순으로 모으고 실행 주체의 현재 권한·승인 상태로 다시 확인한 것만 | 10 |
+| linkCandidates | 사례를 연결할 수 있는 같은 시스템의 기존 노드(id·kind SYMPTOM/CHECK_ITEM·label·systemId). 승인된 것만, 실행 주체에게 보이는 것만. 원인(Cause)은 대상이 아니다 | 증상 30·확인 항목 40 |
 
-이 맥락은 초안의 한계·적용 조건을 이해하는 데만 쓴다. 사례의 조치·검증·확인된 원인·적용 버전은 계속 원 기록 값이고 실패 시도는 사례를 만들지 않는다. 사례의 `sourceMessageIds`는 **USER 메시지만** 허용하며 AI 메시지·처리 기록은 출처가 아니다(AI는 병합에서, Spring은 결과 적용에서 각각 거부한다). 권한은 넓히지 않는다(`allowedDocumentScopes`는 그대로 SYSTEM_STAFF). 이 필드를 모델 입력에 쓰는 방식은 Curator 프롬프트 버전과 함께 정한다.
+이 맥락은 초안의 한계·적용 조건을 이해하는 데만 쓴다. 사례의 조치·검증·확인된 원인·적용 버전은 계속 원 기록 값이고 실패 시도는 사례를 만들지 않는다. 사례의 `sourceMessageIds`는 **USER 메시지만** 허용하며 AI 메시지·처리 기록은 출처가 아니다(AI는 병합에서, Spring은 결과 적용에서 각각 거부한다). 권한은 넓히지 않는다(`allowedDocumentScopes`는 그대로 SYSTEM_STAFF). Curator는 이 맥락을 초안 프롬프트(`curator-draft-v2`)에 쓰고, 해결되지 않은 시도는 모델이 아니라 코드가 처리 기록 값 그대로 `limitations`에 덧붙인다.
+
+**관계 판단(`link`).** `linkCandidates`가 있으면 Curator가 후보 안에서만 `ADDRESSES`(증상)·`USES_CHECK`(확인 항목) 연결을 고르는 모델 호출을 한 번 더 한다(`curator-link-v1`, 후보가 없거나 사례 없음이면 호출하지 않는다). `APPLIES_TO`는 대상이 원 기록의 시스템 하나라 코드가 만든다. 규칙은 다음과 같다.
+- 대상은 후보 ID뿐이며 새 노드·새 관계 유형을 만들 수 없다. 관계 종류는 후보 종류와 맞아야 한다(`ADDRESSES`↔SYMPTOM, `USES_CHECK`↔CHECK_ITEM). 종류별 최대 개수는 `ADDRESSES` 3·`USES_CHECK` 5이고 같은 연결은 한 번만 낸다.
+- 연결마다 `evidenceIds`가 필수이며 모델은 근거마다 그 텍스트에 한 글자도 바꾸지 않은 인용을 내야 한다. 코드가 인용을 대조해 확인되지 않은 연결을 버린다(연결은 후보일 뿐 원인을 확정하지 않는다).
+- 관계 근거로 쓸 수 있는 ID는 입력 메시지 ID(AI 질문·답변 포함)와 이 티켓의 처리 기록 ID(원 기록·이전 기록)다. 사례의 `sourceMessageIds`는 계속 사용자 메시지만 허용한다. 상담 근거 문서 ID는 관계 근거로 쓰지 않는다.
+- `link` 모델 호출이 실패하면 연결 없는 사례로 바꾸지 않고 실행을 실패시킨다.
+- 연결은 담당자 승인 전에는 검색에 공개되지 않는다. Spring은 AI 출력을 신뢰하지 않고 대상·근거를 DB에서 다시 확인한다.
 
 WorkRecordContext에는 실제 담당자가 입력한 confirmedCause와 appliesToSystemVersion을 nullable로 전달한다. Curator는 모델 추정을 확인된 원인으로 확정하지 않으며 서버가 원 기록에서 CASE의 confirmedCause/caseType을 투영한다. 재사용 가능한 CaseProposal에는 problemStatement가 필수이고 reusable=false에는 null이다. 신규 TicketProposal은 SERVICE_REQUEST/INVESTIGATION/CHANGE_REQUEST/REVIEW_REQUIRED만 허용하며 같은 problemRef의 ProblemProposal.processingType과 일치해야 한다. 실제 INCIDENT 확정은 현재 담당자의 처리 유형 정정 명령으로 수행한다. 제목은200자·적용 버전은100자 제한이다.
 

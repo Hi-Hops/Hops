@@ -822,3 +822,32 @@ def test_inquiry_request_still_rejects_a_work_record_with_process_context() -> N
     payload["workRecord"] = _RECORD_BASE | {"relatedRecords": [_related()]}
     with pytest.raises(ValidationError):
         AiRunRequest.model_validate(payload)
+
+
+def _candidate(candidate_id: str = OTHER_ID, kind: str = "SYMPTOM", system: str = RUN_ID) -> dict:
+    return {"id": candidate_id, "kind": kind, "label": "첨부파일이 열리지 않음", "systemId": system}
+
+
+def test_work_record_link_candidates_default_to_empty_and_accept_valid_nodes() -> None:
+    assert WorkRecordContext.model_validate(_RECORD_BASE).linkCandidates == []
+    record = WorkRecordContext.model_validate(
+        _RECORD_BASE | {"linkCandidates": [_candidate(), _candidate(_uuid(7), "CHECK_ITEM")]}
+    )
+    assert [item.kind for item in record.linkCandidates] == ["SYMPTOM", "CHECK_ITEM"]
+
+
+@pytest.mark.parametrize(
+    "candidates",
+    [
+        [_candidate(), _candidate()],  # 식별자 중복
+        [_candidate(system=OTHER_ID)],  # 원 기록과 다른 시스템
+        [_candidate(kind="CAUSE")],  # 원인은 연결 대상이 아니다
+        [_candidate(_uuid(index)) for index in range(31)],  # 증상 상한 30
+        [_candidate(_uuid(index), "CHECK_ITEM") for index in range(41)],  # 확인 항목 상한 40
+        [_candidate() | {"label": "   "}],
+        [_candidate() | {"unknown": 1}],
+    ],
+)
+def test_work_record_rejects_invalid_link_candidates(candidates: list) -> None:
+    with pytest.raises(ValidationError):
+        WorkRecordContext.model_validate(_RECORD_BASE | {"linkCandidates": candidates})

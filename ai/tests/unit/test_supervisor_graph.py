@@ -205,10 +205,12 @@ async def test_inquiry_ticket_and_final_decision_are_connected() -> None:
 @pytest.mark.parametrize("reusable", [False, True])
 async def test_case_draft_finishes_without_chat_or_consultation_proposals(reusable) -> None:
     request = make_request(kind=RunKind.CASE_DRAFT)
-    model = ScriptedLLM(decision("CALL_ROLE", AgentRole.CURATOR), decision())
+    model = ScriptedLLM()
     result = await Supervisor({AgentRole.CURATOR: CuratorStub(reusable=reusable)}).analyze(
         request, services_for(request, model)
     )
+    # 사례 실행은 선택지가 하나라 Supervisor 모델을 부르지 않는다
+    assert model.requests == []
     assert result.status == "SUCCEEDED"
     assert result.kind == "CASE_DRAFT"
     assert result.caseProposal.reusable is reusable
@@ -382,3 +384,15 @@ async def test_context_cannot_be_reused_for_another_execution() -> None:
     assert (await supervisor.analyze(request, services)).status == "SUCCEEDED"
     with pytest.raises(InputRejected):
         await supervisor.analyze(request, services)
+
+
+async def test_case_draft_without_a_connected_curator_still_asks_the_model_and_fails_safely() -> (
+    None
+):
+    """연결 전 Curator는 모델이 판단하는 기존 경로를 탄다. 호출은 안전한 실패로 끝난다."""
+    request = make_request(kind=RunKind.CASE_DRAFT)
+    model = ScriptedLLM(decision("CALL_ROLE", AgentRole.CURATOR))
+    result = await Supervisor().analyze(request, services_for(request, model))
+    assert len(model.requests) == 1
+    assert result.status == "FAILED"
+    assert result.caseProposal is None
