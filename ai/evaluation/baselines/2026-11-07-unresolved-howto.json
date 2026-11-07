@@ -1,0 +1,209 @@
+{
+  "totalCallCap": {
+    "max": 40,
+    "used": 5,
+    "exceeded": false
+  },
+  "promptVersions": [
+    "inquiry-extraction-v6",
+    "knowledge.assessment.v4",
+    "ticket.proposal.v2"
+  ],
+  "totals": {
+    "scenarios": 1,
+    "skipped": 0,
+    "modelCalls": 5,
+    "inputTokens": 16003,
+    "outputTokens": 746,
+    "seconds": 16.63,
+    "safetyViolations": 0,
+    "modelQuestions": 0,
+    "questionFallbacks": 0,
+    "behaviorFindings": 0,
+    "scenariosHittingTheirCap": [],
+    "scenariosTimedOut": [],
+    "scenariosTruncated": [],
+    "scenariosOverRunBudget": [],
+    "modelCallsInFlight": 0
+  },
+  "scenarios": [
+    {
+      "scenarioId": "S-ea-search-howto-001",
+      "callCap": {
+        "max": 30,
+        "used": 5,
+        "exceeded": false
+      },
+      "promptVersions": [
+        "inquiry-extraction-v6",
+        "knowledge.assessment.v4",
+        "ticket.proposal.v2"
+      ],
+      "truncated": false,
+      "runBudgetExceeded": false,
+      "totals": {
+        "turns": 2,
+        "modelCalls": 5,
+        "inputTokens": 16003,
+        "outputTokens": 746,
+        "seconds": 16.63
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "status": "SUCCEEDED",
+          "modelCalls": 2,
+          "inputTokens": 5758,
+          "outputTokens": 306,
+          "seconds": 7.46,
+          "roles": [
+            "INQUIRY",
+            "KNOWLEDGE:FOUND"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "new:1",
+              "intent": "HOW_TO",
+              "processingType": "KNOWLEDGE_QA",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "지난 문서를 찾는 방법",
+                "expectedBehavior": "지난 문서를 찾는 방법"
+              },
+              "facts": [
+                "하려던 업무·화면: 지난 문서를 찾는 방법",
+                "기대한 동작: 지난 문서를 찾는 방법"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.\n\n참고 자료: 전자결재에서 지난 문서 찾기",
+          "guide": "## 목적\n\n전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다.\n\n## 전제\n\n- 공통 로그인(SSO)으로 로그인한 상태입니다.\n- 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다.\n\n## 절차\n\n1. `전자결재 > 문서함 > 전체 문서`를 엽니다.\n2. 조회 조건을 정합니다.\n   - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다.\n   - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다.\n   - 제목 키워드: 제목에 포함된 단어를 입력합니다.\n3. [조회]를 누릅니다.\n\n## 확인할 수 있는 결과\n\n- 조건에 맞는 문서가 목록에 나타납니다. 문서를 누르면 상세를 볼 수 있습니다.\n- 조건에 맞는 문서가 없으면 \"조건에 맞는 문서가 없습니다\"가 표시됩니다.\n- 조회 기간을 12개월보다 길게 지정하면 \"조회 기간은 최대 12개월입니다\"가 표시됩니다.\n- 열람 권한이 없는 문서의 링크를 열면 \"열람 권한이 없는 문서입니다\"가 표시됩니다.\n- 목록을 불러오지 못하면 \"문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요\"가 표시됩니다.\n\n## 적용 조건과 한계\n\n- 기간 조건은 상신한 날짜가 아니라 기안일에 적용됩니다.\n- 임시 저장 문서는 `문서함 > 전체 문서`에 나타나지 않고 `기안함 > 임시 저장`에서 볼 수 있습니다.\n- 이 안내는 조회 방법만 다룹니다. 조회가 되지 않는 문제의 확인은 IT 문의로 접수합니다.\n\n참고 자료: 전자결재에서 지난 문서 찾기",
+          "ticketProposals": 0,
+          "evidenceCount": 5,
+          "error": null,
+          "searchHints": [
+            {
+              "problemRef": "new:1",
+              "keywords": [
+                "전자결재",
+                "문서",
+                "찾는",
+                "방법"
+              ],
+              "droppedKeywords": [],
+              "features": [
+                "문서 조회"
+              ],
+              "droppedFeatures": []
+            }
+          ],
+          "assessments": {
+            "items": [
+              {
+                "problemRef": "new:1",
+                "verdict": "SUFFICIENT",
+                "supportingEvidence": 1,
+                "missingInformation": [],
+                "candidateCauses": 0,
+                "rationale": "문의는 지난 문서를 찾는 절차를 묻고 있으며, 근거에 전자결재 문서함에서 기간·상태·제목 키워드로 조회하는 방법이 구체적으로 안내되어 있습니다."
+              }
+            ],
+            "foundWithoutAssessment": 0
+          },
+          "userReply": "안내대로 해 봤는데 제목으로는 여전히 문서가 찾아지지 않아요. 해결되지 않았어요."
+        },
+        {
+          "turn": 2,
+          "status": "SUCCEEDED",
+          "modelCalls": 3,
+          "inputTokens": 10245,
+          "outputTokens": 440,
+          "seconds": 9.17,
+          "roles": [
+            "INQUIRY",
+            "KNOWLEDGE:FOUND",
+            "TICKET"
+          ],
+          "questions": [],
+          "problems": [
+            {
+              "problemRef": "9e346dd6-1384-5ac0-8409-7d2786d03e87",
+              "intent": "HOW_TO",
+              "processingType": "REVIEW_REQUIRED",
+              "reportedSystem": "ELECTRONIC_APPROVAL",
+              "details": {
+                "taskOrScreen": "전자결재에서 지난 문서를 찾는 방법",
+                "expectedBehavior": "지난 문서를 찾는 방법"
+              },
+              "facts": [
+                "하려던 업무·화면: 지난 문서를 찾는 방법",
+                "기대한 동작: 지난 문서를 찾는 방법",
+                "하려던 업무·화면: 전자결재에서 지난 문서를 찾는 방법"
+              ],
+              "unknowns": []
+            }
+          ],
+          "answer": "담당자에게 전달할 티켓 제안을 준비했습니다. 접수 및 담당자 배정 결과는 별도 확인이 필요합니다.",
+          "guide": null,
+          "ticketProposals": 1,
+          "evidenceCount": 5,
+          "error": null,
+          "searchHints": [
+            {
+              "problemRef": "9e346dd6-1384-5ac0-8409-7d2786d03e87",
+              "keywords": [
+                "전자결재",
+                "문서",
+                "방법"
+              ],
+              "droppedKeywords": [],
+              "features": [
+                "문서 조회"
+              ],
+              "droppedFeatures": []
+            }
+          ],
+          "assessments": {
+            "items": [
+              {
+                "problemRef": "9e346dd6-1384-5ac0-8409-7d2786d03e87",
+                "verdict": "INSUFFICIENT",
+                "supportingEvidence": 2,
+                "missingInformation": [],
+                "candidateCauses": 0,
+                "rationale": "근거는 문서를 이미 알고 있을 때 결재 상태를 확인하는 방법과 임시 저장 문서의 위치를 안내하지만, 지난 문서를 검색하거나 찾는 방법은 다루지 않습니다."
+              }
+            ],
+            "foundWithoutAssessment": 0
+          },
+          "userReply": null
+        }
+      ],
+      "safetyViolations": [],
+      "behaviorFindings": [],
+      "notReplayed": [
+        "followUp"
+      ]
+    }
+  ],
+  "run": {
+    "startedAt": "2026-11-07T02:54:20+00:00",
+    "gitCommit": "618dafb0a19c9f4c9f2dd877f367316b5ad4be71",
+    "gitDirty": false,
+    "model": "gpt-6-luna",
+    "knowledgeSource": "CORPUS(docs/knowledge/corpus 본문을 Spring 검색 규칙으로 근사해 찾는 평가 대역, 실검색 아님)",
+    "judgmentMode": true,
+    "modelQuestions": true,
+    "relationSource": "CORPUS_RELATIONS(코퍼스 front matter의 증상·확인 항목과 질문 카드를 읽는 평가 대역, 실조회 아님)",
+    "runLimits": {
+      "maxModelCalls": 20,
+      "maxInputTokens": 60000,
+      "maxOutputTokens": 12000,
+      "maxToolCalls": 10,
+      "maxRetries": 2
+    },
+    "finishedAt": "2026-11-07T02:54:37+00:00"
+  }
+}
