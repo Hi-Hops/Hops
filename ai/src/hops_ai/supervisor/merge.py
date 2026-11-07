@@ -441,10 +441,17 @@ def merge_curator_result(
         if proposal.accessScope not in state["input"].accessContext.allowedDocumentScopes:
             raise OutputRejected("허용되지 않은 사례 공개 범위다")
         message_ids = {message.id for message in state["input"].messages}
+        user_message_ids = {
+            message.id for message in state["input"].messages if message.sender == "USER"
+        }
         if len(proposal.sourceMessageIds) != len(set(proposal.sourceMessageIds)):
             raise OutputRejected("사례 원문 출처 ID가 중복됐다")
         if not set(proposal.sourceMessageIds) <= message_ids:
             raise OutputRejected("원 처리 기록과 관련 없는 원문 출처다")
+        if not set(proposal.sourceMessageIds) <= user_message_ids:
+            # 입력에는 과정을 이해하도록 AI 질문·답변도 담긴다.
+            # 사례의 출처는 사용자 원문만 허용한다.
+            raise OutputRejected("사례 원문 출처는 사용자 메시지여야 한다")
         for link in proposal.entityLinks:
             if link.targetId not in allowed_entity_ids.get(link.relation, set()):
                 raise OutputRejected("허용된 기존 엔티티가 아니다")

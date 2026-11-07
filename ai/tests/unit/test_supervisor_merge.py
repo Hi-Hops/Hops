@@ -570,6 +570,25 @@ def test_curator_rejects_unverified_links_and_sources(reason) -> None:
         )
 
 
+def test_curator_rejects_ai_message_as_case_source() -> None:
+    """입력에 AI 질문·답변이 들어 있어도 사례의 출처는 사용자 원문만 허용한다."""
+    from hops_ai.contracts.wire import AiRunRequest
+
+    payload = make_request(kind=RunKind.CASE_DRAFT).model_dump(mode="json")
+    ai_message = uid(21)
+    payload["messages"].append(
+        {**payload["messages"][0], "id": ai_message, "sequenceNo": 2, "sender": "AI"}
+    )
+    state = reserve(running_state(AiRunRequest.model_validate(payload)), AgentRole.CURATOR, "c1")
+    proposal = make_case().model_copy(update={"sourceMessageIds": [MESSAGE, ai_message]})
+    with pytest.raises(OutputRejected, match="사용자 메시지"):
+        merge_curator_result(
+            state,
+            CuratorResult(invocationId="c1", proposal=proposal),
+            allowed_entity_ids={"APPLIES_TO": {SYSTEM}},
+        )
+
+
 def test_unreserved_and_terminal_results_are_rejected() -> None:
     """호출 예약이 없거나 종료된 실행에는 전문 결과를 추가하지 않는다."""
     result = InquiryResult(invocationId="i1", problems=[], questions=[])

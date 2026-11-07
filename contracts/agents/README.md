@@ -237,7 +237,7 @@ AiEvent는 contractVersion/runId/seq/eventType/payload envelope다. progress pay
 | AiRunRequest | 실행/문의/입력 버전·kind·answerMessageId·대상 문제 ID, 허용 메시지/기존 문제/작업, 시스템 목록, accessContext, nullable 원 처리 기록, expiresAt·limits |
 | InputMessage | 원 messageId/revision/sequenceNo·sender·허용된 content·problemIds·시각. CASE_DRAFT는 관련 구간만 투영 |
 | InputProblem | DB problemId·의도·처리 유형·보고 시스템/기능·상태·질문 수·이미 물은 항목·표준 요청 스냅샷. questionCount와 askedFields는 Spring 값 |
-| WorkRecordContext | 실제 기록 ID·티켓/문제/시스템·종류·조치/검증·확인 요청/상태. Curator에게 해결 확인 전 PENDING도 전달 가능 |
+| WorkRecordContext | 실제 기록 ID·티켓/문제/시스템·종류·조치/검증·확인 요청/상태. Curator에게 해결 확인 전 PENDING도 전달 가능. 문의 전체 과정의 맥락을 가산 필드로 담는다(아래 "Curator 입력의 문의 전체 과정") |
 | AccessContext | actorId·purpose·systemIds·allowedDocumentScopes·policyRevision(·retrievalScopes 선택). Spring이 생성하며 모델은 수정 불가 |
 
 메시지 목록이 길면 원문 저장을 자르지 않고 실행용 범위를 서버가 선택한다. 표준 요청과 출처 ID를 유지하고 토큰 한도를 넘으면 안전한 실패로 반환한다. AI가 접근 범위를 넓혀 과거 원문을 임의 조회하지 않는다.
@@ -434,6 +434,16 @@ F006의 해결 응답과 F007의 수동 정정은 Spring의 업무 명령이며 
 ### E1. 병합 ERD의 역할·자료 매핑
 
 runId=agent_run.id, 외부 CASE_DRAFT=DB task CURATION, 외부 role INQUIRY=DB agent_type INQUERY로 Spring이 변환한다. 작업 ID와 source_work_log_id·기존 이벤트/메시지의 확인 응답을 함께 검사한다. INQUERY나 CURATION을 외부 DTO에 별도 역할/kind로 추가하지 않는다. QUEUED는 실행 시작 전이며 DB started_at=null, CANCELLED는 외부 SUPERSEDED다.
+
+**Curator 입력의 문의 전체 과정(가산 필드, #198).** CASE_DRAFT의 `messages`는 해당 문제에 연결된 구간의 USER 메시지 전부와 AI 질문·답변(가장 최근 30개)이다. `WorkRecordContext`는 아래 세 목록을 더 가진다. 모두 생략하면 빈 목록이며(이전 생산자와 호환), 오래된 순이고, 개수 상한을 넘으면 AI wire가 거부한다.
+
+| 필드 | 내용 | 상한 |
+|---|---|---|
+| relatedRecords | 같은 티켓의 다른 처리 기록(id·kind·action·verification?·confirmedCause?·appliesToSystemVersion?·createdAt). 진행·실패 시도 포함, 원 기록 제외. 문장은 4000자 | 20 |
+| resolutionHistory | 이 문제의 해결 확인 요청(requestId·source GUIDE/WORK_RECORD·sourceId·state·requestedAt·respondedAt?). 같은 요청은 최신 상태 하나, 원 기록의 확인 요청 제외 | 20 |
+| consultedKnowledge | 상담에 쓰인 `KnowledgeEvidence`. 문제의 적용된 요청서에서 최신 순으로 모으고 실행 주체의 현재 권한·승인 상태로 다시 확인한 것만 | 10 |
+
+이 맥락은 초안의 한계·적용 조건을 이해하는 데만 쓴다. 사례의 조치·검증·확인된 원인·적용 버전은 계속 원 기록 값이고 실패 시도는 사례를 만들지 않는다. 사례의 `sourceMessageIds`는 **USER 메시지만** 허용하며 AI 메시지·처리 기록은 출처가 아니다(AI는 병합에서, Spring은 결과 적용에서 각각 거부한다). 권한은 넓히지 않는다(`allowedDocumentScopes`는 그대로 SYSTEM_STAFF). 이 필드를 모델 입력에 쓰는 방식은 Curator 프롬프트 버전과 함께 정한다.
 
 WorkRecordContext에는 실제 담당자가 입력한 confirmedCause와 appliesToSystemVersion을 nullable로 전달한다. Curator는 모델 추정을 확인된 원인으로 확정하지 않으며 서버가 원 기록에서 CASE의 confirmedCause/caseType을 투영한다. 재사용 가능한 CaseProposal에는 problemStatement가 필수이고 reusable=false에는 null이다. 신규 TicketProposal은 SERVICE_REQUEST/INVESTIGATION/CHANGE_REQUEST/REVIEW_REQUIRED만 허용하며 같은 problemRef의 ProblemProposal.processingType과 일치해야 한다. 실제 INCIDENT 확정은 현재 담당자의 처리 유형 정정 명령으로 수행한다. 제목은200자·적용 버전은100자 제한이다.
 

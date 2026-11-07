@@ -700,3 +700,125 @@ def test_work_record_confirmed_cause_length() -> None:
     assert len(WorkRecordContext.model_validate(record).confirmedCause) == 4000
     with pytest.raises(ValidationError):
         WorkRecordContext.model_validate(record | {"confirmedCause": "가" * 4001})
+
+
+# --- 문의 전체 과정 맥락(#198 ①): 처리 기록·해결 확인 이력·상담 근거 ---
+
+_RECORD_BASE = {
+    "id": RUN_ID,
+    "ticketId": RUN_ID,
+    "problemId": RUN_ID,
+    "systemId": RUN_ID,
+    "kind": "VERIFIED_RESOLUTION",
+    "action": "조치",
+    "verification": "확인",
+    "createdAt": "2026-11-02T01:00:00Z",
+    "resolutionRequestId": RUN_ID,
+    "confirmationState": "PENDING",
+    "confirmedCause": None,
+    "appliesToSystemVersion": None,
+}
+
+
+def _uuid(index: int) -> str:
+    return f"{index:08x}-0000-4000-8000-000000000000"
+
+
+def _related(record_id: str = OTHER_ID, **changes) -> dict:
+    return {
+        "id": record_id,
+        "kind": "FAILED_ATTEMPT",
+        "action": "캐시를 지움",
+        "verification": None,
+        "confirmedCause": None,
+        "appliesToSystemVersion": None,
+        "createdAt": "2026-11-02T00:30:00Z",
+    } | changes
+
+
+def _history(request_id: str = OTHER_ID, **changes) -> dict:
+    return {
+        "requestId": request_id,
+        "source": "GUIDE",
+        "sourceId": RUN_ID,
+        "state": "UNRESOLVED",
+        "requestedAt": "2026-11-02T00:10:00Z",
+        "respondedAt": "2026-11-02T00:20:00Z",
+    } | changes
+
+
+def _evidence(evidence_id: str = OTHER_ID) -> dict:
+    return {
+        "id": evidence_id,
+        "documentId": RUN_ID,
+        "documentVersion": 1,
+        "kind": "GUIDE",
+        "title": "첨부파일 안내",
+        "excerpt": "첨부파일 열람 방법",
+        "systemId": RUN_ID,
+        "appliesToSystemVersion": None,
+        "applicability": "전자결재",
+        "accessScope": "EMPLOYEE",
+        "origin": "SYNTHETIC",
+    }
+
+
+def test_work_record_without_process_context_keeps_empty_defaults() -> None:
+    """이전 생산자는 새 필드를 보내지 않는다. 생략하면 빈 목록이다."""
+    record = WorkRecordContext.model_validate(_RECORD_BASE)
+    assert record.relatedRecords == []
+    assert record.resolutionHistory == []
+    assert record.consultedKnowledge == []
+
+
+def test_work_record_accepts_process_context() -> None:
+    record = WorkRecordContext.model_validate(
+        _RECORD_BASE
+        | {
+            "relatedRecords": [
+                _related(),
+                _related("11111111-1111-4111-8111-111111111111", kind="PROGRESS"),
+            ],
+            "resolutionHistory": [
+                _history(),
+                _history("22222222-2222-4222-8222-222222222222", respondedAt=None, state="PENDING"),
+            ],
+            "consultedKnowledge": [_evidence()],
+        }
+    )
+    assert [item.kind for item in record.relatedRecords] == ["FAILED_ATTEMPT", "PROGRESS"]
+    assert record.resolutionHistory[0].state == "UNRESOLVED"
+    assert record.consultedKnowledge[0].kind == "GUIDE"
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"relatedRecords": [_related() | {"unknown": 1}]},
+        {"resolutionHistory": [_history() | {"unknown": 1}]},
+        {"relatedRecords": [_related(kind="UNKNOWN_KIND")]},
+        {"resolutionHistory": [_history(state="DONE")]},
+        {"relatedRecords": [_related(action="   ")]},
+        {"relatedRecords": [_related(action="가" * 4001)]},
+        {"relatedRecords": [_related(verification="가" * 4001)]},
+        {"relatedRecords": [_related(RUN_ID)]},
+        {"relatedRecords": [_related(), _related()]},
+        {"resolutionHistory": [_history(), _history()]},
+        {"resolutionHistory": [_history(RUN_ID)]},
+        {"consultedKnowledge": [_evidence(), _evidence()]},
+        {"relatedRecords": [_related(_uuid(index)) for index in range(21)]},
+        {"resolutionHistory": [_history(_uuid(index)) for index in range(21)]},
+        {"consultedKnowledge": [_evidence(_uuid(index)) for index in range(11)]},
+    ],
+)
+def test_work_record_rejects_invalid_process_context(extra: dict) -> None:
+    with pytest.raises(ValidationError):
+        WorkRecordContext.model_validate(_RECORD_BASE | extra)
+
+
+def test_inquiry_request_still_rejects_a_work_record_with_process_context() -> None:
+    """맥락은 사례 실행(workRecord)에만 있다. 상담 실행에는 workRecord 자체를 둘 수 없다."""
+    payload = inquiry_request()
+    payload["workRecord"] = _RECORD_BASE | {"relatedRecords": [_related()]}
+    with pytest.raises(ValidationError):
+        AiRunRequest.model_validate(payload)

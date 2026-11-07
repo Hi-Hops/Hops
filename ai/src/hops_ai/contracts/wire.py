@@ -339,6 +339,39 @@ class InputProblem(WireModel):
     resolutionContext: ResolutionContext | None
 
 
+class RelatedWorkRecord(WireModel):
+    """같은 티켓의 다른 처리 기록. 사례의 원 기록이 아니라 과정을 이해하는 맥락이다.
+
+    진행·실패 시도도 포함하지만 사례의 조치·검증·원인으로 쓰지 않는다.
+    실패 시도는 사례를 만들지 않는다.
+    """
+
+    id: WireUuid
+    kind: Literal["PROGRESS", "FAILED_ATTEMPT", "VERIFIED_RESOLUTION", "IMPLEMENTED_VERIFIED"]
+    action: Annotated[WireText, Field(max_length=4000)]
+    verification: Annotated[WireText, Field(max_length=4000)] | None
+    confirmedCause: Annotated[WireText, Field(max_length=4000)] | None
+    appliesToSystemVersion: SystemVersion | None
+    createdAt: WireTime
+
+
+class ResolutionHistoryEntry(WireModel):
+    """이 문제에 문의자에게 보낸 해결 확인 요청 한 건과 그 상태. 안내·처리 기록 양쪽을 포함한다."""
+
+    requestId: WireUuid
+    source: Literal["GUIDE", "WORK_RECORD"]
+    sourceId: WireUuid
+    state: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
+    requestedAt: WireTime
+    respondedAt: WireTime | None
+
+
+# 맥락 입력의 개수 상한. Spring이 같은 값으로 자르며 넘으면 입력 오류다.
+MAX_RELATED_RECORDS = 20
+MAX_RESOLUTION_HISTORY = 20
+MAX_CONSULTED_KNOWLEDGE = 10
+
+
 class WorkRecordContext(WireModel):
     id: WireUuid
     ticketId: WireUuid
@@ -352,6 +385,34 @@ class WorkRecordContext(WireModel):
     confirmationState: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
     confirmedCause: Annotated[WireText, Field(max_length=4000)] | None
     appliesToSystemVersion: SystemVersion | None
+    # 문의 전체 과정(#198). 모두 가산 필드라 이전 생산자는 보내지 않으며 생략하면 빈 목록이다.
+    # 같은 티켓의 다른 처리 기록(원 기록 제외, 오래된 순)
+    relatedRecords: list[RelatedWorkRecord] = Field(
+        default_factory=list, max_length=MAX_RELATED_RECORDS
+    )
+    # 이 문제의 해결 확인 이력(원 기록의 확인 요청 제외, 오래된 순)
+    resolutionHistory: list[ResolutionHistoryEntry] = Field(
+        default_factory=list, max_length=MAX_RESOLUTION_HISTORY
+    )
+    # 상담에 쓰인 근거. Spring이 현재 권한으로 다시 확인해 보낸 것만 있으며 최신 상담 순이다.
+    consultedKnowledge: list[KnowledgeEvidence] = Field(
+        default_factory=list, max_length=MAX_CONSULTED_KNOWLEDGE
+    )
+
+    @model_validator(mode="after")
+    def validate_context(self) -> "WorkRecordContext":
+        if any(record.id == self.id for record in self.relatedRecords):
+            raise ValueError("관련 처리 기록에 원 기록이 들어 있습니다")
+        for name, ids in (
+            ("관련 처리 기록", [record.id for record in self.relatedRecords]),
+            ("해결 확인 이력", [entry.requestId for entry in self.resolutionHistory]),
+            ("상담 근거", [item.id for item in self.consultedKnowledge]),
+        ):
+            if len(ids) != len(set(ids)):
+                raise ValueError(f"{name}의 식별자가 중복됐습니다")
+        if any(entry.requestId == self.resolutionRequestId for entry in self.resolutionHistory):
+            raise ValueError("해결 확인 이력에 원 기록의 확인 요청이 들어 있습니다")
+        return self
 
 
 class AiRunRequest(WireModel):
