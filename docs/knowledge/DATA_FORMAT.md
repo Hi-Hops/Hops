@@ -138,7 +138,7 @@ questions:
 | `checkAnswers` | (선택) 확인 항목 ID → 사용자가 그 질문에 할 답. 증상 시나리오에서 관계의 확인 항목 질문에 답하게 한다. 없는 항목을 물으면 모른다고 답한다. 동결 시나리오에는 추가하지 않는다. |
 | `revealRule` | 사용자 모사 규칙. `ASKED_FIELD_ONLY`는 AI가 물은 필드에 해당하는 값만 답한다. |
 | `corrections` | (선택) `{afterTurn, text}` 목록. AI가 `afterTurn`번째 질문을 한 뒤의 응답 끝에 `text`(정정 문장)를 덧붙인다. 한 turn에 하나. |
-| `followUp` | (선택) `{text, resolution}`. AI가 질문 없이 안내로 끝낸 뒤 사용자가 보내는 응답이다. `resolution`은 현재 `UNRESOLVED`만 쓴다. 재생기 지원은 멀티턴 작업(#189)에서 하며, 그 전에는 파일에 두고 첫 실행만 재생한다. |
+| `followUp` | (선택) `{text, resolution}`. AI가 질문 없이 안내로 끝낸 뒤 사용자가 보내는 응답이다. `resolution`은 현재 `UNRESOLVED`만 쓴다. 재생기는 안내로 끝난 실행 뒤에 Spring처럼 같은 문의 버전으로 재분석을 접수한다(문제의 `resolutionContext`=UNRESOLVED, 안내한 근거는 요청서의 `knowledge`). `text`는 기록용이며 입력에는 메시지로 들어가지 않는다. 안내 없이 끝나면 재생하지 않는다. 골드의 `afterFollowUp`은 B10이 쓴다. |
 | `faults` | (선택) 환경에 주입할 결함 목록. 현재 `RETRIEVAL_ERROR`(검색 서비스 오류)만 있다. 재생기는 역할을 만들지 않으므로 호출자가 이 값을 보고 검색 역할을 구성한다. |
 
 `userKnowledge`의 필드 이름은 `systemCode`와 질문 필드(`taskOrScreen` 등)다. 시스템을 모른다는 선언은 `unknownFields`에 `systemCode`로 쓰고, 사용자 모사는 시스템 질문(`system`)에 모름으로 답한다. 값은 사용자가 그대로 말할 문장이다. 복합 문의는 같은 필드에 문제마다 다른 답을 줄 수 없으므로, 필드별 답이 두 문제에 모두 맞도록 쓴다.

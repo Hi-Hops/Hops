@@ -69,6 +69,7 @@ from hops_ai.rules.assessment import (
 )
 from hops_ai.rules.intent_policy import is_guide_type, policy_for, search_kinds
 from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress, searched_queries
+from hops_ai.rules.resolution import without_guided
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.retrieval.knowledge_source import (
     MAX_TOP_K,
@@ -127,6 +128,8 @@ class SearchKnowledgeAgent:
                 result=_error_result(call.invocation_id, target.problemRef, query.digest())
             )
         services.runtime.ensure_active()
+        # 안내 뒤 미해결로 응답한 문제는 이미 안내한 근거로 다시 안내하지 않는다. 다 빠지면 0건이다.
+        hits = without_guided(state, target.problemRef, hits, lambda hit: hit.evidence)
 
         evidence = tuple(hit.evidence for hit in hits)
         # 관계를 먼저 조회한다: 판정이 확인 항목을 부족한 정보로 지목할 수 있게 입력으로 준다.

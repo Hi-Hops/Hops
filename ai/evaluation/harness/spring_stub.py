@@ -118,13 +118,11 @@ class SpringStub:
         return self._request([])
 
     # -- 결과 반영 -----------------------------------------------------------
-    def advance(
-        self, result: AiResult, reply_text: str
-    ) -> tuple[AiRunRequest, tuple[tuple[str, str], ...]]:
-        """이번 결과를 반영하고 사용자 응답으로 다음 실행 입력을 만든다.
+    def _apply_result(self, result: AiResult) -> tuple[dict[str, str], dict[str, int], list[str]]:
+        """이번 결과의 문제·질문을 Spring처럼 저장한다.
 
         Returns:
-            다음 실행 입력과, 이번 결과의 새 문제 참조에 부여한 (참조, 문제 ID).
+            (새 문제 참조 → 문제 ID, 이번에 질문을 받은 문제별 질문 수, 진행 중인 문제 ID 목록).
         """
         ref_map: dict[str, str] = {}
 
@@ -141,10 +139,17 @@ class SpringStub:
             problem_id = resolve(question.problemRef)
             asked[problem_id] = asked.get(problem_id, 0) + 1
             asked_fields.setdefault(problem_id, []).extend(question.requestedFields)
+        guide = result.guide
         for proposal in result.problemProposals:
             problem_id = resolve(proposal.problemRef)
             previous = self._problems.get(problem_id)
             count = (previous["questionCount"] if previous else 0) + asked.get(problem_id, 0)
+            # 안내한 근거는 요청서의 knowledge에 남는다(GuideResultWriter). 미해결 재분석이 쓴다.
+            guided = (
+                [item.model_dump() for item in result.evidence if item.id in guide.evidenceIds]
+                if guide is not None and resolve(guide.problemRef) == problem_id
+                else []
+            )
             self._problems[problem_id] = {
                 "id": problem_id,
                 "summary": proposal.summary,
@@ -170,7 +175,7 @@ class SpringStub:
                     "responsibleSystemCandidateId": None,
                     "responsibilityEvidenceIds": [],
                     "details": proposal.details.model_dump(),
-                    "knowledge": [],
+                    "knowledge": guided,
                 },
                 "resolutionContext": None,
             }
@@ -181,9 +186,44 @@ class SpringStub:
         active = [
             pid for pid, problem in self._problems.items() if problem["state"] != "OUT_OF_SCOPE"
         ]
+        return ref_map, asked, active
+
+    def advance(
+        self, result: AiResult, reply_text: str
+    ) -> tuple[AiRunRequest, tuple[tuple[str, str], ...]]:
+        """이번 결과를 반영하고 사용자 응답으로 다음 실행 입력을 만든다.
+
+        Returns:
+            다음 실행 입력과, 이번 결과의 새 문제 참조에 부여한 (참조, 문제 ID).
+        """
+        ref_map, asked, active = self._apply_result(result)
         answered = list(asked) or active
         if result.answer:
             self._add_message("AI", result.answer, list(answered))
         self._version += 1
         self._add_message("USER", reply_text, list(answered))
         return self._request(active), tuple(ref_map.items())
+
+    def follow_up(self, result: AiResult) -> tuple[AiRunRequest, tuple[tuple[str, str], ...]]:
+        """안내로 끝난 결과 뒤 사용자가 "해결 안 됨"으로 응답했을 때 Spring이 접수하는 재분석 입력.
+
+        실제 Spring처럼 같은 문의 버전으로 안내한 문제를 대상으로 새 실행을 만든다. 사용자의
+        미해결 응답은 메시지가 아니라 문제의 `resolutionContext`(UNRESOLVED)로 전달되고, 안내한
+        근거는 요청서의 knowledge에 있다. 안내가 없는 결과에는 쓰지 않는다.
+        """
+        guide = result.guide
+        if guide is None:
+            raise ValueError("안내가 없는 결과에는 미해결 응답을 재생할 수 없다")
+        ref_map, _, _ = self._apply_result(result)
+        problem_id = ref_map.get(guide.problemRef, guide.problemRef)
+        guide_message = self._add_message("AI", result.answer or "", [problem_id])
+        problem = self._problems[problem_id]
+        problem["state"] = "ANALYZING"
+        problem["resolutionContext"] = {
+            "requestId": self._new_id("resolution"),
+            "source": "GUIDE",
+            "sourceId": guide_message,
+            "sourceVersion": 1,
+            "state": "UNRESOLVED",
+        }
+        return self._request([problem_id]), tuple(ref_map.items())

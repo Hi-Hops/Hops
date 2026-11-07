@@ -56,6 +56,7 @@ async def run_scenario(
             on_turn(len(turns), turn)
 
     truncated = False
+    followed_up = False
     for turn_number in range(1, cfg.max_turns + 1):
         log = CallLog()
         pipeline = SupervisorPipeline(
@@ -88,6 +89,32 @@ async def run_scenario(
             )
             break
         elapsed = time.monotonic() - started
+        if (
+            result.status == "SUCCEEDED"
+            and not result.questions
+            and result.guide is not None
+            and scenario.follow_up is not None
+            and not followed_up
+        ):
+            # 안내로 끝났고 시나리오에 미해결 응답이 있다. Spring처럼 같은 문제를 재분석한다.
+            followed_up = True
+            next_request, ref_map = stub.follow_up(result)
+            record(
+                TurnTrace(
+                    request=request,
+                    result=result,
+                    role_calls=tuple(log.role_calls),
+                    model_calls=log.model_calls,
+                    user_reply=scenario.follow_up.text,
+                    ref_map=ref_map,
+                    input_tokens=log.input_tokens,
+                    output_tokens=log.output_tokens,
+                    elapsed_seconds=elapsed,
+                )
+            )
+            request = next_request
+            truncated = turn_number == cfg.max_turns
+            continue
         if result.status != "SUCCEEDED" or not result.questions:
             record(
                 TurnTrace(

@@ -127,6 +127,17 @@ class InquiryAnswerFlowTest {
             var next = jsonMapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id=(SELECT current_run_id FROM inquiry WHERE id=?)", String.class, inquiryId));
             assertThat(next.path("inquiryVersion").asInt()).isEqualTo(1);
             assertThat(next.path("problemIds").get(0)).isEqualTo(problem.path("id"));
+            // AI가 미해결 응답을 알아보고 이미 안내한 근거를 뺄 수 있도록 입력에 실린다 (docs/ai/AGENT_ARCHITECTURE.md 5.3절 (c))
+            var reanalysis = next.path("problems").get(0);
+            assertThat(reanalysis.path("state").asString()).isEqualTo("ANALYZING");
+            assertThat(reanalysis.path("resolutionContext").path("state").asString()).isEqualTo("UNRESOLVED");
+            assertThat(reanalysis.path("resolutionContext").path("source").asString()).isEqualTo("GUIDE");
+            assertThat(reanalysis.path("resolutionContext").path("sourceId").asString())
+                    .isEqualTo(answerMessageIdOf(runId).toString());
+            assertThat(reanalysis.path("standardRequest").path("knowledge").size()).isEqualTo(1);
+            assertThat(reanalysis.path("standardRequest").path("knowledge").get(0).path("documentId").asString())
+                    .isEqualTo(guideDocument.toString());
+            assertThat(reanalysis.path("askedFields").isArray()).isTrue();
         }
     }
 

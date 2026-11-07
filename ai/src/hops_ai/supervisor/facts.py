@@ -10,7 +10,8 @@
 - 답변은 판정이 SUFFICIENT이고 그 판정이 인용한 근거로 안내가 만들어졌을 때만 가능하다(안내문은
   승인된 직원 공개 가이드 본문으로만 조립한다).
 - 평가는 검색 호출 안에서 함께 끝나므로 따로 호출할 평가는 없다(assessment_pending은 거짓).
-- 안내 뒤 미해결 응답(5.3절 티켓 (c))은 멀티턴(#189)이 만든다. 그 전까지는 거짓이다.
+- 안내 뒤 미해결 응답(5.3절 티켓 (c))은 입력의 `resolutionContext`가 미해결이고, 이미 안내한 근거를
+  뺀 검색을 마쳤는데 안내할 수 있는 근거가 없을 때 참이다(`rules.resolution`).
 """
 
 from hops_ai.agents.inquiry.asking import answerable, form_question_plan, question_plan
@@ -21,6 +22,7 @@ from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.rules.intent_policy import policy_for, search_kinds
 from hops_ai.rules.legal_actions import RESEARCH_LIMIT, ProblemFacts
 from hops_ai.rules.progress import get_problem_progress
+from hops_ai.rules.resolution import is_unresolved
 from hops_ai.supervisor.state import SupervisorState
 
 
@@ -69,5 +71,9 @@ def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
         askable=plan.action == "ASK",
         required_info_secured=form_plan.action == "COMPLETE",
         direct_ticket_intent=policy_for(problem.intent).ticket_when_ready,
-        unresolved_without_other_evidence=False,
+        unresolved_without_other_evidence=(
+            is_unresolved(state, ref)
+            and search_state in ("FOUND", "EMPTY")
+            and not answerable(state, ref)
+        ),
     )
