@@ -40,7 +40,7 @@ import tools.jackson.databind.json.JsonMapper;
  * AI 서버 대신 AgentRunClient만 가짜로 두고 나머지는 실제 코드를 쓴다 (InquiryAnswerFlowTest와 같은 방식).
  * 문의 생성은 멱등 처리 때문에 실제로 commit하므로 {@link #cleanup()}에서 넣은 행을 지운다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "SPRING_SERVICE_TOKEN=" + TicketCreationTestBodies.TOKEN)
 @AutoConfigureMockMvc
 @ActiveProfiles({"db", "test"})
 class InquiryQuestionFlowTest {
@@ -85,6 +85,8 @@ class InquiryQuestionFlowTest {
     void cleanup() {
         String mine = "SELECT id FROM inquiry WHERE requester_member_id IN (?, ?)";
         jdbc.update("UPDATE inquiry SET current_run_id = NULL WHERE requester_member_id IN (?, ?)", memberId, ownerId);
+        jdbc.update("DELETE FROM ticket_assignment WHERE ticket_id IN (SELECT id FROM ticket WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
+        jdbc.update("DELETE FROM ticket WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM agent_ticket_request WHERE run_id IN (SELECT id FROM agent_run WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
         jdbc.update("DELETE FROM standard_request WHERE inquiry_problem_id IN (SELECT id FROM inquiry_problem WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
         jdbc.update("DELETE FROM inquiry_problem WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
@@ -402,6 +404,68 @@ class InquiryQuestionFlowTest {
                 .containsEntry("run_status", "FAILED").containsEntry("error_code", "INVALID_OUTPUT");
         assertThat(jdbc.queryForMap("SELECT problem_status, clarify_count FROM inquiry_problem WHERE id=?", problemId))
                 .containsEntry("problem_status", "GUIDED").containsEntry("clarify_count", 1);
+    }
+
+    @Test
+    void 질문_뒤_답을_받은_실행이_담당자_검토_티켓으로_인계하면_질문_수와_이력이_유지된다() throws Exception {
+        UUID inquiryId = askOnce("결재 문서가 안 열려요");
+        UUID problemId = problemOf(inquiryId);
+        UUID source = userMessageOf(inquiryId);
+        JsonNode next = secondRunInput(inquiryId, "화면은 잘 모르겠어요");
+        UUID secondRun = UUID.fromString(next.path("runId").asString());
+
+        // AI가 티켓 도구(내부 API)로 이미 질문한 문제의 티켓을 만든다. 도구는 실행 중인 실행에만 쓸 수 있다
+        jdbc.update("UPDATE agent_run SET run_status = 'RUNNING', started_at = now() WHERE id = ?", secondRun);
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post("/internal/v2/runs/" + secondRun + "/ticket-creations")
+                .header("Authorization", "Bearer " + TicketCreationTestBodies.TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonMapper.writeValueAsString(TicketCreationTestBodies.body(problemId.toString(),
+                        next.path("inquiryVersion").asInt(), systemId, source, 12))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("STORED"));
+        assertThat(count("SELECT count(*) FROM ticket WHERE inquiry_id=?", inquiryId)).isEqualTo(1);
+        assertThat(jdbc.queryForMap("SELECT problem_status, clarify_count FROM inquiry_problem WHERE id=?", problemId))
+                .containsEntry("problem_status", "TICKET_CREATED").containsEntry("clarify_count", 1);
+
+        // 그 실행의 결과를 반영해도 티켓이 생긴 문제는 되돌리거나 질문 수를 바꾸지 않는다
+        jdbc.update("UPDATE agent_run SET run_status = 'QUEUED', started_at = NULL WHERE id = ?", secondRun);
+        Map<String, Object> result = snapshotMap(secondRun, inquiryId, next.path("inquiryVersion").asInt(),
+                "담당자에게 전달했습니다.",
+                List.of(proposal(problemId.toString(), "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, source)), List.of());
+        ((Map<String, Object>) result.get("result")).put("ticketProposals", List.of(Map.of("problemRef", problemId.toString())));
+        when(client.snapshot(secondRun.toString())).thenReturn(jsonMapper.valueToTree(result));
+        dispatcher.deliver(secondRun);
+
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, secondRun)).isEqualTo("SUCCEEDED");
+        assertThat(count("SELECT count(*) FROM inquiry_problem WHERE inquiry_id=?", inquiryId)).isEqualTo(1);
+        assertThat(jdbc.queryForMap("SELECT problem_status, clarify_count FROM inquiry_problem WHERE id=?", problemId))
+                .containsEntry("problem_status", "TICKET_CREATED").containsEntry("clarify_count", 1);
+        mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(jsonPath("$.problems[0].questionCount").value(1))
+                .andExpect(jsonPath("$.problems[0].ticket").exists());
+    }
+
+    @Test
+    void 질문_뒤_모른다고_답해_시스템을_정하지_못하면_확인_대기로_남고_이력이_유지된다() throws Exception {
+        UUID inquiryId = createInquiry("문서가 안 열려요");
+        UUID runId = runOf(inquiryId);
+        Map<String, Object> asking = proposal("new:p1", "OBSERVED_SYMPTOM", "INVESTIGATION", null, userMessageOf(inquiryId));
+        when(client.snapshot(runId.toString())).thenReturn(snapshot(runId, inquiryId, 1, "어느 시스템인가요?",
+                List.of(asking), List.of(question("new:p1", "b1", "어느 시스템인가요?", "system"))));
+        dispatcher.deliver(runId);
+        UUID problemId = problemOf(inquiryId);
+
+        JsonNode next = secondRunInput(inquiryId, "어느 시스템인지 모르겠어요");
+        UUID secondRun = UUID.fromString(next.path("runId").asString());
+        assertThat(next.path("problems").get(0).path("askedFields").get(0).asString()).isEqualTo("system");
+        when(client.snapshot(secondRun.toString())).thenReturn(snapshot(secondRun, inquiryId, 2, "시스템을 확인해야 합니다.",
+                List.of(proposal(problemId.toString(), "OBSERVED_SYMPTOM", "INVESTIGATION", null, userMessageOf(inquiryId))),
+                List.of()));
+        dispatcher.deliver(secondRun);
+
+        assertThat(jdbc.queryForMap("SELECT problem_status, clarify_count FROM inquiry_problem WHERE id=?", problemId))
+                .containsEntry("problem_status", "SYSTEM_PENDING").containsEntry("clarify_count", 1);
+        mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(jsonPath("$.problems[0].state").value("WAITING_SYSTEM"))
+                .andExpect(jsonPath("$.problems[0].questionCount").value(1));
     }
 
     // -- 도우미 -------------------------------------------------------------------------------

@@ -41,7 +41,7 @@ import tools.jackson.databind.json.JsonMapper;
  * <p>테스트 프로필은 자동 전달을 꺼 두므로 접수 뒤 {@link AgentRunDispatcher#deliver}를 직접 불러 전달 단계를 진행시킨다.
  * 문의 생성은 멱등 처리 때문에 실제로 commit하므로 {@link #cleanup()}에서 넣은 행을 지운다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "SPRING_SERVICE_TOKEN=" + TicketCreationTestBodies.TOKEN)
 @AutoConfigureMockMvc
 @ActiveProfiles({"db", "test"})
 class InquiryAnswerFlowTest {
@@ -69,6 +69,8 @@ class InquiryAnswerFlowTest {
     private final UUID systemId = UUID.randomUUID();
     private final UUID guideDocument = UUID.randomUUID();
     private final UUID guideEvidence = UUID.randomUUID();
+    private final UUID otherDocument = UUID.randomUUID();
+    private final UUID otherEvidence = UUID.randomUUID();
 
     private JsonNode guideSnapshot(UUID runId, UUID inquiryId) throws Exception {
         String text = ANSWER;
@@ -201,6 +203,100 @@ class InquiryAnswerFlowTest {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("RESOLUTION_REVISION_CONFLICT"));
     }
 
+    private void respondUnresolved(String requestPath, String resolutionRequestId) throws Exception {
+        UUID commandId = UUID.randomUUID();
+        String command = jsonMapper.writeValueAsString(Map.of("requestId", commandId, "expectedRequestRevision", 1,
+                "decision", "UNRESOLVED"));
+        mockMvc.perform(as(post("/api/v2/resolution-requests/" + resolutionRequestId + "/responses"))
+                .header("Idempotency-Key", commandId).contentType(MediaType.APPLICATION_JSON).content(command))
+                .andExpect(status().isOk());
+    }
+
+    private JsonNode guidedProblem(UUID inquiryId) throws Exception {
+        var response = mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(status().isOk()).andReturn();
+        return jsonMapper.readTree(response.getResponse().getContentAsString()).path("problems").get(0);
+    }
+
+    @Test
+    void 안내_뒤_미해결_응답으로_접수한_재분석이_담당자_검토_티켓을_만들_수_있다() throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        UUID source = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id=? AND sender_type='USER'", UUID.class, inquiryId);
+        // 실제 AI처럼 안내하는 문제의 확인 사실이 사용자 메시지를 출처로 인용한다
+        var guided = (tools.jackson.databind.node.ObjectNode) guideSnapshot(runId, inquiryId);
+        ((tools.jackson.databind.node.ArrayNode) guided.path("result").path("problemProposals").get(0).path("facts"))
+                .addObject().put("text", TicketCreationTestBodies.FACT).putArray("knowledgeEvidenceIds");
+        var fact = (tools.jackson.databind.node.ObjectNode) guided.path("result").path("problemProposals").get(0).path("facts").get(0);
+        fact.putArray("sourceMessageIds").add(source.toString());
+        when(client.snapshot(runId.toString())).thenReturn(guided);
+        dispatcher.deliver(runId);
+        JsonNode problem = guidedProblem(inquiryId);
+        UUID problemId = UUID.fromString(problem.path("id").asString());
+        respondUnresolved("", problem.path("activeResolutionRequest").path("id").asString());
+        UUID reanalysis = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiryId);
+        assertThat(reanalysis).isNotEqualTo(runId);
+        assertThat(jdbc.queryForObject("SELECT problem_status FROM inquiry_problem WHERE id=?", String.class, problemId))
+                .isEqualTo("CLARIFYING");
+
+        // AI가 다른 근거가 없다고 보고 티켓 도구로 담당자 검토를 요청한다. 도구는 실행 중인 실행에만 쓸 수 있다
+        jdbc.update("UPDATE agent_run SET run_status = 'RUNNING', started_at = now() WHERE id = ?", reanalysis);
+        var created = mockMvc.perform(post("/internal/v2/runs/" + reanalysis + "/ticket-creations")
+                .header("Authorization", "Bearer " + TicketCreationTestBodies.TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonMapper.writeValueAsString(TicketCreationTestBodies.body(problemId.toString(), 1, systemId,
+                        source, "로그인 화면 사용법을 알려 주세요".length(), "HOW_TO", "REVIEW_REQUIRED")))).andReturn().getResponse();
+        assertThat(created.getStatus()).as(created.getContentAsString()).isEqualTo(200);
+        assertThat(jsonMapper.readTree(created.getContentAsString()).path("outcome").asString()).isEqualTo("STORED");
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiryId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT problem_status FROM inquiry_problem WHERE id=?", String.class, problemId))
+                .isEqualTo("TICKET_CREATED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inquiry_problem WHERE inquiry_id=?", Integer.class, inquiryId)).isEqualTo(1);
+    }
+
+    @Test
+    void 안내_뒤_미해결_응답에_다른_문서로_다시_안내하면_새_확인_요청이_생긴다() throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        JsonNode firstSnapshot = guideSnapshot(runId, inquiryId);
+        when(client.snapshot(runId.toString())).thenReturn(firstSnapshot);
+        dispatcher.deliver(runId);
+        JsonNode problem = guidedProblem(inquiryId);
+        String oldRequest = problem.path("activeResolutionRequest").path("id").asString();
+        respondUnresolved("", oldRequest);
+        UUID reanalysis = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiryId);
+
+        // 이미 안내한 문서가 아닌 다른 승인 문서로 안내한다
+        String otherText = "공통 로그인 화면에서 비밀번호 재설정 메뉴를 먼저 확인해 보세요.";
+        String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(otherText.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 직원 가이드 2','EMPLOYEE_GUIDE',?,'EMPLOYEE','RAG','APPROVED')", otherDocument, systemId);
+        jdbc.update("INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status) VALUES (?,1,?,?,?::jsonb,'APPROVED')", otherDocument, otherText, digest,
+                "{\"origin\":\"SYNTHETIC\",\"applicability\":\"가상 로그인 화면\",\"appliesToSystemVersion\":null}");
+        var next = (tools.jackson.databind.node.ObjectNode) firstSnapshot.deepCopy();
+        next.put("runId", reanalysis.toString());
+        var result = (tools.jackson.databind.node.ObjectNode) next.path("result");
+        result.put("runId", reanalysis.toString()).put("answer", otherText);
+        var guide = (tools.jackson.databind.node.ObjectNode) result.path("guide");
+        guide.put("problemRef", problem.path("id").asString()).put("messageText", otherText);
+        guide.putArray("evidenceIds").add(otherEvidence.toString());
+        ((tools.jackson.databind.node.ObjectNode) result.path("problemProposals").get(0)).put("problemRef", problem.path("id").asString());
+        var evidence = result.putArray("evidence");
+        evidence.add(jsonMapper.valueToTree(new com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse(
+                otherEvidence, otherDocument, 1, "GUIDE", "가상 직원 가이드 2", otherText, systemId, null, "가상 로그인 화면", "EMPLOYEE", "SYNTHETIC")));
+        when(client.snapshot(reanalysis.toString())).thenReturn(next);
+        dispatcher.deliver(reanalysis);
+
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, reanalysis)).isEqualTo("SUCCEEDED");
+        JsonNode latest = guidedProblem(inquiryId);
+        assertThat(latest.path("id")).isEqualTo(problem.path("id"));
+        assertThat(latest.path("state").asString()).isEqualTo("WAITING_CONFIRMATION");
+        assertThat(latest.path("activeResolutionRequest").path("id").asString()).isNotEqualTo(oldRequest);
+        assertThat(latest.path("activeResolutionRequest").path("state").asString()).isEqualTo("PENDING");
+        assertThat(latest.path("guide").path("evidence").get(0).path("documentId").asString()).isEqualTo(otherDocument.toString());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inquiry_problem WHERE inquiry_id=?", Integer.class, inquiryId)).isEqualTo(1);
+    }
+
     @BeforeEach
     void createFixtures() {
         String suffix = departmentId.toString().substring(0, 8);
@@ -217,14 +313,19 @@ class InquiryAnswerFlowTest {
     void cleanup() {
         String mine = "SELECT id FROM inquiry WHERE requester_member_id IN (?, ?)";
         jdbc.update("UPDATE inquiry SET current_run_id = NULL WHERE requester_member_id IN (?, ?)", memberId, ownerId);
+        jdbc.update("DELETE FROM ticket_assignment WHERE ticket_id IN (SELECT id FROM ticket WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
+        jdbc.update("DELETE FROM ticket WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
+        jdbc.update("DELETE FROM agent_ticket_request WHERE run_id IN (SELECT id FROM agent_run WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
         jdbc.update("DELETE FROM standard_request WHERE inquiry_problem_id IN (SELECT id FROM inquiry_problem WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
         jdbc.update("DELETE FROM inquiry_problem WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM agent_run WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM message WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM inquiry WHERE requester_member_id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id IN (?, ?)", memberId, ownerId);
-        jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", guideDocument);
-        jdbc.update("DELETE FROM knowledge_document WHERE id=?", guideDocument);
+        for (UUID document : List.of(guideDocument, otherDocument)) {
+            jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", document);
+            jdbc.update("DELETE FROM knowledge_document WHERE id=?", document);
+        }
         jdbc.update("DELETE FROM it_system WHERE id = ?", systemId);
         jdbc.update("DELETE FROM member WHERE id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM department WHERE id = ?", departmentId);

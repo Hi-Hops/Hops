@@ -19,10 +19,8 @@ import com.hihops.hops.agent.service.AgentResultRejectedException;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.InquiryProblem;
 import com.hihops.hops.inquiry.domain.Message;
-import com.hihops.hops.inquiry.domain.MessageStatus;
 import com.hihops.hops.inquiry.domain.ProblemStatus;
 import com.hihops.hops.inquiry.domain.RequestIntent;
-import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.domain.StandardRequest;
 import com.hihops.hops.inquiry.domain.WorkType;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
@@ -76,6 +74,7 @@ public class ProblemQuestionWriter {
     private final TicketRepository tickets;
     private final TicketKnowledgeReader knowledge;
     private final JdbcTemplate jdbc;
+    private final MessageProblemLinker linker;
     private final JsonMapper mapper;
 
     /**
@@ -235,7 +234,7 @@ public class ProblemQuestionWriter {
                 proposal.path("unknowns").toString(), proposal.path("details").toString(),
                 mapper.writeValueAsString(citedKnowledge(context, cited, inquiry)));
         requests.saveAndFlush(standard);
-        for (UUID source : sources) linkSourceMessage(inquiry, source, problem.getId());
+        for (UUID source : sources) linker.link(inquiry, source, problem.getId());
         return problem;
     }
 
@@ -249,29 +248,6 @@ public class ProblemQuestionWriter {
         var visible = knowledge.visible(selected.toString(), inquiry.getRequester());
         require(visible.size() == cited.size() && visible.stream().allMatch(item -> "EMPLOYEE".equals(item.accessScope())));
         return visible;
-    }
-
-    /**
-     * 사실이 인용한 사용자 메시지를 이 문제에 잇는다. 담당자·문의자 투영은 문제에 연결된 구간만 보여 주므로,
-     * 연결이 없으면 다음 실행 입력의 확인 사실이 출처를 잃고 걸러진다(RelatedMessageProjector).
-     * 이미 같은 차수의 연결이 있으면 건드리지 않는다. 겹치는 구간을 만들지 않으려고 메시지 전체를 잇는다.
-     */
-    private void linkSourceMessage(Inquiry inquiry, UUID messageId, UUID problemId) {
-        Message message = messages.findById(messageId).orElseThrow(() -> invalid());
-        require(message.getInquiry().getId().equals(inquiry.getId()) && !message.isDeleted()
-                && message.getSenderType() == SenderType.USER && message.getMessageStatus() == MessageStatus.COMPLETED);
-        ObjectNode payload = (ObjectNode) mapper.readTree(message.getPayload());
-        ArrayNode links = array(payload, "problemLinks");
-        for (var link : links) {
-            if (problemId.toString().equals(link.path("problemId").asString())
-                    && link.path("revision").asInt(-1) == message.getRevision()) {
-                return;
-            }
-        }
-        int length = message.getContent().codePointCount(0, message.getContent().length());
-        ObjectNode link = links.addObject().put("problemId", problemId.toString()).put("revision", message.getRevision());
-        link.putArray("spans").addObject().put("start", 0).put("end", length);
-        message.updatePayload(mapper.writeValueAsString(payload));
     }
 
     /** 질문 묶음 하나를 AI 메시지 payload에 더하고 질문 수를 올린다. 이미 저장한 묶음이면 세지 않고 false. */
