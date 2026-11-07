@@ -301,6 +301,47 @@ class MessageCommandControllerTest {
         JsonNode input = currentInput();
         assertThat(input.path("problemIds").isEmpty()).isTrue();
         assertThat(input.path("problems").get(0).path("state").asString()).isEqualTo("WAITING_USER");
+        // 보완할 문제가 하나뿐이면 그 문제의 답으로 이어 AI가 이 메시지를 그 문제의 출처로 쓸 수 있다
+        assertThat(input.path("messages").get(1).path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+    }
+
+    @Test
+    void 대상을_고르지_않은_답은_직전_AI가_질문하거나_안내한_문제에_잇고_실행_대상은_분석이_정한다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID asked = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        UUID guided = insertProblem(2, "CLARIFYING", 0, null, firstRunId);
+        UUID other = insertProblem(3, "CLARIFYING", 0, null, firstRunId);
+        insertAiMessage(2, "{\"questionBundles\": [{\"problemId\": \"" + asked + "\", \"bundleRef\": \"b-1\"}], "
+                + "\"guide\": {\"problemId\": \"" + guided + "\", \"text\": \"안내\", \"evidenceIds\": []}}");
+
+        send(memberId, UUID.randomUUID(), 1, "오늘 결재를 시도했는데 실패했어", List.of()).andExpect(status().isOk());
+
+        JsonNode links = payloadOf(messageIdAt(3)).path("problemLinks");
+        assertThat(links.findValuesAsString("problemId")).containsExactly(asked.toString(), guided.toString());
+        JsonNode input = currentInput();
+        assertThat(input.path("problemIds").isEmpty()).isTrue();
+        List<String> inputLinks = new ArrayList<>();
+        input.path("messages").get(2).path("problemIds").forEach(id -> inputLinks.add(id.asString()));
+        assertThat(inputLinks).containsExactly(asked.toString(), guided.toString()).doesNotContain(other.toString());
+    }
+
+    @Test
+    void 질문한_문제가_없고_문제가_여럿이면_어느_문제에도_잇지_않는다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        insertProblem(1, "CLARIFYING", 0, null, firstRunId);
+        insertProblem(2, "CLARIFYING", 0, null, firstRunId);
+        insertAiMessage(2, "{\"questionBundles\": []}");
+
+        send(memberId, UUID.randomUUID(), 1, "추가로 알려 드려요", List.of()).andExpect(status().isOk());
+
+        assertThat(payloadOf(messageIdAt(3)).path("problemLinks").isEmpty()).isTrue();
+        assertThat(payloadOf(messageIdAt(3)).path("pendingTarget").asBoolean()).isFalse();
+    }
+
+    private void insertAiMessage(int sequenceNo, String payload) {
+        jdbc.update("INSERT INTO message (id, inquiry_id, sequence_no, sender_type, content, payload, message_status) "
+                + "VALUES (?, ?::uuid, ?, 'AI', 'AI 답변', CAST(? AS jsonb), 'COMPLETED')",
+                UUID.randomUUID(), inquiryId, sequenceNo, payload);
     }
 
     @Test

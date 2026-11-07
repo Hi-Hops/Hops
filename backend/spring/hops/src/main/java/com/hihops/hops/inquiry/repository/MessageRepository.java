@@ -50,6 +50,11 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
             """)
     List<Message> findCompletedBefore(UUID inquiryId, int beforeSequenceNo, Limit limit);
 
+    /** 가장 최근에 저장이 끝난 AI 메시지. 대상 없이 보낸 사용자 메시지가 어느 질문·안내의 답인지 정하는 데 쓴다. */
+    Optional<Message> findFirstByInquiry_IdAndSenderTypeAndMessageStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+            UUID inquiryId, com.hihops.hops.inquiry.domain.SenderType senderType,
+            com.hihops.hops.inquiry.domain.MessageStatus messageStatus);
+
     /** 저장이 끝난 메시지 전체, 순번 순. AI 입력의 messages를 만든다. */
     @Query("""
             SELECT m FROM Message m
