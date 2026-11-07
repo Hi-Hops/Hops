@@ -3,12 +3,13 @@
 - 이 어댑터는 스스로 재시도하지 않는다. 연결 장애·429·5xx는 TransientError로 알리고
   재시도·호출 상한·시간 제한은 BudgetedLLMClient가 맡는다(client.py 규약).
   요청 거절·형식 오류는 OutputRejected다.
-- 응답 저장을 요청하고(store=True) JSON Schema strict 구조화 출력을 사용한다.
+- 텍스트 요청은 응답 저장을 요청한다. 이미지 요청은 store=False를 사용한다.
+- JSON Schema strict 구조화 출력을 사용한다.
 - 호출별 시간 제한은 BudgetedLLMClient가 실행 기한 안에서 적용한다.
   여기 둔 HTTP 제한은 마지막 안전망이다.
 """
 
-from dataclasses import asdict
+import base64
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -19,7 +20,7 @@ from hops_ai.harness.errors import (
     OutputRejected,
     TransientError,
 )
-from hops_ai.services.llm.client import LLMRequest, LLMResponse, LLMUsage
+from hops_ai.services.llm.client import LLMMessage, LLMRequest, LLMResponse, LLMUsage
 
 _BASE_URL = "https://api.openai.com/v1/"
 _HTTP_TIMEOUT = httpx.Timeout(120.0, connect=10.0)
@@ -28,6 +29,22 @@ _HTTP_TIMEOUT = httpx.Timeout(120.0, connect=10.0)
 def _short(value: object) -> str:
     """API가 준 상태 이름을 로그에 안전하게 줄여 쓴다(이름이 아니면 유형만)."""
     return value[:40] if isinstance(value, str) else type(value).__name__
+
+
+def _input_message(message: LLMMessage) -> dict:
+    if not message.images:
+        return {"role": message.role, "content": message.content}
+    if message.role != "user":
+        raise OutputRejected("이미지는 사용자 입력에만 포함할 수 있습니다")
+    content = [{"type": "input_text", "text": message.content}]
+    for item in message.images:
+        if item.media_type not in ("image/png", "image/jpeg") or not item.data:
+            raise OutputRejected("이미지 입력이 유효하지 않습니다")
+        encoded = base64.b64encode(item.data).decode("ascii")
+        content.append(
+            {"type": "input_image", "image_url": f"data:{item.media_type};base64,{encoded}"}
+        )
+    return {"role": message.role, "content": content}
 
 
 def _violations(error: ValidationError, limit: int = 5) -> str:
@@ -61,7 +78,7 @@ class OpenAIClient:
             raise ComponentNotReady("OpenAI client")
         payload = {
             "model": self._model,
-            "input": [asdict(message) for message in request.messages],
+            "input": [_input_message(message) for message in request.messages],
             "reasoning": {"effort": "none"},
             "text": {
                 "format": {
@@ -88,7 +105,7 @@ class OpenAIClient:
                 "responses",
                 {
                     **payload,
-                    "store": True,
+                    "store": not any(message.images for message in request.messages),
                     "max_output_tokens": request.max_output_tokens,
                 },
             )

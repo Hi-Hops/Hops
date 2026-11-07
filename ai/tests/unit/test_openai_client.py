@@ -1,6 +1,7 @@
 """OpenAI 어댑터를 가짜 HTTP 전송으로 확인한다. 실제 OpenAI는 호출하지 않는다."""
 
 import json
+from contextlib import contextmanager
 
 import httpx
 import pytest
@@ -12,8 +13,9 @@ from hops_ai.harness.errors import (
     OutputRejected,
     TransientError,
 )
-from hops_ai.services.llm.client import LLMMessage, LLMRequest
+from hops_ai.services.llm.client import LLMImage, LLMMessage, LLMRequest
 from hops_ai.services.llm.openai import OpenAIClient
+from hops_ai.services.tracing import RunTracing, TracedLLMClient
 
 
 class Reply(BaseModel):
@@ -111,6 +113,88 @@ async def test_input_within_limit_proceeds_to_generation() -> None:
         "/v1/responses/input_tokens",
         "/v1/responses",
     ]
+
+
+async def test_multiple_images_and_text_are_included_in_token_count_and_model_request() -> None:
+    server = Server(
+        responses_input_tokens=json_response({"input_tokens": 50}),
+        responses=json_response(completed()),
+    )
+    request = LLMRequest(
+        messages=[
+            LLMMessage(
+                "user",
+                "오류 화면",
+                (LLMImage("image/png", b"first"), LLMImage("image/jpeg", b"second")),
+            )
+        ],
+        response_model=Reply,
+        max_output_tokens=300,
+        prompt_version="test.image.v1",
+        max_input_tokens=100,
+    )
+
+    await server.client().generate(request)
+
+    counted, generated = [json.loads(item.content) for item in server.requests]
+    expected = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": "오류 화면"},
+                {"type": "input_image", "image_url": "data:image/png;base64,Zmlyc3Q="},
+                {"type": "input_image", "image_url": "data:image/jpeg;base64,c2Vjb25k"},
+            ],
+        }
+    ]
+    assert counted["input"] == generated["input"] == expected
+    assert generated["store"] is False
+    assert "first" not in repr(request)
+    assert "second" not in repr(request)
+
+
+async def test_image_on_system_message_is_rejected_before_network_request() -> None:
+    server = Server()
+    request = LLMRequest(
+        messages=[LLMMessage("system", "지시", (LLMImage("image/png", b"image"),))],
+        response_model=Reply,
+        max_output_tokens=300,
+        prompt_version="test.image.v1",
+    )
+    with pytest.raises(OutputRejected):
+        await server.client().generate(request)
+    assert server.requests == []
+
+
+async def test_image_bytes_are_not_recorded_even_when_trace_content_is_enabled() -> None:
+    class TraceClient:
+        input: dict | None = None
+        output: dict | None = None
+
+        def update(self, **kwargs):
+            self.output = kwargs.get("output")
+
+        @contextmanager
+        def start_as_current_observation(self, *, input: dict, **_kwargs):
+            self.input = input
+            yield self
+
+    trace = TraceClient()
+    server = Server(responses=json_response(completed()))
+    request = LLMRequest(
+        messages=[LLMMessage("user", "오류 화면", (LLMImage("image/png", b"private-image"),))],
+        response_model=Reply,
+        max_output_tokens=300,
+        prompt_version="test.image.v1",
+    )
+    await TracedLLMClient(server.client(), RunTracing(trace, capture_content=True)).generate(
+        request
+    )
+    assert trace.input is not None
+    assert "private-image" not in repr(trace.input)
+    assert "cHJpdmF0ZS1pbWFnZQ==" not in repr(trace.input)
+    assert "messages" not in trace.input
+    assert trace.output == {"schema": "Reply", "parsed": True}
 
 
 @pytest.mark.parametrize("count", [{"input_tokens": 0}, {"input_tokens": "50"}, {}])

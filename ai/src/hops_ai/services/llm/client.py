@@ -6,16 +6,23 @@
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
 
 @dataclass(frozen=True)
+class LLMImage:
+    media_type: Literal["image/png", "image/jpeg"]
+    data: bytes = field(repr=False)
+
+
+@dataclass(frozen=True)
 class LLMMessage:
     role: Literal["system", "user", "assistant"]
     content: str
+    images: tuple[LLMImage, ...] = field(default=(), repr=False)
 
 
 @dataclass(frozen=True)

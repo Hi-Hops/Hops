@@ -37,12 +37,15 @@ class TracedLLMClient:
         self.tracing = tracing
 
     async def generate[T: BaseModel](self, request: LLMRequest[T]) -> LLMResponse[T]:
+        capture_content = self.tracing.capture_content and not any(
+            message.images for message in request.messages
+        )
         inputs = {
             "promptVersion": request.prompt_version,
             "responseSchema": request.response_model.__name__,
             "messageCount": len(request.messages),
         }
-        if self.tracing.capture_content:
+        if capture_content:
             inputs["messages"] = [
                 {"role": message.role, "content": message.content} for message in request.messages
             ]
@@ -52,7 +55,7 @@ class TracedLLMClient:
                 span.update(
                     model=response.model_id,
                     output=response.parsed.model_dump(mode="json")
-                    if self.tracing.capture_content
+                    if capture_content
                     else {"schema": type(response.parsed).__name__, "parsed": True},
                     usage_details={
                         "input": response.usage.input_tokens,
