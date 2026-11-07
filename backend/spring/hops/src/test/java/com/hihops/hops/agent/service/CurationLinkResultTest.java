@@ -109,10 +109,10 @@ class CurationLinkResultTest extends TicketCommandFixture {
     }
 
     @Test
-    void 후보의_증상과_확인_항목_연결을_사용자_AI_메시지와_처리_기록_근거로_보존한다() throws Exception {
+    void 증상_연결은_AI_메시지도_근거로_쓰고_확인_연결은_처리_기록과_사용자_메시지를_근거로_보존한다() throws Exception {
         answerWith(() -> List.of(
-                link("ADDRESSES", symptom, message),
-                link("USES_CHECK", check, recordId(), aiMessage)));
+                link("ADDRESSES", symptom, message, aiMessage),
+                link("USES_CHECK", check, recordId(), message)));
 
         result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
 
@@ -132,7 +132,7 @@ class CurationLinkResultTest extends TicketCommandFixture {
     @ValueSource(strings = {
             "unknown-target", "not-offered", "withdrawn", "other-system", "kind-mismatch-address", "kind-mismatch-check",
             "unknown-relation", "cause-relation", "evidence-unknown", "evidence-empty", "evidence-other-problem",
-            "duplicate", "too-many-addresses"})
+            "duplicate", "too-many-addresses", "check-ai-evidence", "check-mixed-ai-evidence"})
     void 후보가_아니거나_근거가_없거나_관계_유형이_다른_연결은_초안만_거절한다(String invalid) throws Exception {
         var otherSystemNode = new ArrayList<UUID>();
         var moreSymptoms = new ArrayList<UUID>();
@@ -164,6 +164,9 @@ class CurationLinkResultTest extends TicketCommandFixture {
                 case "evidence-unknown" -> { return List.of(link("ADDRESSES", symptom, UUID.randomUUID())); }
                 case "evidence-empty" -> { return List.of(link("ADDRESSES", symptom)); }
                 case "evidence-other-problem" -> { return List.of(link("ADDRESSES", symptom, otherProblemMessage)); }
+                // 확인했다는 연결(USES_CHECK)은 AI가 물은 메시지를 근거로 인정하지 않는다
+                case "check-ai-evidence" -> { return List.of(link("USES_CHECK", check, aiMessage)); }
+                case "check-mixed-ai-evidence" -> { return List.of(link("USES_CHECK", check, recordId(), aiMessage)); }
                 case "duplicate" -> { return List.of(link("ADDRESSES", symptom, message), link("ADDRESSES", symptom, message)); }
                 case "too-many-addresses" -> {
                     var links = new ArrayList<ObjectNode>();

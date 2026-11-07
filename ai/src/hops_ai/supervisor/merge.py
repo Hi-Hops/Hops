@@ -452,6 +452,7 @@ def merge_curator_result(
             # 입력에는 과정을 이해하도록 AI 질문·답변도 담긴다.
             # 사례의 출처는 사용자 원문만 허용한다.
             raise OutputRejected("사례 원문 출처는 사용자 메시지여야 한다")
+        ai_message_ids = message_ids - user_message_ids
         # 관계 근거로 쓸 수 있는 처리 기록: 원 기록과 같은 티켓의 이전 기록
         record_ids = {record.id} | {item.id for item in record.relatedRecords}
         for link in proposal.entityLinks:
@@ -463,6 +464,10 @@ def merge_curator_result(
                 raise OutputRejected("사례 관계의 근거가 없거나 중복됐다")
             if not set(link.evidenceIds) <= (set(state["evidence"]) | message_ids | record_ids):
                 raise OutputRejected("사례 관계에 실제로 없는 근거를 사용했다")
+            if link.relation == "USES_CHECK" and set(link.evidenceIds) & ai_message_ids:
+                # 확인했다는 연결은 AI가 물은 구절로 인정하지 않는다. 처리 기록·사용자 메시지만
+                # 근거다.
+                raise OutputRejected("USES_CHECK의 근거는 AI 메시지가 될 수 없다")
         keys = [(link.relation, link.targetId) for link in proposal.entityLinks]
         if len(keys) != len(set(keys)):
             raise OutputRejected("같은 사례 관계가 중복됐다")

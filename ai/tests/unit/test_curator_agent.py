@@ -7,7 +7,13 @@ Fake는 모델이 낼 수 있는 나쁜 출력(없는 인용, AI 메시지 인�
 import pytest
 
 from hops_ai.agents.curator import ModelCuratorAgent
-from hops_ai.agents.curator.drafting import PROMPT_VERSION, CaseDraft, SourceQuote
+from hops_ai.agents.curator.drafting import (
+    PROMPT_VERSION,
+    UNCONFIRMED_CAUSE_LINE,
+    UNCONFIRMED_VERSION_LINE,
+    CaseDraft,
+    SourceQuote,
+)
 from hops_ai.agents.curator.link import PROMPT_VERSION as LINK_PROMPT_VERSION
 from hops_ai.agents.curator.link import LinkChoice, LinkQuote, LinkSelection
 from hops_ai.agents.registry import build_registry
@@ -188,7 +194,14 @@ async def test_limitations_are_trimmed_deduplicated_and_capped() -> None:
 
     response, _ = await run_agent(case_request(), draft(limitations=values))
 
-    assert response.result.proposal.limitations == ["원인은 확인되지 않음", "a", "b", "c", "d"]
+    # 원인 미확인 문장은 코드가 앞에 붙이고 모델의 한계는 남은 자리만큼 담는다
+    assert response.result.proposal.limitations == [
+        UNCONFIRMED_CAUSE_LINE,
+        "원인은 확인되지 않음",
+        "a",
+        "b",
+        "c",
+    ]
 
 
 async def test_long_title_is_cut_to_the_contract_limit() -> None:
@@ -362,7 +375,7 @@ def choice(relation: str, target: str, *quotes: tuple[str, str]) -> LinkChoice:
 
 GOOD_SELECTION = selection(
     choice("ADDRESSES", SYMPTOM, (MESSAGE, "첨부파일이 열리지 않아요")),
-    choice("USES_CHECK", CHECK, (RECORD, "권한을 수정함"), (AI_MESSAGE, "어떤 첨부파일")),
+    choice("USES_CHECK", CHECK, (RECORD, "첨부파일 권한을 수정함")),
 )
 
 
@@ -380,7 +393,7 @@ async def test_link_selects_only_from_candidates_and_keeps_grounded_quotes() -> 
     ]
     assert proposal.entityLinks[0].evidenceIds == [MESSAGE]
     assert proposal.entityLinks[1].evidenceIds == [MESSAGE]
-    assert proposal.entityLinks[2].evidenceIds == [RECORD, AI_MESSAGE]
+    assert proposal.entityLinks[2].evidenceIds == [RECORD]
     assert response.allowed_entity_ids == {
         "APPLIES_TO": {SYSTEM},
         "ADDRESSES": {SYMPTOM, SYMPTOM_2},
@@ -440,7 +453,7 @@ async def test_link_model_failure_is_not_turned_into_a_case_without_links() -> N
     [
         choice("ADDRESSES", uid(999), (MESSAGE, "첨부파일이 열리지 않아요")),  # 후보에 없는 노드
         choice("ADDRESSES", CHECK, (MESSAGE, "첨부파일이 열리지 않아요")),  # 종류 불일치
-        choice("USES_CHECK", SYMPTOM, (RECORD, "권한을 수정함")),  # 종류 불일치
+        choice("USES_CHECK", SYMPTOM, (RECORD, "첨부파일 권한을 수정함")),  # 종류 불일치
         choice("ADDRESSES", SYMPTOM, (MESSAGE, "첨부파일이 삭제된 것 같아요")),  # 인용 없음
         choice("ADDRESSES", SYMPTOM, (uid(999), "첨부파일이 열리지 않아요")),  # 없는 근거
         choice("ADDRESSES", SYMPTOM, (AI_MESSAGE, "첨부파일이 열리지 않아요")),  # 다른 근거의 인용
@@ -494,7 +507,7 @@ async def test_failed_attempts_become_code_built_limitations_and_keep_room_for_m
         "시도했지만 해결되지 않은 조치: 캐시를 지워 봄 1",
         "시도했지만 해결되지 않은 조치: 캐시를 지워 봄 0",
     ]
-    assert limitations[:3] == ["모델 한계 0", "모델 한계 1", "모델 한계 2"]
+    assert limitations[:3] == [UNCONFIRMED_CAUSE_LINE, "모델 한계 0", "모델 한계 1"]
 
 
 async def test_draft_receives_the_process_context_but_not_document_bodies() -> None:
@@ -503,7 +516,7 @@ async def test_draft_receives_the_process_context_but_not_document_bodies() -> N
     _, llm = await run_agent(request, draft(), selection())
 
     sent = llm.requests[0]
-    assert sent.prompt_version == PROMPT_VERSION == "curator-draft-v2"
+    assert sent.prompt_version == PROMPT_VERSION == "curator-draft-v3"
     payload = sent.messages[1].content
     assert '"relatedRecords"' in payload and "캐시를 지워 봄 0" in payload
     assert '"resolutionHistory"' in payload and "UNRESOLVED" in payload
@@ -548,6 +561,10 @@ def test_merge_rejects_links_outside_the_allowed_entities_and_unknown_evidence()
         [links[0], links[1].model_copy(update={"evidenceIds": []})],  # 근거 없음
         [links[0], links[1].model_copy(update={"evidenceIds": [RECORD, RECORD]})],  # 근거 중복
         [links[0], links[1], links[1]],  # 같은 관계 반복
+        [
+            links[0],
+            links[1].model_copy(update={"evidenceIds": [AI_MESSAGE]}),
+        ],  # 확인 근거가 AI 메시지
     ):
         with pytest.raises(OutputRejected):
             merge(proposal_ok.model_copy(update={"entityLinks": changed}))
@@ -621,3 +638,97 @@ def test_scope_validation_still_rejects_evidence_outside_the_declared_scopes_or_
         create_initial_state(
             request_with_consultation_evidence(scopes=["EMPLOYEE", "SYSTEM_STAFF"], systemId=uid(2))
         )
+
+
+async def test_short_quotes_do_not_ground_a_link() -> None:
+    """ "로그인"·"확인"처럼 어느 메시지에나 있는 짧은 구절은 근거가 아니다(공백 제외 8자 미만)."""
+    short = selection(
+        choice("ADDRESSES", SYMPTOM, (MESSAGE, "첨부파일이"), (RECORD, "권한을 수정함"))
+    )
+    response, _ = await run_agent(process_request(), draft(), short)
+    assert [item.relation for item in response.result.proposal.entityLinks] == ["APPLIES_TO"]
+
+    # 경계: 공백 제외 8자는 인정하고 7자는 버린다
+    eight = "첨부파일이 열리지 않"  # 공백 제외 10자 중 앞 8자: 첨부파일이열리지
+    assert len("첨부파일이열리지") == 8 and len("첨부파일이열리") == 7
+    request = process_request()
+    ok = selection(choice("ADDRESSES", SYMPTOM, (MESSAGE, "첨부파일이 열리지")))
+    bad = selection(choice("ADDRESSES", SYMPTOM, (MESSAGE, "첨부파일이 열리")))
+    kept, _ = await run_agent(request, draft(), ok)
+    dropped, _ = await run_agent(request, draft(), bad)
+    assert [item.relation for item in kept.result.proposal.entityLinks] == [
+        "APPLIES_TO",
+        "ADDRESSES",
+    ]
+    assert [item.relation for item in dropped.result.proposal.entityLinks] == ["APPLIES_TO"]
+    assert eight
+
+
+async def test_uses_check_is_not_grounded_by_a_question_the_ai_asked() -> None:
+    """AI가 물은 구절만으로는 그 확인을 했다고 볼 수 없다. 처리 기록·사용자 메시지만 근거다."""
+    ai_only = selection(choice("USES_CHECK", CHECK, (AI_MESSAGE, "어떤 첨부파일이 열리지 않나요")))
+    response, _ = await run_agent(process_request(), draft(), ai_only)
+    assert [item.relation for item in response.result.proposal.entityLinks] == ["APPLIES_TO"]
+
+    mixed = selection(
+        choice(
+            "USES_CHECK",
+            CHECK,
+            (AI_MESSAGE, "어떤 첨부파일이 열리지 않나요"),
+            (RECORD, "첨부파일 권한을 수정함"),
+            (MESSAGE, "첨부파일이 열리지 않아요"),
+        )
+    )
+    response, _ = await run_agent(process_request(), draft(), mixed)
+    link = response.result.proposal.entityLinks[1]
+    assert link.relation == "USES_CHECK" and link.evidenceIds == [RECORD, MESSAGE]
+
+
+async def test_addresses_may_still_rest_on_the_ai_restating_the_symptom() -> None:
+    """증상 연결은 확인 여부가 아니라 현상 설명이라 AI의 되묻기 문장의 인용도 근거가 될 수 있다."""
+    restated = selection(
+        choice("ADDRESSES", SYMPTOM, (AI_MESSAGE, "어떤 첨부파일이 열리지 않나요"))
+    )
+    response, _ = await run_agent(process_request(), draft(), restated)
+    link = response.result.proposal.entityLinks[1]
+    assert (link.relation, link.evidenceIds) == ("ADDRESSES", [AI_MESSAGE])
+
+
+async def test_unconfirmed_facts_are_always_kept_even_when_the_model_writes_many_limitations() -> (
+    None
+):
+    """원인·적용 버전 미확인 문장은 모델이 한계를 많이 써도 실패 시도가 있어도 잘리지 않는다."""
+    request = AiRunRequest.model_validate(
+        process_request(attempts=2).model_dump(mode="json")
+        | {
+            "workRecord": process_request(attempts=2).model_dump(mode="json")["workRecord"]
+            | {"appliesToSystemVersion": None}
+        }
+    )
+    many = draft(limitations=[f"모델 한계 {index}" for index in range(5)])
+
+    response, _ = await run_agent(request, many, selection())
+
+    limitations = response.result.proposal.limitations
+    assert len(limitations) == 5
+    assert limitations[:2] == [UNCONFIRMED_CAUSE_LINE, UNCONFIRMED_VERSION_LINE]
+    assert limitations[2] == "모델 한계 0"
+    assert all(item.startswith("시도했지만") for item in limitations[3:])
+
+
+async def test_known_cause_and_version_add_no_unconfirmed_line_and_duplicates_are_removed() -> None:
+    request = case_request(applies_to="1.0")
+    record = request.workRecord.model_copy(update={"confirmedCause": "권한 누락"})
+    request = request.model_copy(update={"workRecord": record})
+    values = [
+        UNCONFIRMED_CAUSE_LINE,
+        "이 사례는 파일 형식에 관계없다",
+        "이 사례는 파일 형식에 관계없다",
+    ]
+
+    response, _ = await run_agent(request, draft(limitations=values))
+
+    assert response.result.proposal.limitations == [
+        UNCONFIRMED_CAUSE_LINE,
+        "이 사례는 파일 형식에 관계없다",
+    ]

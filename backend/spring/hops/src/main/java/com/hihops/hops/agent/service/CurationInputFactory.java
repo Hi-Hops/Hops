@@ -31,12 +31,12 @@ import com.hihops.hops.itsystem.service.ItSystemService;
 import com.hihops.hops.relation.service.RelationLinkCandidateReader;
 import com.hihops.hops.ticket.domain.TicketWorkLog;
 import com.hihops.hops.ticket.domain.Ticket;
-import com.hihops.hops.ticket.domain.WorkLogType;
 import com.hihops.hops.ticket.repository.TicketEventRepository;
 import com.hihops.hops.ticket.repository.TicketWorkLogRepository;
 import com.hihops.hops.ticket.service.RelatedMessageProjector;
 import com.hihops.hops.ticket.dto.ResolutionRequestResponse;
 import com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse;
+import com.hihops.hops.ticket.dto.WorkRecordResponse;
 import com.hihops.hops.ticket.service.TicketKnowledgeReader;
 import com.hihops.hops.ticket.service.TicketStandardRequestReader;
 import com.hihops.hops.user.domain.Member;
@@ -115,7 +115,7 @@ public class CurationInputFactory {
                 "WAITING_CONFIRMATION", problem.getClarifyCount(), List.of(), body, null);
         var inquiryMessages = messages.findAllCompletedInOrder(ticket.getInquiry().getId());
         var work = new WorkRecord(record.getId(), ticket.getId(), problem.getId(), system.getId(),
-                kind(record.getLogType()), record.getActionDetail(), record.getVerificationResult(),
+                WorkRecordResponse.kind(record.getLogType()), record.getActionDetail(), record.getVerificationResult(),
                 record.getConfirmedCause(), record.getAppliedVersion(), AiRunRequest.time(record.getCreatedAt()),
                 confirmation.id(), confirmation.state(),
                 relatedRecords(ticket, record), resolutionHistory(ticket, inquiryMessages, confirmation.id()),
@@ -167,16 +167,6 @@ public class CurationInputFactory {
                 standard.responsibleSystemCandidateId(), responsibility, standard.details(), kept);
     }
 
-    /** 계약의 처리 기록 종류 이름. */
-    private static String kind(WorkLogType type) {
-        return switch (type) {
-            case PROGRESS -> "PROGRESS";
-            case FAILED_ATTEMPT -> "FAILED_ATTEMPT";
-            case RESOLVED -> "VERIFIED_RESOLUTION";
-            case IMPLEMENTED -> "IMPLEMENTED_VERIFIED";
-        };
-    }
-
     /** 같은 티켓에서 원 기록보다 먼저 남긴 처리 기록. 가장 최근 MAX_RELATED_RECORDS개를 오래된 순으로 담는다. */
     private List<RelatedRecord> relatedRecords(Ticket ticket, TicketWorkLog origin) {
         var earlier = workLogs.findByTicketIdOrderByCreatedAtAscIdAsc(ticket.getId()).stream()
@@ -185,7 +175,7 @@ public class CurationInputFactory {
         return earlier.subList(Math.max(0, earlier.size() - MAX_RELATED_RECORDS), earlier.size()).stream()
                 // 조치 내용은 명령 입력에서 비어 있을 수 없다. 그래도 비어 있으면 문구를 지어내지 않고 그 기록을 뺀다.
                 .filter(item -> clip(item.getActionDetail()) != null)
-                .map(item -> new RelatedRecord(item.getId(), kind(item.getLogType()), clip(item.getActionDetail()),
+                .map(item -> new RelatedRecord(item.getId(), WorkRecordResponse.kind(item.getLogType()), clip(item.getActionDetail()),
                         clip(item.getVerificationResult()), clip(item.getConfirmedCause()), item.getAppliedVersion(),
                         AiRunRequest.time(item.getCreatedAt())))
                 .toList();

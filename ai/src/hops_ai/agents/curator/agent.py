@@ -25,13 +25,12 @@ from pydantic import ValidationError
 
 from hops_ai.agents.curator import drafting, link
 from hops_ai.agents.curator.drafting import (
-    MAX_LIMITATIONS,
     MAX_TEXT_LENGTH,
     MAX_TITLE_LENGTH,
     CaseDraft,
     clean_limitations,
-    failed_attempt_limitations,
     ground_sources,
+    merge_limitations,
 )
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import CuratorResult
@@ -265,10 +264,9 @@ def _assemble(
         model_limitations = clean_limitations(draft.limitations)
     except ValueError:
         raise OutputRejected("사례 제한 조건이 허용 길이를 넘었다") from None
-    # 실패한 시도는 코드가 처리 기록 값으로 조립해 항상 남기고,
+    # 미확인 사실과 실패한 시도는 코드가 처리 기록 값으로 조립해 항상 남기고,
     # 모델이 쓴 한계는 남은 자리만큼만 담는다.
-    attempts = failed_attempt_limitations(record)
-    limitations = model_limitations[: max(0, MAX_LIMITATIONS - len(attempts))] + attempts
+    limitations = merge_limitations(record, model_limitations)
     source_ids = ground_sources(draft.sources, request.messages)
     if not source_ids:
         # 재사용 사례는 원문 출처를 담아야 한다. 확인되는 인용이 없으면 출력 오류다.

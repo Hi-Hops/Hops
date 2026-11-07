@@ -211,19 +211,19 @@ class Supervisor:
         state = _enter(runtime, data, "SUPERVISOR")
         choices = compute_choices(state, self._agents, restrict=self._restrict_roles)
         forced = self._forced_case_decision(state)
-        if forced is not None:
-            # 사례 실행은 선택지가 하나라 모델을 부르지 않는다. 같은 검증을 코드로 거친다.
-            validate_supervisor_decision(state, forced)
-            state = {
-                **runtime.sync_state(state),
-                "nextAction": forced.nextAction,
-                "replyKind": None,
-            }
-            return _GraphState(state=state, decision=forced, choices=choices)
         with runtime.services.tracing.observe(
-            "SUPERVISOR", {"registeredRoles": sorted(role.value for role in choices.registered)}
+            "SUPERVISOR",
+            {
+                "registeredRoles": sorted(role.value for role in choices.registered),
+                # 사례 실행은 선택지가 하나라 모델 없이 코드가 정한다(같은 검증을 거친다)
+                "forced": forced is not None,
+            },
         ) as span:
-            decision = await decide_next_action(state, runtime.services, choices)
+            if forced is not None:
+                validate_supervisor_decision(state, forced)
+                decision = forced
+            else:
+                decision = await decide_next_action(state, runtime.services, choices)
             if span is not None:
                 span.update(
                     output={

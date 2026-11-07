@@ -10,6 +10,7 @@
 """
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -17,12 +18,16 @@ from typing import Any, Literal
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import EntityLink, LinkCandidate, WorkRecordContext
 
+_COMPACT = re.compile(r"\s+")
 PROMPT_VERSION = "curator-link-v1"
 MAX_OUTPUT_TOKENS = 800
 # 한 사례가 연결할 수 있는 개수. 많이 연결하면 검색 이웃이 흐려진다.
 MAX_ADDRESSES = 3
 MAX_USES_CHECK = 5
 MAX_QUOTES_PER_LINK = 3
+# 인용의 최소 길이(공백 제외 글자 수). "로그인"·"확인"처럼 어느 메시지에나 있는 짧은 구절이
+# 근거가 되지 않게 한다.
+MIN_QUOTE_CHARS = 8
 
 SYSTEM_PROMPT = """\
 너는 사내 IT 담당자가 해결한 사례를, 이미 있는 증상과 확인 항목에 연결할 후보를 고르는 도구다.
@@ -173,10 +178,13 @@ def ground_links(
 
     후보에 없는 대상, 후보 종류와 맞지 않는 관계, 같은 연결의 반복, 근거에서 인용이 확인되지 않는
     연결은 버린다. 확인되는 인용이 없는 연결은 근거 없는 연결이므로 만들지 않는다.
-    종류별 최대 개수를 넘는 연결도 버린다.
+    종류별 최대 개수를 넘는 연결도 버린다. 인용은 공백 제외 `MIN_QUOTE_CHARS`자 이상이어야 한다.
+
+    `USES_CHECK`는 그 확인을 **실제로 했다**는 연결이라 AI가 물은 구절(AI 메시지)로는
+    인정하지 않는다. 처리 기록이나 사용자 메시지(AI 질문에 사용자가 답한 내용)의 인용만 근거가 된다.
     """
     kinds: Mapping[str, str] = {item.id: item.kind for item in candidates}
-    texts: Mapping[str, str] = {item.id: item.text for item in evidence}
+    items: Mapping[str, EvidenceText] = {item.id: item for item in evidence}
     wanted = {"ADDRESSES": "SYMPTOM", "USES_CHECK": "CHECK_ITEM"}
     limits = {"ADDRESSES": MAX_ADDRESSES, "USES_CHECK": MAX_USES_CHECK}
     taken: dict[str, int] = {"ADDRESSES": 0, "USES_CHECK": 0}
@@ -190,9 +198,13 @@ def ground_links(
             continue
         grounded: list[str] = []
         for quote in choice.evidence[:MAX_QUOTES_PER_LINK]:
-            text = texts.get(quote.evidenceId)
+            source = items.get(quote.evidenceId)
             phrase = quote.quote.strip()
-            if text is None or not phrase or phrase not in text or quote.evidenceId in grounded:
+            if source is None or quote.evidenceId in grounded:
+                continue
+            if len(_COMPACT.sub("", phrase)) < MIN_QUOTE_CHARS or phrase not in source.text:
+                continue
+            if choice.relation == "USES_CHECK" and source.source == "AI_MESSAGE":
                 continue
             grounded.append(quote.evidenceId)
         if not grounded:

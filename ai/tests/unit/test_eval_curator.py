@@ -261,7 +261,7 @@ def scripted_llm(scenario, gold, *, link_error: BaseException | None = None) -> 
                 LinkChoice(
                     relation=expected.relation,
                     targetId=KEYS[expected.target],
-                    evidence=[LinkQuote(evidenceId=source, quote=evidence[source][:6])],
+                    evidence=[LinkQuote(evidenceId=source, quote=evidence[source][:14])],
                 )
             )
         return LinkSelection(links=links)

@@ -444,14 +444,31 @@ runId=agent_run.id, 외부 CASE_DRAFT=DB task CURATION, 외부 role INQUIRY=DB a
 | consultedKnowledge | 상담에 쓰인 `KnowledgeEvidence`. 문제의 적용된 요청서에서 최신 순으로 모으고 실행 주체의 현재 권한·승인 상태로 다시 확인한 것만 | 10 |
 | linkCandidates | 사례를 연결할 수 있는 같은 시스템의 기존 노드(id·kind SYMPTOM/CHECK_ITEM·label·systemId). 승인된 것만, 실행 주체에게 보이는 것만. 원인(Cause)은 대상이 아니다 | 증상 30·확인 항목 40 |
 
-이 맥락은 초안의 한계·적용 조건을 이해하는 데만 쓴다. 사례의 조치·검증·확인된 원인·적용 버전은 계속 원 기록 값이고 실패 시도는 사례를 만들지 않는다. 사례의 `sourceMessageIds`는 **USER 메시지만** 허용하며 AI 메시지·처리 기록은 출처가 아니다(AI는 병합에서, Spring은 결과 적용에서 각각 거부한다). Curator는 이 맥락을 초안 프롬프트(`curator-draft-v2`)에 쓰고, 해결되지 않은 시도는 모델이 아니라 코드가 처리 기록 값 그대로 `limitations`에 덧붙인다.
+이 맥락은 초안의 한계·적용 조건을 이해하는 데만 쓴다. 사례의 조치·검증·확인된 원인·적용 버전은 계속 원 기록 값이고 실패 시도는 사례를 만들지 않는다. 사례의 `sourceMessageIds`는 **USER 메시지만** 허용하며 AI 메시지·처리 기록은 출처가 아니다(AI는 병합에서, Spring은 결과 적용에서 각각 거부한다). Curator는 이 맥락을 초안 프롬프트(`curator-draft-v3`)에 쓰고, 코드가 `limitations`에 처리 기록 값으로 조립해 항상 남기는 문장이 있다. 해결되지 않은 시도(최근 2건, "시도했지만 해결되지 않은 조치: …")와 기록에 원인·적용 버전이 없을 때의 "확인된 원인이 기록되지 않았다."·"적용 시스템 버전이 확인되지 않았다."다. 모델이 쓴 한계는 남은 자리(전체 최대 5개)만큼 담고 같은 문장은 한 번만 남긴다.
+
+**Curator 입력·결과의 상한 값(Spring과 AI가 같은 값을 쓴다).** 한쪽만 바꾸면 다른 쪽이 입력이나 결과 전체를 거부하므로(AI는 입력 검증에서, Spring은 결과 적용에서) 값을 여기에 두고 양쪽 테스트(`test_contract_limits.py`, `CurationLimitsContractTest`)가 코드의 상수와 이 블록을 대조한다. 값을 바꾸려면 이 블록과 양쪽 코드를 함께 고친다.
+
+```curator-limits
+aiMessages=30
+relatedRecords=20
+resolutionHistory=20
+consultedKnowledge=10
+symptomCandidates=30
+checkCandidates=40
+maxApplies=1
+maxAddresses=3
+maxUsesCheck=5
+recordText=4000
+```
+
+`aiMessages`는 Spring이 입력에 싣는 AI 질문·답변의 최대 개수이고 AI는 이 수를 검사하지 않는다. `recordText`는 처리 기록 문장의 길이 상한(코드 포인트)이다. `maxApplies`·`maxAddresses`·`maxUsesCheck`는 사례 하나의 관계별 연결 수이며 AI(`link`의 상한과 병합 검증)와 Spring(결과 적용)이 모두 확인한다. 인용의 최소 길이(공백 제외 8자)는 AI만 적용하는 값이라 이 블록에 없다.
 
 **CASE_DRAFT의 접근 범위(#198).** `accessContext.purpose=CASE_DRAFT`의 `allowedDocumentScopes`는 **실행 주체인 현재 주담당자가 볼 수 있는 범위**, 즉 `["EMPLOYEE", "SYSTEM_STAFF"]`다. 담당자는 해당 시스템의 직원 공개 가이드·정책과 담당자 전용 런북·사례를 모두 볼 수 있고, 사례 초안 자체의 공개 범위(`accessScope`)는 `SYSTEM_STAFF`로 고정이라 직원에게 닿는 경로는 늘지 않는다. 시스템 범위 `systemIds`는 책임 시스템 하나로 좁게 유지한다(담당자 전용 자료의 접근 경계이기도 하다). Spring은 입력에 싣는 상담 근거를 이 두 범위로 걸러 보낸다. 공개 범위가 허용 범위 안이고 시스템이 책임 시스템이거나 시스템 없는 공통 `POLICY`인 근거만 싣고, 빠진 근거를 인용한 확인 사실·책임 판단 근거도 함께 뺀다. AI는 입력의 근거를 같은 기준으로 검증하며(`validate_evidence_scope`) 어긋나면 실행을 거부하고, 결과의 `evidence`는 입력의 근거를 그대로 되돌려 Spring이 같은 범위로 다시 확인한다. 이전에는 범위가 `SYSTEM_STAFF`뿐이어서 직원 공개 가이드가 요청서에 있는 티켓의 사례 실행이 거부되었다. 사례 실행은 내부 검색·관계 API를 호출할 수 없고(작업·목적이 상담 실행이어야 한다) Knowledge 역할도 호출하지 않으므로 범위를 넓혀도 검색 범위는 늘지 않는다. SEC-09(현재 사용자·목적·시스템 범위의 자료만 모델 입력에 쓴다)는 담당자 본인이 이미 보는 자료와 책임 시스템으로 좁힌 근거에 대해 지켜진다.
 
 **관계 판단(`link`).** `linkCandidates`가 있으면 Curator가 후보 안에서만 `ADDRESSES`(증상)·`USES_CHECK`(확인 항목) 연결을 고르는 모델 호출을 한 번 더 한다(`curator-link-v1`, 후보가 없거나 사례 없음이면 호출하지 않는다). `APPLIES_TO`는 대상이 원 기록의 시스템 하나라 코드가 만든다. 규칙은 다음과 같다.
 - 대상은 후보 ID뿐이며 새 노드·새 관계 유형을 만들 수 없다. 관계 종류는 후보 종류와 맞아야 한다(`ADDRESSES`↔SYMPTOM, `USES_CHECK`↔CHECK_ITEM). 종류별 최대 개수는 `ADDRESSES` 3·`USES_CHECK` 5이고 같은 연결은 한 번만 낸다.
-- 연결마다 `evidenceIds`가 필수이며 모델은 근거마다 그 텍스트에 한 글자도 바꾸지 않은 인용을 내야 한다. 코드가 인용을 대조해 확인되지 않은 연결을 버린다(연결은 후보일 뿐 원인을 확정하지 않는다).
-- 관계 근거로 쓸 수 있는 ID는 입력 메시지 ID(AI 질문·답변 포함)와 이 티켓의 처리 기록 ID(원 기록·이전 기록)다. 사례의 `sourceMessageIds`는 계속 사용자 메시지만 허용한다. 상담 근거 문서 ID는 관계 근거로 쓰지 않는다(필요해지면 결과의 `evidence`로 되돌려 Spring이 검증하게 해야 한다).
+- 연결마다 `evidenceIds`가 필수이며 모델은 근거마다 그 텍스트에 한 글자도 바꾸지 않은 인용을 내야 한다. 인용은 공백 제외 8자 이상이어야 한다("로그인"·"확인" 같은 짧은 구절은 어느 메시지에나 있다). 코드가 인용을 대조해 확인되지 않은 연결을 버린다(연결은 후보일 뿐 원인을 확정하지 않는다).
+- 관계 근거로 쓸 수 있는 ID는 입력 메시지 ID(AI 질문·답변 포함)와 이 티켓의 처리 기록 ID(원 기록·이전 기록)다. 단 **`USES_CHECK`(그 확인을 했다는 연결)의 근거에는 AI 메시지를 쓸 수 없다.** AI가 "쿠키 설정을 확인해 보셨나요?"라고 물은 구절만으로는 확인했다는 증거가 아니므로 처리 기록과 사용자 메시지(질문에 답한 내용)의 인용만 근거가 된다. AI(`ground_links`·병합 검증)와 Spring(결과 적용)이 모두 확인한다. 사례의 `sourceMessageIds`는 계속 사용자 메시지만 허용한다. 상담 근거 문서 ID는 관계 근거로 쓰지 않는다(필요해지면 결과의 `evidence`로 되돌려 Spring이 검증하게 해야 한다).
 - `link` 모델 호출이 실패하면 연결 없는 사례로 바꾸지 않고 실행을 실패시킨다.
 - 연결은 담당자 승인 전에는 검색에 공개되지 않는다. Spring은 AI 출력을 신뢰하지 않고 결과 적용 때 다시 확인한다. 대상은 입력의 `linkCandidates`에 있으면서 지금도 승인되어 실행 주체에게 보이는 노드여야 하고, 근거는 입력에 고정한 이 문제의 메시지·이 티켓의 처리 기록·검증된 지식 근거 중 하나여야 한다. 어긋나면 사례 초안만 `INVALID_OUTPUT`으로 거절하고 처리 기록과 확인 요청은 보존한다.
 

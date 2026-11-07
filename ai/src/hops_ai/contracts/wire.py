@@ -339,6 +339,10 @@ class InputProblem(WireModel):
     resolutionContext: ResolutionContext | None
 
 
+# 처리 기록의 문장(조치·검증·확인된 원인) 길이 상한(코드 포인트). Spring이 같은 값으로 자른다.
+MAX_RECORD_TEXT = 4000
+
+
 class RelatedWorkRecord(WireModel):
     """같은 티켓의 다른 처리 기록. 사례의 원 기록이 아니라 과정을 이해하는 맥락이다.
 
@@ -348,9 +352,9 @@ class RelatedWorkRecord(WireModel):
 
     id: WireUuid
     kind: Literal["PROGRESS", "FAILED_ATTEMPT", "VERIFIED_RESOLUTION", "IMPLEMENTED_VERIFIED"]
-    action: Annotated[WireText, Field(max_length=4000)]
-    verification: Annotated[WireText, Field(max_length=4000)] | None
-    confirmedCause: Annotated[WireText, Field(max_length=4000)] | None
+    action: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)]
+    verification: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)] | None
+    confirmedCause: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)] | None
     appliesToSystemVersion: SystemVersion | None
     createdAt: WireTime
 
@@ -398,7 +402,7 @@ class WorkRecordContext(WireModel):
     createdAt: WireTime
     resolutionRequestId: WireUuid
     confirmationState: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
-    confirmedCause: Annotated[WireText, Field(max_length=4000)] | None
+    confirmedCause: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)] | None
     appliesToSystemVersion: SystemVersion | None
     # 문의 전체 과정(#198). 모두 가산 필드라 이전 생산자는 보내지 않으며 생략하면 빈 목록이다.
     # 같은 티켓의 다른 처리 기록(원 기록 제외, 오래된 순)

@@ -1,6 +1,7 @@
 """명시적인 모델·역할 대역으로 Supervisor 노드 연결과 실패 경계를 검사한다."""
 
 import asyncio
+from dataclasses import replace
 
 import pytest
 
@@ -396,3 +397,66 @@ async def test_case_draft_without_a_connected_curator_still_asks_the_model_and_f
     assert len(model.requests) == 1
     assert result.status == "FAILED"
     assert result.caseProposal is None
+
+
+class _Span:
+    def __init__(self, name: str, attributes: dict) -> None:
+        self.name, self.attributes, self.output = name, attributes, None
+
+    def update(self, **fields) -> None:
+        self.output = fields.get("output", self.output)
+
+    def __enter__(self) -> "_Span":
+        return self
+
+    def __exit__(self, *args) -> None:
+        return None
+
+
+class _SpanRecorder:
+    """Langfuse 클라이언트 대역: 시작된 span의 이름·입력·출력을 모은다."""
+
+    def __init__(self) -> None:
+        self.spans: list[_Span] = []
+
+    def start_as_current_observation(self, *, name: str, input: dict, as_type: str) -> _Span:
+        span = _Span(name, input)
+        self.spans.append(span)
+        return span
+
+
+async def test_forced_case_decisions_are_traced_like_model_decisions() -> None:
+    """사례 실행은 Supervisor 모델을 부르지 않아도 SUPERVISOR 단계가 trace에 남는다."""
+    from hops_ai.services.tracing import RunTracing
+
+    request = make_request(kind=RunKind.CASE_DRAFT)
+    recorder = _SpanRecorder()
+    services = replace(services_for(request, ScriptedLLM()), tracing=RunTracing(client=recorder))
+
+    result = await Supervisor({AgentRole.CURATOR: CuratorStub(reusable=True)}).analyze(
+        request, services
+    )
+
+    assert result.status == "SUCCEEDED"
+    decisions = [span for span in recorder.spans if span.name == "SUPERVISOR"]
+    assert [(span.attributes["forced"], span.output["nextAction"]) for span in decisions] == [
+        (True, "CALL_ROLE"),
+        (True, "FINISH"),
+    ]
+    assert decisions[0].output["role"] == "CURATOR"
+    assert not [span for span in recorder.spans if span.name == "model.generate"]
+
+
+async def test_model_decisions_are_traced_as_not_forced() -> None:
+    from hops_ai.services.tracing import RunTracing
+
+    request = make_request()
+    recorder = _SpanRecorder()
+    services = replace(
+        services_for(request, ScriptedLLM(decision("FINISH"))), tracing=RunTracing(client=recorder)
+    )
+
+    await Supervisor({AgentRole.INQUIRY: InquiryStub()}).analyze(request, services)
+
+    spans = [span for span in recorder.spans if span.name == "SUPERVISOR"]
+    assert spans and spans[0].attributes["forced"] is False

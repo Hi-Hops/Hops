@@ -20,8 +20,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RelationLinkCandidateReader {
     /** AI wire(LinkCandidate)의 종류별 상한과 같다. 입력에 담는 후보에만 적용하고 결과 확인에는 적용하지 않는다. */
-    static final int MAX_SYMPTOMS = 30;
-    static final int MAX_CHECK_ITEMS = 40;
+    public static final int MAX_SYMPTOMS = 30;
+    public static final int MAX_CHECK_ITEMS = 40;
     private static final List<String> LEVELS = List.of("EMPLOYEE", "STAFF");
 
     private final RelationSearchRepository repository;

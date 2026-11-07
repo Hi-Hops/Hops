@@ -1,11 +1,13 @@
 package com.hihops.hops.agent.service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -51,7 +53,7 @@ public class CurationResultHandler implements AgentRunResultHandler {
     private final RelationLinkCandidateReader relationLinks;
 
     /** 관계별 최대 연결 수. AI(curator-link)의 상한과 같고 APPLIES_TO는 시스템 하나다. */
-    private static final Map<String, Integer> MAX_LINKS = Map.of("APPLIES_TO", 1, "ADDRESSES", 3, "USES_CHECK", 5);
+    static final Map<String, Integer> MAX_LINKS = Map.of("APPLIES_TO", 1, "ADDRESSES", 3, "USES_CHECK", 5);
 
     @Override
     public AgentTask task() { return AgentTask.CURATION; }
@@ -152,7 +154,9 @@ public class CurationResultHandler implements AgentRunResultHandler {
     private void verifyLinks(JsonNode input, com.hihops.hops.ticket.domain.Ticket ticket, JsonNode links, Set<String> relationEvidence) {
         UUID systemId = ticket.getResponsibleSystem().getId();
         Set<String> evidenceSpace = new LinkedHashSet<>(relationEvidence);
-        evidenceSpace.addAll(inputMessageIds(input, ticket.getInquiryProblem().getId()));
+        UUID problemId = ticket.getInquiryProblem().getId();
+        evidenceSpace.addAll(inputMessageIds(input, problemId, null));
+        Set<String> aiMessageIds = inputMessageIds(input, problemId, "AI");
         var record = input.path("workRecord");
         if (record.path("id").isString()) evidenceSpace.add(record.path("id").asString());
         for (var related : record.path("relatedRecords")) {
@@ -185,16 +189,19 @@ public class CurationResultHandler implements AgentRunResultHandler {
             require(counts.merge(relation, 1, Integer::sum) <= MAX_LINKS.get(relation));
             var evidence = sourceIds(link.path("evidenceIds"));
             require(!evidence.isEmpty() && evidenceSpace.containsAll(evidence));
+            // 확인했다는 연결(USES_CHECK)은 AI가 물은 메시지로 인정하지 않는다. 처리 기록·사용자 메시지만 근거다.
+            if ("USES_CHECK".equals(relation)) require(Collections.disjoint(evidence, aiMessageIds));
         }
     }
 
-    /** 입력에 고정한 이 문제의 메시지 ID. 관계 근거로만 쓰며 사례 출처(allowedSourceIds)와 다르다. */
-    private static Set<String> inputMessageIds(JsonNode input, UUID problemId) {
+    /** 입력에 고정한 이 문제의 메시지 ID(sender가 null이면 모두). 관계 근거로만 쓰며 사례 출처(allowedSourceIds)와 다르다. */
+    private static Set<String> inputMessageIds(JsonNode input, UUID problemId, @Nullable String sender) {
         Set<String> ids = new LinkedHashSet<>();
         for (var message : input.path("messages")) {
             var problems = message.path("problemIds");
             if (problems.isArray() && problems.size() == 1 && problemId.toString().equals(problems.get(0).asString())
-                    && message.path("id").isString()) {
+                    && message.path("id").isString()
+                    && (sender == null || sender.equals(message.path("sender").asString()))) {
                 ids.add(message.path("id").asString());
             }
         }

@@ -9,6 +9,8 @@ import pytest
 
 from evaluation.curator.candidates import load_catalog
 from evaluation.curator.checks import (
+    UNCONFIRMED_CAUSE_LINE,
+    UNCONFIRMED_VERSION_LINE,
     check_behavior,
     check_c1,
     check_c2,
@@ -74,7 +76,8 @@ def make_trace(*, state: str = "PENDING", attempts: int = 1, **proposal_changes)
     request = build_request(sc, CATALOG, now=datetime(2026, 11, 7, tzinfo=UTC))
     record = request.workRecord
     user = message_id(sc, 1)
-    limitations = [
+    # 기록의 원인은 있고 적용 버전은 없으므로 코드가 적용 버전 미확인 문장을 붙인다
+    limitations = [UNCONFIRMED_VERSION_LINE] + [
         f"시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 {index}"
         for index in reversed(range(attempts))
     ][:2]
@@ -187,7 +190,8 @@ def test_c1_detects_values_that_differ_from_the_work_record(changes: dict) -> No
 def test_c1_accepts_model_limitations_that_are_not_attempt_lines() -> None:
     trace = make_trace(
         limitations=[
-            "원인은 확인되지 않음",
+            UNCONFIRMED_VERSION_LINE,
+            "이 사례는 파일 형식과 관계없다",
             "시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 0",
         ]
     )
@@ -198,6 +202,7 @@ def test_c1_expects_only_the_two_newest_failed_attempts_and_clips_long_text() ->
     trace = make_trace(
         attempts=3,
         limitations=[
+            UNCONFIRMED_VERSION_LINE,
             "시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 2",
             "시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 1",
         ],
@@ -206,6 +211,7 @@ def test_c1_expects_only_the_two_newest_failed_attempts_and_clips_long_text() ->
     old_first = make_trace(
         attempts=3,
         limitations=[
+            UNCONFIRMED_VERSION_LINE,
             "시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 0",
             "시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 1",
         ],
@@ -232,9 +238,15 @@ def test_c2_detects_invalid_evidence() -> None:
     ]
     for changes in cases:
         assert check_c2(make_trace(**changes)), changes
-    # AI 메시지와 처리 기록은 연결의 근거로 쓸 수 있다
+    # AI 메시지와 처리 기록은 증상 연결의 근거로 쓸 수 있다
     good = make_trace(entityLinks=[head, link("ADDRESSES", SYMPTOM.id, ai, record)])
     assert check_c2(good) == []
+    # 확인했다는 연결(USES_CHECK)은 AI가 물은 메시지를 근거로 할 수 없다
+    asked = make_trace(entityLinks=[head, link("USES_CHECK", CHECK.id, ai, record)])
+    assert any("AI 메시지" in v.message for v in check_c2(asked))
+    assert (
+        check_c2(make_trace(entityLinks=[head, link("USES_CHECK", CHECK.id, record, user)])) == []
+    )
 
 
 @pytest.mark.parametrize(
@@ -371,3 +383,28 @@ def test_behavior_is_skipped_for_runs_without_a_result() -> None:
         {},
     )
     assert record_id(scenario(), 0) != record_id(scenario(), 1)
+
+
+def test_c1_requires_the_unconfirmed_fact_lines_the_record_implies() -> None:
+    # 기록에 적용 버전이 없는데 미확인 문장이 빠졌다
+    assert check_c1(make_trace(limitations=[])) != []
+    missing = make_trace(limitations=["시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 0"])
+    assert any("미확인" in v.message for v in check_c1(missing))
+    # 기록에 없는 원인 미확인 문장은 지어낸 것이다(이 기록은 원인이 있다)
+    invented = make_trace(
+        limitations=[
+            UNCONFIRMED_CAUSE_LINE,
+            UNCONFIRMED_VERSION_LINE,
+            "시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 0",
+        ]
+    )
+    assert any("미확인" in v.message for v in check_c1(invented))
+    # 중복도 어긋남이다
+    twice = make_trace(
+        limitations=[
+            UNCONFIRMED_VERSION_LINE,
+            UNCONFIRMED_VERSION_LINE,
+            "시도했지만 해결되지 않은 조치: 브라우저 캐시를 지워 봄 0",
+        ]
+    )
+    assert any("미확인" in v.message for v in check_c1(twice))

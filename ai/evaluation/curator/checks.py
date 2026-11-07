@@ -20,6 +20,9 @@ MAX_LINKS = {"APPLIES_TO": 1, "ADDRESSES": 3, "USES_CHECK": 5}
 CASE_ACCESS_SCOPE = "SYSTEM_STAFF"
 # 해결되지 않은 시도를 코드가 한계 문장으로 옮길 때의 규칙(Curator 초안 프롬프트 v2 설명).
 FAILED_ATTEMPT_PREFIX = "시도했지만 해결되지 않은 조치: "
+# 처리 기록에 원인·적용 버전이 없으면 코드가 한계에 덧붙이는 고정 문장
+UNCONFIRMED_CAUSE_LINE = "확인된 원인이 기록되지 않았다."
+UNCONFIRMED_VERSION_LINE = "적용 시스템 버전이 확인되지 않았다."
 MAX_FAILED_ATTEMPT_LINES = 2
 MAX_FAILED_ATTEMPT_ACTION = 300
 
@@ -88,6 +91,23 @@ def check_c1(trace: CaseTrace) -> list[Violation]:
     actual = [item for item in proposal.limitations if item.startswith(FAILED_ATTEMPT_PREFIX)]
     if actual != expected:
         found.append(Violation("C1", "해결되지 않은 시도 문장이 처리 기록의 실패 시도와 다르다"))
+    unconfirmed = [
+        line
+        for line, missing in (
+            (UNCONFIRMED_CAUSE_LINE, record.confirmedCause is None),
+            (UNCONFIRMED_VERSION_LINE, record.appliesToSystemVersion is None),
+        )
+        if missing
+    ]
+    present = [
+        item
+        for item in proposal.limitations
+        if item in (UNCONFIRMED_CAUSE_LINE, UNCONFIRMED_VERSION_LINE)
+    ]
+    if present != unconfirmed:
+        found.append(
+            Violation("C1", "원인·적용 버전 미확인 문장이 처리 기록의 미확인 사실과 다르다")
+        )
     return found
 
 
@@ -99,8 +119,8 @@ def check_c2(trace: CaseTrace) -> list[Violation]:
     """C2. 근거 ID가 유효하다.
 
     사례 출처는 입력의 사용자 메시지뿐이고 중복이 없다. 연결의 근거는 비어 있지 않고 중복이
-    없으며 입력 메시지
-    또는 이 티켓의 처리 기록(원 기록 포함)의 ID뿐이다.
+    없으며 입력 메시지 또는 이 티켓의 처리 기록(원 기록 포함)의 ID뿐이다.
+    `USES_CHECK`(확인했다는 연결)의 근거에는 AI 메시지가 없어야 한다.
     """
     proposal = _reusable(trace)
     if proposal is None:
@@ -109,6 +129,7 @@ def check_c2(trace: CaseTrace) -> list[Violation]:
     record = request.workRecord
     users = {item.id for item in request.messages if item.sender == "USER"}
     messages = {item.id for item in request.messages}
+    ai_messages = messages - users
     records = {record.id} | {item.id for item in record.relatedRecords}
     found: list[Violation] = []
     sources = proposal.sourceMessageIds
@@ -127,6 +148,8 @@ def check_c2(trace: CaseTrace) -> list[Violation]:
             found.append(Violation("C2", f"{label}: 연결 근거가 중복됐다"))
         if not set(evidence) <= (messages | records):
             found.append(Violation("C2", f"{label}: 입력에 없는 근거 ID를 썼다"))
+        if link.relation == "USES_CHECK" and set(evidence) & ai_messages:
+            found.append(Violation("C2", f"{label}: 확인 연결의 근거가 AI 메시지다"))
     return found
 
 
