@@ -124,10 +124,13 @@ def test_partial_and_insufficient_may_cite_staff_only_evidence_but_not_sufficien
     check(assessment(verdict="INSUFFICIENT", supportingEvidenceIds=[]))
 
 
-def test_empty_search_allows_only_a_bare_no_match() -> None:
+def test_empty_search_allows_no_match_with_only_approved_check_items() -> None:
     check(no_match_assessment(PROBLEM), state="EMPTY", evidence=())
+    with_check = no_match_assessment(PROBLEM, ["check-1"])
+    check(with_check, state="EMPTY", evidence=(), allowed_check_items=frozenset({"check-1"}))
 
     for bad in (
+        with_check,
         assessment(verdict="SUFFICIENT", supportingEvidenceIds=[]),
         assessment(
             verdict="NO_MATCH",
