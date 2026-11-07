@@ -45,10 +45,27 @@ describe('F003 AI 답변 서식', () => {
       parseBlocks('문제 1\n처리에 필요한 내용을 알려 주시겠어요?\n1. 기대 동작\n2. 발생 시점'),
     ).toEqual([
       { kind: 'paragraph', lines: ['문제 1', '처리에 필요한 내용을 알려 주시겠어요?'] },
-      { kind: 'list', ordered: true, items: ['기대 동작', '발생 시점'] },
+      { kind: 'list', ordered: true, start: 1, items: ['기대 동작', '발생 시점'] },
     ]);
     expect(parseBlocks('#제목 아님\n- \n')).toEqual([
       { kind: 'paragraph', lines: ['#제목 아님', '- '] },
+    ]);
+  });
+
+  it('F003-CONTRACT-12 순서 목록은 원문 번호에서 시작한다', () => {
+    render(
+      <MarkdownText
+        text={'## 절차\n3. 저장을 누른다.\n4. 결과를 확인한다.\n\n주의 문단\n\n7. 닫는다.'}
+      />,
+    );
+
+    const [first, second] = screen.getAllByRole('list');
+    expect(first).toHaveAttribute('start', '3');
+    expect(second).toHaveAttribute('start', '7');
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '저장을 누른다.',
+      '결과를 확인한다.',
+      '닫는다.',
     ]);
   });
 });

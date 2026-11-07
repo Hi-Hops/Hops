@@ -4,12 +4,13 @@
  */
 export type Block =
   | { kind: 'heading'; level: number; text: string }
-  | { kind: 'list'; ordered: boolean; items: string[] }
+  // start: 순서 목록 첫 항목의 원문 번호. 발췌가 절차 중간부터 시작해도 원문 번호를 지킨다
+  | { kind: 'list'; ordered: boolean; start: number; items: string[] }
   | { kind: 'paragraph'; lines: string[] };
 
 const HEADING = /^(#{1,6})\s+(.+)$/;
 const BULLET = /^\s*[-*]\s+(.+)$/;
-const NUMBERED = /^\s*\d+[.)]\s+(.+)$/;
+const NUMBERED = /^\s*(\d+)[.)]\s+(.+)$/;
 
 export function parseBlocks(text: string): Block[] {
   const blocks: Block[] = [];
@@ -31,10 +32,10 @@ export function parseBlocks(text: string): Block[] {
     } else if (bullet || numbered) {
       flush();
       const ordered = numbered !== null;
-      const item = ((bullet ?? numbered)?.[1] ?? '').trim();
+      const item = ((numbered ? numbered[2] : bullet?.[1]) ?? '').trim();
       const last = blocks.at(-1);
       if (last?.kind === 'list' && last.ordered === ordered) last.items.push(item);
-      else blocks.push({ kind: 'list', ordered, items: [item] });
+      else blocks.push({ kind: 'list', ordered, start: Number(numbered?.[1] ?? 1), items: [item] });
     } else {
       paragraph.push(line);
     }

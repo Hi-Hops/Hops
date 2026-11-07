@@ -33,7 +33,13 @@ export function MarkdownText({ text, className }: { text: string; className?: st
         }
         if (block.kind === 'list') {
           const items = block.items.map((item, i) => <li key={i}>{inline(item)}</li>);
-          return block.ordered ? <ol key={index}>{items}</ol> : <ul key={index}>{items}</ul>;
+          return block.ordered ? (
+            <ol key={index} start={block.start === 1 ? undefined : block.start}>
+              {items}
+            </ol>
+          ) : (
+            <ul key={index}>{items}</ul>
+          );
         }
         return (
           <p key={index}>
