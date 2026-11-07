@@ -20,6 +20,8 @@ import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.StandardRequestRepository;
 import com.hihops.hops.itsystem.repository.ItSystemRepository;
+import com.hihops.hops.knowledge.domain.KnowledgeDocumentVersion;
+import com.hihops.hops.knowledge.repository.KnowledgeDocumentVersionRepository;
 import com.hihops.hops.ticket.dto.ResolutionRequestResponse;
 import com.hihops.hops.ticket.dto.StandardRequestResponse.RequestDetailsResponse;
 import com.hihops.hops.ticket.repository.TicketRepository;
@@ -29,7 +31,11 @@ import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-/** 문의 잠금·결과 반영 거래 안에서 안내 대상과 현재 공개 근거를 검증하고 확인 요청까지 함께 저장한다. */
+/**
+ * 문의 잠금·결과 반영 거래 안에서 안내 대상과 현재 공개 근거를 검증하고 확인 요청까지 함께 저장한다.
+ *
+ * <p>안내문은 인용한 공개 근거의 승인 본문에서 나온 문단이어야 한다({@link GuideText}). 모델이 쓴 문장이나 다른 문서 내용은 저장하지 않는다.
+ */
 @Component
 @RequiredArgsConstructor
 public class GuideResultWriter {
@@ -42,6 +48,7 @@ public class GuideResultWriter {
     private final JsonMapper mapper;
     private final Clock clock;
     private final MessageProblemLinker linker;
+    private final KnowledgeDocumentVersionRepository versions;
 
     public record Applied(String problemRef, UUID problemId, int evidenceCount) { }
 
@@ -90,6 +97,11 @@ public class GuideResultWriter {
         var visible = knowledge.visible(selected.toString(), inquiry.getRequester());
         require(visible.size() == cited.size() && visible.stream().allMatch(item ->
                 "EMPLOYEE".equals(item.accessScope()) && (item.systemId() == null || systemId.equals(item.systemId()))));
+        // 안내문의 문단이 모두 인용한 공개 근거의 승인 본문에 있어야 한다
+        List<String> approved = visible.stream().map(item -> versions
+                .findByKnowledgeDocumentIdAndVersionNo(item.documentId(), item.documentVersion())
+                .map(KnowledgeDocumentVersion::getContent).orElseThrow(GuideResultWriter::invalid)).toList();
+        require(GuideText.fromApproved(body, visible.stream().map(item -> item.title()).toList(), approved));
 
         Set<UUID> sourceIds = new HashSet<>();
         for (var message : input.path("messages")) {

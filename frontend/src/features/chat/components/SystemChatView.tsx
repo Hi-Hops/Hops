@@ -13,6 +13,7 @@ import { ApiError } from '@/shared/api/client';
 import { displayChatTime, isToday } from '@/shared/lib/date';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
+import { MarkdownText } from '@/shared/ui/MarkdownText';
 import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { useSystemChat } from '../hooks/useSystemChat';
@@ -147,7 +148,11 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                   </div>
                   {trail && <ProgressSteps steps={trail} done />}
                   <div className={message.sender === 'USER' ? styles.userBubble : styles.aiBubble}>
-                    <p>{message.content}</p>
+                    {message.sender === 'AI' ? (
+                      <MarkdownText text={message.content} />
+                    ) : (
+                      <p>{message.content}</p>
+                    )}
                   </div>
                   {message.sender === 'USER' && !closed && (
                     <SystemMessageRevision

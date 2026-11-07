@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.RunStatus;
-import com.hihops.hops.agent.repository.AgentRunRepository;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.global.exception.ErrorResponse;
@@ -36,17 +35,14 @@ import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 import com.hihops.hops.itsystem.service.ItSystemService;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.dto.ResolutionRequestResponse;
-import com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse;
 import com.hihops.hops.ticket.dto.TicketSummaryResponse;
 import com.hihops.hops.ticket.repository.TicketRepository;
 import com.hihops.hops.ticket.repository.TicketWorkLogRepository;
-import com.hihops.hops.ticket.service.TicketKnowledgeReader;
 import com.hihops.hops.ticket.service.TicketProgressReader;
 
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
-import tools.jackson.databind.node.ArrayNode;
 
 /**
  * 문의의 문제를 문의자 화면용 Problem으로 모은다 (DATA_TYPES 신규 절 Problem, InquiryResult.problems).
@@ -55,7 +51,7 @@ import tools.jackson.databind.node.ArrayNode;
  * 문제별 최신 적용(SUCCEEDED) 실행의 standard_request다(docs/ERD.md). 그 밖의 필드는 저장된 업무 기록에서만 읽고 짐작하지 않는다.
  * <ul>
  *   <li>guide: 이 문제의 안내를 담은 최신 AI 메시지(payload.guide)와, 그 답변 실행 결과의 근거 중 guide.evidenceIds에 있고
- *       지금 문의자에게 공개 가능한 직원용(EMPLOYEE) 근거만 (docs/DATA.md 11.3)</li>
+ *       지금 문의자에게 공개 가능한 직원용(EMPLOYEE) 근거만 (docs/DATA.md 11.3, {@link GuideVisibility})</li>
  *   <li>creationResult: inquiry_problem.creation_outcome·creation_input_version·ticket_error_code (workItemId = problemId)</li>
  *   <li>ticket: 티켓 화면과 같은 {@link TicketSummaryResponse}</li>
  *   <li>activeResolutionRequest: 티켓이 있으면 티켓 화면과 같은 {@link TicketProgressReader}(ticket_event), 없으면 그 문제의 최신 안내
@@ -73,11 +69,10 @@ public class ProblemProjector {
     private final InquiryProblemRepository inquiryProblemRepository;
     private final StandardRequestRepository standardRequestRepository;
     private final MessageRepository messageRepository;
-    private final AgentRunRepository agentRunRepository;
+    private final GuideVisibility guideVisibility;
     private final TicketRepository ticketRepository;
     private final TicketWorkLogRepository workLogRepository;
     private final TicketProgressReader progressReader;
-    private final TicketKnowledgeReader knowledgeReader;
     private final ItSystemService itSystemService;
     private final JsonMapper jsonMapper;
 
@@ -117,35 +112,17 @@ public class ProblemProjector {
         boolean answered = analyzing.contains(problem.getId().toString());
         String state = ProblemStateView.of(problem, ticket, problem.getClarifyCount() > 0 && !answered);
         Optional<Message> guideMessage = messageRepository.findLatestGuide(inquiry.getId(), problem.getId());
+        // 안내 근거는 한 번만 확인해 근거 목록과 확인 요약에 같이 쓴다
+        Optional<GuideVisibility.GuideView> guideView = guideMessage.map(message -> guideVisibility.viewOf(inquiry, message));
         boolean systemUnknown = "WAITING_SYSTEM".equals(state);
         return new ProblemResponse(problem.getId(), inquiry.getId(), request.getSummary(), request.getIntent().name(),
                 request.getWorkType().name(),
                 systemUnknown || request.getReportedSystem() == null ? null : request.getReportedSystem().getId(),
                 systemUnknown || request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
-                state, problem.getClarifyCount(), guideMessage.map(message -> guideOf(inquiry, message)).orElse(null),
+                state, problem.getClarifyCount(), guideMessage.map(message -> new GuideAnswerResponse(message.getId(), guideView.orElseThrow().evidence())).orElse(null),
                 creationOf(problem, ticket), ticket.map(this::summaryOf).orElse(null),
                 ticket.isPresent() ? resolutionOf(ticket.get())
-                        : guideMessage.map(message -> guideResolutionOf(inquiry, problem, message)).orElse(null));
-    }
-
-    private GuideAnswerResponse guideOf(Inquiry inquiry, Message message) {
-        JsonNode payload = jsonMapper.readTree(message.getPayload());
-        Set<String> cited = new HashSet<>();
-        payload.path("guide").path("evidenceIds").forEach(id -> cited.add(id.asString("")));
-        // 근거 원본은 그 답변을 만든 실행의 결과(AiResult.evidence)에 있다
-        ArrayNode evidence = jsonMapper.createArrayNode();
-        String runId = payload.path("answerRunId").asString("");
-        Optional<AgentRun> run = runId.isEmpty() ? Optional.empty() : agentRunRepository.findById(UUID.fromString(runId));
-        if (run.isPresent() && run.get().getResult() != null) {
-            for (JsonNode item : jsonMapper.readTree(run.get().getResult()).path("evidence")) {
-                if (cited.contains(item.path("id").asString(""))) {
-                    evidence.add(item);
-                }
-            }
-        }
-        List<KnowledgeEvidenceResponse> visible = knowledgeReader.visible(evidence.toString(), inquiry.getRequester())
-                .stream().filter(item -> "EMPLOYEE".equals(item.accessScope())).toList();
-        return new GuideAnswerResponse(message.getId(), visible);
+                        : guideMessage.map(message -> guideResolutionOf(inquiry, problem, message, guideView.orElseThrow())).orElse(null));
     }
 
     private @Nullable CreationResultResponse creationOf(InquiryProblem problem, Optional<Ticket> ticket) {
@@ -191,7 +168,8 @@ public class ProblemProjector {
      *
      * @throws IllegalStateException 저장된 요청이 이 문의·문제·안내 메시지와 맞지 않을 때
      */
-    private @Nullable ResolutionRequestResponse guideResolutionOf(Inquiry inquiry, InquiryProblem problem, Message message) {
+    private @Nullable ResolutionRequestResponse guideResolutionOf(Inquiry inquiry, InquiryProblem problem, Message message,
+            GuideVisibility.GuideView view) {
         JsonNode stored = jsonMapper.readTree(message.getPayload()).path("resolutionRequest");
         if (stored.isMissingNode() || stored.isNull()) {
             return null;
@@ -202,6 +180,6 @@ public class ProblemProjector {
                 || request.ticketId() != null) {
             throw new IllegalStateException("안내 확인 요청이 안내 메시지와 맞지 않는다: " + message.getId());
         }
-        return request;
+        return view.resolutionOf(request);
     }
 }

@@ -167,7 +167,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 | Ticket | TicketProposal(problemRef,title,processingType,responsibleSystemCandidateId,evidenceIds,standardRequestSnapshot) | 담당자·티켓 번호·저장 성공 필드 없음. Spring이 PRIMARY와 유일 작업 검증 |
 | Curator | 원 WorkRecord·확인 요청·허용 기존 엔티티 → CaseProposal(reusable,title,action,verification,applicability,limitations,appliesToSystemVersion,accessScope,sourceMessageIds,entityLinks) | reusable=false는 사례 생성 없음. 신규 관계 유형·새 인물/시스템 생성 제안 거부 |
 
-GuideProposal은 messageText,evidenceIds,problemRef를 가지며 승인된 EMPLOYEE 근거가 실제 존재해야 한다. 저장된 AI 안내 메시지를 만든 뒤 Spring이 GUIDE 확인 요청을 생성한다. AI의 '해결됐습니다' 문구를 문의자 확인으로 저장하지 않는다.
+GuideProposal은 messageText,evidenceIds,problemRef를 가지며 승인된 EMPLOYEE 근거가 실제 존재해야 한다. messageText는 인용한 근거의 승인 본문을 빈 줄 기준 문단으로 나눈 것 중 일부(또는 전부)를 원래 순서로 이은 것이고, 끝에 선택적으로 `참고 자료: {근거 제목}` 줄을 둔다. 모델은 문단 번호만 고르고 문장을 쓰지 않는다. Spring은 저장할 때 출처 줄을 뗀 각 문단이 인용한 공개 근거 승인 본문을 같은 규칙으로 나눈 문단과 글자 그대로 같은지 확인하고(문단 일부만 떼어 낸 문장은 거부), 아니면 INVALID_OUTPUT이다. 문의자 조회(대화·문의 상세·확인 요청 조회) 때 인용 근거 중 하나라도 지금 볼 수 없으면 안내 부분과 GUIDE 확인 요약을 숨김 문구로 바꿔 보여 주며(안내 부분을 찾지 못하면 본문 전체) 저장값은 바꾸지 않는다. 저장된 AI 안내 메시지를 만든 뒤 Spring이 GUIDE 확인 요청을 생성한다. AI의 '해결됐습니다' 문구를 문의자 확인으로 저장하지 않는다.
 
 Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검색에서 반환된 참조만 가능하다. 담당자 보완 대화의 대상이 불명확하면 확인 필요를 제안하고 임의의 티켓에 복사하지 않는다. Curator는 INQUIRY_ANALYSIS의 매 메시지 경로에 넣지 않고 검증 완료 WorkRecord commit 뒤 Spring이 CASE_DRAFT를 호출한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다.
 

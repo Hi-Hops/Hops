@@ -20,9 +20,11 @@ public record ChatMessageResponse(UUID id, UUID inquiryId, @Nullable UUID reques
         SenderType sender, String content, List<UUID> problemIds, List<MessageRevisionResponse> revisions,
         Instant createdAt) {
 
-    public static ChatMessageResponse of(Message message, MessagePayload payload, List<MessageRevisionResponse> revisions) {
+    /** content: 문의자에게 보여 줄 본문. 저장된 본문에서 지금 볼 수 없는 안내를 숨긴 값일 수 있다. */
+    public static ChatMessageResponse of(Message message, String content, MessagePayload payload,
+            List<MessageRevisionResponse> revisions) {
         return new ChatMessageResponse(message.getId(), message.getInquiry().getId(), payload.requestId(),
-                message.getRevision(), message.getSequenceNo(), message.getSenderType(), message.getContent(),
+                message.getRevision(), message.getSequenceNo(), message.getSenderType(), content,
                 payload.problemIds(message.getRevision()), List.copyOf(revisions), message.getCreatedAt());
     }
 }
