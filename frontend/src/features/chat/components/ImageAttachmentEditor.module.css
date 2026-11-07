@@ -1,0 +1,29 @@
+.editor,
+.item,
+.results {
+  display: grid;
+  gap: var(--space-2);
+}
+.preview {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  line-height: 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+.preview img,
+.results img {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+}
+.mask {
+  position: absolute;
+  background: #000;
+  pointer-events: none;
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
