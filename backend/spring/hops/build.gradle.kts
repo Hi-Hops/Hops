@@ -35,6 +35,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
     // Python AI 서버 호출용 RestClient. Boot 4부터 별도 모듈이며, 서버와 같은 JSON 설정(UTC 등)을 쓴다.
     implementation("org.springframework.boot:spring-boot-starter-restclient")
+    implementation("software.amazon.awssdk:s3:2.57.4")
     // Swagger UI. Boot가 관리하지 않는 라이브러리라 버전을 직접 적는다 (docs/AGENT_DEVELOPMENT.md 11장: 3.1.1).
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
     // 생성자 주입 코드를 줄이려고 @RequiredArgsConstructor 등에 쓴다.

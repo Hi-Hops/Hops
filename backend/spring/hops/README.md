@@ -1,5 +1,7 @@
 # Hops Spring 백엔드
 
+채팅 이미지 지원은 작업 중입니다. 이미지 검증·재인코딩과 S3 객체 접근 클래스만 준비되어 있으며 업로드 API, 사용자·담당자 권한, 버킷 설정 및 AI 연결은 아직 제공하지 않습니다. 객체 저장 전 수동 가림과 사용자 확인이 필요하며 메타데이터 제거는 개인정보 가림을 대신하지 않습니다.
+
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../../../README.md#docker-compose로-실행)를 따릅니다. 아래 직접 설치 절차는 PC에서 Spring을 실행할 때 사용합니다.
 
 Docker 설정은 이 폴더의 [.env.example](.env.example)을 `.env`로 복사해 관리합니다. PostgreSQL 설정도 같은 파일에 두고 Compose가 `POSTGRES_*`를 DB 컨테이너와 Spring datasource에 각각 매핑합니다. 필수 값은 `POSTGRES_PASSWORD`와 `HOPS_JWT_SECRET`이며 기존 개인 파일·DB 값은 유지합니다. 루트 Compose가 서비스별 파일 세 개를 자동으로 읽으므로 저장소 루트에서 `docker compose up -d`로 실행합니다.

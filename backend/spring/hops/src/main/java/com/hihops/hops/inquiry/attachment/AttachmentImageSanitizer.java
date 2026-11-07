@@ -15,7 +15,7 @@ import javax.imageio.stream.MemoryCacheImageOutputStream;
 /** 전송된 PNG·JPEG를 검증하고 이미지 메타데이터 없이 PNG로 다시 인코딩한다. */
 public final class AttachmentImageSanitizer {
     private static final int MAX_INPUT_BYTES = 5 * 1024 * 1024;
-    private static final int MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
+    static final int MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
     private static final int MAX_DIMENSION = 8192;
     private static final long MAX_PIXELS = 16_000_000L;
 
