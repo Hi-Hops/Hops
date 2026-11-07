@@ -380,7 +380,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |
 
-- Curator 실행(`CURATION`)은 `trigger_work_log_id`가 필수이고 상담 실행에는 없다(CHECK). 처리 기록 하나로 Curator 실행을 두 번 만들지 않도록 부분 유일 인덱스 `uk_agent_run_curation_work_log`(`task = 'CURATION'`)를 둔다.
+- Curator 실행(`CURATION`)은 `trigger_work_log_id`가 필수이고 상담 실행에는 없다(CHECK). 처리 기록 하나에 진행 중이거나 성공한 Curator 실행이 둘 이상 생기지 않도록 부분 유일 인덱스 `uk_agent_run_curation_work_log`(`task = 'CURATION' AND run_status IN ('QUEUED','RUNNING','SUCCEEDED')`)를 둔다. 실패(FAILED·TIMED_OUT·CANCELLED)한 실행은 이력으로 남고, 수동 재시도는 같은 처리 기록에 새 실행을 만든다(V26).
 
 #### AI 실행 단계 `agent_step`
 AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남겨요. 채팅 진행 문구와 실패 단계 추적에 써요. *(근거: 최종기획서 7.1, 7.2, 9.3)*
