@@ -143,8 +143,62 @@ class InquiryAnswerFlowTest {
         }
     }
 
+    @Test
+    void 승인_본문에서_고른_문단과_출처_줄로_만든_안내를_저장한다() throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        var snapshot = guideSnapshot(runId, inquiryId);
+        // 승인 본문은 문단 셋이고 안내는 그중 ANSWER 문단만 골랐다
+        String content = "## 목적\n문서 조회를 안내한다.\n\n" + ANSWER + "\n\n## 참고\n보존 기간이 지난 문서는 보이지 않는다.";
+        jdbc.update("UPDATE knowledge_document_version SET content=?, content_digest=? WHERE knowledge_document_id=?", content,
+                java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8))), guideDocument);
+        String text = ANSWER + "\n\n참고 자료: 가상 직원 가이드";
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        result.put("answer", text);
+        ((tools.jackson.databind.node.ObjectNode) result.path("guide")).put("messageText", text);
+        when(client.snapshot(runId.toString())).thenReturn(snapshot);
+
+        dispatcher.deliver(runId);
+
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+        var messages = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("items");
+        assertThat(messages.get(1).path("content").asString()).isEqualTo(text);
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"withdrawn", "uncited", "unknown-problem", "unsupported-system", "staff", "null-details", "conflicting-ticket"})
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"withdrawn", "deleted", "staff"})
+    void 안내_뒤_근거를_볼_수_없게_되면_문의자_화면에서_안내_본문과_확인_요약을_숨긴다(String change) throws Exception {
+        UUID inquiryId = createInquiry("로그인 화면 사용법을 알려 주세요");
+        UUID runId = runOf(inquiryId);
+        when(client.snapshot(runId.toString())).thenReturn(guideSnapshot(runId, inquiryId));
+        dispatcher.deliver(runId);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+
+        switch (change) {
+            case "withdrawn" -> jdbc.update("UPDATE knowledge_document SET review_status='PENDING' WHERE id=?", guideDocument);
+            case "deleted" -> jdbc.update("UPDATE knowledge_document SET deleted_at=now() WHERE id=?", guideDocument);
+            case "staff" -> jdbc.update("UPDATE knowledge_document SET access_level='STAFF' WHERE id=?", guideDocument);
+            default -> throw new IllegalArgumentException(change);
+        }
+
+        var messages = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId + "/messages")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("items");
+        String shown = messages.get(1).path("content").asString();
+        assertThat(shown).doesNotContain(ANSWER).contains("안내 내용을 숨겼어요");
+        var problem = jsonMapper.readTree(mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("problems").get(0);
+        assertThat(problem.path("guide").path("evidence").isEmpty()).isTrue();
+        assertThat(problem.path("activeResolutionRequest").path("resultSummary").asString())
+                .doesNotContain(ANSWER).contains("안내 내용을 숨겼어요");
+        // 저장된 원문은 바꾸지 않는다
+        assertThat(jdbc.queryForObject("SELECT content FROM message WHERE id=?", String.class, answerMessageIdOf(runId)))
+                .isEqualTo(ANSWER);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"withdrawn", "uncited", "unknown-problem", "unsupported-system", "staff", "null-details", "conflicting-ticket", "invented-text", "other-source"})
     void 잘못된_안내는_답변과_GUIDE_요청을_함께_저장하지_않는다(String invalid) throws Exception {
         UUID inquiryId = createInquiry("로그인 방법을 알려 주세요");
         UUID runId = runOf(inquiryId);
@@ -160,6 +214,17 @@ class InquiryAnswerFlowTest {
             case "staff" -> jdbc.update("UPDATE knowledge_document SET access_level='STAFF' WHERE id=?", guideDocument);
             case "null-details" -> ((tools.jackson.databind.node.ObjectNode) result.path("problemProposals").get(0)).putNull("details");
             case "conflicting-ticket" -> result.putArray("ticketProposals").addObject().put("problemRef", "new:guide");
+            // 승인 본문에 없는 문장(모델이 쓴 안내)과, 출처 줄 뒤에 붙인 다른 문장은 저장하지 않는다
+            case "invented-text" -> {
+                String invented = "전자결재 설정 메뉴에서 캐시를 지우면 해결돼요.";
+                result.put("answer", invented);
+                guide.put("messageText", invented);
+            }
+            case "other-source" -> {
+                String text = ANSWER + "\n\n참고 자료: 가상 직원 가이드\n\n관리자에게 직접 연락하세요.";
+                result.put("answer", text);
+                guide.put("messageText", text);
+            }
             default -> throw new IllegalArgumentException(invalid);
         }
         when(client.snapshot(runId.toString())).thenReturn(snapshot);
