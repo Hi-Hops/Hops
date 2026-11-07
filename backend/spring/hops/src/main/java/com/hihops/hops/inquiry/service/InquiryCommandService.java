@@ -27,6 +27,7 @@ import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessageStatus;
 import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.dto.InquiryCreateCommand;
+import com.hihops.hops.inquiry.privacy.SensitiveTextMasker;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.itsystem.repository.ItSystemRepository;
@@ -73,8 +74,10 @@ public class InquiryCommandService {
 
     /** 트랜잭션 밖(Controller)에서 부른다. */
     public CommandResult create(IdempotentRequest request, InquiryCreateCommand command) {
+        InquiryCreateCommand masked = new InquiryCreateCommand(command.requestId(),
+                SensitiveTextMasker.mask(command.content()), command.reportedSystemId());
         return idempotencyService.execute(request,
-                operationId -> new ResourceRef(ResourceType.INQUIRY, createInquiry(request.actorId(), command)));
+                operationId -> new ResourceRef(ResourceType.INQUIRY, createInquiry(request.actorId(), masked)));
     }
 
     private UUID createInquiry(UUID requesterId, InquiryCreateCommand command) {

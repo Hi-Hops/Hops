@@ -103,6 +103,24 @@ class InquiryCreateControllerTest {
     }
 
     @Test
+    void 첫_문의의_탐지된_개인정보는_제목과_메시지와_실행_입력에_가려서_저장한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String original = "연락처 010-1234-5678 오류";
+        create(memberId, requestId, original, null).andExpect(status().isOk());
+        create(memberId, requestId, original, null).andExpect(status().isOk());
+
+        UUID inquiryId = jdbc.queryForObject("SELECT id FROM inquiry WHERE requester_member_id = ?", UUID.class, memberId);
+        assertThat(jdbc.queryForObject("SELECT title FROM inquiry WHERE id = ?", String.class, inquiryId))
+                .isEqualTo("연락처 [가림] 오류");
+        assertThat(jdbc.queryForList("SELECT content FROM message WHERE inquiry_id = ?", String.class, inquiryId))
+                .containsExactly("연락처 [가림] 오류");
+        String snapshot = jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE inquiry_id = ?",
+                String.class, inquiryId);
+        assertThat(snapshot).contains("연락처 [가림] 오류").doesNotContain("010-1234-5678");
+        create(memberId, requestId, "연락처 010-9876-5432 오류", null).andExpect(status().isConflict());
+    }
+
+    @Test
     void 문의_첫_메시지_대기_실행을_한_번에_저장하고_200_영수증을_돌려준다() throws Exception {
         UUID requestId = UUID.randomUUID();
         String content = "  결재 문서가\n안 열려요  "; // 원문은 trim하지 않는다

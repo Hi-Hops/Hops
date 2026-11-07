@@ -41,6 +41,8 @@ export function SystemMessageComposer({
   const locked = useRef(false);
   const input = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
+  const privacyConfirmed = confirmedKey === key;
   const [notice, setNotice] = useState('');
   const { remaining, wait } = useRetryAfter();
   const client = useQueryClient();
@@ -55,7 +57,13 @@ export function SystemMessageComposer({
   const invalid = contentError(content);
   const blocked = disabled || Boolean(inquiry && !editableInquiryStatus(inquiry.status));
   async function submit(confirm = false) {
-    if (locked.current || blocked || remaining > 0 || (!confirm && (invalid || pending))) return;
+    if (
+      locked.current ||
+      blocked ||
+      remaining > 0 ||
+      (!confirm && (invalid || pending || !privacyConfirmed))
+    )
+      return;
     const request =
       pending ??
       (!inquiry
@@ -85,6 +93,7 @@ export function SystemMessageComposer({
       const resource = savedResource(await sendSystemCommand(request, confirm), 'INQUIRY');
       if (useSession.getState().user?.id !== actor) return;
       useSystemDrafts.getState().set(key, { content: '', systemId: null, pending: null });
+      setConfirmedKey(null);
       void client.invalidateQueries({ queryKey: ['inquiries'] });
       void client.invalidateQueries({ queryKey: ['hops-system-1'] });
       onStored(resource.id);
@@ -125,6 +134,7 @@ export function SystemMessageComposer({
             !inquiry ? '예: 전자결재에서 문서를 열 수 없어요' : '추가 정보나 새 질문을 입력하세요'
           }
           onChange={(e) => {
+            setConfirmedKey(null);
             useSystemDrafts
               .getState()
               .set(key, { content: e.target.value, systemId, pending: null });
@@ -136,7 +146,22 @@ export function SystemMessageComposer({
             }
           }}
           aria-invalid={Boolean(invalid && content)}
+          aria-describedby={`privacy-notice-${key}`}
         />
+        <p id={`privacy-notice-${key}`} className={styles.helper}>
+          비밀번호, 인증번호와 개인정보를 입력하지 마세요. 자동 감지는 개인정보를 놓칠 수 있어요.
+        </p>
+        <label className={styles.helper}>
+          <input
+            type="checkbox"
+            checked={privacyConfirmed}
+            disabled={blocked || busy || Boolean(pending)}
+            onChange={(event) => {
+              setConfirmedKey(event.target.checked ? key : null);
+            }}
+          />{' '}
+          보낼 내용에 비밀번호와 불필요한 개인정보가 없는지 확인했어요.
+        </label>
         <div className={styles.bar}>
           {!inquiry && (
             <>
@@ -165,7 +190,14 @@ export function SystemMessageComposer({
           <Button
             type="submit"
             isLoading={busy}
-            disabled={blocked || busy || remaining > 0 || Boolean(invalid) || Boolean(pending)}
+            disabled={
+              blocked ||
+              busy ||
+              remaining > 0 ||
+              Boolean(invalid) ||
+              Boolean(pending) ||
+              !privacyConfirmed
+            }
           >
             {revise ? '정정 저장' : !inquiry ? '질문하기 ↑' : '보내기 ↑'}
           </Button>

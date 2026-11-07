@@ -111,6 +111,27 @@ class MessageCommandControllerTest {
     }
 
     @Test
+    void 후속_메시지와_정정에_탐지된_개인정보를_가리고_이력과_실행에_유지한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String original = "연락처 test@example.com 확인";
+        send(memberId, requestId, 1, original, List.of()).andExpect(status().isOk());
+        send(memberId, requestId, 1, original, List.of()).andExpect(status().isOk());
+        String messageId = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id = ?::uuid AND sequence_no = 2",
+                UUID.class, inquiryId).toString();
+        assertThat(jdbc.queryForObject("SELECT content FROM message WHERE id = ?::uuid", String.class, messageId))
+                .isEqualTo("연락처 [가림] 확인");
+        assertThat(currentInput().path("messages").get(1).path("content").asString()).isEqualTo("연락처 [가림] 확인");
+
+        revise(memberId, messageId, UUID.randomUUID(), 2, 1, "연락처 010-1234-5678 확인")
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT content FROM message WHERE id = ?::uuid", String.class, messageId))
+                .isEqualTo("연락처 [가림] 확인");
+        assertThat(jdbc.queryForObject("SELECT content FROM message_revision WHERE message_id = ?::uuid",
+                String.class, messageId)).isEqualTo("연락처 [가림] 확인");
+        assertThat(currentInput().path("messages").get(1).path("content").asString()).isEqualTo("연락처 [가림] 확인");
+    }
+
+    @Test
     void 메시지를_저장하고_버전을_올려_이전_실행을_대체한_새_실행을_접수한다() throws Exception {
         String firstRunId = currentRunId();
         UUID requestId = UUID.randomUUID();

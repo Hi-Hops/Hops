@@ -18,7 +18,7 @@ import jakarta.validation.constraints.NotNull;
  *
  * @param requestId              Idempotency-Key와 같은 값. 이 메시지의 requestId로 보존한다
  * @param expectedInquiryVersion 화면이 본 문의 버전. 다르면 409 INQUIRY_VERSION_CONFLICT
- * @param content                메시지 원문. 자르거나 trim하지 않는다
+ * @param content                메시지 입력. 자르거나 trim하지 않으며 탐지된 일부 개인정보는 저장 전에 가린다
  * @param problemIds             사용자가 고른 대상 문제. []이면 분석으로 대상을 정한다
  */
 public record MessageSendCommand(@NotNull UUID requestId,

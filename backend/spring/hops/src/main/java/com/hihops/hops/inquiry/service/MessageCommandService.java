@@ -41,6 +41,7 @@ import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
+import com.hihops.hops.inquiry.privacy.SensitiveTextMasker;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
@@ -108,16 +109,20 @@ public class MessageCommandService {
         // 같은 키 재확인도 현재 권한 검사 뒤에 한다 (WIRE_CONTRACT 12.1)
         inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        MessageSendCommand masked = new MessageSendCommand(command.requestId(), command.expectedInquiryVersion(),
+                SensitiveTextMasker.mask(command.content()), command.problemIds());
         return idempotencyService.execute(request,
-                operationId -> new ResourceRef(ResourceType.INQUIRY, sendMessage(request.actorId(), inquiryId, command)));
+                operationId -> new ResourceRef(ResourceType.INQUIRY, sendMessage(request.actorId(), inquiryId, masked)));
     }
 
     /** 트랜잭션 밖(Controller)에서 부른다. */
     public CommandResult revise(IdempotentRequest request, UUID inquiryId, UUID messageId, MessageReviseCommand command) {
         inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        MessageReviseCommand masked = new MessageReviseCommand(command.requestId(), command.expectedInquiryVersion(),
+                command.expectedMessageRevision(), SensitiveTextMasker.mask(command.content()));
         return idempotencyService.execute(request, operationId -> new ResourceRef(ResourceType.INQUIRY,
-                reviseMessage(request.actorId(), inquiryId, messageId, command)));
+                reviseMessage(request.actorId(), inquiryId, messageId, masked)));
     }
 
     /** 트랜잭션 밖(Controller)에서 부른다. */

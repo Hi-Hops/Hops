@@ -145,6 +145,7 @@ describe('F003/F006 사이드바 이동', () => {
     if (screen.queryByRole('dialog')) await user.keyboard('{Escape}');
     await user.click(menu.getByRole('link', { name: '새 문의' }));
     expect(await screen.findByLabelText('문의 내용')).toHaveValue('전자결재 새 문의');
+    await user.click(screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ }));
     await user.click(screen.getByRole('button', { name: '질문하기 ↑' }));
     await screen.findByLabelText('메시지 입력');
     await waitFor(() => {

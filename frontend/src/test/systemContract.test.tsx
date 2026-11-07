@@ -68,11 +68,27 @@ async function reply(inquiry: InquiryResult, content: string) {
 }
 
 describe('hops-system-1 시스템 단위 전환', () => {
+  it('개인정보 확인 전 Enter로 전송할 수 없고 내용을 바꾸면 다시 확인한다', async () => {
+    await login(TEST_LOGINS.requester);
+    const user = userEvent.setup();
+    const send = vi.spyOn(systemCommands, 'sendSystemCommand');
+    renderWithProviders(<SystemMessageComposer onStored={vi.fn()} />);
+    const input = screen.getByRole('textbox', { name: '문의 내용' });
+    const checkbox = screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ });
+    await user.type(input, '로그인이 안 돼요{Enter}');
+    expect(send).not.toHaveBeenCalled();
+    await user.click(checkbox);
+    await user.type(input, ' 다시{Enter}');
+    expect(send).not.toHaveBeenCalled();
+    expect(checkbox).not.toBeChecked();
+  });
+
   it('F003-AC02 초과 입력을 자르지 않고 보존하며 코드 포인트 경계에 맞춰 전송을 허용한다', async () => {
     await login(TEST_LOGINS.requester);
     const user = userEvent.setup();
     renderWithProviders(<SystemMessageComposer onStored={vi.fn()} />);
     const input = screen.getByRole('textbox', { name: '문의 내용' });
+    expect(input).toHaveAccessibleDescription(/자동 감지는 개인정보를 놓칠 수 있어요/);
     await user.click(input);
     await user.paste('가'.repeat(4001));
     expect(input).toHaveValue('가'.repeat(4001));
@@ -80,7 +96,13 @@ describe('hops-system-1 시스템 단위 전환', () => {
     await user.clear(input);
     await user.paste('😀'.repeat(4000));
     expect(input).toHaveValue('😀'.repeat(4000));
+    expect(screen.getByRole('button', { name: '질문하기 ↑' })).toBeDisabled();
+    await user.click(screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ }));
     expect(screen.getByRole('button', { name: '질문하기 ↑' })).toBeEnabled();
+    await user.clear(input);
+    await user.type(input, '수정한 문의');
+    expect(screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: '질문하기 ↑' })).toBeDisabled();
   });
   it('미확인 변경은 화면을 다시 열어도 원 명령을 유지하고 같은 요청으로 확인한다', async () => {
     await login(TEST_LOGINS.requester);
@@ -156,6 +178,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     const user = userEvent.setup();
     const input = screen.getByRole('textbox', { name: '문의 내용' });
     await user.type(input, '작성 중인 문의');
+    await user.click(screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ }));
     await user.click(screen.getByRole('button', { name: '질문하기 ↑' }));
     expect(
       await screen.findByText('입력을 확인해 주세요. 내용 입력을 확인해 주세요.'),
@@ -355,6 +378,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     const onStored = vi.fn();
     renderWithProviders(<SystemMessageComposer onStored={onStored} />);
     await userEvent.type(screen.getByRole('textbox', { name: '문의 내용' }), '파일 공유 권한 문의');
+    await userEvent.click(screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ }));
     systemMockBackend.loseNextResponse();
     await userEvent.click(screen.getByRole('button', { name: '질문하기 ↑' }));
     const confirm = await screen.findByRole('button', { name: '같은 요청 결과 확인' });

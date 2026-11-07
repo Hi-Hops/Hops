@@ -98,6 +98,7 @@ describe('F003·F009 비계약 4xx 이후 원 명령 복구', () => {
       renderWithProviders(<SystemMessageComposer onStored={onStored} />);
       const input = screen.getByRole('textbox', { name: '문의 내용' });
       await user.type(input, '파일 공유 권한 문의');
+      await user.click(screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ }));
       await user.click(screen.getByRole('button', { name: '질문하기 ↑' }));
       const confirm = await screen.findByRole('button', { name: '같은 요청 결과 확인' });
       expect(input).toHaveValue('파일 공유 권한 문의');
