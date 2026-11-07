@@ -176,6 +176,32 @@ class CaseGenerationRetryControllerTest extends CaseDraftFixture {
     }
 
     @Test
+    void 티켓에_더_새로운_해결_기록이_있으면_이전_기록의_생성은_재시도할_수_없다() throws Exception {
+        UUID first = failedGeneration();
+        unresolved();
+        // 담당자가 새 해결 기록 B를 남기고 그 생성도 실패한다
+        var second = work("VERIFIED_RESOLUTION");
+        ((tools.jackson.databind.node.ObjectNode) second).put("expectedTicketRevision", detail().path("ticketRevision").asInt());
+        result(command(staff, "/tickets/" + ticket + "/work-records", second));
+        UUID current = jdbc.queryForObject("SELECT id FROM agent_run WHERE ticket_id=? AND task='CURATION' AND id<>?", UUID.class, ticket, first);
+        awaitState("FAILED", current);
+
+        rejected(first, "INVALID_STATE");
+        assertThat(runCount()).isEqualTo(2);
+        // 현재 생성은 재시도할 수 있고 티켓의 현재 생성이 된다
+        UUID next = generationId(result(retry(staff, current, UUID.randomUUID())));
+        assertThat(detail().path("caseGeneration").path("id").asString()).isEqualTo(next.toString());
+    }
+
+    @Test
+    void 문의자가_미해결로_응답한_기록은_재시도할_수_없다() throws Exception {
+        UUID failed = failedGeneration();
+        unresolved();
+        rejected(failed, "INVALID_STATE");
+        assertThat(runCount()).isEqualTo(1);
+    }
+
+    @Test
     void 사례가_이미_있으면_재시도하지_않는다() throws Exception {
         UUID failed = failedGeneration();
         // 늦게 도착한 결과로 사례가 저장된 경우를 흉내 낸다
@@ -251,6 +277,13 @@ class CaseGenerationRetryControllerTest extends CaseDraftFixture {
         UUID id = jdbc.queryForObject("SELECT id FROM agent_run WHERE ticket_id=? AND task='CURATION'", UUID.class, ticket);
         awaitState("FAILED", id);
         return id;
+    }
+
+    private void unresolved() throws Exception {
+        String resolutionId = detail().path("activeResolutionRequest").path("id").asString();
+        result(command(requester, "/resolution-requests/" + resolutionId + "/responses", mapper.createObjectNode()
+                .put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1)
+                .put("decision", "UNRESOLVED")));
     }
 
     private void aiSucceeds() {

@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
  * 응답은 200 CommandReceipt·resource=CASE_GENERATION(새 실행)이며 같은 요청 키는 처음 결과를 돌려준다.
  *
  * <p>거절: 없는 생성·사례 생성이 아닌 실행은 404, 현재 담당자가 아니면 403, 현재 사례 생성이 아니거나(이미 다시 접수됨) 실패가
- * 아니거나 사례가 이미 있으면 409 INVALID_STATE. 같은 티켓의 변경은 티켓 행 잠금으로 하나씩 처리하므로 동시에 와도 새 실행은 하나다.
+ * 아니거나 사례가 이미 있거나 문의자가 미해결로 응답했으면 409 INVALID_STATE. 현재 사례 생성은 티켓 전체의 마지막 실행이다. 같은 티켓의 변경은 티켓 행 잠금으로 하나씩 처리하므로 동시에 와도 새 실행은 하나다.
  */
 @Service
 @RequiredArgsConstructor
@@ -67,14 +67,16 @@ public class CaseGenerationRetryService {
         var actor = auth.currentMember(jwt);
         AgentRun failed = runs.findById(generationId).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         var record = failed.getTriggerWorkLog();
-        var latest = progressRuns.findCurationsByTicketId(ticketId).stream()
-                .filter(run -> run.getTriggerWorkLog().getId().equals(record.getId()))
-                .reduce((first, second) -> second).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
-        if (!latest.getId().equals(failed.getId()) || !RETRYABLE.contains(failed.getRunStatus())
+        // 티켓 전체의 마지막 실행만 현재 사례 생성이다. 더 새로운 해결 기록이 있으면 이전 기록의 생성은 재시도하지 않는다.
+        var curations = progressRuns.findCurationsByTicketId(ticketId);
+        if (curations.isEmpty() || !curations.getLast().getId().equals(failed.getId())
+                || !RETRYABLE.contains(failed.getRunStatus())
                 || progressRuns.findCaseByWorkLogId(record.getId()).isPresent()) {
             throw new BusinessException(ErrorCode.INVALID_STATE);
         }
         var confirmation = progress.resolution(record);
+        // 문의자가 해결되지 않았다고 답한 기록은 AI·Spring 모두 사례 없음으로 끝내므로 재시도해도 사례가 생기지 않는다.
+        if ("UNRESOLVED".equals(confirmation.state())) throw new BusinessException(ErrorCode.INVALID_STATE);
         var now = clock.instant();
         var next = runs.saveAndFlush(new AgentRun(ticket.getInquiry(), ticket, record, ticket.getInquiry().getVersion(), "{}",
                 properties.modelVersion(), properties.promptVersion(), properties.schemaVersion()));
