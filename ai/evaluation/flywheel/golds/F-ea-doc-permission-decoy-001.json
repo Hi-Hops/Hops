@@ -1,0 +1,20 @@
+{
+  "scenarioId": "F-ea-doc-permission-decoy-001",
+  "bundleRole": "C",
+  "problem": {
+    "acceptedIntents": ["OBSERVED_SYMPTOM"],
+    "reportedSystemCode": "ELECTRONIC_APPROVAL",
+    "responsibleSystemCodes": ["ELECTRONIC_APPROVAL"],
+    "allowedFinalActions": ["PROPOSE_TICKET"]
+  },
+  "truth": {"cause": "cause-ea-no-view-permission"},
+  "caseA": {
+    "DEFAULT": {"caseEvidence": "ABSENT", "relationCaseNeighbor": "ABSENT"},
+    "INTERNAL_JUDGEMENT": {"caseEvidence": "NOT_CONFIRMED_AS_CAUSE", "relationCaseNeighbor": "ANY"}
+  },
+  "seedCaseMayAppear": "case-ea-doc-no-permission",
+  "employeeVisibleMustNotContain": [
+    "전자결재 문서가 목록에 안 보임 - 조회 조건의 상태·제목 키워드가 좁음",
+    "조회 조건의 상태를 '승인'으로 골라 두어, 결재 중인 해당 문서가 조건에 맞지 않아 목록에서 제외됐다."
+  ]
+}
