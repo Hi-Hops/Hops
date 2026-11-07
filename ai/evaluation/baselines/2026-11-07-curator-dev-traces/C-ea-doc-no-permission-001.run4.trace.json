@@ -1,0 +1,346 @@
+{
+ "format": 1,
+ "scenario_id": "C-ea-doc-no-permission-001",
+ "request": {
+  "contractVersion": "hops-system-1",
+  "runId": "6162494e-8db4-580f-b6fe-df6fd899dc90",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "ee2d9f2c-93ce-504b-a118-2bb3a31c2263",
+  "inquiryVersion": 1,
+  "answerMessageId": null,
+  "problemIds": [
+   "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda"
+  ],
+  "messages": [
+   {
+    "id": "483594ab-a144-5d71-b0dd-1c7ffe6d1e88",
+    "revision": 1,
+    "sequenceNo": 1,
+    "sender": "USER",
+    "content": "지난주에 옆 팀에서 올린 결재 문서를 보려는데 전자결재 문서함에 안 나와요.",
+    "problemIds": [
+     "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda"
+    ],
+    "createdAt": "2026-11-02T00:01:00Z"
+   },
+   {
+    "id": "f066d2a6-4cbd-545a-a139-f33ddbe8e551",
+    "revision": 1,
+    "sequenceNo": 2,
+    "sender": "AI",
+    "content": "문서가 보이지 않아 불편하시겠어요. 두 가지만 여쭤볼게요. 이 문서를 직접 기안하셨나요, 아니면 결재선이나 참조로 받으셨나요? 그리고 문서함에서 조회 기간은 어떻게 설정하셨나요?",
+    "problemIds": [
+     "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda"
+    ],
+    "createdAt": "2026-11-02T00:02:00Z"
+   },
+   {
+    "id": "a7e466e4-6ee6-5fa0-8aaa-fe4800b039e6",
+    "revision": 1,
+    "sequenceNo": 3,
+    "sender": "USER",
+    "content": "제가 기안한 문서는 아니고 마케팅팀 다른 분이 올린 문서예요. 결재선에 제가 있는지는 모르겠어요. 기간은 기본값 그대로 최근 3개월이에요.",
+    "problemIds": [
+     "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda"
+    ],
+    "createdAt": "2026-11-02T00:03:00Z"
+   },
+   {
+    "id": "88f714bb-0614-5498-bad4-88833e2f1782",
+    "revision": 1,
+    "sequenceNo": 4,
+    "sender": "AI",
+    "content": "알려 주셔서 감사합니다. 확인된 내용을 정리해 전자결재 담당자에게 접수했습니다. 담당자가 확인한 뒤 결과를 이 대화로 알려 드리겠습니다.",
+    "problemIds": [
+     "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda"
+    ],
+    "createdAt": "2026-11-02T00:04:00Z"
+   }
+  ],
+  "problems": [
+   {
+    "id": "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda",
+    "summary": "전자결재 문서함에서 다른 팀이 올린 문서가 보이지 않음",
+    "intent": "OBSERVED_SYMPTOM",
+    "processingType": "INVESTIGATION",
+    "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+    "reportedFeatureId": null,
+    "state": "WAITING_CONFIRMATION",
+    "questionCount": 1,
+    "askedFields": [],
+    "standardRequest": {
+     "summary": "다른 사람이 기안한 결재 문서가 문의자의 문서함 전체 문서 목록에 나타나지 않는다. 조회 기간은 기본값(최근 3개월)이다.",
+     "confirmedFacts": [
+      {
+       "text": "문의자가 기안한 문서가 아니다.",
+       "sourceMessageIds": [
+        "a7e466e4-6ee6-5fa0-8aaa-fe4800b039e6"
+       ],
+       "knowledgeEvidenceIds": []
+      },
+      {
+       "text": "조회 기간은 기본값인 최근 3개월이다.",
+       "sourceMessageIds": [
+        "a7e466e4-6ee6-5fa0-8aaa-fe4800b039e6"
+       ],
+       "knowledgeEvidenceIds": []
+      }
+     ],
+     "assumptions": [],
+     "unknowns": [
+      "문의자가 문서의 결재선·참조에 포함되어 있는지"
+     ],
+     "responsibleSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+     "responsibilityEvidenceIds": [],
+     "details": {
+      "taskOrScreen": "전자결재 문서함 > 전체 문서에서 다른 팀이 올린 문서를 찾으려 함",
+      "requestedAccess": null,
+      "businessPurpose": null,
+      "expectedBehavior": "문서가 목록에 나타남",
+      "actualBehavior": "문서가 목록에 나타나지 않음",
+      "occurredAt": null,
+      "currentWorkflow": null,
+      "desiredChange": null,
+      "acceptanceCriteria": []
+     },
+     "knowledge": []
+    },
+    "resolutionContext": null
+   }
+  ],
+  "systems": [
+   {
+    "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+    "code": "ELECTRONIC_APPROVAL",
+    "name": "전자결재",
+    "features": [
+     {
+      "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+      "name": "문서 작성"
+     },
+     {
+      "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+      "name": "문서 조회"
+     },
+     {
+      "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+      "name": "결재 상태"
+     },
+     {
+      "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+      "name": "첨부 열람"
+     }
+    ]
+   }
+  ],
+  "accessContext": {
+   "actorId": "dcaf79d1-8d2f-56f0-9704-39011a06f950",
+   "purpose": "CASE_DRAFT",
+   "systemIds": [
+    "3320ce84-c47c-592c-b599-6e968e12b0a3"
+   ],
+   "allowedDocumentScopes": [
+    "SYSTEM_STAFF"
+   ],
+   "policyRevision": 1,
+   "retrievalScopes": null
+  },
+  "existingWorkItems": [
+   {
+    "workItemId": "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda",
+    "problemId": "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda",
+    "inquiryVersion": 1,
+    "outcome": "STORED",
+    "ticketId": "72f19376-6bc6-5f2c-b9d1-583e334dbd0e"
+   }
+  ],
+  "workRecord": {
+   "id": "9d27a646-1dda-5d40-9898-6b1352c4e165",
+   "ticketId": "72f19376-6bc6-5f2c-b9d1-583e334dbd0e",
+   "problemId": "b9e6d7b7-9f1c-5ad6-acaf-958cd7e7afda",
+   "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+   "kind": "VERIFIED_RESOLUTION",
+   "action": "기안자에게 문의자를 열람자로 추가해 달라고 요청했고, 기안자가 문서 상세의 [참조 추가]로 문의자를 참조에 추가했다.",
+   "verification": "참조 추가 뒤 문의자 계정으로 문서함 > 전체 문서를 조회하자 문서가 목록에 나타났다.",
+   "createdAt": "2026-11-02T02:00:00Z",
+   "resolutionRequestId": "b237be85-e7dc-5124-9949-012bf7459079",
+   "confirmationState": "PENDING",
+   "confirmedCause": "문의자가 문서의 기안자·결재선·참조에 없어 열람 권한이 없었다. 기안일은 조회 기간 안이었다.",
+   "appliesToSystemVersion": null,
+   "relatedRecords": [
+    {
+     "id": "004e8e7b-2da0-551b-9455-b58447bfa1de",
+     "kind": "PROGRESS",
+     "action": "문서의 기안일과 기안자·결재선·참조 기록을 확인했다. 기안일은 문의자의 조회 기간 안이다.",
+     "verification": null,
+     "confirmedCause": null,
+     "appliesToSystemVersion": null,
+     "createdAt": "2026-11-02T01:00:00Z"
+    }
+   ],
+   "resolutionHistory": [],
+   "consultedKnowledge": [],
+   "linkCandidates": [
+    {
+     "id": "8a8ad9e9-b844-51ad-a8b0-e48bd8d25f2f",
+     "kind": "SYMPTOM",
+     "label": "첨부 파일이 열리지 않음",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "9700e62c-dfde-52a5-881d-8abbc634dced",
+     "kind": "SYMPTOM",
+     "label": "문서가 문서함에 보이지 않음",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "523020e0-2d32-555e-94a7-d7a4f588d89b",
+     "kind": "CHECK_ITEM",
+     "label": "찾는 문서를 기안한 시기",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "45d1dac1-5ffe-5418-a646-6f4de00072ae",
+     "kind": "CHECK_ITEM",
+     "label": "화면에 표시된 문구",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "6a5bf11a-7f04-5880-94e8-4d50e71a0c5d",
+     "kind": "CHECK_ITEM",
+     "label": "열리지 않는 첨부 파일의 형식",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "1f6fca67-d74b-51bf-b72f-c41252383e6b",
+     "kind": "CHECK_ITEM",
+     "label": "조회할 때 입력한 상태·제목 키워드",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "9fac2b79-c9bf-54fb-83e2-1fbe20f79249",
+     "kind": "CHECK_ITEM",
+     "label": "문의자가 그 문서의 기안자인지, 결재선·참조에 있는지",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "3be2bce9-ff98-520d-8223-55a5e4d46690",
+     "kind": "CHECK_ITEM",
+     "label": "잠시 뒤 다시 시도해도 같은지",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "85554a73-4f69-5279-b63b-14687c05127e",
+     "kind": "CHECK_ITEM",
+     "label": "문의자가 설정한 조회 기간",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "d8f0e7d1-fd4a-5c99-8dc7-3d962ea2eb2e",
+     "kind": "CHECK_ITEM",
+     "label": "문서를 상신했는지, 임시 저장 상태인지",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "f2577cf9-9d9c-5382-85e0-e1ed1ce9a0fc",
+     "kind": "CHECK_ITEM",
+     "label": "첨부 파일을 올린 시점",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "b318b727-10ab-53ea-ae72-07977daa754d",
+     "kind": "CHECK_ITEM",
+     "label": "시스템에 남은 문서의 기안자·결재선·참조 기록",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    }
+   ]
+  },
+  "expiresAt": "2026-11-07T06:57:39Z",
+  "limits": {
+   "maxModelCalls": 8,
+   "maxInputTokens": 60000,
+   "maxOutputTokens": 12000,
+   "maxToolCalls": 10,
+   "maxRetries": 2
+  }
+ },
+ "result": {
+  "contractVersion": "hops-system-1",
+  "runId": "6162494e-8db4-580f-b6fe-df6fd899dc90",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "ee2d9f2c-93ce-504b-a118-2bb3a31c2263",
+  "inquiryVersion": 1,
+  "status": "SUCCEEDED",
+  "answer": null,
+  "problemProposals": [],
+  "questions": [],
+  "guide": null,
+  "ticketProposals": [],
+  "caseProposal": {
+   "reusable": true,
+   "title": "다른 팀 문서가 문서함에 보이지 않을 때 기안자가 참조로 추가",
+   "action": "기안자에게 문의자를 열람자로 추가해 달라고 요청했고, 기안자가 문서 상세의 [참조 추가]로 문의자를 참조에 추가했다.",
+   "verification": "참조 추가 뒤 문의자 계정으로 문서함 > 전체 문서를 조회하자 문서가 목록에 나타났다.",
+   "applicability": "전자결재 문서함에서 다른 팀이 올린 문서가 보이지 않고, 문의자가 해당 문서의 기안자·결재선·참조에 없어 열람 권한이 없는 경우에 적용할 수 있습니다.",
+   "limitations": [
+    "적용 버전이 확인되지 않았습니다."
+   ],
+   "appliesToSystemVersion": null,
+   "accessScope": "SYSTEM_STAFF",
+   "sourceMessageIds": [
+    "483594ab-a144-5d71-b0dd-1c7ffe6d1e88"
+   ],
+   "entityLinks": [
+    {
+     "relation": "APPLIES_TO",
+     "targetId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+     "evidenceIds": [
+      "483594ab-a144-5d71-b0dd-1c7ffe6d1e88"
+     ]
+    },
+    {
+     "relation": "ADDRESSES",
+     "targetId": "9700e62c-dfde-52a5-881d-8abbc634dced",
+     "evidenceIds": [
+      "483594ab-a144-5d71-b0dd-1c7ffe6d1e88",
+      "9d27a646-1dda-5d40-9898-6b1352c4e165"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "9fac2b79-c9bf-54fb-83e2-1fbe20f79249",
+     "evidenceIds": [
+      "9d27a646-1dda-5d40-9898-6b1352c4e165",
+      "004e8e7b-2da0-551b-9455-b58447bfa1de"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "b318b727-10ab-53ea-ae72-07977daa754d",
+     "evidenceIds": [
+      "004e8e7b-2da0-551b-9455-b58447bfa1de",
+      "9d27a646-1dda-5d40-9898-6b1352c4e165"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "85554a73-4f69-5279-b63b-14687c05127e",
+     "evidenceIds": [
+      "004e8e7b-2da0-551b-9455-b58447bfa1de"
+     ]
+    }
+   ],
+   "problemStatement": "지난주에 옆 팀에서 올린 결재 문서를 보려는데 전자결재 문서함에 안 나와요."
+  },
+  "evidence": [],
+  "error": null,
+  "requiresFollowUp": false,
+  "ticketCreationResults": []
+ },
+ "model_calls": 2,
+ "input_tokens": 3716,
+ "output_tokens": 709,
+ "elapsed_seconds": 7.414977083913982,
+ "error": null,
+ "failure_detail": null
+}

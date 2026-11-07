@@ -1,11 +1,13 @@
 package com.hihops.hops.agent.service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -19,6 +21,7 @@ import com.hihops.hops.knowledge.domain.CaseOrigin;
 import com.hihops.hops.knowledge.domain.CaseType;
 import com.hihops.hops.knowledge.domain.ResolvedCase;
 import com.hihops.hops.knowledge.repository.ResolvedCaseRepository;
+import com.hihops.hops.relation.service.RelationLinkCandidateReader;
 import com.hihops.hops.ticket.domain.WorkLogType;
 import com.hihops.hops.ticket.repository.TicketRepository;
 import com.hihops.hops.ticket.service.ResolutionRequestReader;
@@ -47,6 +50,10 @@ public class CurationResultHandler implements AgentRunResultHandler {
     private final ApplicationEventPublisher publisher;
     private final ResolutionRequestReader confirmations;
     private final TicketKnowledgeReader knowledge;
+    private final RelationLinkCandidateReader relationLinks;
+
+    /** 관계별 최대 연결 수. AI(curator-link)의 상한과 같고 APPLIES_TO는 시스템 하나다. */
+    static final Map<String, Integer> MAX_LINKS = Map.of("APPLIES_TO", 1, "ADDRESSES", 3, "USES_CHECK", 5);
 
     @Override
     public AgentTask task() { return AgentTask.CURATION; }
@@ -111,12 +118,7 @@ public class CurationResultHandler implements AgentRunResultHandler {
         var sources = sourceIds(proposal.path("sourceMessageIds"));
         require(!sources.isEmpty() && allowedSourceIds(input, ticket.getInquiryProblem().getId()).containsAll(sources));
         relationEvidence.addAll(sources);
-        for (var link : proposal.path("entityLinks")) {
-            require(link.isObject() && "APPLIES_TO".equals(link.path("relation").asString())
-                    && ticket.getResponsibleSystem().getId().toString().equals(link.path("targetId").asString()));
-            var evidence = sourceIds(link.path("evidenceIds"));
-            require(!evidence.isEmpty() && relationEvidence.containsAll(evidence));
-        }
+        verifyLinks(input, ticket, proposal.path("entityLinks"), relationEvidence);
         for (var field : List.of("title", "action", "verification", "applicability", "problemStatement")) {
             require(proposal.path(field).isString() && !proposal.path(field).asString().isBlank());
         }
@@ -142,6 +144,68 @@ public class CurationResultHandler implements AgentRunResultHandler {
         publisher.publishEvent(new TicketChangedEvent(ticket.getId(), List.of(ticket.getResponsibleSystem().getId())));
         return mapper.writeValueAsString(Map.of("applied", true,
                 "resources", List.of(Map.of("type", "CASE", "id", draft.getId())), "caseGenerationState", "SUCCEEDED"));
+    }
+
+    /**
+     * 사례의 기존 노드 연결을 다시 확인한다. APPLIES_TO는 책임 시스템이다. ADDRESSES는 증상, USES_CHECK는 확인 항목이어야 하고
+     * AI가 본 후보(입력의 linkCandidates)에 있으면서 지금도 승인되어 실행 주체에게 보이는 노드만 허용한다(새 노드·다른 시스템 금지).
+     * 근거는 이 사례의 USER 출처, 입력에 고정한 이 문제의 메시지(AI 질문·답변 포함), 이 티켓의 처리 기록, 검증된 지식 근거 중 하나여야 한다.
+     */
+    private void verifyLinks(JsonNode input, com.hihops.hops.ticket.domain.Ticket ticket, JsonNode links, Set<String> relationEvidence) {
+        UUID systemId = ticket.getResponsibleSystem().getId();
+        Set<String> evidenceSpace = new LinkedHashSet<>(relationEvidence);
+        UUID problemId = ticket.getInquiryProblem().getId();
+        evidenceSpace.addAll(inputMessageIds(input, problemId, null));
+        Set<String> aiMessageIds = inputMessageIds(input, problemId, "AI");
+        var record = input.path("workRecord");
+        if (record.path("id").isString()) evidenceSpace.add(record.path("id").asString());
+        for (var related : record.path("relatedRecords")) {
+            if (related.path("id").isString()) evidenceSpace.add(related.path("id").asString());
+        }
+        Map<String, String> offered = new java.util.HashMap<>();
+        for (var candidate : record.path("linkCandidates")) {
+            offered.put(candidate.path("id").asString(), candidate.path("kind").asString());
+        }
+        Set<String> linkable = new LinkedHashSet<>();
+        var actor = UUID.fromString(input.path("accessContext").path("actorId").asString());
+        for (var current : relationLinks.currentlyLinkable(systemId, actor)) {
+            if (offered.get(current.id().toString()) != null && offered.get(current.id().toString()).equals(current.kind())) {
+                linkable.add(current.id().toString());
+            }
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        Map<String, Integer> counts = new java.util.HashMap<>();
+        for (var link : links) {
+            require(link.isObject());
+            String relation = link.path("relation").asString();
+            String target = link.path("targetId").asString();
+            switch (relation) {
+                case "APPLIES_TO" -> require(systemId.toString().equals(target));
+                case "ADDRESSES" -> require("SYMPTOM".equals(offered.get(target)) && linkable.contains(target));
+                case "USES_CHECK" -> require("CHECK_ITEM".equals(offered.get(target)) && linkable.contains(target));
+                default -> throw rejected("INVALID_OUTPUT");
+            }
+            require(seen.add(relation + ":" + target));
+            require(counts.merge(relation, 1, Integer::sum) <= MAX_LINKS.get(relation));
+            var evidence = sourceIds(link.path("evidenceIds"));
+            require(!evidence.isEmpty() && evidenceSpace.containsAll(evidence));
+            // 확인했다는 연결(USES_CHECK)은 AI가 물은 메시지로 인정하지 않는다. 처리 기록·사용자 메시지만 근거다.
+            if ("USES_CHECK".equals(relation)) require(Collections.disjoint(evidence, aiMessageIds));
+        }
+    }
+
+    /** 입력에 고정한 이 문제의 메시지 ID(sender가 null이면 모두). 관계 근거로만 쓰며 사례 출처(allowedSourceIds)와 다르다. */
+    private static Set<String> inputMessageIds(JsonNode input, UUID problemId, @Nullable String sender) {
+        Set<String> ids = new LinkedHashSet<>();
+        for (var message : input.path("messages")) {
+            var problems = message.path("problemIds");
+            if (problems.isArray() && problems.size() == 1 && problemId.toString().equals(problems.get(0).asString())
+                    && message.path("id").isString()
+                    && (sender == null || sender.equals(message.path("sender").asString()))) {
+                ids.add(message.path("id").asString());
+            }
+        }
+        return ids;
     }
 
     private List<KnowledgeEvidenceResponse> verifiedKnowledge(AgentRun run, JsonNode input, JsonNode evidence) {

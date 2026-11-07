@@ -232,6 +232,19 @@ START → collect → draft → link → validate → END
 - **초안:** 지식 표준화 양식(증상, 확인된 원인, 조치, 검증, 적용 조건, 한계). 원인·조치·검증은 처리 기록의 값을 그대로 쓰고 모델이 만들지 않는다(현재 규칙 유지).
 - **관계 판단(`link`):** 계약의 `APPLIES_TO`, `ADDRESSES`, `USES_CHECK`로 기존 노드에 연결할 후보를 근거와 함께 제안한다. 새 개념·관계 유형을 임의로 게시하지 않으며, 담당자 승인 전에는 검색에 공개되지 않는다.
 
+**구현 상태(#198).**
+
+| 영역 | 상태 |
+|---|---|
+| 입력 확장(Spring `CurationInputFactory`, AI wire `WorkRecordContext`) | 구현(커밋 ①). AI 질문·답변(최근 30개), 같은 티켓의 이전 처리 기록(20), 해결 확인 이력(20), 상담에 쓴 근거(10). 가산 필드 |
+| 사례 출처 | 사용자 메시지만 허용. 입력에 AI 메시지가 들어오므로 AI 병합에서도 거부한다 |
+| 초안 양식 개선(`curator-draft-v4`) | 구현. 맥락을 프롬프트에 쓰고, 해결되지 않은 시도와 원인·적용 버전 미확인 문장은 코드가 처리 기록 값으로 한계에 덧붙인다(모델의 한계가 많아도 잘리지 않는다) |
+| 사례 그래프 | 구현. Curator 안의 서브그래프 `collect → draft → link → validate`. `CASE_DRAFT`는 선택지가 하나라 Supervisor 모델을 부르지 않는다(모델 호출 3회 → 초안 1회 + link 1회) |
+| `link`(`ADDRESSES`·`USES_CHECK`) | 구현. AI(`curator-link-v1`)가 후보 안에서만 고르고 근거 인용을 대조한다. Spring이 후보(`linkCandidates`)를 보내고(`RelationLinkCandidateReader`), 결과 적용 때 대상이 입력의 후보이면서 지금도 승인·가시인지, 근거가 입력 메시지·이 티켓의 처리 기록·검증된 근거인지, 관계 유형·중복·개수를 다시 확인한다 |
+| 승인 뒤 관계 테이블 반영 | 미구현. 승인된 사례의 `entityLinks`는 JSON(`relation_candidates`)과 색인 요청에만 있고 `relation_case_symptom`·`relation_case_check`를 쓰는 코드는 시드 밖에 없다(#201과 함께 결정) |
+| Curator 평가 | 구현(커밋 ③). 별도 시나리오 10개(DEV 6·TEST 4), 안전 성질 C1~C5, 행동 성질 CB1~CB4([평가 방식](../knowledge/EVALUATION.md#curator-평가-사례-초안관계-판단)). |
+| 사례 실행의 접근 범위 | 구현. `allowedDocumentScopes=["EMPLOYEE","SYSTEM_STAFF"]`(실행 주체인 주담당자가 볼 수 있는 범위), `systemIds`는 책임 시스템 하나. Spring이 입력의 상담 근거를 이 범위로 걸러 보낸다([계약](../../contracts/agents/README.md)). 이전에는 직원 공개 상담 근거가 요청서에 있으면 사례 실행이 입력 단계에서 거부되었다 |
+
 ## 8. 관계 데이터
 
 관계 데이터는 상담 흐름에 직접 들어간다. Knowledge는 증상에서 가능한 원인과 확인 항목을 찾고, Inquiry는 어떤 확인 항목을 물어야 문의가 구체화되는지 안다.

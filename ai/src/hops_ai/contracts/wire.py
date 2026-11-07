@@ -339,6 +339,58 @@ class InputProblem(WireModel):
     resolutionContext: ResolutionContext | None
 
 
+# 처리 기록의 문장(조치·검증·확인된 원인) 길이 상한(코드 포인트). Spring이 같은 값으로 자른다.
+MAX_RECORD_TEXT = 4000
+
+
+class RelatedWorkRecord(WireModel):
+    """같은 티켓의 다른 처리 기록. 사례의 원 기록이 아니라 과정을 이해하는 맥락이다.
+
+    진행·실패 시도도 포함하지만 사례의 조치·검증·원인으로 쓰지 않는다.
+    실패 시도는 사례를 만들지 않는다.
+    """
+
+    id: WireUuid
+    kind: Literal["PROGRESS", "FAILED_ATTEMPT", "VERIFIED_RESOLUTION", "IMPLEMENTED_VERIFIED"]
+    action: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)]
+    verification: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)] | None
+    confirmedCause: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)] | None
+    appliesToSystemVersion: SystemVersion | None
+    createdAt: WireTime
+
+
+class ResolutionHistoryEntry(WireModel):
+    """이 문제에 문의자에게 보낸 해결 확인 요청 한 건과 그 상태. 안내·처리 기록 양쪽을 포함한다."""
+
+    requestId: WireUuid
+    source: Literal["GUIDE", "WORK_RECORD"]
+    sourceId: WireUuid
+    state: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
+    requestedAt: WireTime
+    respondedAt: WireTime | None
+
+
+class LinkCandidate(WireModel):
+    """사례를 연결할 수 있는 기존 노드. Spring이 승인된 것만 골라 보낸다.
+
+    SYMPTOM은 `ADDRESSES`, CHECK_ITEM은 `USES_CHECK`의 대상이다. 이 목록 밖의 노드를 연결하거나
+    새 노드를 만들 수 없다. 원인(Cause)은 연결 대상이 아니다.
+    """
+
+    id: WireUuid
+    kind: Literal["SYMPTOM", "CHECK_ITEM"]
+    label: Annotated[WireText, Field(max_length=200)]
+    systemId: WireUuid
+
+
+# 맥락 입력의 개수 상한. Spring이 같은 값으로 자르며 넘으면 입력 오류다.
+MAX_RELATED_RECORDS = 20
+MAX_RESOLUTION_HISTORY = 20
+MAX_CONSULTED_KNOWLEDGE = 10
+MAX_SYMPTOM_CANDIDATES = 30
+MAX_CHECK_CANDIDATES = 40
+
+
 class WorkRecordContext(WireModel):
     id: WireUuid
     ticketId: WireUuid
@@ -350,8 +402,52 @@ class WorkRecordContext(WireModel):
     createdAt: WireTime
     resolutionRequestId: WireUuid
     confirmationState: Literal["PENDING", "RESOLVED", "UNRESOLVED"]
-    confirmedCause: Annotated[WireText, Field(max_length=4000)] | None
+    confirmedCause: Annotated[WireText, Field(max_length=MAX_RECORD_TEXT)] | None
     appliesToSystemVersion: SystemVersion | None
+    # 문의 전체 과정(#198). 모두 가산 필드라 이전 생산자는 보내지 않으며 생략하면 빈 목록이다.
+    # 같은 티켓의 다른 처리 기록(원 기록 제외, 오래된 순)
+    relatedRecords: list[RelatedWorkRecord] = Field(
+        default_factory=list, max_length=MAX_RELATED_RECORDS
+    )
+    # 이 문제의 해결 확인 이력(원 기록의 확인 요청 제외, 오래된 순)
+    resolutionHistory: list[ResolutionHistoryEntry] = Field(
+        default_factory=list, max_length=MAX_RESOLUTION_HISTORY
+    )
+    # 상담에 쓰인 근거. Spring이 현재 권한으로 다시 확인해 보낸 것만 있으며 최신 상담 순이다.
+    consultedKnowledge: list[KnowledgeEvidence] = Field(
+        default_factory=list, max_length=MAX_CONSULTED_KNOWLEDGE
+    )
+    # 사례를 연결할 수 있는 같은 시스템의 기존 증상·확인 항목(승인된 것만).
+    # 비어 있으면 `link` 판단을 하지 않는다.
+    linkCandidates: list[LinkCandidate] = Field(
+        default_factory=list, max_length=MAX_SYMPTOM_CANDIDATES + MAX_CHECK_CANDIDATES
+    )
+
+    @model_validator(mode="after")
+    def validate_context(self) -> "WorkRecordContext":
+        if any(record.id == self.id for record in self.relatedRecords):
+            raise ValueError("관련 처리 기록에 원 기록이 들어 있습니다")
+        for name, ids in (
+            ("관련 처리 기록", [record.id for record in self.relatedRecords]),
+            ("해결 확인 이력", [entry.requestId for entry in self.resolutionHistory]),
+            ("상담 근거", [item.id for item in self.consultedKnowledge]),
+        ):
+            if len(ids) != len(set(ids)):
+                raise ValueError(f"{name}의 식별자가 중복됐습니다")
+        if any(entry.requestId == self.resolutionRequestId for entry in self.resolutionHistory):
+            raise ValueError("해결 확인 이력에 원 기록의 확인 요청이 들어 있습니다")
+        candidate_ids = [item.id for item in self.linkCandidates]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError("연결 후보의 식별자가 중복됐습니다")
+        if any(item.systemId != self.systemId for item in self.linkCandidates):
+            raise ValueError("연결 후보가 원 기록의 시스템과 다른 시스템에 속합니다")
+        symptoms = sum(item.kind == "SYMPTOM" for item in self.linkCandidates)
+        if (
+            symptoms > MAX_SYMPTOM_CANDIDATES
+            or len(self.linkCandidates) - symptoms > MAX_CHECK_CANDIDATES
+        ):
+            raise ValueError("연결 후보가 종류별 상한을 넘었습니다")
+        return self
 
 
 class AiRunRequest(WireModel):

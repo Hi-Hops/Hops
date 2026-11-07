@@ -39,11 +39,11 @@ class TicketAgentDispatchTest extends TicketCommandFixture {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"visible", "withdrawn", "other-system", "unapproved-version", "outside-scope"})
+    @ValueSource(strings = {"visible", "withdrawn", "other-system", "unapproved-version"})
     void 사례의_Knowledge_관계근거는_현재_권한과_시스템과_승인버전으로_재검증한다(String mode) throws Exception {
         var documentSystem = "other-system".equals(mode) ? otherSystem : system;
         if ("other-system".equals(mode)) jdbc.update("UPDATE it_system SET primary_owner_member_id=? WHERE id=?", staff, otherSystem);
-        String scope = "outside-scope".equals(mode) ? "EMPLOYEE" : "STAFF";
+        String scope = "STAFF";
         jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 지식','STAFF_RUNBOOK',?,?,'RAG','APPROVED')", knowledgeDocument, documentSystem, scope);
         String content = "가상 조치 검증 근거";
         String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
@@ -57,7 +57,7 @@ class TicketAgentDispatchTest extends TicketCommandFixture {
             var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
             result.putArray("evidence").add(mapper.valueToTree(new com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse(
                     knowledgeEvidence, knowledgeDocument, 1, "RUNBOOK", "가상 지식", content, documentSystem, null, "가상 시연",
-                    "EMPLOYEE".equals(scope) ? "EMPLOYEE" : "SYSTEM_STAFF", "SYNTHETIC")));
+                    "SYSTEM_STAFF", "SYNTHETIC")));
             ((tools.jackson.databind.node.ObjectNode) result.path("caseProposal").path("entityLinks").get(0))
                     .putArray("evidenceIds").add(knowledgeEvidence.toString());
             return snapshot;
@@ -76,6 +76,31 @@ class TicketAgentDispatchTest extends TicketCommandFixture {
             assertThat(jdbc.queryForObject("SELECT error_code FROM agent_run WHERE ticket_id=?", String.class, ticket)).isEqualTo("INVALID_OUTPUT");
             assertThat(jdbc.queryForObject("SELECT count(*) FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", Integer.class, ticket)).isZero();
         }
+    }
+
+    @Test
+    void 직원_공개_가이드_근거도_책임_시스템의_것이면_사례의_근거로_보존한다() throws Exception {
+        // 사례 초안 실행은 담당자 본인이 볼 수 있는 직원 공개 자료도 범위에 둔다. 입력의 근거를 되돌려 받을 때 같은 범위로 확인한다.
+        String content = "가상 직원 가이드 본문";
+        String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'가상 안내','EMPLOYEE_GUIDE',?,'EMPLOYEE','RAG','APPROVED')", knowledgeDocument, system);
+        jdbc.update("INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status) VALUES (?,1,?,?,?::jsonb,'APPROVED')", knowledgeDocument, content, digest,
+                "{\"origin\":\"SYNTHETIC\",\"applicability\":\"가상 시연\",\"appliesToSystemVersion\":null}");
+        when(client.snapshot(any())).thenAnswer(invocation -> {
+            var snapshot = sourcedSnapshot(invocation.getArgument(0, String.class));
+            ((tools.jackson.databind.node.ObjectNode) snapshot.path("result")).putArray("evidence").add(mapper.valueToTree(
+                    new com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse(
+                            knowledgeEvidence, knowledgeDocument, 1, "GUIDE", "가상 안내", content, system, null, "가상 시연",
+                            "EMPLOYEE", "SYNTHETIC")));
+            return snapshot;
+        });
+        result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).untilAsserted(() ->
+                assertThat(detail().path("caseGeneration").path("state").asString()).isEqualTo("SUCCEEDED"));
+        var metadata = json(jdbc.queryForObject("SELECT confirmed_facts::text FROM resolved_case WHERE source_work_log_id IN (SELECT id FROM ticket_work_log WHERE ticket_id=?)", String.class, ticket));
+        assertThat(metadata.path("knowledge").get(0).path("id").asString()).isEqualTo(knowledgeEvidence.toString());
+        assertThat(metadata.path("knowledge").get(0).path("accessScope").asString()).isEqualTo("EMPLOYEE");
     }
 
     @org.junit.jupiter.params.ParameterizedTest

@@ -1,0 +1,7 @@
+{
+  "scenarioId": "C-file-link-expired-001",
+  "caseFamily": "file-link-expired",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "card": "case-file-link-expired"
+}

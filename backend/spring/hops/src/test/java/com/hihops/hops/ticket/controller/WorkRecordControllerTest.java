@@ -42,10 +42,13 @@ class WorkRecordControllerTest extends TicketCommandFixture {
         assertThat(frozen.path("messages")).isEqualTo(input.path("messages"));
     }
 
-    @Test void USER_출처가_없으면_AI_메시지를_원문으로_대체하지_않는다() throws Exception {
+    @Test void USER_출처가_없으면_AI_메시지는_맥락으로만_담기고_USER_원문으로_대체되지_않는다() throws Exception {
         result(command(staff, "/tickets/" + ticket + "/work-records", work("VERIFIED_RESOLUTION")));
         var input = json(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE ticket_id=?", String.class, ticket));
-        assertThat(input.path("messages").isEmpty()).isTrue();
+        // #198: AI 질문·답변은 과정을 이해하는 맥락으로 담지만 sender는 AI 그대로이고 사례 출처(USER)가 되지 않는다.
+        assertThat(input.path("messages").size()).isEqualTo(1);
+        assertThat(input.path("messages").get(0).path("sender").asString()).isEqualTo("AI");
+        assertThat(input.path("messages").valueStream().filter(item -> "USER".equals(item.path("sender").asString())).count()).isZero();
         assertThat(input.path("workRecord").path("action").asString()).isEqualTo("실제 조치");
     }
 

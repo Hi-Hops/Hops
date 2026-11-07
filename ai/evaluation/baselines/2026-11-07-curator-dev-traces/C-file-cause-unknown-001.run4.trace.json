@@ -1,0 +1,272 @@
+{
+ "format": 1,
+ "scenario_id": "C-file-cause-unknown-001",
+ "request": {
+  "contractVersion": "hops-system-1",
+  "runId": "fdcb4fc1-351d-51fd-88ed-e6539243ba70",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "7c203f02-8fc7-5df7-8fdd-f3319842b8c9",
+  "inquiryVersion": 1,
+  "answerMessageId": null,
+  "problemIds": [
+   "65db7930-e8a5-5658-8f39-c2549316fcf1"
+  ],
+  "messages": [
+   {
+    "id": "b62ac463-0370-53d4-964b-d3a72670c999",
+    "revision": 1,
+    "sequenceNo": 1,
+    "sender": "USER",
+    "content": "공유 받은 파일이 안 열려요.",
+    "problemIds": [
+     "65db7930-e8a5-5658-8f39-c2549316fcf1"
+    ],
+    "createdAt": "2026-11-02T00:01:00Z"
+   },
+   {
+    "id": "2d196f12-d5c3-5fd4-af25-4f6704238ff4",
+    "revision": 1,
+    "sequenceNo": 2,
+    "sender": "AI",
+    "content": "파일이 열리지 않아 불편하시겠어요. 화면에 어떤 문구가 표시되나요? 그리고 링크를 받은 게 언제쯤인가요?",
+    "problemIds": [
+     "65db7930-e8a5-5658-8f39-c2549316fcf1"
+    ],
+    "createdAt": "2026-11-02T00:02:00Z"
+   },
+   {
+    "id": "c6f25321-4031-56e6-895c-726237e4db2a",
+    "revision": 1,
+    "sequenceNo": 3,
+    "sender": "USER",
+    "content": "문구는 기억이 안 나고 받은 시점도 잘 모르겠어요.",
+    "problemIds": [
+     "65db7930-e8a5-5658-8f39-c2549316fcf1"
+    ],
+    "createdAt": "2026-11-02T00:03:00Z"
+   },
+   {
+    "id": "b6f1741e-1ea6-5ad0-b059-70d657391284",
+    "revision": 1,
+    "sequenceNo": 4,
+    "sender": "AI",
+    "content": "알려 주셔서 감사합니다. 확인된 내용을 정리해 파일 공유 담당자에게 접수했습니다.",
+    "problemIds": [
+     "65db7930-e8a5-5658-8f39-c2549316fcf1"
+    ],
+    "createdAt": "2026-11-02T00:04:00Z"
+   }
+  ],
+  "problems": [
+   {
+    "id": "65db7930-e8a5-5658-8f39-c2549316fcf1",
+    "summary": "공유 받은 파일이 열리지 않음",
+    "intent": "OBSERVED_SYMPTOM",
+    "processingType": "INVESTIGATION",
+    "reportedSystemId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+    "reportedFeatureId": null,
+    "state": "WAITING_CONFIRMATION",
+    "questionCount": 1,
+    "askedFields": [],
+    "standardRequest": {
+     "summary": "공유 받은 파일이 열리지 않는다. 화면에 표시된 문구와 받은 시점은 확인하지 못했다.",
+     "confirmedFacts": [
+      {
+       "text": "공유 받은 파일이 열리지 않는다.",
+       "sourceMessageIds": [
+        "b62ac463-0370-53d4-964b-d3a72670c999"
+       ],
+       "knowledgeEvidenceIds": []
+      }
+     ],
+     "assumptions": [],
+     "unknowns": [
+      "화면에 표시된 문구",
+      "링크를 받은 시점"
+     ],
+     "responsibleSystemCandidateId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+     "responsibilityEvidenceIds": [],
+     "details": {
+      "taskOrScreen": "공유 받은 파일을 열려 함",
+      "requestedAccess": null,
+      "businessPurpose": null,
+      "expectedBehavior": "파일이 열림",
+      "actualBehavior": "파일이 열리지 않음",
+      "occurredAt": null,
+      "currentWorkflow": null,
+      "desiredChange": null,
+      "acceptanceCriteria": []
+     },
+     "knowledge": []
+    },
+    "resolutionContext": null
+   }
+  ],
+  "systems": [
+   {
+    "id": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+    "code": "FILE_SHARING",
+    "name": "파일 공유",
+    "features": [
+     {
+      "id": "152e8439-1e01-5e26-9749-f77df1cb65fc",
+      "name": "파일 열람"
+     },
+     {
+      "id": "06bb5aba-b278-5cc1-9e5b-41c38e674991",
+      "name": "파일 공유"
+     },
+     {
+      "id": "b7b05865-02c9-5e39-a22e-d103b2a00057",
+      "name": "접근 권한"
+     }
+    ]
+   }
+  ],
+  "accessContext": {
+   "actorId": "4ca4b76e-8f04-540b-8745-acdc8bcb398d",
+   "purpose": "CASE_DRAFT",
+   "systemIds": [
+    "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+   ],
+   "allowedDocumentScopes": [
+    "SYSTEM_STAFF"
+   ],
+   "policyRevision": 1,
+   "retrievalScopes": null
+  },
+  "existingWorkItems": [
+   {
+    "workItemId": "65db7930-e8a5-5658-8f39-c2549316fcf1",
+    "problemId": "65db7930-e8a5-5658-8f39-c2549316fcf1",
+    "inquiryVersion": 1,
+    "outcome": "STORED",
+    "ticketId": "9c179954-f6da-594b-bb5c-e5ffd959ae63"
+   }
+  ],
+  "workRecord": {
+   "id": "b9f7f511-0fae-5bf1-8e80-2e1eaae56209",
+   "ticketId": "9c179954-f6da-594b-bb5c-e5ffd959ae63",
+   "problemId": "65db7930-e8a5-5658-8f39-c2549316fcf1",
+   "systemId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+   "kind": "VERIFIED_RESOLUTION",
+   "action": "공유한 사람에게 새 공유 링크를 만들어 다시 전달해 달라고 요청했다.",
+   "verification": "새 링크로 문의자가 파일을 열 수 있었다.",
+   "createdAt": "2026-11-02T02:00:00Z",
+   "resolutionRequestId": "2d083f59-4486-5e21-a9fd-8bb5b2d78999",
+   "confirmationState": "PENDING",
+   "confirmedCause": null,
+   "appliesToSystemVersion": null,
+   "relatedRecords": [
+    {
+     "id": "02199f83-e9f6-51a6-9896-dab81ad54069",
+     "kind": "PROGRESS",
+     "action": "문의자 계정으로 해당 공유 항목을 열어 보았으나 재현 여부를 확정하지 못했다.",
+     "verification": null,
+     "confirmedCause": null,
+     "appliesToSystemVersion": null,
+     "createdAt": "2026-11-02T01:00:00Z"
+    }
+   ],
+   "resolutionHistory": [],
+   "consultedKnowledge": [],
+   "linkCandidates": [
+    {
+     "id": "d1997e85-cd0b-546d-9f22-5e2302f89804",
+     "kind": "SYMPTOM",
+     "label": "공유 파일이나 폴더가 열리지 않음",
+     "systemId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+    },
+    {
+     "id": "562fe407-0681-548f-baf0-ee60f88b4051",
+     "kind": "CHECK_ITEM",
+     "label": "폴더 목록에서 열었는지, 링크로 열었는지",
+     "systemId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+    },
+    {
+     "id": "c9bf79b7-84f6-50f4-b95c-23edd5235b4a",
+     "kind": "CHECK_ITEM",
+     "label": "화면에 표시된 문구",
+     "systemId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+    },
+    {
+     "id": "bdd07d15-85d2-54ae-9a86-51fcf944d03f",
+     "kind": "CHECK_ITEM",
+     "label": "공유 링크를 받은 시점",
+     "systemId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+    },
+    {
+     "id": "0977f720-0864-5bdf-9ab5-a0706c460563",
+     "kind": "CHECK_ITEM",
+     "label": "그 파일이 최근 삭제되거나 이동됐는지 아는지",
+     "systemId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4"
+    }
+   ]
+  },
+  "expiresAt": "2026-11-07T06:58:39Z",
+  "limits": {
+   "maxModelCalls": 8,
+   "maxInputTokens": 60000,
+   "maxOutputTokens": 12000,
+   "maxToolCalls": 10,
+   "maxRetries": 2
+  }
+ },
+ "result": {
+  "contractVersion": "hops-system-1",
+  "runId": "fdcb4fc1-351d-51fd-88ed-e6539243ba70",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "7c203f02-8fc7-5df7-8fdd-f3319842b8c9",
+  "inquiryVersion": 1,
+  "status": "SUCCEEDED",
+  "answer": null,
+  "problemProposals": [],
+  "questions": [],
+  "guide": null,
+  "ticketProposals": [],
+  "caseProposal": {
+   "reusable": true,
+   "title": "공유 받은 파일이 열리지 않음 — 새 공유 링크를 요청해 해결",
+   "action": "공유한 사람에게 새 공유 링크를 만들어 다시 전달해 달라고 요청했다.",
+   "verification": "새 링크로 문의자가 파일을 열 수 있었다.",
+   "applicability": "파일 공유 시스템에서 공유 받은 파일이 열리지 않을 때, 공유한 사람에게 새 공유 링크를 만들어 다시 전달해 달라고 요청한다.",
+   "limitations": [
+    "원인은 확인되지 않았습니다.",
+    "적용 버전이 확인되지 않았습니다."
+   ],
+   "appliesToSystemVersion": null,
+   "accessScope": "SYSTEM_STAFF",
+   "sourceMessageIds": [
+    "b62ac463-0370-53d4-964b-d3a72670c999"
+   ],
+   "entityLinks": [
+    {
+     "relation": "APPLIES_TO",
+     "targetId": "22d935d0-2ed8-58a7-a9b8-d73f717ed3c4",
+     "evidenceIds": [
+      "b62ac463-0370-53d4-964b-d3a72670c999"
+     ]
+    },
+    {
+     "relation": "ADDRESSES",
+     "targetId": "d1997e85-cd0b-546d-9f22-5e2302f89804",
+     "evidenceIds": [
+      "b62ac463-0370-53d4-964b-d3a72670c999",
+      "b9f7f511-0fae-5bf1-8e80-2e1eaae56209"
+     ]
+    }
+   ],
+   "problemStatement": "공유 받은 파일이 안 열려요."
+  },
+  "evidence": [],
+  "error": null,
+  "requiresFollowUp": false,
+  "ticketCreationResults": []
+ },
+ "model_calls": 2,
+ "input_tokens": 2748,
+ "output_tokens": 281,
+ "elapsed_seconds": 4.672453083097935,
+ "error": null,
+ "failure_detail": null
+}

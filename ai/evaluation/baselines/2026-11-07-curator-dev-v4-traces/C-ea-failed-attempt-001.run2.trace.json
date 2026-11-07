@@ -1,0 +1,392 @@
+{
+ "format": 1,
+ "scenario_id": "C-ea-failed-attempt-001",
+ "request": {
+  "contractVersion": "hops-system-1",
+  "runId": "8506206d-21ef-545d-916a-162a80c0c8f4",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "265c59be-9788-51ab-be97-9288d580d33b",
+  "inquiryVersion": 1,
+  "answerMessageId": null,
+  "problemIds": [
+   "f46cb4c6-a23b-5edb-95e0-de4e5107d724"
+  ],
+  "messages": [
+   {
+    "id": "14714b0b-c476-55fc-b097-a21e4071a7b6",
+    "revision": 1,
+    "sequenceNo": 1,
+    "sender": "USER",
+    "content": "제가 기안한 월간 보고 문서가 전자결재 문서함에 안 보여요.",
+    "problemIds": [
+     "f46cb4c6-a23b-5edb-95e0-de4e5107d724"
+    ],
+    "createdAt": "2026-11-02T00:01:00Z"
+   },
+   {
+    "id": "bfa18b5b-9e23-53a2-a1a9-ab8a95ee1685",
+    "revision": 1,
+    "sequenceNo": 2,
+    "sender": "AI",
+    "content": "문서가 보이지 않아 불편하시겠어요. 이 문서를 직접 기안하셨나요? 그리고 안내해 드린 대로 조회 기간을 확인해 보셨나요?",
+    "problemIds": [
+     "f46cb4c6-a23b-5edb-95e0-de4e5107d724"
+    ],
+    "createdAt": "2026-11-02T00:02:00Z"
+   },
+   {
+    "id": "8f414ee2-44ec-5c0e-8331-8c2d0c1dc21b",
+    "revision": 1,
+    "sequenceNo": 3,
+    "sender": "USER",
+    "content": "네 제가 직접 기안했어요. 안내대로 조회 기간을 넓혀 봤는데도 안 나와요.",
+    "problemIds": [
+     "f46cb4c6-a23b-5edb-95e0-de4e5107d724"
+    ],
+    "createdAt": "2026-11-02T00:03:00Z"
+   },
+   {
+    "id": "07757ad2-555f-5633-a2a6-83ae7a66ef50",
+    "revision": 1,
+    "sequenceNo": 4,
+    "sender": "AI",
+    "content": "알려 주셔서 감사합니다. 확인된 내용을 정리해 전자결재 담당자에게 접수했습니다. 담당자가 확인한 뒤 결과를 이 대화로 알려 드리겠습니다.",
+    "problemIds": [
+     "f46cb4c6-a23b-5edb-95e0-de4e5107d724"
+    ],
+    "createdAt": "2026-11-02T00:04:00Z"
+   }
+  ],
+  "problems": [
+   {
+    "id": "f46cb4c6-a23b-5edb-95e0-de4e5107d724",
+    "summary": "전자결재 문서함에서 월간 보고 문서가 조회되지 않음",
+    "intent": "OBSERVED_SYMPTOM",
+    "processingType": "INVESTIGATION",
+    "reportedSystemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+    "reportedFeatureId": null,
+    "state": "WAITING_CONFIRMATION",
+    "questionCount": 1,
+    "askedFields": [],
+    "standardRequest": {
+     "summary": "본인이 기안한 월간 보고 문서가 전자결재 문서함 목록에 나타나지 않는다. 안내대로 조회 기간을 확인했지만 해결되지 않았다.",
+     "confirmedFacts": [
+      {
+       "text": "문의자가 직접 기안한 문서이다.",
+       "sourceMessageIds": [
+        "8f414ee2-44ec-5c0e-8331-8c2d0c1dc21b"
+       ],
+       "knowledgeEvidenceIds": []
+      },
+      {
+       "text": "안내에 따라 조회 기간을 확인했지만 해결되지 않았다.",
+       "sourceMessageIds": [
+        "8f414ee2-44ec-5c0e-8331-8c2d0c1dc21b"
+       ],
+       "knowledgeEvidenceIds": []
+      }
+     ],
+     "assumptions": [],
+     "unknowns": [
+      "문서함 검색창에 입력한 내용"
+     ],
+     "responsibleSystemCandidateId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+     "responsibilityEvidenceIds": [],
+     "details": {
+      "taskOrScreen": "전자결재 문서함에서 월간 보고 문서를 찾으려 함",
+      "requestedAccess": null,
+      "businessPurpose": null,
+      "expectedBehavior": "문서가 목록에 나타남",
+      "actualBehavior": "문서가 목록에 나타나지 않음",
+      "occurredAt": null,
+      "currentWorkflow": null,
+      "desiredChange": null,
+      "acceptanceCriteria": []
+     },
+     "knowledge": [
+      {
+       "id": "1c0a6d00-c9f2-56a3-9f1f-c799a8d47037",
+       "documentId": "ce09363e-9aa8-5557-a49f-90ba9a311a24",
+       "documentVersion": 1,
+       "kind": "GUIDE",
+       "title": "전자결재에서 지난 문서 찾기",
+       "excerpt": "## 목적 전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다. ## 전제 - 공통 로그인(SSO)으로 로그인한 상태입니다. - 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다. ## 절차 1. `전자결재 > 문서함 > 전체 문서`를 엽니다. 2. 조회 조건을 정합니다. - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다. - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다. - 제목 ",
+       "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+       "appliesToSystemVersion": null,
+       "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+       "accessScope": "EMPLOYEE",
+       "origin": "SYNTHETIC"
+      }
+     ]
+    },
+    "resolutionContext": null
+   }
+  ],
+  "systems": [
+   {
+    "id": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+    "code": "ELECTRONIC_APPROVAL",
+    "name": "전자결재",
+    "features": [
+     {
+      "id": "8c3ade64-251a-5b46-ba24-7bacb5384900",
+      "name": "문서 작성"
+     },
+     {
+      "id": "5b540d0d-ef38-58b3-bfe6-9cfb5b20109e",
+      "name": "문서 조회"
+     },
+     {
+      "id": "74c8f41e-e3a1-5828-a317-2ccca15895c7",
+      "name": "결재 상태"
+     },
+     {
+      "id": "1da6defb-2244-5cc5-ae70-bc75d8c5d4d4",
+      "name": "첨부 열람"
+     }
+    ]
+   }
+  ],
+  "accessContext": {
+   "actorId": "764b7908-c9b9-5d34-a154-503fdde1b4af",
+   "purpose": "CASE_DRAFT",
+   "systemIds": [
+    "3320ce84-c47c-592c-b599-6e968e12b0a3"
+   ],
+   "allowedDocumentScopes": [
+    "EMPLOYEE",
+    "SYSTEM_STAFF"
+   ],
+   "policyRevision": 1,
+   "retrievalScopes": null
+  },
+  "existingWorkItems": [
+   {
+    "workItemId": "f46cb4c6-a23b-5edb-95e0-de4e5107d724",
+    "problemId": "f46cb4c6-a23b-5edb-95e0-de4e5107d724",
+    "inquiryVersion": 1,
+    "outcome": "STORED",
+    "ticketId": "717e6f54-3122-5385-8877-080c39c14a84"
+   }
+  ],
+  "workRecord": {
+   "id": "26508188-e397-53c6-9e5f-61caeace4143",
+   "ticketId": "717e6f54-3122-5385-8877-080c39c14a84",
+   "problemId": "f46cb4c6-a23b-5edb-95e0-de4e5107d724",
+   "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+   "kind": "VERIFIED_RESOLUTION",
+   "action": "문의자 화면을 함께 확인하니 문서함 검색창에 제목 키워드가 남아 있었다. 키워드를 지우고 다시 조회하도록 안내했다.",
+   "verification": "키워드를 지운 뒤 조회하자 문서가 목록에 나타났다.",
+   "createdAt": "2026-11-02T03:00:00Z",
+   "resolutionRequestId": "6e4e2ca0-20a5-5729-8fa7-d29fb443fac1",
+   "confirmationState": "PENDING",
+   "confirmedCause": "문서함 검색창에 남아 있던 제목 키워드 조건이 문서 제목과 맞지 않아 목록에서 걸러졌다.",
+   "appliesToSystemVersion": null,
+   "relatedRecords": [
+    {
+     "id": "1575d3c4-d7af-5a13-bc15-a5d246994fac",
+     "kind": "FAILED_ATTEMPT",
+     "action": "문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다.",
+     "verification": null,
+     "confirmedCause": null,
+     "appliesToSystemVersion": null,
+     "createdAt": "2026-11-02T01:00:00Z"
+    },
+    {
+     "id": "8e4ab8ab-9911-5334-ad49-b0939f68e4b7",
+     "kind": "FAILED_ATTEMPT",
+     "action": "조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다.",
+     "verification": null,
+     "confirmedCause": null,
+     "appliesToSystemVersion": null,
+     "createdAt": "2026-11-02T02:00:00Z"
+    }
+   ],
+   "resolutionHistory": [
+    {
+     "requestId": "f2d7cf2c-849e-5e86-8894-16d55643381b",
+     "source": "GUIDE",
+     "sourceId": "14714b0b-c476-55fc-b097-a21e4071a7b6",
+     "state": "UNRESOLVED",
+     "requestedAt": "2026-11-02T00:30:00Z",
+     "respondedAt": "2026-11-02T00:40:00Z"
+    }
+   ],
+   "consultedKnowledge": [
+    {
+     "id": "1c0a6d00-c9f2-56a3-9f1f-c799a8d47037",
+     "documentId": "ce09363e-9aa8-5557-a49f-90ba9a311a24",
+     "documentVersion": 1,
+     "kind": "GUIDE",
+     "title": "전자결재에서 지난 문서 찾기",
+     "excerpt": "## 목적 전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다. ## 전제 - 공통 로그인(SSO)으로 로그인한 상태입니다. - 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다. ## 절차 1. `전자결재 > 문서함 > 전체 문서`를 엽니다. 2. 조회 조건을 정합니다. - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다. - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다. - 제목 ",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+     "appliesToSystemVersion": null,
+     "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+     "accessScope": "EMPLOYEE",
+     "origin": "SYNTHETIC"
+    }
+   ],
+   "linkCandidates": [
+    {
+     "id": "8a8ad9e9-b844-51ad-a8b0-e48bd8d25f2f",
+     "kind": "SYMPTOM",
+     "label": "첨부 파일이 열리지 않음",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "9700e62c-dfde-52a5-881d-8abbc634dced",
+     "kind": "SYMPTOM",
+     "label": "문서가 문서함에 보이지 않음",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "523020e0-2d32-555e-94a7-d7a4f588d89b",
+     "kind": "CHECK_ITEM",
+     "label": "찾는 문서를 기안한 시기",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "45d1dac1-5ffe-5418-a646-6f4de00072ae",
+     "kind": "CHECK_ITEM",
+     "label": "화면에 표시된 문구",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "6a5bf11a-7f04-5880-94e8-4d50e71a0c5d",
+     "kind": "CHECK_ITEM",
+     "label": "열리지 않는 첨부 파일의 형식",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "1f6fca67-d74b-51bf-b72f-c41252383e6b",
+     "kind": "CHECK_ITEM",
+     "label": "조회할 때 입력한 상태·제목 키워드",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "9fac2b79-c9bf-54fb-83e2-1fbe20f79249",
+     "kind": "CHECK_ITEM",
+     "label": "문의자가 그 문서의 기안자인지, 결재선·참조에 있는지",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "3be2bce9-ff98-520d-8223-55a5e4d46690",
+     "kind": "CHECK_ITEM",
+     "label": "잠시 뒤 다시 시도해도 같은지",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "85554a73-4f69-5279-b63b-14687c05127e",
+     "kind": "CHECK_ITEM",
+     "label": "문의자가 설정한 조회 기간",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "d8f0e7d1-fd4a-5c99-8dc7-3d962ea2eb2e",
+     "kind": "CHECK_ITEM",
+     "label": "문서를 상신했는지, 임시 저장 상태인지",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "f2577cf9-9d9c-5382-85e0-e1ed1ce9a0fc",
+     "kind": "CHECK_ITEM",
+     "label": "첨부 파일을 올린 시점",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    },
+    {
+     "id": "b318b727-10ab-53ea-ae72-07977daa754d",
+     "kind": "CHECK_ITEM",
+     "label": "시스템에 남은 문서의 기안자·결재선·참조 기록",
+     "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3"
+    }
+   ]
+  },
+  "expiresAt": "2026-11-07T08:52:34Z",
+  "limits": {
+   "maxModelCalls": 8,
+   "maxInputTokens": 60000,
+   "maxOutputTokens": 12000,
+   "maxToolCalls": 10,
+   "maxRetries": 2
+  }
+ },
+ "result": {
+  "contractVersion": "hops-system-1",
+  "runId": "8506206d-21ef-545d-916a-162a80c0c8f4",
+  "kind": "CASE_DRAFT",
+  "inquiryId": "265c59be-9788-51ab-be97-9288d580d33b",
+  "inquiryVersion": 1,
+  "status": "SUCCEEDED",
+  "answer": null,
+  "problemProposals": [],
+  "questions": [],
+  "guide": null,
+  "ticketProposals": [],
+  "caseProposal": {
+   "reusable": true,
+   "title": "전자결재 문서함에서 문서가 조회되지 않으면 남아 있는 제목 키워드를 지우고 다시 조회",
+   "action": "문의자 화면을 함께 확인하니 문서함 검색창에 제목 키워드가 남아 있었다. 키워드를 지우고 다시 조회하도록 안내했다.",
+   "verification": "키워드를 지운 뒤 조회하자 문서가 목록에 나타났다.",
+   "applicability": "전자결재 문서함에서 문서를 조회할 때, 검색창에 남아 있는 제목 키워드 조건 때문에 문서가 목록에 나타나지 않는 경우 적용할 수 있다.",
+   "limitations": [
+    "적용 시스템 버전이 확인되지 않았다.",
+    "시도했지만 해결되지 않은 조치: 조회 기간을 최근 6개월로 넓혀 다시 조회했지만 문서가 나타나지 않았다.",
+    "시도했지만 해결되지 않은 조치: 문의자 브라우저의 캐시를 지우고 다시 로그인해 조회했지만 목록이 그대로였다."
+   ],
+   "appliesToSystemVersion": null,
+   "accessScope": "SYSTEM_STAFF",
+   "sourceMessageIds": [
+    "14714b0b-c476-55fc-b097-a21e4071a7b6"
+   ],
+   "entityLinks": [
+    {
+     "relation": "APPLIES_TO",
+     "targetId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+     "evidenceIds": [
+      "14714b0b-c476-55fc-b097-a21e4071a7b6"
+     ]
+    },
+    {
+     "relation": "ADDRESSES",
+     "targetId": "9700e62c-dfde-52a5-881d-8abbc634dced",
+     "evidenceIds": [
+      "14714b0b-c476-55fc-b097-a21e4071a7b6"
+     ]
+    },
+    {
+     "relation": "USES_CHECK",
+     "targetId": "1f6fca67-d74b-51bf-b72f-c41252383e6b",
+     "evidenceIds": [
+      "26508188-e397-53c6-9e5f-61caeace4143"
+     ]
+    }
+   ],
+   "problemStatement": "사용자가 직접 기안한 월간 보고 문서가 전자결재 문서함에 보이지 않았다."
+  },
+  "evidence": [
+   {
+    "id": "1c0a6d00-c9f2-56a3-9f1f-c799a8d47037",
+    "documentId": "ce09363e-9aa8-5557-a49f-90ba9a311a24",
+    "documentVersion": 1,
+    "kind": "GUIDE",
+    "title": "전자결재에서 지난 문서 찾기",
+    "excerpt": "## 목적 전자결재 문서함에서 기간, 상태, 제목 키워드로 문서를 조회하는 방법을 안내합니다. ## 전제 - 공통 로그인(SSO)으로 로그인한 상태입니다. - 조회할 수 있는 문서는 내가 기안했거나 결재선·참조에 포함된 문서입니다. ## 절차 1. `전자결재 > 문서함 > 전체 문서`를 엽니다. 2. 조회 조건을 정합니다. - 기간: 문서의 **기안일**을 기준으로 합니다. 처음에는 최근 3개월이 지정되어 있고, 최대 12개월까지 지정할 수 있습니다. - 상태: 처음에는 전체입니다. 특정 상태의 문서만 보려면 선택합니다. - 제목 ",
+    "systemId": "3320ce84-c47c-592c-b599-6e968e12b0a3",
+    "appliesToSystemVersion": null,
+    "applicability": "전자결재 문서함에서 기간·상태·제목 키워드로 문서를 조회하는 방법에만 적용한다. 조회 기간은 기안일에 적용되고 조회되는 문서는 기안했거나 결재선·참조에 포함된 문서이며, 조회가 되지 않는 문제의 확인은 IT 문의로 접수한다.",
+    "accessScope": "EMPLOYEE",
+    "origin": "SYNTHETIC"
+   }
+  ],
+  "error": null,
+  "requiresFollowUp": false,
+  "ticketCreationResults": []
+ },
+ "model_calls": 2,
+ "input_tokens": 3853,
+ "output_tokens": 383,
+ "elapsed_seconds": 5.879604041110724,
+ "error": null,
+ "failure_detail": null
+}

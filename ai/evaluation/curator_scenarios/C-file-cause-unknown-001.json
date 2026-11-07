@@ -1,0 +1,59 @@
+{
+  "scenarioId": "C-file-cause-unknown-001",
+  "caseFamily": "file-cause-unknown",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "confirmationState": "PENDING",
+  "systemCode": "FILE_SHARING",
+  "ticketTitle": "공유 받은 파일이 열리지 않음",
+  "intent": "OBSERVED_SYMPTOM",
+  "workType": "INVESTIGATION",
+  "summary": "공유 받은 파일이 열리지 않는다. 화면에 표시된 문구와 받은 시점은 확인하지 못했다.",
+  "facts": [
+    {
+      "text": "공유 받은 파일이 열리지 않는다.",
+      "messages": [
+        1
+      ]
+    }
+  ],
+  "unknowns": [
+    "화면에 표시된 문구",
+    "링크를 받은 시점"
+  ],
+  "details": {
+    "taskOrScreen": "공유 받은 파일을 열려 함",
+    "expectedBehavior": "파일이 열림",
+    "actualBehavior": "파일이 열리지 않음",
+    "occurredAt": null
+  },
+  "messages": [
+    {
+      "sender": "USER",
+      "text": "공유 받은 파일이 안 열려요."
+    },
+    {
+      "sender": "AI",
+      "text": "파일이 열리지 않아 불편하시겠어요. 화면에 어떤 문구가 표시되나요? 그리고 링크를 받은 게 언제쯤인가요?"
+    },
+    {
+      "sender": "USER",
+      "text": "문구는 기억이 안 나고 받은 시점도 잘 모르겠어요."
+    },
+    {
+      "sender": "AI",
+      "text": "알려 주셔서 감사합니다. 확인된 내용을 정리해 파일 공유 담당자에게 접수했습니다."
+    }
+  ],
+  "records": [
+    {
+      "kind": "PROGRESS",
+      "action": "문의자 계정으로 해당 공유 항목을 열어 보았으나 재현 여부를 확정하지 못했다."
+    },
+    {
+      "kind": "VERIFIED_RESOLUTION",
+      "action": "공유한 사람에게 새 공유 링크를 만들어 다시 전달해 달라고 요청했다.",
+      "verification": "새 링크로 문의자가 파일을 열 수 있었다."
+    }
+  ]
+}
