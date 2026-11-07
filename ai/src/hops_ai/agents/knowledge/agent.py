@@ -168,6 +168,10 @@ class SearchKnowledgeAgent:
         evidence = tuple(hit.evidence for hit in hits)
         # 관계를 먼저 조회한다: 판정이 확인 항목을 부족한 정보로 지목할 수 있게 입력으로 준다.
         relations = await self._look_up_relations(call, target, services)
+        # 판정을 먼저 한다: 판정이 인용한 근거로만 발췌해야 판정과 안내가 같은 문서를 가리킨다
+        assessment = await self._assess(
+            target, hits, relations, services, asked_checks(state, target.problemRef, relations)
+        )
         result = KnowledgeResult(
             invocationId=call.invocation_id,
             search=(
@@ -175,13 +179,11 @@ class SearchKnowledgeAgent:
                 if hits
                 else SearchResult(state="EMPTY", evidence=[], error=None)
             ),
-            guide=await self._guide_for(state, call, target, hits, services),
+            guide=await self._guide_for(state, call, target, hits, services, assessment),
             problemRef=target.problemRef,
             queryDigest=query.digest(),
             crowdedOut=crowded,
-            assessment=await self._assess(
-                target, hits, relations, services, asked_checks(state, target.problemRef, relations)
-            ),
+            assessment=assessment,
             relations=relations,
         )
         return RoleResponse(
@@ -197,6 +199,7 @@ class SearchKnowledgeAgent:
         target: ProblemProposal,
         hits: list[KnowledgeHit],
         services: SharedServices,
+        assessment: Assessment | None = None,
     ) -> GuideProposal | None:
         """이 검색 결과로 만들 수 있는 안내. 문제별 행동 경로에서는 다른 문제의 안내를 덮어쓰지
         않는다.
@@ -204,12 +207,17 @@ class SearchKnowledgeAgent:
         응답 계약이 안내를 하나만 허용하므로(`AiResult.guide`) 안내 칸이 다른 문제로 이미 차 있으면
         이 문제는 안내를 만들지 않는다. 그 문제는 답변할 수 없는 것으로 계산돼 질문이나 담당자
         검토로 간다.
+
+        판정이 근거를 인용했으면 그 근거만 발췌 후보로 쓴다. 판정과 다른 문서를 발췌하면 판정이
+        충분해도 답할 수 없는 것으로 계산돼(rules.assessment.answerable) 호출만 늘어난다.
         """
         existing = state["guide"]
         if call.targets and existing is not None and existing.problemRef != target.problemRef:
             return None
         if self._excerpt_guides:
-            decision = await self._excerpt(target, hits, services)
+            supported = set(assessment.supportingEvidenceIds) if assessment else set()
+            candidates = [hit for hit in hits if not supported or hit.evidence.id in supported]
+            decision = await self._excerpt(target, candidates, services)
             if decision is not None:
                 return decision.guide
         return _guide(target, hits)

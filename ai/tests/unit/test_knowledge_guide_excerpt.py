@@ -27,6 +27,7 @@ from hops_ai.harness.errors import BudgetExceeded, OutputRejected, TransientErro
 from hops_ai.supervisor.execution import RoleRequest, execute_role
 from tests.supervisor_fixtures import PROBLEM, make_evidence, reserve, running_state, uid
 from tests.unit.test_knowledge_agent import RecordingSource, how_to_request
+from tests.unit.test_knowledge_assessment import draft as assessment_draft
 from tests.unit.test_knowledge_assessment import hit, services_with
 
 GUIDE = make_evidence(title="문서 조회 안내")
@@ -56,11 +57,11 @@ def draft(**changes) -> GuideExcerptDraft:
     return GuideExcerptDraft(**{**fields, **changes})
 
 
-async def run_knowledge(*outcomes, hits=None, excerpt=True):
+async def run_knowledge(*outcomes, hits=None, excerpt=True, assess=False):
     request = how_to_request()
     services, llm = services_with(request, *outcomes)
     agent = SearchKnowledgeAgent(
-        RecordingSource(hits or [hit(GUIDE, BODY)]), excerpt_guides=excerpt
+        RecordingSource(hits or [hit(GUIDE, BODY)]), excerpt_guides=excerpt, assess_evidence=assess
     )
     state = await execute_role(
         running_state(request), AgentRole.KNOWLEDGE, services, {AgentRole.KNOWLEDGE: agent}
@@ -232,3 +233,20 @@ def test_registry_passes_the_excerpt_switch_to_knowledge() -> None:
     source = RecordingSource([])
     assert build_registry(source, excerpt_guides=True)[AgentRole.KNOWLEDGE]._excerpt_guides
     assert not build_registry(source)[AgentRole.KNOWLEDGE]._excerpt_guides
+
+
+async def test_excerpt_only_offers_the_guides_the_assessment_cited() -> None:
+    """판정과 안내가 다른 문서를 가리키면 판정이 충분해도 답할 수 없다. 판정 근거로만 발췌한다."""
+    state, llm = await run_knowledge(
+        assessment_draft(supportingEvidenceIds=[OTHER_GUIDE.id]),
+        draft(evidenceId=OTHER_GUIDE.id, blockIds=[2]),
+        hits=[hit(GUIDE, BODY), hit(OTHER_GUIDE, BODY)],
+        assess=True,
+    )
+
+    assessment_request, excerpt_request = llm.requests
+    assert excerpt_request.prompt_version == PROMPT_VERSION
+    candidates = json.loads(excerpt_request.messages[1].content)["candidates"]
+    assert [item["id"] for item in candidates] == [OTHER_GUIDE.id]
+    assert state["guide"].evidenceIds == [OTHER_GUIDE.id]
+    assert state["assessments"][PROBLEM].supportingEvidenceIds == [OTHER_GUIDE.id]
