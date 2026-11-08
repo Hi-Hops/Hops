@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -43,6 +44,7 @@ class InquiryAnswerHandlerTest {
     private MessageRepository messages;
     private AiAnswerMessageWriter writer;
     private ProblemQuestionWriter problemQuestions;
+    private ImageObservationWriter imageObservations;
     private InquiryAnswerHandler handler;
     private Inquiry inquiry;
     private Member member;
@@ -54,9 +56,10 @@ class InquiryAnswerHandlerTest {
         messages = mock(MessageRepository.class);
         writer = mock(AiAnswerMessageWriter.class);
         problemQuestions = mock(ProblemQuestionWriter.class);
+        imageObservations = mock(ImageObservationWriter.class);
         when(problemQuestions.apply(any(), any(), any(), any(), any(), any())).thenReturn(ProblemQuestionWriter.Applied.NONE);
         handler = new InquiryAnswerHandler(inquiries, messages, writer, mapper, events, mock(GuideResultWriter.class),
-                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class), problemQuestions);
+                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class), problemQuestions, imageObservations);
 
         member = mock(Member.class);
         when(member.getId()).thenReturn(memberId);
@@ -134,13 +137,12 @@ class InquiryAnswerHandlerTest {
     }
 
     @Test
-    void 이미지_관찰을_저장할_수_없으면_답변도_저장하지_않는다() {
-        for (String invalid : new String[] {"null", "{}", "[{\"text\":\"관찰\"}]"}) {
-            assertThatThrownBy(() -> handler.apply(run, input(), result(",\"imageObservations\":" + invalid)))
-                    .isInstanceOfSatisfying(AgentResultRejectedException.class,
-                            e -> assertThat(e.code()).isEqualTo("INVALID_OUTPUT"));
-        }
-        verify(writer, never()).insert(any(), any(), any(), anyString());
+    void 이미지_관찰_검증이_실패하면_결과를_거부하고_이벤트를_발행하지_않는다() {
+        when(imageObservations.storeResolved(any(), any(), any(), any(), any(), any(), isNull(), any()))
+                .thenThrow(new AgentResultRejectedException("INVALID_OUTPUT", "검증 실패"));
+        assertThatThrownBy(() -> handler.apply(run, input(), result(",\"imageObservations\":[{\"text\":\"관찰\"}]")))
+                .isInstanceOfSatisfying(AgentResultRejectedException.class,
+                        e -> assertThat(e.code()).isEqualTo("INVALID_OUTPUT"));
         verify(events, never()).publishEvent(any(Object.class));
     }
 

@@ -48,6 +48,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
     private final GuideResultWriter guides;
     private final InquiryProblemRepository problems;
     private final ProblemQuestionWriter problemQuestions;
+    private final ImageObservationWriter imageObservations;
 
     @Override
     public AgentTask task() {
@@ -91,11 +92,6 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         // 늦은 결과는 위에서 SUPERSEDED로 걸러졌다. 현재 결과라면 쓰기 직전에 권한 세대를 다시 확인한다.
         checkAccess(inquiry, input);
 
-        // 관찰을 저장하고 확인하는 경로가 준비되기 전에는 결과 일부를 조용히 버리지 않는다.
-        var observations = result.path("imageObservations");
-        if (!observations.isMissingNode() && (!observations.isArray() || !observations.isEmpty())) {
-            throw new AgentResultRejectedException("INVALID_OUTPUT", "이미지 관찰 결과는 아직 처리할 수 없습니다");
-        }
         boolean requiresFollowUp = requiresFollowUp(result);
         String answer = answerOf(result);
         UUID answerMessageId = reservedAnswerMessageId(input);
@@ -107,10 +103,12 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         var guide = guides.apply(run, inquiry, answerMessageId, input, result);
         var stored = problemQuestions.apply(run, inquiry, answerMessageId, input, result,
                 guide == null ? null : guide.problemRef());
+        int observations = imageObservations.storeResolved(run.getId(), inquiry.getId(),
+                inquiry.getRequester().getId(), answerMessageId, input, result, guide, stored);
         // 저장한 AI 답변을 문의 구독에 알린다. 결과 반영 거래가 commit된 뒤에만 전달된다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiry.getId(), inquiry.getVersion(), answerMessageId, null));
         if (!requiresFollowUp) completeResolvedInquiry(inquiry, result);
-        return validationOf(result, guide, stored, requiresFollowUp);
+        return validationOf(result, guide, stored, requiresFollowUp, observations);
     }
 
     private static boolean requiresFollowUp(JsonNode result) {
@@ -153,7 +151,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
 
     // 반영한 것과 받았지만 아직 저장하지 않는 AI 제안을 구분해 남긴다.
     private String validationOf(JsonNode result, GuideResultWriter.Applied guide, ProblemQuestionWriter.Applied stored,
-            boolean requiresFollowUp) {
+            boolean requiresFollowUp, int observations) {
         boolean proposalsApplied = proposalsApplied(result, guide, stored);
         // 모든 질문이 새로 저장됐거나 이미 저장된 묶음이어서 건너뛴 경우에만 반영된 것이다
         boolean questionsApplied = result.path("questions").isArray() && !result.path("questions").isEmpty()
@@ -184,6 +182,7 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         }
         if (proposalsApplied) applied.add("problemProposals");
         if (questionsApplied) applied.add("questions");
+        if (observations > 0) applied.add("imageObservations");
         var ignored = validation.putArray("unapplied");
         unapplied.forEach(ignored::add);
         return validation.toString();

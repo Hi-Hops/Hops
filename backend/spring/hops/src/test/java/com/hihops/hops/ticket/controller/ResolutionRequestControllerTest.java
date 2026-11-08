@@ -62,6 +62,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
                 mapper.createObjectNode().put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1).put("decision", "RESOLVED")));
         assertThat(jdbc.queryForObject("SELECT inquiry_status FROM inquiry WHERE id=?", String.class, inquiry)).isEqualTo("IN_PROGRESS");
         var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putArray("messages");
         input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
         var output = mapper.createObjectNode().put("answer", "저장된 처리 결과를 확인했습니다.");
         if (explicitFalse) output.put("requiresFollowUp", false);
@@ -85,6 +86,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         result(command(requester, "/resolution-requests/" + resolutionId + "/responses",
                 mapper.createObjectNode().put("requestId", UUID.randomUUID().toString()).put("expectedRequestRevision", 1).put("decision", "RESOLVED")));
         var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putArray("messages");
         input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
         var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
                 .put("requiresFollowUp", true);
@@ -112,6 +114,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         jdbc.update("UPDATE agent_run SET run_status='RUNNING',completed_at=NULL WHERE id=?", analysis);
         jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", analysis, inquiry);
         var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putArray("messages");
         input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
         var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
                 .put("requiresFollowUp", true);
@@ -143,6 +146,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         jdbc.update("UPDATE agent_run SET run_status='RUNNING',completed_at=NULL WHERE id=?", analysis);
         jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", analysis, inquiry);
         var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
+        input.putArray("messages");
         input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
         var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
                 .put("requiresFollowUp", true);

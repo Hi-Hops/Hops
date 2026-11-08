@@ -416,6 +416,9 @@ class InquiryAnswerFlowTest {
     void cleanup() {
         String mine = "SELECT id FROM inquiry WHERE requester_member_id IN (?, ?)";
         jdbc.update("UPDATE inquiry SET current_run_id = NULL WHERE requester_member_id IN (?, ?)", memberId, ownerId);
+        jdbc.update("DELETE FROM image_observation_response WHERE observation_id IN (SELECT id FROM image_observation WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
+        jdbc.update("DELETE FROM image_observation WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
+        jdbc.update("DELETE FROM image_attachment WHERE owner_member_id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM ticket_assignment WHERE ticket_id IN (SELECT id FROM ticket WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
         jdbc.update("DELETE FROM ticket WHERE inquiry_id IN (" + mine + ")", memberId, ownerId);
         jdbc.update("DELETE FROM agent_ticket_request WHERE run_id IN (SELECT id FROM agent_run WHERE inquiry_id IN (" + mine + "))", memberId, ownerId);
@@ -432,6 +435,52 @@ class InquiryAnswerFlowTest {
         jdbc.update("DELETE FROM it_system WHERE id = ?", systemId);
         jdbc.update("DELETE FROM member WHERE id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM department WHERE id = ?", departmentId);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"valid", "wrong-source", "sensitive-result"})
+    void 이미지_관찰과_답변을_같은_거래에서_저장하거나_함께_거부한다(String scenario) throws Exception {
+        UUID inquiryId = createInquiry("결재 오류 화면을 확인해 주세요");
+        UUID runId = runOf(inquiryId);
+        UUID userMessage = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id=? AND sender_type='USER'", UUID.class, inquiryId);
+        UUID image = UUID.randomUUID();
+        UUID operation = UUID.randomUUID();
+        UUID problem = UUID.randomUUID();
+        jdbc.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) VALUES (?, ?, 1, '오류', 'CLARIFYING')", problem, inquiryId);
+        jdbc.update("INSERT INTO idempotency_key (actor_member_id, contract_version, http_method, request_path, idempotency_key, request_hash, operation_id, operation_state, expires_at) "
+                + "VALUES (?, 'test', 'POST', '/test/image', ?, ?, ?, 'PENDING', now() + interval '1 day')", memberId, operation.toString(), "a".repeat(64), operation);
+        jdbc.update("INSERT INTO image_attachment (id, owner_member_id, operation_id, input_sha256, content_sha256, byte_size, attachment_status, message_id, message_position) "
+                + "VALUES (?, ?, ?, ?, ?, 1, 'BOUND', ?, 0)", image, memberId, operation, "a".repeat(64), "b".repeat(64), userMessage);
+        var input = (tools.jackson.databind.node.ObjectNode) jsonMapper.readTree(jdbc.queryForObject(
+                "SELECT input_snapshot::text FROM agent_run WHERE id=?", String.class, runId));
+        ((tools.jackson.databind.node.ObjectNode) input.path("messages").get(0)).putArray("imageAttachments")
+                .addObject().put("attachmentId", image.toString()).put("digest", "b".repeat(64));
+        input.putArray("problems").addObject().put("id", problem.toString());
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?", input.toString(), runId);
+        var snapshot = (tools.jackson.databind.node.ObjectNode) succeeded(runId, inquiryId, 1,
+                "sensitive-result".equals(scenario) ? "test@example.com" : ANSWER);
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        var observation = result.putArray("imageObservations").addObject().put("observationRef", "obs-1")
+                .put("attachmentId", image.toString()).put("messageId", userMessage.toString())
+                .put("messageRevision", "wrong-source".equals(scenario) ? 2 : 1)
+                .put("problemRef", problem.toString()).put("text", "오류 화면이 보입니다");
+        observation.putNull("questionRef");
+        when(client.snapshot(runId.toString())).thenReturn(snapshot);
+
+        dispatcher.deliver(runId);
+
+        if ("valid".equals(scenario)) {
+            assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+            assertThat(jdbc.queryForObject("SELECT observation_state FROM image_observation WHERE run_id=?", String.class, runId)).isEqualTo("UNCONFIRMED");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id=?", Integer.class, inquiryId)).isEqualTo(2);
+            assertThat(jsonMapper.readTree(jdbc.queryForObject("SELECT validation_result::text FROM agent_run WHERE id=?", String.class, runId))
+                    .path("applied").toString()).contains("imageObservations");
+        } else {
+            assertThat(jdbc.queryForObject("SELECT error_code FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("INVALID_OUTPUT");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM image_observation WHERE run_id=?", Integer.class, runId)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id=?", Integer.class, inquiryId)).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT result IS NULL FROM agent_run WHERE id=?", Boolean.class, runId)).isTrue();
+        }
     }
 
     @Test
