@@ -62,6 +62,7 @@ public class InquiryQueryService {
     private final GuideVisibility guideVisibility;
     private final JsonMapper jsonMapper;
     private final ObjectProvider<AttachmentHistoryReader> attachmentHistory;
+    private final ObjectProvider<ImageObservationHistoryReader> observationHistory;
 
     /** 내 문의 목록 한 페이지. page·size 범위는 컨트롤러에서 검사한다. */
     @Transactional(readOnly = true)
@@ -108,11 +109,15 @@ public class InquiryQueryService {
         AttachmentHistoryReader reader = attachmentHistory.getIfAvailable();
         Map<UUID, List<AttachmentRef>> attachments = reader == null ? Map.of()
                 : reader.forMessages(requesterId, inquiryId, messages.stream().map(Message::getId).toList());
+        ImageObservationHistoryReader observationReader = observationHistory.getIfAvailable();
+        var observations = observationReader == null ? Map.<UUID, List<ImageObservationHistoryReader.ObservationQuestion>>of()
+                : observationReader.forMessages(requesterId, inquiryId, messages, guides);
         List<ChatMessageResponse> items = messages.stream()
                 .map(message -> ChatMessageResponse.of(message, guides.get(message.getId()).contentOf(message),
                         payloadOf(message),
                         MessageRevisionResponse.listOf(message, revisions.getOrDefault(message.getId(), List.of())),
-                        attachments.getOrDefault(message.getId(), List.of())))
+                        attachments.getOrDefault(message.getId(), List.of()),
+                        observations.getOrDefault(message.getId(), List.of())))
                 .toList();
         return new MessagePageResponse(items, hasOlder ? messages.getFirst().getSequenceNo() : null);
     }
