@@ -2,7 +2,6 @@ package com.hihops.hops.inquiry.service;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -76,7 +75,7 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>보완 대상 (WIRE_CONTRACT 12.6, TARGET_CONTRACT 4절): 직전 AI 질문·안내에 대상이 하나면 그 문제로 분석한다.
  * 답변 후보가 여럿이고 대상을 정할 수 없으면 pendingTarget으로 저장해 대상 선택을 기다린다.
- * {@link #linkProblems}(problem-links)가 원문을 바꾸지 않고 대상을 확정하며 입력 버전을 1 올린다.
+ * {@link #linkProblems}(problem-links)가 원문을 바꾸지 않고 보완 대상이나 새 문제 분석을 확정하며 입력 버전을 1 올린다.
  * 대기 메시지는 대상이 정해질 때까지 AI 입력의 대화에서 빠지고 그 메시지 자체로는 분석하지 않는다. 다른 메시지의 분석은 막지 않는다.
  * 대상이 모두 이미 배정된 문제인 입력도 보완 정보일 뿐이라 자기 분석을 만들지 않는다(자동 새 티켓·재배정 없음).
  * 그래도 입력 버전은 올라가 진행 중이던 실행의 결과는 버려지므로, 그 실행의 대상은 새 실행으로 잇는다({@link #continueAnalysis}).
@@ -161,7 +160,7 @@ public class MessageCommandService {
                 command.content(),
                 UserMessagePayload.json(jsonMapper, command.requestId(), null, links, command.content(), pending),
                 MessageStatus.COMPLETED));
-        continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
+        continueAnalysis(inquiry, message, problemIds, scope, command.requestId(), false);
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
         return inquiry.getId();
@@ -184,7 +183,7 @@ public class MessageCommandService {
         ProblemScope scope = scopeOf(inquiryId);
         List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
                 .problemIds(message.getRevision()).stream().filter(scope.linkable()::contains).toList();
-        continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
+        continueAnalysis(inquiry, message, problemIds, scope, command.requestId(), false);
         // 정정도 저장 알림이다. requestId는 이 정정 요청이다 (WIRE_CONTRACT 12.4 "저장 메시지·정정")
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
@@ -192,6 +191,10 @@ public class MessageCommandService {
     }
 
     private UUID confirmTargets(UUID requesterId, UUID inquiryId, UUID messageId, MessageProblemLinkCommand command) {
+        boolean newProblem = Boolean.TRUE.equals(command.newProblem());
+        if (newProblem != command.problemIds().isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "보완할 기존 문제 또는 새 문제 분석을 선택해 주세요.");
+        }
         Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
         Message message = userMessage(inquiryId, messageId);
         if (!jsonMapper.readValue(message.getPayload(), MessagePayload.class).isPendingTarget()) {
@@ -207,7 +210,7 @@ public class MessageCommandService {
         message.updatePayload(UserMessagePayload.confirmed(jsonMapper, message.getPayload(), message.getRevision(),
                 message.getContent(), problemIds));
         inquiry.recordInput();
-        continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
+        continueAnalysis(inquiry, message, problemIds, scope, command.requestId(), newProblem);
         // 원문은 그대로지만 문제 연결이 바뀌었으므로 다시 조회하게 알린다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
@@ -295,10 +298,10 @@ public class MessageCommandService {
      * @param requestId 이 입력을 저장한 공개 명령. 새 실행을 접수하면 그 실행의 접수 명령으로 기록한다
      */
     private void continueAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, ProblemScope scope,
-            UUID requestId) {
+            UUID requestId, boolean newProblem) {
         Instant now = clock.instant();
         AgentRun previous = inquiry.getCurrentRun();
-        Optional<List<UUID>> interrupted = interruptedTargets(previous);
+        Optional<InterruptedAnalysis> interrupted = interruptedAnalysis(previous);
         if (previous != null && isActive(previous)) {
             previous.finish(RunStatus.CANCELLED, now);
         }
@@ -306,38 +309,56 @@ public class MessageCommandService {
         boolean ownAnalysis = !pending && (problemIds.isEmpty() || !scope.assigned().containsAll(problemIds));
         if (interrupted.isEmpty()) {
             if (ownAnalysis) {
-                startAnalysis(inquiry, trigger, problemIds, now, requestId);
+                startAnalysis(inquiry, trigger, problemIds, newProblem ? Set.of(trigger.getId()) : null, now, requestId);
             }
             return;
         }
+        var prior = interrupted.get();
+        if (prior.newMessageIds() != null && (!ownAnalysis || problemIds.isEmpty())) {
+            // 기존 문제 없이 시작한 분석의 원문만 이어 가고, 대기 중인 답변은 제외한다.
+            Set<UUID> sources = new LinkedHashSet<>(prior.newMessageIds());
+            if (ownAnalysis) sources.add(trigger.getId());
+            startAnalysis(inquiry, trigger, List.of(), sources, now, requestId);
+            return;
+        }
         // 대상 없이 하던 분석이 멈췄으면 대상 없이 다시 한다
-        if (interrupted.get().isEmpty()) {
-            startAnalysis(inquiry, trigger, ownAnalysis ? problemIds : List.of(), now, requestId);
+        if (prior.problemIds().isEmpty()) {
+            startAnalysis(inquiry, trigger, ownAnalysis ? problemIds : List.of(), null, now, requestId);
             return;
         }
         Set<UUID> targets = new LinkedHashSet<>();
         if (ownAnalysis) {
             targets.addAll(problemIds);
         }
-        interrupted.get().stream().filter(scope.linkable()::contains).forEach(targets::add);
+        prior.problemIds().stream().filter(scope.linkable()::contains).forEach(targets::add);
         if (!targets.isEmpty()) {
-            startAnalysis(inquiry, trigger, List.copyOf(targets), now, requestId);
+            startAnalysis(inquiry, trigger, List.copyOf(targets), null, now, requestId);
+        } else if (newProblem) {
+            startAnalysis(inquiry, trigger, List.of(), Set.of(trigger.getId()), now, requestId);
         }
     }
 
     /**
      * 이번 입력으로 멈추는 분석의 대상 문제. 진행 중인 현재 실행, 또는 대체만 되고 다시 접수되지 않은 현재 실행이다
      * (새 실행을 접수하면 currentRun이 바뀌므로 대체된 실행이 현재 실행으로 남아 있으면 이어 가지 못한 것이다).
-     * 비어 있으면 멈추는 분석이 없고, 빈 목록이면 대상 없이 하던 분석이다.
+     * 비어 있으면 멈추는 분석이 없다. 기존 문제 없이 시작한 분석은 원문 ID도 보존한다.
      */
-    private Optional<List<UUID>> interruptedTargets(@Nullable AgentRun run) {
+    private Optional<InterruptedAnalysis> interruptedAnalysis(@Nullable AgentRun run) {
         if (run == null || (!isActive(run) && run.getRunStatus() != RunStatus.CANCELLED)) {
             return Optional.empty();
         }
-        List<UUID> targets = new ArrayList<>();
-        jsonMapper.readTree(run.getInputSnapshot()).path("problemIds")
-                .forEach(id -> targets.add(UUID.fromString(id.asString())));
-        return Optional.of(List.copyOf(targets));
+        JsonNode input = jsonMapper.readTree(run.getInputSnapshot());
+        List<UUID> targets = input.path("problemIds").valueStream()
+                .map(id -> UUID.fromString(id.asString())).toList();
+        Set<UUID> newMessageIds = null;
+        if (input.path("problems").isArray() && input.path("problems").isEmpty()) {
+            newMessageIds = input.path("messages").valueStream()
+                    .map(message -> UUID.fromString(message.path("id").asString())).collect(Collectors.toSet());
+        }
+        return Optional.of(new InterruptedAnalysis(targets, newMessageIds));
+    }
+
+    private record InterruptedAnalysis(List<UUID> problemIds, @Nullable Set<UUID> newMessageIds) {
     }
 
     private static boolean isActive(AgentRun run) {
@@ -362,13 +383,16 @@ public class MessageCommandService {
      * 새 입력 버전의 실행을 접수한다: 새 실행·불변 입력 → currentRun 연결 → 시작 메시지에 접수 명령 기록 → commit 뒤 전달.
      * 대기 메시지(보완 대상 미정)는 대상이 정해질 때까지 AI 입력의 대화에서 뺀다.
      */
-    private void startAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds, Instant now, UUID requestId) {
+    private void startAnalysis(Inquiry inquiry, Message trigger, List<UUID> problemIds,
+            @Nullable Set<UUID> newMessageIds, Instant now, UUID requestId) {
         AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, trigger, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
         List<Message> messages = messageRepository.findAllCompletedInOrder(inquiry.getId()).stream()
                 .filter(message -> !jsonMapper.readValue(message.getPayload(), MessagePayload.class).isPendingTarget())
+                .filter(message -> newMessageIds == null || newMessageIds.contains(message.getId()))
                 .toList();
-        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messages, inputProblemReader.read(inquiry, problemIds),
+        var problems = newMessageIds == null ? inputProblemReader.read(inquiry, problemIds) : InputProblemReader.ProblemInputs.NONE;
+        run.prepareInput(analysisInputFactory.snapshot(run, inquiry, messages, problems,
                 problemIds, systemQueryService.findSupportedSystems(), now));
         trigger.updatePayload(UserMessagePayload.withRun(jsonMapper, trigger.getPayload(), run.getId(), requestId));
         inquiry.resumeAnalysis(run);

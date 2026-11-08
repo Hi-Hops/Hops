@@ -658,6 +658,42 @@ class MessageCommandControllerTest {
     }
 
     @Test
+    void 보류한_메시지를_새_문제로_선택하면_기존_두_문제를_건드리지_않고_분석한다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID first = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        UUID second = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertStandardRequest(first, firstRunId, "로그인 오류", "[]");
+        insertStandardRequest(second, firstRunId, "문서 검색 오류", "[]");
+
+        send(memberId, UUID.randomUUID(), 1, "별개로 파일 다운로드도 실패해요", List.of())
+                .andExpect(status().isOk());
+        String newMessageId = messageIdAt(2);
+        assertThat(currentRunId()).isEqualTo(firstRunId);
+        link(memberId, newMessageId, UUID.randomUUID(), 2, List.of(first), true)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        assertThat(payloadOf(newMessageId).path("pendingTarget").asBoolean()).isTrue();
+
+        link(memberId, newMessageId, UUID.randomUUID(), 2, List.of(), true).andExpect(status().isOk());
+
+        assertThat(currentRunId()).isNotEqualTo(firstRunId);
+        assertThat(payloadOf(newMessageId).path("pendingTarget").asBoolean()).isFalse();
+        assertThat(payloadOf(newMessageId).path("problemLinks").isEmpty()).isTrue();
+        assertThat(currentInput().path("problems").isEmpty()).isTrue();
+        assertThat(currentInput().path("messages").findValuesAsString("id")).containsExactly(newMessageId);
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(jsonPath("$.pendingTargetMessageIds").isEmpty())
+                .andExpect(jsonPath("$.problems[0].state").value("WAITING_USER"))
+                .andExpect(jsonPath("$.problems[1].state").value("WAITING_USER"));
+
+        // 새 문제 분석이 진행 중일 때 다시 대상 불명확 답변이 와도 새 문제 입력만 이어 간다.
+        send(memberId, UUID.randomUUID(), 3, "오늘 오전부터요", List.of()).andExpect(status().isOk());
+        assertThat(payloadOf(messageIdAt(3)).path("pendingTarget").asBoolean()).isTrue();
+        assertThat(currentInput().path("problems").isEmpty()).isTrue();
+        assertThat(currentInput().path("messages").findValuesAsString("id")).containsExactly(newMessageId);
+    }
+
+    @Test
     void 보완_대상_확정은_대기_메시지와_이_문의의_문제만_받는다() throws Exception {
         String firstRunId = succeedFirstRun();
         UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
@@ -669,7 +705,7 @@ class MessageCommandControllerTest {
 
         link(memberId, pendingId, UUID.randomUUID(), 2, List.of())
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("problemIds"));
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
         link(memberId, pendingId, UUID.randomUUID(), 2, List.of(UUID.randomUUID()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
@@ -823,10 +859,16 @@ class MessageCommandControllerTest {
 
     private ResultActions link(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,
             List<UUID> problemIds) throws Exception {
+        return link(actorId, messageId, requestId, expectedInquiryVersion, problemIds, false);
+    }
+
+    private ResultActions link(UUID actorId, String messageId, UUID requestId, int expectedInquiryVersion,
+            List<UUID> problemIds, boolean newProblem) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("requestId", requestId);
         body.put("expectedInquiryVersion", expectedInquiryVersion);
         body.put("problemIds", problemIds);
+        if (newProblem) body.put("newProblem", true);
         return mockMvc.perform(as(actorId, post("/api/v2/inquiries/" + inquiryId + "/messages/" + messageId + "/problem-links"))
                 .header("Idempotency-Key", requestId.toString())
                 .contentType(MediaType.APPLICATION_JSON)

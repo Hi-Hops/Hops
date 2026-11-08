@@ -407,7 +407,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 | 사례/초안/승인/반영 확인·재실행 | CaseDetail/Generation/Publication·같은 버전/attempt | F009/F011 |
 | SSE·재접속·REST 복구 | 12.4 이벤트와 현재 권한 검사 | F002 및 업무별 spec |
 
-직전 AI 질문·안내에 답하는 대상이 하나면 메시지와 실행 입력에 같은 문제 ID를 기록한다. 보완 메시지의 대상이 불명확하면 pendingTargetMessageIds에 저장하고 기존 문제 선택 UI를 제공한다. problem-links는 저장된 원문을 바꾸지 않고 같은 문의의 기존 문제와 연결한다. 최신 문의 버전 검사 후 입력 버전을1 올리고 배정된 티켓에는 보완만 연결한다. 질문 횟수 증가·자동 새 티켓·자동 재배정은 없다. 이미 연결된 메시지의 임의 재연결은409 INVALID_STATE다.
+직전 AI 질문·안내에 답하는 대상이 하나면 메시지와 실행 입력에 같은 문제 ID를 기록한다. 대상이 불명확하면 pendingTargetMessageIds에 저장하고 기존 문제 또는 새 문제를 선택할 수 있게 한다. problem-links는 원문을 보존하며, 기존 문제 ID를 받거나 newProblem=true와 빈 problemIds를 받아 같은 문의의 새 문제로 분석한다. 최신 문의 버전 검사 후 입력 버전을 1 올린다. 기존 배정 티켓을 선택한 경우에는 보완만 연결하고 질문 횟수 증가·자동 새 티켓·자동 재배정을 하지 않는다. 이미 대기가 풀린 메시지의 재확정은 409 INVALID_STATE다.
 
 프론트가 받는 오류/상태·조작은 이 표와 각 spec, 서비스 간 실행/색인/검색 권한은 에이전트 Markdown 계약을 정본으로 한다. 동일 규칙을 spec마다 복사하지 않는다.
 

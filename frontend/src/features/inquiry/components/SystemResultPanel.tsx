@@ -241,11 +241,15 @@ function bannerFor(result: InquiryResult) {
   if (c.tickets) return { text: '티켓을 만들고 담당 시스템에 배정했어요', tone: 'success' };
   return { text: `문제 ${String(result.problems.length)}건`, tone: 'neutral' };
 }
+const NEW_PROBLEM_TARGET = 'new';
+
 function PendingTarget({ inquiry, messageId }: { inquiry: InquiryResult; messageId: string }) {
   const [selected, setSelected] = useState<string[]>([]);
+  const newProblem = selected.includes(NEW_PROBLEM_TARGET);
+  const mixedSelection = newProblem && selected.length > 1;
   return (
     <section className={styles.problem}>
-      <label htmlFor={`target-${messageId}`}>보완 정보를 연결할 기존 문제</label>
+      <label htmlFor={`target-${messageId}`}>답변을 연결할 기존 문제 또는 새 문제</label>
       <select
         multiple
         id={`target-${messageId}`}
@@ -261,18 +265,21 @@ function PendingTarget({ inquiry, messageId }: { inquiry: InquiryResult; message
               {p.summary}
             </option>
           ))}
+        <option value={NEW_PROBLEM_TARGET}>새 문제로 분석</option>
       </select>
+      {mixedSelection && <p>새 문제로 분석하려면 해당 항목만 선택해 주세요.</p>}
       <SystemCommandButton
         operationKey={`problem-links:${inquiry.id}:${messageId}`}
         createCommand={(requestId) =>
           linkProblemsCommand(inquiry.id, messageId, {
             requestId,
             expectedInquiryVersion: inquiry.inquiryVersion,
-            problemIds: selected,
+            problemIds: newProblem ? [] : selected,
+            ...(newProblem ? { newProblem: true } : {}),
           })
         }
-        label="보완 대상 연결"
-        disabled={!selected.length || !editableInquiryStatus(inquiry.status)}
+        label={newProblem ? '새 문제로 분석' : '보완 대상 연결'}
+        disabled={!selected.length || mixedSelection || !editableInquiryStatus(inquiry.status)}
       />
     </section>
   );
