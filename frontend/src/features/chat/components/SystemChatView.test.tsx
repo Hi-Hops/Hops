@@ -129,7 +129,30 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.mocked(useSystemChat).mockReset();
+  vi.unstubAllEnvs();
   localStorage.clear();
+});
+
+it('이미지 기능이 켜진 경우에만 관찰 확인을 표시한다', () => {
+  const observation = {
+    observationId: crypto.randomUUID(),
+    observationRevision: 1,
+    attachmentId: crypto.randomUUID(),
+    problemId,
+    text: '오류 화면',
+    state: 'UNCONFIRMED' as const,
+  };
+  const state = chatState(1, false, []);
+  vi.mocked(useSystemChat).mockReturnValue({
+    ...state,
+    items: [{ ...answer, imageObservationQuestions: [observation] }],
+  });
+  vi.stubEnv('VITE_CHAT_IMAGE_ATTACHMENTS', 'false');
+  const view = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(screen.queryByRole('region', { name: '이미지 관찰 확인' })).not.toBeInTheDocument();
+  vi.stubEnv('VITE_CHAT_IMAGE_ATTACHMENTS', 'true');
+  view.rerender(<SystemChatView inquiryId={inquiryId} />);
+  expect(screen.getByRole('region', { name: '이미지 관찰 확인' })).toHaveTextContent('오류 화면');
 });
 
 it('F005-CONTRACT-03 분석이 시작·종료돼도 닫은 접수 결과의 모달은 다시 열지 않는다', async () => {

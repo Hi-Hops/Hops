@@ -1,6 +1,7 @@
 export { RecentInquiries } from './components/RecentInquiries';
 export { InquiryList } from './components/InquiryList';
 export { SystemCommandButton } from './components/SystemCommandButton';
+export { useSystemOperations } from './model/systemOperationStore';
 export { systemStatus, ticketStates, editableInquiryStatus } from './model/systemStatus';
 export { SystemResultPanel, SystemConfirmations } from './components/SystemResultPanel';
 export { useResultNotice } from './hooks/useResultNotice';

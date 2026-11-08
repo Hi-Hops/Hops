@@ -105,13 +105,31 @@ const imageAttachment = obj({
   mediaType: one('image/png'),
   byteSize: (value) => positive(value) && Number(value) <= 8 * 1024 * 1024,
 });
+const imageObservation = obj({
+  observationId: isUuid,
+  observationRevision: positive,
+  attachmentId: isUuid,
+  problemId: isUuid,
+  text: (value) => str(value) && Array.from(String(value)).length <= 400,
+  state: one('UNCONFIRMED', 'CONFIRMED', 'INCORRECT', 'UNKNOWN'),
+});
 const message: Check = (value) =>
   messageShape(value) &&
   isRecord(value) &&
   (!('attachments' in value) ||
     (Array.isArray(value.attachments) &&
       value.attachments.length <= 5 &&
-      value.attachments.every(imageAttachment)));
+      value.attachments.every(imageAttachment))) &&
+  (!('imageObservationQuestions' in value) ||
+    (value.sender === 'AI' &&
+      Array.isArray(value.imageObservationQuestions) &&
+      value.imageObservationQuestions.length <= 15 &&
+      value.imageObservationQuestions.every(imageObservation) &&
+      new Set(
+        value.imageObservationQuestions.map(
+          (item: D.ImageObservationQuestion) => item.observationId,
+        ),
+      ).size === value.imageObservationQuestions.length));
 const runShape = obj({
   id: isUuid,
   inquiryId: isUuid,

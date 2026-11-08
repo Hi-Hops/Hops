@@ -25,6 +25,7 @@ import { ProgressSteps } from './ProgressSteps';
 import { SystemMessageComposer } from './SystemMessageComposer';
 import { SystemMessageRevision } from './SystemMessageRevision';
 import { MessageImage } from './MessageImage';
+import { ImageObservationConfirmation } from './ImageObservationConfirmation';
 import styles from './ChatView.module.css';
 
 export function SystemChatView({ inquiryId }: { inquiryId: string }) {
@@ -163,6 +164,16 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                         position={position}
                       />
                     ))}
+                    {import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' &&
+                      message.imageObservationQuestions?.map((observation) => (
+                        <ImageObservationConfirmation
+                          key={`${observation.observationId}:${observation.observationRevision}`}
+                          inquiryId={inquiryId}
+                          inquiryVersion={inquiry.inquiryVersion}
+                          observation={observation}
+                          disabled={!chat.ready || closed}
+                        />
+                      ))}
                   </div>
                   {message.sender === 'USER' && !closed && (
                     <SystemMessageRevision

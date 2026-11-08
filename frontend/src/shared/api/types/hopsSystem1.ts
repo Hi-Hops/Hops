@@ -32,6 +32,24 @@ export type CommandReceipt = {
 export type Page<T> = { items: T[]; page: number; size: number; totalElements: number };
 export type MessageRevision = { revisionNo: number; content: string; createdAt: string };
 export type ImageAttachment = { id: Uuid; mediaType: 'image/png'; byteSize: number };
+export type ImageObservationDecision = 'CONFIRMED' | 'INCORRECT' | 'UNKNOWN';
+export type ImageObservationQuestion = {
+  observationId: Uuid;
+  observationRevision: number;
+  attachmentId: Uuid;
+  problemId: Uuid;
+  text: string;
+  state: 'UNCONFIRMED' | ImageObservationDecision;
+};
+export type ImageObservationResponseCommand = {
+  requestId: Uuid;
+  expectedInquiryVersion: number;
+  responses: {
+    observationId: Uuid;
+    expectedObservationRevision: number;
+    decision: ImageObservationDecision;
+  }[];
+};
 export type ChatMessage = {
   id: Uuid;
   inquiryId: Uuid;
@@ -44,6 +62,7 @@ export type ChatMessage = {
   revisions: MessageRevision[];
   createdAt: string;
   attachments?: ImageAttachment[];
+  imageObservationQuestions?: ImageObservationQuestion[];
 };
 export type MessagePage = { items: ChatMessage[]; nextBeforeSequenceNo: number | null };
 export type RunSummary = {

@@ -31,3 +31,51 @@ it('F003-CONTRACT 기존 대화와 정상 첨부를 수용하고 잘못된 이�
     ).toThrow();
   }
 });
+
+it('이미지 관찰 확인 요청의 형식과 메시지 대상을 검증한다', () => {
+  const message = {
+    id: crypto.randomUUID(),
+    inquiryId: crypto.randomUUID(),
+    requestId: null,
+    revision: 1,
+    sequenceNo: 1,
+    sender: 'AI',
+    content: '오류 화면인가요?',
+    problemIds: [],
+    revisions: [],
+    createdAt: '2026-11-08T00:00:00Z',
+  };
+  const observation = {
+    observationId: crypto.randomUUID(),
+    observationRevision: 1,
+    attachmentId: crypto.randomUUID(),
+    problemId: crypto.randomUUID(),
+    text: '오류 화면',
+    state: 'UNCONFIRMED',
+  };
+  expect(
+    readMessages({
+      items: [{ ...message, imageObservationQuestions: [observation] }],
+      nextBeforeSequenceNo: null,
+    }).items[0]?.imageObservationQuestions,
+  ).toEqual([observation]);
+  for (const bad of [
+    [{ ...observation, state: 'RESOLVED' }],
+    [{ ...observation, observationRevision: 0 }],
+    [observation, observation],
+    [{ ...observation, text: '가'.repeat(401) }],
+  ]) {
+    expect(() =>
+      readMessages({
+        items: [{ ...message, imageObservationQuestions: bad }],
+        nextBeforeSequenceNo: null,
+      }),
+    ).toThrow();
+  }
+  expect(() =>
+    readMessages({
+      items: [{ ...message, sender: 'USER', imageObservationQuestions: [observation] }],
+      nextBeforeSequenceNo: null,
+    }),
+  ).toThrow();
+});

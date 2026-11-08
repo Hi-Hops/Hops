@@ -7,6 +7,7 @@ import type {
   MessageSendCommand,
   MessageReviseCommand,
   RunRetryCommand,
+  ImageObservationResponseCommand,
 } from '@/shared/api/types/hopsSystem1';
 export const systemChatKeys = {
   inquiry: (actor: string, id: string) => ['hops-system-1', 'chat', actor, id, 'inquiry'] as const,
@@ -92,5 +93,15 @@ export function retryRunCommand(runId: string, body: RunRetryCommand): SystemCom
     path: `/api/v2/runs/${encodeURIComponent(runId)}/retries`,
     body,
     expectedResource: { type: 'RUN' },
+  };
+}
+export function imageObservationResponseCommand(
+  inquiryId: string,
+  body: ImageObservationResponseCommand,
+): SystemCommand {
+  return {
+    path: `/api/v2/inquiries/${encodeURIComponent(inquiryId)}/image-observation-responses`,
+    body,
+    expectedResource: { type: 'INQUIRY', id: inquiryId },
   };
 }
