@@ -107,8 +107,7 @@ public class ProblemProjector {
         if (request == null) {
             throw new IllegalStateException("적용된 표준 요청서가 없는 문제다: " + problem.getId());
         }
-        Optional<Ticket> ticket = ticketRepository.findByInquiryProblem_Id(problem.getId())
-                .filter(found -> !found.isDeleted());
+        Optional<Ticket> ticket = liveTicket(problem);
         boolean answered = analyzing.contains(problem.getId().toString());
         String state = ProblemStateView.of(problem, ticket, problem.getClarifyCount() > 0 && !answered);
         Optional<Message> guideMessage = messageRepository.findLatestGuide(inquiry.getId(), problem.getId());
@@ -125,13 +124,29 @@ public class ProblemProjector {
                         : guideMessage.map(message -> guideResolutionOf(inquiry, problem, message, guideView.orElseThrow())).orElse(null));
     }
 
+    // 문제의 티켓(삭제된 것 제외). 문의 상세와 작업 조회가 같은 기준을 쓴다.
+    private Optional<Ticket> liveTicket(InquiryProblem problem) {
+        return ticketRepository.findByInquiryProblem_Id(problem.getId()).filter(found -> !found.isDeleted());
+    }
+
     /**
-     * 한 문제의 티켓 생성 작업 결과. 문의 상세의 creationResult와 같은 값이다. 작업이 없으면 null.
+     * 한 문제의 티켓 생성 작업 결과 (GET /work-items). 작업이 없으면 null.
      *
-     * @throws IllegalStateException 생성 결과와 저장된 티켓이 어긋난 경우
+     * <p>문의 상세와 같은 값을 만들되 저장 결과와 티켓이 어긋나면 500이 아니라 복구해 돌려준다. 이 값은 "저장됐는지" 확인하려고
+     * 다시 읽는 값이라 어긋남을 영구 오류로 막으면 확인 경로가 사라진다. 티켓이 있으면 티켓이 정본이라 STORED, STORED인데
+     * 티켓이 없거나 삭제됐으면 확인할 수 없으므로 UNKNOWN이다 (내부 AI 조회 {@code TicketCreationService}와 같은 보정).
+     *
+     * @throws IllegalStateException 입력 버전이 없는 등 결과 행 자체가 깨진 경우
      */
     public @Nullable CreationResultResponse creation(InquiryProblem problem) {
-        return creationOf(problem, ticketRepository.findByInquiryProblem_Id(problem.getId()).filter(found -> !found.isDeleted()));
+        CreationOutcome stored = problem.getCreationOutcome();
+        if (stored == null) {
+            return null;
+        }
+        Optional<Ticket> ticket = liveTicket(problem);
+        CreationOutcome outcome = ticket.isPresent() ? CreationOutcome.STORED
+                : stored == CreationOutcome.STORED ? CreationOutcome.UNKNOWN : stored;
+        return creationResult(problem, outcome, ticket);
     }
 
     private @Nullable CreationResultResponse creationOf(InquiryProblem problem, Optional<Ticket> ticket) {
@@ -142,10 +157,17 @@ public class ProblemProjector {
         if (problem.getCreationInputVersion() == null || (outcome == CreationOutcome.STORED) != ticket.isPresent()) {
             throw new IllegalStateException("티켓 생성 결과와 저장된 티켓이 맞지 않는다: " + problem.getId());
         }
+        return creationResult(problem, outcome, ticket);
+    }
+
+    private CreationResultResponse creationResult(InquiryProblem problem, CreationOutcome outcome, Optional<Ticket> ticket) {
+        if (problem.getCreationInputVersion() == null) {
+            throw new IllegalStateException("티켓 생성 결과에 입력 버전이 없다: " + problem.getId());
+        }
         ErrorResponse error = outcome == CreationOutcome.STORED || problem.getTicketErrorCode() == null ? null
                 : ErrorResponse.of(errorCodeOf(problem.getTicketErrorCode()), RequestIdFilter.currentRequestId());
         return new CreationResultResponse(problem.getId(), problem.getId(), problem.getCreationInputVersion(),
-                outcome.name(), outcome == CreationOutcome.STORED ? ticket.get().getId() : null, error,
+                outcome.name(), outcome == CreationOutcome.STORED ? ticket.orElseThrow().getId() : null, error,
                 problem.getUpdatedAt());
     }
 

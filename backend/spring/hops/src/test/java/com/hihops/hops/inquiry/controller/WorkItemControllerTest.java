@@ -1,7 +1,10 @@
 package com.hihops.hops.inquiry.controller;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -58,7 +61,7 @@ class WorkItemControllerTest {
     @Test
     void 저장된_작업은_티켓_id를_돌려준다() throws Exception {
         UUID problem = problem(INQUIRY_ID, 1, "TICKET_CREATED", "STORED", 3, null, false);
-        UUID ticket = insertTicket(INQUIRY_ID, problem);
+        UUID ticket = insertTicket(INQUIRY_ID, problem, "TK-9201", false);
 
         mockMvc.perform(asMember(get("/api/v2/work-items/" + problem)))
                 .andExpect(status().isOk())
@@ -126,11 +129,51 @@ class WorkItemControllerTest {
     }
 
     @Test
-    void 저장된_결과가_티켓과_어긋나면_500이다() throws Exception {
-        // STORED인데 티켓이 없으면 저장 규칙이 깨진 것이다 (문의 상세와 같은 판단)
-        UUID problem = problem(INQUIRY_ID, 1, "TICKET_CREATED", "STORED", 1, null, false);
+    void 티켓이_이미_있으면_결과가_아직_UNKNOWN_PENDING_NOT_CREATED여도_STORED로_복구해_돌려준다() throws Exception {
+        // 저장 여부를 확인하려고 이 API를 폴링하는 경우: 시도가 commit됐는데 결과 갱신이 늦은 상태다
+        int no = 0;
+        for (String outcome : new String[] {"UNKNOWN", "PENDING", "NOT_CREATED"}) {
+            UUID problem = problem(INQUIRY_ID, ++no, "TICKET_FAILED", outcome, 1, null, false);
+            UUID ticket = insertTicket(INQUIRY_ID, problem, "TK-" + outcome, false);
+            mockMvc.perform(asMember(get("/api/v2/work-items/" + problem)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.outcome").value("STORED"))
+                    .andExpect(jsonPath("$.ticketId").value(ticket.toString()))
+                    .andExpect(jsonPath("$.error").isEmpty());
+        }
+    }
+
+    @Test
+    void STORED인데_티켓이_없거나_삭제됐으면_500이_아니라_UNKNOWN으로_돌려준다() throws Exception {
+        UUID missing = problem(INQUIRY_ID, 1, "TICKET_CREATED", "STORED", 1, null, false);
+        UUID deleted = problem(INQUIRY_ID, 2, "TICKET_CREATED", "STORED", 1, null, false);
+        insertTicket(INQUIRY_ID, deleted, "TK-DELETED", true);
+        for (UUID id : new UUID[] {missing, deleted}) {
+            mockMvc.perform(asMember(get("/api/v2/work-items/" + id)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.outcome").value("UNKNOWN"))
+                    .andExpect(jsonPath("$.ticketId").isEmpty())
+                    .andExpect(jsonPath("$.error").isEmpty());
+        }
+    }
+
+    @Test
+    void 알_수_없는_저장_오류_코드는_공개_코드로_바꾸고_내부_문구를_내보내지_않는다() throws Exception {
+        UUID problem = problem(INQUIRY_ID, 1, "TICKET_FAILED", "NOT_CREATED", 1, "INTERNAL_DB_TIMEOUT_ON_SHARD_7", false);
         mockMvc.perform(asMember(get("/api/v2/work-items/" + problem)))
-                .andExpect(status().isInternalServerError());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.error.code").value("SERVICE_UNAVAILABLE"))
+                .andExpect(content().string(not(containsString("SHARD_7"))));
+    }
+
+    @Test
+    void 입력_버전이_없는_저장_규칙_위반은_내부_문구_없이_500이다() throws Exception {
+        UUID problem = problem(INQUIRY_ID, 1, "TICKET_FAILED", "NOT_CREATED", null, null, false);
+        mockMvc.perform(asMember(get("/api/v2/work-items/" + problem)))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.requestId").isString())
+                .andExpect(content().string(not(containsString("티켓 생성 결과"))));
     }
 
     private static MockHttpServletRequestBuilder asMember(MockHttpServletRequestBuilder request) {
@@ -158,7 +201,7 @@ class WorkItemControllerTest {
     }
 
     // 티켓은 표준 요청서·분석 실행을 거쳐야 만들 수 있어 함께 넣는다
-    private UUID insertTicket(UUID inquiryId, UUID problemId) {
+    private UUID insertTicket(UUID inquiryId, UUID problemId, String number, boolean deleted) {
         UUID run = UUID.randomUUID();
         jdbc.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, model_version, "
                 + "prompt_version, schema_version, started_at, completed_at) VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, "
@@ -169,8 +212,9 @@ class WorkItemControllerTest {
                 request, problemId, run, SYSTEM_ID, SYSTEM_ID);
         UUID ticket = UUID.randomUUID();
         jdbc.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, title, detail, "
-                + "work_type, ticket_status, responsible_system_id, assignee_member_id) VALUES (?, 'TK-9201', ?, ?, ?, '티켓', "
-                + "'내용', 'INVESTIGATION', 'OPEN', ?, ?)", ticket, inquiryId, problemId, request, SYSTEM_ID, OTHER_MEMBER_ID);
+                + "work_type, ticket_status, responsible_system_id, assignee_member_id) VALUES (?, ?, ?, ?, ?, '티켓', "
+                + "'내용', 'INVESTIGATION', 'OPEN', ?, ?)", ticket, number, inquiryId, problemId, request, SYSTEM_ID, OTHER_MEMBER_ID);
+        if (deleted) jdbc.update("UPDATE ticket SET deleted_at = now() WHERE id = ?", ticket);
         return ticket;
     }
 }
