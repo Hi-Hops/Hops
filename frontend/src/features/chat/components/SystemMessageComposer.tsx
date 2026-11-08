@@ -16,6 +16,8 @@ import {
   sendMessageCommand,
 } from '../api/systemChatApi';
 import { useSystemDrafts } from '../model/systemDraftStore';
+import { uploadDraftImage } from '../api/imageUpload';
+import { ImageAttachmentEditor } from './ImageAttachmentEditor';
 import styles from './MessageComposer.module.css';
 
 type SystemMessageComposerProps = {
@@ -35,15 +37,30 @@ export function SystemMessageComposer({
   const actor = useSession((s) => s.user?.id);
   const key = `${actor ?? ''}:${revise ? `revision:${revise.id}` : (inquiry?.id ?? 'new')}`;
   const draft = useSystemDrafts((s) => s.drafts[key]);
+  const images = useSystemDrafts((s) => s.images[key]);
+  const draftImages = images ?? [];
   const content = draft?.content ?? revise?.content ?? '';
   const systemId = draft?.systemId ?? null;
   const pending = draft?.pending ?? null;
   const locked = useRef(false);
   const input = useRef<HTMLTextAreaElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const busy = busyKey === key;
   const [confirmedKey, setConfirmedKey] = useState<string | null>(null);
   const privacyConfirmed = confirmedKey === key;
   const [notice, setNotice] = useState('');
+  const [selection, setSelection] = useState<{ key: string; count: number } | null>(null);
+  const [editorVersion, setEditorVersion] = useState(0);
+  const selectedImages = selection?.key === key ? selection.count : 0;
+  const activeKey = useRef(key);
+  const alive = useRef(false);
+  useEffect(() => {
+    activeKey.current = key;
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, [key]);
   const { remaining, wait } = useRetryAfter();
   const client = useQueryClient();
   const catalog = useQuery({
@@ -56,43 +73,79 @@ export function SystemMessageComposer({
   }, [focusKey, inquiry, revise]);
   const invalid = contentError(content);
   const blocked = disabled || Boolean(inquiry && !editableInquiryStatus(inquiry.status));
+  const imageFeature = import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' && !revise;
+  const unfinishedUpload = draftImages.some((image) => image.attempted && !image.attachmentId);
+  const imageEditingLocked = draftImages.some((image) => image.attempted);
+  const needsImageConfirmation = selectedImages > 0 && draftImages.length !== selectedImages;
   async function submit(confirm = false) {
     if (
       locked.current ||
       blocked ||
       remaining > 0 ||
-      (!confirm && (invalid || pending || !privacyConfirmed))
+      (!confirm &&
+        (invalid || pending || !privacyConfirmed || needsImageConfirmation || unfinishedUpload)) ||
+      (!pending &&
+        (Boolean(invalid) || (!privacyConfirmed && !unfinishedUpload) || needsImageConfirmation))
     )
       return;
-    const request =
-      pending ??
-      (!inquiry
-        ? createInquiryCommand({
-            requestId: crypto.randomUUID(),
-            content,
-            reportedSystemId: systemId,
-          })
-        : revise
-          ? reviseMessageCommand(inquiry.id, revise.id, {
-              requestId: crypto.randomUUID(),
-              expectedInquiryVersion: inquiry.inquiryVersion,
-              expectedMessageRevision: revise.revision,
-              content,
-            })
-          : sendMessageCommand(inquiry.id, {
-              requestId: crypto.randomUUID(),
-              expectedInquiryVersion: inquiry.inquiryVersion,
-              content,
-              problemIds: [],
-            }));
-    useSystemDrafts.getState().set(key, { content, systemId, pending: request });
     locked.current = true;
-    setBusy(true);
+    setBusyKey(key);
     setNotice('');
+    let messageAttempted = Boolean(pending);
     try {
+      const attachmentIds: string[] = [];
+      if (!pending && imageFeature) {
+        const currentImages = [...(useSystemDrafts.getState().images[key] ?? [])];
+        for (let index = 0; index < currentImages.length; index++) {
+          const image = currentImages[index];
+          if (!image) continue;
+          if (!image.attachmentId) {
+            useSystemDrafts.getState().setImages(
+              key,
+              currentImages.map((item, i) => (i === index ? { ...item, attempted: true } : item)),
+            );
+            const attachmentId = await uploadDraftImage(image);
+            if (useSession.getState().user?.id !== actor) return;
+            currentImages[index] = { ...image, attempted: true, attachmentId };
+            useSystemDrafts.getState().setImages(key, [...currentImages]);
+            if (!alive.current || activeKey.current !== key) return;
+          }
+          const id = currentImages[index]?.attachmentId;
+          if (id) attachmentIds.push(id);
+        }
+      }
+      const request =
+        pending ??
+        (!inquiry
+          ? createInquiryCommand({
+              requestId: crypto.randomUUID(),
+              content,
+              reportedSystemId: systemId,
+              ...(attachmentIds.length ? { attachmentIds } : {}),
+            })
+          : revise
+            ? reviseMessageCommand(inquiry.id, revise.id, {
+                requestId: crypto.randomUUID(),
+                expectedInquiryVersion: inquiry.inquiryVersion,
+                expectedMessageRevision: revise.revision,
+                content,
+              })
+            : sendMessageCommand(inquiry.id, {
+                requestId: crypto.randomUUID(),
+                expectedInquiryVersion: inquiry.inquiryVersion,
+                content,
+                problemIds: [],
+                ...(attachmentIds.length ? { attachmentIds } : {}),
+              }));
+      useSystemDrafts.getState().set(key, { content, systemId, pending: request });
+      messageAttempted = true;
       const resource = savedResource(await sendSystemCommand(request, confirm), 'INQUIRY');
       if (useSession.getState().user?.id !== actor) return;
       useSystemDrafts.getState().set(key, { content: '', systemId: null, pending: null });
+      useSystemDrafts.getState().setImages(key, []);
+      if (!alive.current || activeKey.current !== key) return;
+      setSelection({ key, count: 0 });
+      setEditorVersion((version) => version + 1);
       setConfirmedKey(null);
       void client.invalidateQueries({ queryKey: ['inquiries'] });
       void client.invalidateQueries({ queryKey: ['hops-system-1'] });
@@ -101,15 +154,16 @@ export function SystemMessageComposer({
       if (useSession.getState().user?.id !== actor) return;
       if (error instanceof ApiError) {
         wait(error.retryAfterSeconds);
-        if (error.status === 409 || error.status === 400) {
+        if (messageAttempted && (error.status === 409 || error.status === 400)) {
           useSystemDrafts.getState().set(key, { content, systemId, pending: null });
           void client.invalidateQueries({ queryKey: ['hops-system-1'] });
         }
       }
-      setNotice(apiErrorMessage(error, '저장 결과를 확인하지 못했어요.'));
+      if (alive.current && activeKey.current === key)
+        setNotice(apiErrorMessage(error, '저장 결과를 확인하지 못했어요.'));
     } finally {
       locked.current = false;
-      setBusy(false);
+      if (alive.current) setBusyKey((current) => (current === key ? null : current));
     }
   }
   return (
@@ -129,7 +183,7 @@ export function SystemMessageComposer({
           id={`system-message-${key}`}
           ref={input}
           value={content}
-          disabled={blocked || busy || Boolean(pending)}
+          disabled={blocked || busy || Boolean(pending) || unfinishedUpload}
           placeholder={
             !inquiry ? '예: 전자결재에서 문서를 열 수 없어요' : '추가 정보나 새 질문을 입력하세요'
           }
@@ -155,13 +209,41 @@ export function SystemMessageComposer({
           <input
             type="checkbox"
             checked={privacyConfirmed}
-            disabled={blocked || busy || Boolean(pending)}
+            disabled={blocked || busy || Boolean(pending) || unfinishedUpload}
             onChange={(event) => {
               setConfirmedKey(event.target.checked ? key : null);
             }}
           />{' '}
           보낼 내용에 비밀번호와 불필요한 개인정보가 없는지 확인했어요.
         </label>
+        {imageFeature && (
+          <>
+            <ImageAttachmentEditor
+              key={`${key}:${String(editorVersion)}`}
+              disabled={blocked || busy || Boolean(pending) || imageEditingLocked}
+              onSelectionChange={(count) => {
+                setSelection({ key, count });
+              }}
+              onInvalidate={() => {
+                useSystemDrafts.getState().setImages(key, []);
+                setConfirmedKey(null);
+              }}
+              onReady={(blobs) => {
+                useSystemDrafts.getState().setImages(
+                  key,
+                  blobs.map((blob) => ({
+                    blob,
+                    requestId: crypto.randomUUID(),
+                    attachmentId: null,
+                    attempted: false,
+                  })),
+                );
+                setConfirmedKey(null);
+              }}
+            />
+            {draftImages.length > 0 && <p>확인한 이미지 {draftImages.length}장</p>}
+          </>
+        )}
         <div className={styles.bar}>
           {!inquiry && (
             <>
@@ -169,7 +251,7 @@ export function SystemMessageComposer({
               <select
                 id="reported-system"
                 value={systemId ?? ''}
-                disabled={busy || Boolean(pending)}
+                disabled={busy || Boolean(pending) || unfinishedUpload}
                 onChange={(e) => {
                   useSystemDrafts
                     .getState()
@@ -196,6 +278,8 @@ export function SystemMessageComposer({
               remaining > 0 ||
               Boolean(invalid) ||
               Boolean(pending) ||
+              unfinishedUpload ||
+              needsImageConfirmation ||
               !privacyConfirmed
             }
           >
@@ -219,6 +303,17 @@ export function SystemMessageComposer({
           }}
         >
           같은 요청 결과 확인
+        </Button>
+      )}
+      {!pending && unfinishedUpload && (
+        <Button
+          variant="secondary"
+          disabled={busy || remaining > 0 || blocked}
+          onClick={() => {
+            void submit(true);
+          }}
+        >
+          같은 이미지 업로드 확인
         </Button>
       )}
       {remaining > 0 && <p role="status">{remaining}초 후 다시 요청할 수 있어요.</p>}

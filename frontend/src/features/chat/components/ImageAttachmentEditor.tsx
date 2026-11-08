@@ -12,7 +12,12 @@ type Draft = {
   masks: ImageMask[];
 };
 type Prepared = { blob: Blob; url: string };
-type Props = { onReady: (images: Blob[]) => void; onInvalidate: () => void };
+type Props = {
+  onReady: (images: Blob[]) => void;
+  onInvalidate: () => void;
+  onSelectionChange?: (count: number) => void;
+  disabled?: boolean;
+};
 
 function MaskCoordinates({
   width,
@@ -71,7 +76,12 @@ function MaskCoordinates({
 }
 
 /** 원본은 브라우저 메모리에만 두고 확인한 가림 결과만 전달한다. */
-export function ImageAttachmentEditor({ onReady, onInvalidate }: Props) {
+export function ImageAttachmentEditor({
+  onReady,
+  onInvalidate,
+  onSelectionChange,
+  disabled = false,
+}: Props) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [prepared, setPrepared] = useState<Prepared[]>([]);
   const [loadedResults, setLoadedResults] = useState<Set<string>>(() => new Set());
@@ -107,7 +117,7 @@ export function ImageAttachmentEditor({ onReady, onInvalidate }: Props) {
   }
 
   function select(files: File[]) {
-    if (preparing.current || !files.length) return;
+    if (disabled || preparing.current || !files.length) return;
     if (
       drafts.length + files.length > 5 ||
       files.some(
@@ -139,30 +149,33 @@ export function ImageAttachmentEditor({ onReady, onInvalidate }: Props) {
       return;
     }
     clearPrepared();
+    onSelectionChange?.(drafts.length + next.length);
     setDrafts((current) => [...current, ...next]);
     setNotice('');
   }
 
   function update(id: string, change: (draft: Draft) => Draft) {
-    if (preparing.current) return;
+    if (disabled || preparing.current) return;
     clearPrepared();
     setDrafts((current) => current.map((draft) => (draft.id === id ? change(draft) : draft)));
   }
 
   function remove(id: string) {
-    if (preparing.current) return;
+    if (disabled || preparing.current) return;
     const item = drafts.find((draft) => draft.id === id);
     if (item) {
       URL.revokeObjectURL(item.url);
       urls.current.delete(item.url);
     }
     clearPrepared();
+    onSelectionChange?.(drafts.length - 1);
     setDrafts((current) => current.filter((draft) => draft.id !== id));
   }
 
   async function prepare() {
     if (
       preparing.current ||
+      disabled ||
       busy ||
       !drafts.length ||
       drafts.some((item) => !item.width || !item.height)
@@ -200,182 +213,184 @@ export function ImageAttachmentEditor({ onReady, onInvalidate }: Props) {
 
   return (
     <section aria-label="이미지 첨부" className={styles.editor}>
-      <label>
-        이미지 선택 (최대 5장, 장당 5MB)
-        <input
-          type="file"
-          accept="image/png,image/jpeg"
-          multiple
-          disabled={busy}
-          onChange={(event) => {
-            select(Array.from(event.target.files ?? []));
-            event.target.value = '';
-          }}
-        />
-      </label>
-      <p>가릴 부분을 드래그하세요. 자동으로 개인정보를 찾지 않으므로 직접 확인해 주세요.</p>
-      {drafts.map((item) => (
-        <article key={item.id} className={styles.item}>
-          <div
-            className={styles.preview}
-            onPointerDown={(event) => {
-              if (busy || !item.width || !item.height) return;
-              const rect = event.currentTarget.getBoundingClientRect();
-              if (!rect.width || !rect.height) return;
-              const x = Math.max(
-                0,
-                Math.min(item.width, ((event.clientX - rect.left) / rect.width) * item.width),
-              );
-              const y = Math.max(
-                0,
-                Math.min(item.height, ((event.clientY - rect.top) / rect.height) * item.height),
-              );
-              start.current = { id: item.id, x, y };
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerUp={(event) => {
-              const origin = start.current;
-              start.current = null;
-              if (origin?.id !== item.id || busy) return;
-              const rect = event.currentTarget.getBoundingClientRect();
-              if (!rect.width || !rect.height) return;
-              const x = Math.max(
-                0,
-                Math.min(item.width, ((event.clientX - rect.left) / rect.width) * item.width),
-              );
-              const y = Math.max(
-                0,
-                Math.min(item.height, ((event.clientY - rect.top) / rect.height) * item.height),
-              );
-              const mask = {
-                x: Math.min(origin.x, x),
-                y: Math.min(origin.y, y),
-                width: Math.abs(x - origin.x),
-                height: Math.abs(y - origin.y),
-              };
-              if (mask.width >= 1 && mask.height >= 1)
-                update(item.id, (draft) => ({ ...draft, masks: [...draft.masks, mask] }));
-            }}
-            onPointerCancel={() => {
-              start.current = null;
-            }}
-          >
-            <img
-              src={item.url}
-              alt="첨부할 이미지 미리보기"
-              draggable={false}
-              onLoad={(event) => {
-                const image = event.currentTarget;
-                update(item.id, (draft) => ({
-                  ...draft,
-                  width: image.naturalWidth,
-                  height: image.naturalHeight,
-                }));
-              }}
-              onError={() => {
-                setNotice('이미지를 열지 못했어요. 파일을 삭제하고 다시 선택해 주세요.');
-              }}
-            />
-            {item.masks.map((mask, index) => (
-              <span
-                key={index}
-                aria-hidden="true"
-                className={styles.mask}
-                style={{
-                  left: `${(mask.x / item.width) * 100}%`,
-                  top: `${(mask.y / item.height) * 100}%`,
-                  width: `${(mask.width / item.width) * 100}%`,
-                  height: `${(mask.height / item.height) * 100}%`,
-                }}
-              />
-            ))}
-          </div>
-          <MaskCoordinates
-            width={item.width}
-            height={item.height}
+      <fieldset disabled={disabled}>
+        <label>
+          이미지 선택 (최대 5장, 장당 5MB)
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            multiple
             disabled={busy}
-            onAdd={(mask) => {
-              update(item.id, (draft) => ({ ...draft, masks: [...draft.masks, mask] }));
+            onChange={(event) => {
+              select(Array.from(event.target.files ?? []));
+              event.target.value = '';
             }}
           />
-          <div className={styles.actions}>
-            <button
-              type="button"
-              disabled={busy || !item.masks.length}
-              onClick={() => {
-                update(item.id, (draft) => ({ ...draft, masks: draft.masks.slice(0, -1) }));
+        </label>
+        <p>가릴 부분을 드래그하세요. 자동으로 개인정보를 찾지 않으므로 직접 확인해 주세요.</p>
+        {drafts.map((item) => (
+          <article key={item.id} className={styles.item}>
+            <div
+              className={styles.preview}
+              onPointerDown={(event) => {
+                if (disabled || busy || !item.width || !item.height) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
+                const x = Math.max(
+                  0,
+                  Math.min(item.width, ((event.clientX - rect.left) / rect.width) * item.width),
+                );
+                const y = Math.max(
+                  0,
+                  Math.min(item.height, ((event.clientY - rect.top) / rect.height) * item.height),
+                );
+                start.current = { id: item.id, x, y };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerUp={(event) => {
+                const origin = start.current;
+                start.current = null;
+                if (origin?.id !== item.id || disabled || busy) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                if (!rect.width || !rect.height) return;
+                const x = Math.max(
+                  0,
+                  Math.min(item.width, ((event.clientX - rect.left) / rect.width) * item.width),
+                );
+                const y = Math.max(
+                  0,
+                  Math.min(item.height, ((event.clientY - rect.top) / rect.height) * item.height),
+                );
+                const mask = {
+                  x: Math.min(origin.x, x),
+                  y: Math.min(origin.y, y),
+                  width: Math.abs(x - origin.x),
+                  height: Math.abs(y - origin.y),
+                };
+                if (mask.width >= 1 && mask.height >= 1)
+                  update(item.id, (draft) => ({ ...draft, masks: [...draft.masks, mask] }));
+              }}
+              onPointerCancel={() => {
+                start.current = null;
               }}
             >
-              마지막 가림 취소
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                remove(item.id);
-              }}
-            >
-              이미지 삭제
-            </button>
-          </div>
-        </article>
-      ))}
-      {drafts.length > 0 && (
-        <button
-          type="button"
-          disabled={busy || drafts.some((item) => !item.width || !item.height)}
-          onClick={() => {
-            void prepare();
-          }}
-        >
-          가린 이미지 미리보기
-        </button>
-      )}
-      {prepared.length > 0 && (
-        <div className={styles.results}>
-          {prepared.map((image) => (
-            <a key={image.url} href={image.url} target="_blank" rel="noreferrer">
               <img
-                src={image.url}
-                alt="전송할 가림 이미지 크게 보기"
-                onLoad={() => {
-                  setLoadedResults((current) => new Set([...current, image.url]));
+                src={item.url}
+                alt="첨부할 이미지 미리보기"
+                draggable={false}
+                onLoad={(event) => {
+                  const image = event.currentTarget;
+                  update(item.id, (draft) => ({
+                    ...draft,
+                    width: image.naturalWidth,
+                    height: image.naturalHeight,
+                  }));
                 }}
                 onError={() => {
-                  setLoadedResults((current) => {
-                    const next = new Set(current);
-                    next.delete(image.url);
-                    return next;
-                  });
-                  setConfirmed(false);
-                  setNotice('가린 이미지를 표시하지 못했어요. 다시 미리보기 해 주세요.');
+                  setNotice('이미지를 열지 못했어요. 파일을 삭제하고 다시 선택해 주세요.');
                 }}
               />
-            </a>
-          ))}
-          <label>
-            <input
-              type="checkbox"
-              checked={confirmed}
-              disabled={busy || !allResultsLoaded}
-              onChange={(event) => {
-                setConfirmed(event.target.checked);
+              {item.masks.map((mask, index) => (
+                <span
+                  key={index}
+                  aria-hidden="true"
+                  className={styles.mask}
+                  style={{
+                    left: `${(mask.x / item.width) * 100}%`,
+                    top: `${(mask.y / item.height) * 100}%`,
+                    width: `${(mask.width / item.width) * 100}%`,
+                    height: `${(mask.height / item.height) * 100}%`,
+                  }}
+                />
+              ))}
+            </div>
+            <MaskCoordinates
+              width={item.width}
+              height={item.height}
+              disabled={busy}
+              onAdd={(mask) => {
+                update(item.id, (draft) => ({ ...draft, masks: [...draft.masks, mask] }));
               }}
-            />{' '}
-            모든 전송 이미지에 비밀번호와 불필요한 개인정보가 없는지 확인했어요.
-          </label>
+            />
+            <div className={styles.actions}>
+              <button
+                type="button"
+                disabled={busy || !item.masks.length}
+                onClick={() => {
+                  update(item.id, (draft) => ({ ...draft, masks: draft.masks.slice(0, -1) }));
+                }}
+              >
+                마지막 가림 취소
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  remove(item.id);
+                }}
+              >
+                이미지 삭제
+              </button>
+            </div>
+          </article>
+        ))}
+        {drafts.length > 0 && (
           <button
             type="button"
-            disabled={!confirmed || busy || !allResultsLoaded}
+            disabled={busy || drafts.some((item) => !item.width || !item.height)}
             onClick={() => {
-              onReady(prepared.map((image) => image.blob));
+              void prepare();
             }}
           >
-            가린 이미지 첨부
+            가린 이미지 미리보기
           </button>
-        </div>
-      )}
-      {notice && <p role="alert">{notice}</p>}
+        )}
+        {prepared.length > 0 && (
+          <div className={styles.results}>
+            {prepared.map((image) => (
+              <a key={image.url} href={image.url} target="_blank" rel="noreferrer">
+                <img
+                  src={image.url}
+                  alt="전송할 가림 이미지 크게 보기"
+                  onLoad={() => {
+                    setLoadedResults((current) => new Set([...current, image.url]));
+                  }}
+                  onError={() => {
+                    setLoadedResults((current) => {
+                      const next = new Set(current);
+                      next.delete(image.url);
+                      return next;
+                    });
+                    setConfirmed(false);
+                    setNotice('가린 이미지를 표시하지 못했어요. 다시 미리보기 해 주세요.');
+                  }}
+                />
+              </a>
+            ))}
+            <label>
+              <input
+                type="checkbox"
+                checked={confirmed}
+                disabled={busy || !allResultsLoaded}
+                onChange={(event) => {
+                  setConfirmed(event.target.checked);
+                }}
+              />{' '}
+              모든 전송 이미지에 비밀번호와 불필요한 개인정보가 없는지 확인했어요.
+            </label>
+            <button
+              type="button"
+              disabled={!confirmed || busy || !allResultsLoaded}
+              onClick={() => {
+                onReady(prepared.map((image) => image.blob));
+              }}
+            >
+              가린 이미지 첨부
+            </button>
+          </div>
+        )}
+        {notice && <p role="alert">{notice}</p>}
+      </fieldset>
     </section>
   );
 }

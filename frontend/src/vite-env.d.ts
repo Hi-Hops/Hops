@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_DATA_MODE?: string;
+  readonly VITE_CHAT_IMAGE_ATTACHMENTS?: string;
   readonly VITE_MOCK_REQUESTER_ID?: string;
   readonly VITE_MOCK_PREVIEW_ID?: string;
   readonly VITE_MOCK_NETWORK_ID?: string;
