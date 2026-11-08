@@ -1,0 +1,24 @@
+{
+  "scenarioId": "F-ea-filter-rephrased-001",
+  "caseFamily": "ea-filter-rephrased",
+  "split": "BUNDLE",
+  "origin": "SYNTHETIC",
+  "actor": {"role": "EMPLOYEE", "primarySystemCodes": []},
+  "firstMessage": "전자결재에 방금 상신한 서류가 조회 화면에서 보이질 않습니다. 제출은 된 것 같은데 왜 안 뜨는지 모르겠어요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "전자결재 문서함에서 방금 상신한 서류를 찾아보려고 했어요.",
+    "expectedBehavior": "상신한 서류가 바로 조회 결과에 떠야 해요.",
+    "actualBehavior": "[조회]를 눌러도 그 서류만 안 떠요. '조건에 맞는 문서가 없습니다'가 나와요.",
+    "occurredAt": "10분 전쯤부터요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-search-period": "기간은 건드리지 않고 그대로 뒀어요.",
+    "check-ea-draft-date": "오늘 아침에 작성해서 바로 올렸어요.",
+    "check-ea-filter-condition": "상태를 '결재 중'으로 선택해 놓고 조회했어요. 키워드는 안 넣었어요.",
+    "check-ea-submit-state": "상신 버튼을 눌렀어요.",
+    "check-ea-participation": "제가 기안한 문서예요."
+  }
+}

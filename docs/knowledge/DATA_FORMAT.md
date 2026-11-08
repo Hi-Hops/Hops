@@ -203,7 +203,18 @@ questions:
 
 ### 지식 선순환 검증 묶음
 
-문서만 늘리지 않고 한 묶음으로 만든다: 첫 문의 A → 검수한 사례 A → 표현이 다른 후속 문의 B → 같은 증상·다른 원인의 방해 문의 C. 초안·승인·반영 상태가 다른 자료도 포함한다. B와 C의 정답과 미래 처리 기록은 평가 파일에만 둔다. 이 묶음의 평가 방식은 [평가](EVALUATION.md)에서 다룬다.
+문서만 늘리지 않고 한 묶음으로 만든다: 첫 문의 A → 담당자 처리·해결 확인·승인으로 만들어지는 사례 A → 표현이 다른 후속 문의 B → 같은 증상·다른 원인의 방해 문의 C. 내용(원인·문의자·상황)은 [정본 8.1절](VIRTUAL_COMPANY.md#81-선순환-검증-묶음-문의-abc)이 정한다. 평가 방식은 [평가](EVALUATION.md)에서 다룬다.
+
+파일은 `ai/evaluation/flywheel/`에 두며 AI 런타임이 읽지 못한다(경계 테스트가 확인한다). 사례 A는 시드가 아니므로 시드 사례 카드 위치(`docs/knowledge/cases/`)에 두지 않는다.
+
+| 파일 | 내용 |
+|---|---|
+| `bundle.json` | 역할(A·B·C)별 시나리오 ID와 문의자, 담당자, 관찰자(남의 문의를 볼 수 없는지 확인하는 계정), 사례 카드 키, 공개 프로필(`DEFAULT`, `INTERNAL_JUDGEMENT`) |
+| `scenarios/{ID}.json` | 문의 하나의 모델 입력. 대화 시나리오와 같은 형식(`firstMessage`, `userKnowledge`, `checkAnswers`, `revealRule`)이고 `split`만 `BUNDLE`이다. 정답·사례 A의 문장을 담지 않는다. |
+| `golds/{ID}.json` | 역할별 정답. `truth.cause`(숨은 원인), 허용 의도·종결, 프로필별 사례 A 기대(`caseEvidence`: `ABSENT`·`CITED_AS_EVIDENCE`·`NOT_CONFIRMED_AS_CAUSE`, `relationCaseNeighbor`: `ABSENT`·`PRESENT`·`ANY`), 직원에게 보이면 안 되는 문장. A의 정답은 좋은 사례 초안의 기대 연결(`expectedCase`)이다. |
+| `cards/{caseKey}.yml` | 담당자가 미래에 남길 처리 기록(`workLogs`)과 좋은 사례의 모습(`expectedCase`), 증상·원인·확인 항목(`relation`), 근거 문서(`basis`). 시드 사례 카드와 달리 대화·표준 요청은 실제 흐름이 만든다. 모델 입력으로 쓰지 않는다. |
+
+자동 검사(`cd ai && uv run python -m evaluation.flywheel.validate`): 파일의 짝과 형식, 문의자·담당자가 정본 직원 표와 맞는지(A·B·C 문의자는 서로 다르고 관찰자는 네 번째 사람, 담당자는 시스템의 주담당자), 사례 A의 증상·원인·확인 항목이 코퍼스 런북의 선언과 맞는지, A의 원인이 시드 사례에 없는지, B는 A와 같은 원인이고 C는 같은 증상·다른 원인이며 C의 원인을 가진 시드 사례가 있는지, 기본 프로필에서 사례 A가 직원 상담에 나오지 않는 기대인지, 입력에 노드 키나 사례 A의 문장이 없는지, 사례 A의 구체적 문장(사례 키, 제목, 해결 기록의 조치·원인·검증)이 코퍼스·관계 카드·시드 사례·시드 SQL·Spring과 AI 코드·다른 시나리오와 정답에 없는지, B의 첫 문장이 A와 거의 같지 않은지. 문장이 정본의 동작에 맞는지와 정답의 타당성은 사람이 검수하며, 이 검사는 실제 모델이나 Spring 동작을 검증하지 않는다.
 
 ## Curator 평가 시나리오 (`ai/evaluation/curator_scenarios/*.json`, 정답 `curator_golds/*.json`)
 

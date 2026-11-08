@@ -1,0 +1,21 @@
+{
+  "scenarioId": "F-ea-filter-first-001",
+  "bundleRole": "A",
+  "problem": {
+    "acceptedIntents": ["OBSERVED_SYMPTOM"],
+    "reportedSystemCode": "ELECTRONIC_APPROVAL",
+    "responsibleSystemCodes": ["ELECTRONIC_APPROVAL"],
+    "allowedFinalActions": ["PROPOSE_TICKET"]
+  },
+  "truth": {"cause": "cause-ea-filter-narrow"},
+  "expectedCase": {
+    "acceptedReusable": [true],
+    "expectedLinks": [
+      {"relation": "ADDRESSES", "target": "sym-ea-doc-not-listed"},
+      {"relation": "USES_CHECK", "target": "check-ea-filter-condition"}
+    ],
+    "forbiddenLinks": [
+      {"relation": "USES_CHECK", "target": "check-ea-view-permission-record"}
+    ]
+  }
+}

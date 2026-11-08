@@ -251,7 +251,15 @@ class SpringRelationSource(_SpringReader):
         internal = response.applied.internalJudgement
         if "SYSTEM_STAFF" not in query.allowed_scopes and not internal:
             _require_employee_view(response.symptoms)
-        return RelationResult(symptoms=tuple(response.symptoms), internal_judgement=internal)
+        return RelationResult(
+            symptoms=tuple(response.symptoms),
+            internal_judgement=internal,
+            employee_view=(
+                query.allowed_scopes == {"EMPLOYEE"}
+                and response.applied.accessScopes == ["EMPLOYEE"]
+                and not internal
+            ),
+        )
 
 
 def _require_employee_view(symptoms: Sequence[Symptom]) -> None:

@@ -160,13 +160,14 @@ symptoms: 점수 순(같으면 catalogKey 순)
   id, catalogKey, label, systemId, featureId, featureCode, accessScope, basis, score
   checkItems: 원인을 가르는 확인 항목. 후보 원인을 더 많이 가르는 순
     id, catalogKey, label(담당자 범위 응답만), employeeDisclosable, accessScope, basis
-    questions: 직원용 질문 문구 id, catalogKey, text, basis
+    questions: 질문 문구 id, catalogKey, text, basis, employeeDisclosable(담당자 범위 응답만)
   causes: 가능 원인(담당자 범위 응답만). 직원 응답에는 키가 없다
   cases: 승인 사례 이웃 documentKey(사례 번호), evidence(KnowledgeEvidence 형태), caseIndexStatus
 ```
 
 - 증상은 키워드 토큰이 증상 이름에 있거나 기능 후보가 증상의 기능과 같으면 후보다. 기능이 같으면 가산한다. 일치 신호가 없으면 결과에 넣지 않는다.
 - `basis`는 그 항목을 선언한 근거 문서 버전이 **지금 이 실행에 공개 가능할 때만** `{visible: true, documentId, documentVersion, documentKey}`다. 담당자 전용 런북에서 나온 항목이라도 직원 응답에는 런북의 ID·키를 싣지 않고 `{visible: false}`로 둔다. 근거가 없는 항목은 DB 제약상 존재하지 않는다.
+- 직원 전용 응답에 포함된 질문 문구는 이미 직원 공개 조건을 통과했다. 담당자 범위 응답에서는 확인 항목과 문구가 모두 직원 공개로 표시되고 문구 범위가 `EMPLOYEE`일 때만 질문의 `employeeDisclosable`이 `true`다. 문구의 직원 공개 여부는 출처 문서의 `basis.visible`과 별개다.
 
 ### 접근 범위: 지식 검색과 다른 점
 

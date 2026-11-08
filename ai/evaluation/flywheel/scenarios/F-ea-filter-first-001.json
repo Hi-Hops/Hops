@@ -1,0 +1,24 @@
+{
+  "scenarioId": "F-ea-filter-first-001",
+  "caseFamily": "ea-filter-first",
+  "split": "BUNDLE",
+  "origin": "SYNTHETIC",
+  "actor": {"role": "EMPLOYEE", "primarySystemCodes": []},
+  "firstMessage": "전자결재 문서함에서 지난주에 상신한 출장 신청 문서를 찾는데 목록에 나오지 않아요. 확인해 주실 수 있나요?",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "전자결재 > 문서함 > 전체 문서에서 지난주에 상신한 출장 신청 문서를 찾으려고 했어요.",
+    "expectedBehavior": "상신한 출장 신청 문서가 목록에 보여야 해요.",
+    "actualBehavior": "[조회]를 눌러도 그 문서만 목록에 없고 '조건에 맞는 문서가 없습니다'라고 나와요.",
+    "occurredAt": "오늘 아침에 처음 발견했어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-search-period": "기간은 처음 화면의 기본값 그대로 뒀어요.",
+    "check-ea-draft-date": "지난주 수요일에 기안했어요.",
+    "check-ea-filter-condition": "상태를 '승인'으로 골라 놓고 조회했어요. 제목 키워드는 넣지 않았어요.",
+    "check-ea-submit-state": "상신 버튼을 눌러서 제출했어요.",
+    "check-ea-participation": "제가 직접 기안한 문서예요."
+  }
+}

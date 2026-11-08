@@ -62,7 +62,9 @@ def symptom(key="sym-x", *, scope="EMPLOYEE", checks=None) -> Symptom:
 
 class FakeRelations:
     def __init__(self, *symptoms: Symptom, error: Exception | None = None) -> None:
-        self.result = RelationResult(symptoms=tuple(symptoms), internal_judgement=False)
+        self.result = RelationResult(
+            symptoms=tuple(symptoms), internal_judgement=False, employee_view=True
+        )
         self.error = error
         self.queries: list[RelationQuery] = []
 
@@ -113,12 +115,11 @@ async def test_items_that_are_not_for_employees_are_dropped_even_if_the_source_r
     None
 ):
     staff_check = check("check-staff", disclosable=False, label="담당자용 이름")
-    hidden_text = check("check-hidden", questions=[question("q-h-01", "숨김", visible=False)])
+    blank_text = check("check-blank", questions=[question("q-blank", " ")])
     no_question = check("check-empty", questions=[])
-    staff_scope = check("check-scope", scope="SYSTEM_STAFF")
-    kept = check("check-ok")
+    kept = check("check-ok", scope="SYSTEM_STAFF", questions=[question(visible=False)])
     relations = FakeRelations(
-        symptom(checks=[staff_check, hidden_text, no_question, staff_scope, kept]),
+        symptom(checks=[staff_check, blank_text, no_question, kept]),
         symptom("sym-staff", scope="SYSTEM_STAFF"),
     )
 

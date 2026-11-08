@@ -24,7 +24,8 @@ public final class RelationSearchResult {
         }
     }
 
-    public record Question(UUID id, String catalogKey, String text, Basis basis) {
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record Question(UUID id, String catalogKey, String text, Basis basis, Boolean employeeDisclosable) {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
