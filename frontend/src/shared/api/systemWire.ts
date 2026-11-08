@@ -105,6 +105,24 @@ const imageAttachment = obj({
   mediaType: one('image/png'),
   byteSize: (value) => positive(value) && Number(value) <= 8 * 1024 * 1024,
 });
+const imageMetadataShape = obj({
+  id: isUuid,
+  state: one('PENDING', 'READY', 'BOUND', 'EXPIRED'),
+  mediaType: one('image/png'),
+  byteSize: (value) => positive(value) && Number(value) <= 8 * 1024 * 1024,
+  createdAt: time,
+  expiresAt: nullable(time),
+  messageId: nullable(isUuid),
+  linkRevision: integer,
+  problemIds: list(isUuid),
+});
+const imageMetadata: Check = (value) =>
+  imageMetadataShape(value) &&
+  isRecord(value) &&
+  Array.isArray(value.problemIds) &&
+  value.problemIds.length <= 100 &&
+  new Set(value.problemIds).size === value.problemIds.length &&
+  (value.state === 'BOUND' ? isUuid(value.messageId) : value.messageId === null);
 const imageObservation = obj({
   observationId: isUuid,
   observationRevision: positive,
@@ -384,6 +402,17 @@ export const readLogin = (v: unknown) =>
   checked(v, obj({ accessToken: str, expiresAt: time, user: currentUser })) as D.LoginResponse;
 export const readSystems = (v: unknown) => checked(v, list(system)) as D.SupportedSystem[];
 export const readReceipt = (v: unknown) => checked(v, receipt) as D.CommandReceipt;
+export const readImageMetadata = (v: unknown) =>
+  checked(v, imageMetadata) as D.ImageAttachmentMetadata;
+export const readTicketImages = (v: unknown) =>
+  checked(
+    v,
+    (value) =>
+      Array.isArray(value) &&
+      value.length <= 5 &&
+      value.every(imageAttachment) &&
+      new Set(value.map((item: D.ImageAttachment) => item.id)).size === value.length,
+  ) as D.ImageAttachment[];
 export const readInquiry = (v: unknown) => checked(v, inquiry) as D.InquiryResult;
 export const readInquiries = (v: unknown) => checked(v, page(summary)) as D.Page<D.InquirySummary>;
 export const readMessages = (v: unknown) =>

@@ -32,6 +32,21 @@ export type CommandReceipt = {
 export type Page<T> = { items: T[]; page: number; size: number; totalElements: number };
 export type MessageRevision = { revisionNo: number; content: string; createdAt: string };
 export type ImageAttachment = { id: Uuid; mediaType: 'image/png'; byteSize: number };
+export type ImageAttachmentMetadata = ImageAttachment & {
+  state: 'PENDING' | 'READY' | 'BOUND' | 'EXPIRED';
+  createdAt: string;
+  expiresAt: string | null;
+  messageId: Uuid | null;
+  linkRevision: number;
+  problemIds: Uuid[];
+};
+export type ImageProblemLinkCommand = {
+  requestId: Uuid;
+  expectedInquiryVersion: number;
+  expectedLinkRevision: number;
+  problemIds: Uuid[];
+  confirmImageDisclosure: boolean;
+};
 export type ImageObservationDecision = 'CONFIRMED' | 'INCORRECT' | 'UNKNOWN';
 export type ImageObservationQuestion = {
   observationId: Uuid;

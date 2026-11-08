@@ -26,6 +26,7 @@ import { SystemMessageComposer } from './SystemMessageComposer';
 import { SystemMessageRevision } from './SystemMessageRevision';
 import { MessageImage } from './MessageImage';
 import { ImageObservationConfirmation } from './ImageObservationConfirmation';
+import { ImageProblemLinkEditor } from './ImageProblemLinkEditor';
 import styles from './ChatView.module.css';
 
 export function SystemChatView({ inquiryId }: { inquiryId: string }) {
@@ -156,13 +157,23 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                       <p>{message.content}</p>
                     )}
                     {message.attachments?.map((attachment, position) => (
-                      <MessageImage
-                        key={`${actor}:${attachment.id}`}
-                        actor={actor}
-                        inquiryId={inquiryId}
-                        attachmentId={attachment.id}
-                        position={position}
-                      />
+                      <div key={`${actor}:${attachment.id}`}>
+                        <MessageImage
+                          actor={actor}
+                          inquiryId={inquiryId}
+                          attachmentId={attachment.id}
+                          position={position}
+                        />
+                        {import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' &&
+                          message.sender === 'USER' && (
+                            <ImageProblemLinkEditor
+                              inquiry={inquiry}
+                              messageId={message.id}
+                              attachmentId={attachment.id}
+                              disabled={!chat.ready}
+                            />
+                          )}
+                      </div>
                     ))}
                     {import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' &&
                       message.imageObservationQuestions?.map((observation) => (

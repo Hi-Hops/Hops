@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { readMessages } from './systemWire';
+import { readImageMetadata, readMessages, readTicketImages } from './systemWire';
 
 it('F003-CONTRACT 기존 대화와 정상 첨부를 수용하고 잘못된 이미지 메타데이터는 거부한다', () => {
   const message = {
@@ -30,6 +30,32 @@ it('F003-CONTRACT 기존 대화와 정상 첨부를 수용하고 잘못된 이�
       readMessages({ items: [{ ...message, attachments: bad }], nextBeforeSequenceNo: null }),
     ).toThrow();
   }
+});
+
+it('이미지 공개 대상과 담당자 목록의 형식을 검증한다', () => {
+  const id = crypto.randomUUID();
+  const metadata = {
+    id,
+    state: 'BOUND',
+    mediaType: 'image/png',
+    byteSize: 24,
+    createdAt: '2026-11-08T00:00:00Z',
+    expiresAt: null,
+    messageId: crypto.randomUUID(),
+    linkRevision: 1,
+    problemIds: [crypto.randomUUID()],
+  };
+  expect(readImageMetadata(metadata)).toEqual(metadata);
+  expect(() =>
+    readImageMetadata({
+      ...metadata,
+      problemIds: [metadata.problemIds[0], metadata.problemIds[0]],
+    }),
+  ).toThrow();
+  expect(() => readImageMetadata({ ...metadata, messageId: null })).toThrow();
+  const attachment = { id, mediaType: 'image/png', byteSize: 24 };
+  expect(readTicketImages([attachment])).toEqual([attachment]);
+  expect(() => readTicketImages([attachment, attachment])).toThrow();
 });
 
 it('이미지 관찰 확인 요청의 형식과 메시지 대상을 검증한다', () => {

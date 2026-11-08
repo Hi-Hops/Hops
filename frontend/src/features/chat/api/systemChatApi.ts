@@ -1,6 +1,12 @@
 import { systemGet } from '@/shared/api/systemCommands';
 import { apiImageRequest } from '@/shared/api/client';
-import { readInquiry, readMessages, readRun, readSystems } from '@/shared/api/systemWire';
+import {
+  readImageMetadata,
+  readInquiry,
+  readMessages,
+  readRun,
+  readSystems,
+} from '@/shared/api/systemWire';
 import type { SystemCommand } from '@/shared/api/systemCommands';
 import type {
   InquiryCreateCommand,
@@ -8,6 +14,7 @@ import type {
   MessageReviseCommand,
   RunRetryCommand,
   ImageObservationResponseCommand,
+  ImageProblemLinkCommand,
 } from '@/shared/api/types/hopsSystem1';
 export const systemChatKeys = {
   inquiry: (actor: string, id: string) => ['hops-system-1', 'chat', actor, id, 'inquiry'] as const,
@@ -66,6 +73,33 @@ export const getMessageImage = (inquiryId: string, attachmentId: string, signal?
     `/api/v2/inquiries/${encodeURIComponent(inquiryId)}/image-attachments/${encodeURIComponent(attachmentId)}/content`,
     signal,
   );
+export const getImageMetadata = (attachmentId: string, messageId: string, signal?: AbortSignal) =>
+  systemGet(
+    `/image-attachments/${encodeURIComponent(attachmentId)}`,
+    (raw) => {
+      const metadata = readImageMetadata(raw);
+      if (
+        metadata.id !== attachmentId ||
+        metadata.state !== 'BOUND' ||
+        metadata.messageId !== messageId
+      )
+        throw new Error('이미지 연결 대상 불일치');
+      return metadata;
+    },
+    signal,
+  );
+
+export function imageProblemLinkCommand(
+  inquiryId: string,
+  attachmentId: string,
+  body: ImageProblemLinkCommand,
+): SystemCommand {
+  return {
+    path: `/api/v2/inquiries/${encodeURIComponent(inquiryId)}/image-attachments/${encodeURIComponent(attachmentId)}/problem-links`,
+    body,
+    expectedResource: { type: 'INQUIRY', id: inquiryId },
+  };
+}
 
 export function createInquiryCommand(body: InquiryCreateCommand): SystemCommand {
   return { path: '/api/v2/inquiries', body, expectedResource: { type: 'INQUIRY' } };
