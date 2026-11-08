@@ -41,7 +41,8 @@ public class RelationSearchRepository {
             String accessLevel, UUID sourceVersionId, int causeCount) {
     }
 
-    public record QuestionRow(UUID checkItemId, UUID id, String catalogKey, String text, String accessLevel, UUID sourceVersionId) {
+    public record QuestionRow(UUID checkItemId, UUID id, String catalogKey, String text, String accessLevel, UUID sourceVersionId,
+            boolean employeeDisclosable) {
     }
 
     public record CauseRow(UUID symptomId, UUID id, String catalogKey, String label, String accessLevel, UUID sourceVersionId) {
@@ -117,7 +118,7 @@ public class RelationSearchRepository {
                 ? "t.access_level IN (:levels) AND (t.access_level = 'EMPLOYEE' OR (:internalRead OR sys.primary_owner_member_id = :memberId))"
                 : "t.employee_disclosable AND k.employee_disclosable AND t.access_level = 'EMPLOYEE'";
         return jdbc.query("""
-                SELECT t.check_item_id, t.id, t.catalog_key, t.question_text, t.access_level, t.source_document_version_id
+                SELECT t.check_item_id, t.id, t.catalog_key, t.question_text, t.access_level, t.source_document_version_id, t.employee_disclosable
                 FROM relation_question_template t
                 JOIN relation_check_item k ON k.id = t.check_item_id AND k.deleted_at IS NULL AND k.review_status = 'APPROVED'
                 JOIN it_system sys ON sys.id = k.it_system_id AND sys.deleted_at IS NULL
@@ -125,7 +126,7 @@ public class RelationSearchRepository {
                 ORDER BY t.check_item_id, t.catalog_key
                 """.formatted(visible), new MapSqlParameterSource("checkItemIds", checkItemIds).addValue("levels", levels).addValue("memberId", viewer.memberId()).addValue("internalRead", viewer.internalRead()),
                 (rs, row) -> new QuestionRow(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getString(4),
-                        rs.getString(5), rs.getObject(6, UUID.class)));
+                        rs.getString(5), rs.getObject(6, UUID.class), rs.getBoolean(7)));
     }
 
     /** 담당자 범위에서만 쓴다. 증상의 가능 원인 중 공개 범위·담당 조건을 만족하는 승인된 것. */

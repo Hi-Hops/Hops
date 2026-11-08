@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -142,11 +141,16 @@ class InternalJudgementOptionTest extends InternalRunApiTestBase {
     @Test
     void 관계_조회는_내부_판단용으로_원인과_담당자_전용_항목을_주되_직원에게_나갈_질문은_그대로다() throws Exception {
         endpoint = "relation-searches";
+        String internalQuestion = "q-ea-search-period-01";
+        String pendingQuestion = "q-ea-submit-state-01";
+        jdbc.update("UPDATE relation_question_template SET employee_disclosable = false WHERE catalog_key = ?", internalQuestion);
+        jdbc.update("UPDATE relation_question_template SET review_status = 'PENDING' WHERE catalog_key = ?", pendingQuestion);
         JsonNode defaultView = search(relationBody("문서함에 문서가 안 보여요")).andExpect(status().isOk()).json();
         JsonNode defaultSymptom = defaultView.path("symptoms").get(0);
         assertThat(defaultSymptom.has("causes")).isFalse();
         List<String> defaultQuestions = defaultSymptom.path("checkItems").valueStream()
                 .flatMap(check -> check.path("questions").valueStream()).map(q -> q.path("catalogKey").asString()).sorted().toList();
+        assertThat(defaultQuestions).isNotEmpty().doesNotContain(internalQuestion, pendingQuestion);
 
         withRetrievalScopes("EMPLOYEE", "SYSTEM_STAFF");
         JsonNode internal = search(relationBody("문서함에 문서가 안 보여요")).andExpect(status().isOk())
@@ -161,12 +165,13 @@ class InternalJudgementOptionTest extends InternalRunApiTestBase {
         assertThat(staffOnly.path("questions").size()).isZero();
 
         // 직원에게 질문으로 나갈 수 있는 것은 직원 공개로 표시된 확인 항목과 승인된 EMPLOYEE 질문 문구뿐이며 기본 프로필과 같은 집합이다.
-        List<String> askable = symptom.path("checkItems").valueStream().filter(c -> c.path("employeeDisclosable").asBoolean())
-                .flatMap(check -> check.path("questions").valueStream()).map(q -> q.path("catalogKey").asString()).sorted().toList();
+        List<JsonNode> questions = symptom.path("checkItems").valueStream()
+                .flatMap(check -> check.path("questions").valueStream()).toList();
+        List<String> askable = questions.stream().filter(q -> q.path("employeeDisclosable").asBoolean())
+                .map(q -> q.path("catalogKey").asString()).sorted().toList();
         assertThat(askable).isEqualTo(defaultQuestions);
-        List<UUID> questionIds = symptom.path("checkItems").valueStream().flatMap(check -> check.path("questions").valueStream())
-                .map(q -> UUID.fromString(q.path("id").asString())).toList();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM relation_question_template WHERE id IN (" + String.join(",", questionIds.stream().map(id -> "'" + id + "'").toList())
-                + ") AND (access_level <> 'EMPLOYEE' OR NOT employee_disclosable OR review_status <> 'APPROVED')", Integer.class)).isZero();
+        assertThat(questions).extracting(q -> q.path("catalogKey").asString()).doesNotContain(pendingQuestion);
+        assertThat(questions.stream().filter(q -> q.path("catalogKey").asString().equals(internalQuestion)).toList())
+                .singleElement().satisfies(q -> assertThat(q.path("employeeDisclosable").asBoolean()).isFalse());
     }
 }

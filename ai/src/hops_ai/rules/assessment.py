@@ -16,7 +16,7 @@
 
 from collections.abc import Iterable, Sequence
 
-from hops_ai.contracts.roles import Assessment, RelationNeighbors
+from hops_ai.contracts.roles import Assessment, MissingInformation, RelationNeighbors
 from hops_ai.contracts.state import SupervisorState
 from hops_ai.contracts.wire import Intent, KnowledgeEvidence
 from hops_ai.harness.errors import OutputRejected
@@ -81,13 +81,16 @@ def limit_check_items(assessment: Assessment) -> Assessment:
     return assessment.model_copy(update={"missingInformation": kept})
 
 
-def no_match_assessment(problem_ref: str) -> Assessment:
-    """검색 결과가 0건일 때 코드가 확정하는 판정. 모델을 부르지 않는다."""
+def no_match_assessment(problem_ref: str, check_items: Sequence[str] = ()) -> Assessment:
+    """문서 0건은 NO_MATCH로 확정하고, 조회 순서대로 승인된 관계 질문을 남긴다."""
     return Assessment(
         problemRef=problem_ref,
         verdict="NO_MATCH",
         supportingEvidenceIds=[],
-        missingInformation=[],
+        missingInformation=[
+            MissingInformation(kind="CHECK_ITEM", ref=key)
+            for key in check_items[:MAX_CHECK_ITEM_REFS]
+        ],
         candidateCauses=[],
         nextChecks=[],
         rationale="검색 결과가 없다",
@@ -127,10 +130,10 @@ def validate_assessment(
             assessment.verdict != "NO_MATCH"
             or supporting
             or assessment.candidateCauses
-            or assessment.missingInformation
+            or any(item.kind != "CHECK_ITEM" for item in assessment.missingInformation)
             or assessment.nextChecks
         ):
-            raise OutputRejected("검색 0건은 근거 없는 NO_MATCH만 허용한다")
+            raise OutputRejected("검색 0건은 근거 없이 관계 질문만 지목하는 NO_MATCH를 허용한다")
     if not _unique(supporting) or not set(supporting) <= by_id.keys():
         raise OutputRejected("판정의 근거 ID가 이번 검색 결과에 없거나 중복됐다")
     if assessment.verdict == "NO_MATCH" and supporting:

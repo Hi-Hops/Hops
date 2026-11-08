@@ -145,6 +145,30 @@ async def test_a_check_item_from_the_lookup_is_kept_in_the_assessment() -> None:
     assert kept.nextChecks == []
 
 
+async def test_empty_document_search_uses_the_first_three_unasked_relation_checks() -> None:
+    request = symptom_request()
+    problem = request.problems[0].model_copy(update={"askedFields": ["check-0"]})
+    request = request.model_copy(update={"problems": [problem]})
+    services, llm = services_with(request)
+    agent = SearchKnowledgeAgent(
+        RecordingSource(), assess_evidence=True, relation_source=many_checks(5)
+    )
+
+    state = await execute_role(
+        analysed(request),
+        AgentRole.KNOWLEDGE,
+        services,
+        {AgentRole.KNOWLEDGE: agent},
+        targets=(PROBLEM,),
+    )
+
+    assessment = state["assessments"][PROBLEM]
+    assert assessment.verdict == "NO_MATCH"
+    assert not assessment.supportingEvidenceIds and not assessment.candidateCauses
+    assert [item.ref for item in assessment.missingInformation] == ["check-1", "check-2", "check-3"]
+    assert not llm.requests
+
+
 async def test_a_check_item_that_was_not_looked_up_voids_the_assessment() -> None:
     relations = FakeRelations(symptom(checks=[check("check-a")]))
 

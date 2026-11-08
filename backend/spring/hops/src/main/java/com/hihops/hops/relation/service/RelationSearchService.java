@@ -91,7 +91,9 @@ public class RelationSearchService {
                     scope(check.accessLevel()), basis(bases, check.sourceVersionId(), viewer),
                     questions.stream().filter(question -> question.checkItemId().equals(check.id())).map(question -> new Question(
                             question.id(), question.catalogKey(), question.text(),
-                            basis(bases, question.sourceVersionId(), viewer))).toList()))
+                            basis(bases, question.sourceVersionId(), viewer),
+                            query.includesStaff() ? check.employeeDisclosable() && question.employeeDisclosable()
+                                    && "EMPLOYEE".equals(question.accessLevel()) : null)).toList()))
                     // 직원 질문으로 나갈 수 있는 승인된 문구가 없는 확인 항목은 직원 응답에 나타나지 않는다.
                     .filter(check -> query.includesStaff() || !check.questions().isEmpty()).toList();
             List<Cause> causeItems = query.includesStaff()

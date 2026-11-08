@@ -14,7 +14,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictBool
 
 from hops_ai.contracts.wire import AccessScope
 from hops_ai.services.retrieval.knowledge_source import RunLink
@@ -58,6 +58,8 @@ class Question(_Item):
     catalogKey: str
     text: str
     basis: Basis
+    # 직원 전용 응답에서는 문구 자체가 이미 승인·공개 조건을 통과했다.
+    employeeDisclosable: StrictBool | None = None
 
 
 class CheckItem(_Item):
@@ -65,7 +67,7 @@ class CheckItem(_Item):
     catalogKey: str
     # 담당자 범위 응답에만 있다. 직원 응답에는 없다.
     label: str | None = None
-    employeeDisclosable: bool
+    employeeDisclosable: StrictBool
     accessScope: AccessScope
     basis: Basis
     questions: list[Question]
@@ -103,10 +105,11 @@ class Symptom(_Item):
 
 @dataclass(frozen=True)
 class RelationResult:
-    """관계 조회 결과. internal_judgement가 True이면 내부 판단 읽기라서 사용자에게 쓰지 않는다."""
+    """employee_view는 모든 질문 문구가 직원 공개 조건을 통과한 응답임을 뜻한다."""
 
     symptoms: tuple[Symptom, ...]
     internal_judgement: bool
+    employee_view: bool = False
 
 
 class RelationSource(Protocol):
