@@ -13,6 +13,7 @@ import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.RunStatus;
 import com.hihops.hops.agent.dto.AiRunRequest;
 import com.hihops.hops.agent.repository.AgentRunRepository;
+import com.hihops.hops.agent.service.ImageRunSafety;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.inquiry.domain.Inquiry;
@@ -38,6 +39,7 @@ public class TicketCreationService {
     private final TicketCreationValidator validator;
     private final EntityManager entities;
     private final Clock clock;
+    private final ImageRunSafety imageSafety;
 
     @Transactional
     public TicketCreationResult create(UUID runId, TicketCreationCommand command) {
@@ -49,6 +51,7 @@ public class TicketCreationService {
             return result(ctx, previous);
         }
         writable(ctx, command.inquiryVersion());
+        imageSafety.requireTextOnly(ctx.run());
         validator.validate(command, ctx.input(), ctx.inquiry().getRequester());
         checkBudget(ctx);
         UUID problemId = problem(ctx, command);
@@ -80,6 +83,7 @@ public class TicketCreationService {
         // 결과 유실 뒤 같은 expectedAttempt 재전달은 읽기로 취급한다.
         if (command.expectedAttempt() < saved.attempt() || "STORED".equals(previous.outcome())) return previous;
         writable(ctx, command.inquiryVersion());
+        imageSafety.requireTextOnly(ctx.run());
         if (!previous.retryable()) throw new BusinessException(ErrorCode.INVALID_STATE);
         checkBudget(ctx);
         var original = mapper.readValue(saved.body(), TicketCreationCommand.class);

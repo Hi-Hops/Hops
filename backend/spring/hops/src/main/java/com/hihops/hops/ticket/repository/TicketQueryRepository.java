@@ -18,7 +18,7 @@ public interface TicketQueryRepository extends Repository<Ticket, UUID> {
     @Query(value = """
             SELECT t FROM Ticket t
             JOIN FETCH t.inquiry i JOIN FETCH t.inquiryProblem p
-            JOIN FETCH t.standardRequest sr LEFT JOIN FETCH sr.reportedSystem
+            JOIN FETCH t.standardRequest sr JOIN FETCH sr.agentRun LEFT JOIN FETCH sr.reportedSystem
             JOIN FETCH t.responsibleSystem s JOIN FETCH t.assignee a JOIN FETCH a.department
             WHERE t.deletedAt IS NULL AND i.deletedAt IS NULL AND p.deletedAt IS NULL
             AND s.deletedAt IS NULL AND s.id IN :systemIds
@@ -32,7 +32,7 @@ public interface TicketQueryRepository extends Repository<Ticket, UUID> {
             """)
     Page<Ticket> findVisible(Collection<UUID> systemIds, TicketStatus status, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"inquiry", "inquiryProblem", "standardRequest", "standardRequest.reportedSystem",
+    @EntityGraph(attributePaths = {"inquiry", "inquiryProblem", "standardRequest", "standardRequest.agentRun", "standardRequest.reportedSystem",
             "responsibleSystem", "assignee.department"})
     @Query("SELECT t FROM Ticket t WHERE t.id = :id AND t.deletedAt IS NULL "
             + "AND t.inquiry.deletedAt IS NULL AND t.inquiryProblem.deletedAt IS NULL AND t.responsibleSystem.deletedAt IS NULL")

@@ -187,6 +187,34 @@ class TicketCreationApiTest {
                 .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of("inquiryVersion", 1, "expectedAttempt", attempt))));
     }
 
+    private void imageInput() {
+        String images = mapper.writeValueAsString(List.of(Map.of("attachmentId", UUID.randomUUID(), "digest", "a".repeat(64))));
+        jdbc.update("UPDATE agent_run SET input_snapshot=jsonb_set(input_snapshot, '{messages,0,imageAttachments}', ?::jsonb, true) WHERE id=?",
+                images, run);
+    }
+
+    @Test
+    void 이미지_입력_실행은_티켓과_표준_요청을_생성하지_않는다() throws Exception {
+        imageInput();
+        create(body("new:1")).andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM inquiry_problem WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_ticket_request WHERE run_id=?", Integer.class, run)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
+    }
+
+    @Test
+    void 이미지_입력_실행은_기존_저장_결과를_읽을_수_있지만_생성을_재시도하지_않는다() throws Exception {
+        jdbc.update("UPDATE member SET deleted_at=now() WHERE id=?", owner);
+        create(body("new:1")).andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("NOT_CREATED"));
+        imageInput();
+        jdbc.update("UPDATE member SET deleted_at=NULL WHERE id=?", owner);
+        mvc.perform(get(path()+"/new:1").header("Authorization", "Bearer " + TOKEN))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.attempt").value(1));
+        retry(1).andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT attempt FROM agent_ticket_request WHERE run_id=? AND problem_ref='new:1'", Integer.class, run)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
+    }
+
     @Test
     void 최대_세번까지만_생성을_시도한다() throws Exception {
         jdbc.update("UPDATE member SET deleted_at=now() WHERE id=?", owner);

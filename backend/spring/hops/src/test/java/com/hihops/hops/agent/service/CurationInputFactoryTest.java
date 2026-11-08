@@ -144,6 +144,21 @@ class CurationInputFactoryTest extends TicketCommandFixture {
     }
 
     @Test
+    void 이미지_실행에서_만든_표준_요청은_담당자_상세와_목록에_노출하지_않는다() throws Exception {
+        String snapshot = mapper.writeValueAsString(Map.of("messages", List.of(
+                Map.of("imageAttachments", List.of(Map.of("attachmentId", UUID.randomUUID()))))));
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?", snapshot, analysis);
+        jdbc.update("UPDATE standard_request SET summary='이미지 유래 요약' WHERE id=?", standard);
+        mvc.perform(as(staff, get("/api/v2/tickets/{id}", ticket))).andExpect(status().isServiceUnavailable());
+        mvc.perform(as(staff, get("/api/v2/tickets"))).andExpect(status().isServiceUnavailable());
+        mvc.perform(command(staff, "/tickets/" + ticket + "/work-records", work("PROGRESS")))
+                .andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket_work_log WHERE ticket_id=?", Integer.class, ticket)).isZero();
+        // 먼저 담당 권한을 검사하므로 다른 담당자에게 저장 내용이나 상태를 알려주지 않는다.
+        mvc.perform(as(other, get("/api/v2/tickets/{id}", ticket))).andExpect(status().isForbidden());
+    }
+
+    @Test
     void AI_메시지는_가장_최근_30개만_담고_사용자_메시지는_모두_담는다() throws Exception {
         var first = addLinked("AI", "오래된 질문 0", problem);
         var latest = new ArrayList<String>();

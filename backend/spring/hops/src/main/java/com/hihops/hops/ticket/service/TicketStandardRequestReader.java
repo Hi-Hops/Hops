@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.agent.service.ImageRunSafety;
 import com.hihops.hops.inquiry.domain.MessageStatus;
 import com.hihops.hops.inquiry.domain.StandardRequest;
 import com.hihops.hops.inquiry.repository.MessageRepository;
@@ -27,8 +28,10 @@ public class TicketStandardRequestReader {
     private final TicketKnowledgeReader knowledge;
     private final MessageRepository messages;
     private final RelatedMessageProjector projector;
+    private final ImageRunSafety imageSafety;
 
     public StandardRequestResponse read(StandardRequest value, Member member) {
+        imageSafety.requireTextOnly(value.getAgentRun());
         var visibleKnowledge = knowledge.visible(value.getRelatedKnowledge(), member);
         var allowedIds = visibleKnowledge.stream().map(item -> item.id()).toList();
         var storedFacts = data.list(value.getConfirmedFacts(), EvidenceStatementResponse.class);

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.auth.service.AuthService;
+import com.hihops.hops.agent.service.ImageRunSafety;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.itsystem.domain.ItSystem;
@@ -51,6 +52,7 @@ public class TicketService {
     private final TicketStandardRequestReader standardRequests;
     private final TicketProgressReader progress;
     private final TicketEvidence evidencePolicy;
+    private final ImageRunSafety imageSafety;
 
     @Transactional(readOnly = true)
     public CaseGenerationResponse caseGeneration(Jwt jwt, UUID generationId) {
@@ -71,6 +73,7 @@ public class TicketService {
         Member member = authService.currentMember(jwt);
         Ticket ticket = findTicket(ticketId);
         authorization.requireCurrentPrimary(member, ticket);
+        imageSafety.requireTextOnly(ticket.getStandardRequest().getAgentRun());
         return ticket;
     }
 
@@ -79,6 +82,7 @@ public class TicketService {
         Member member = authService.currentMember(jwt);
         Ticket ticket = findTicket(ticketId);
         authorization.requireCurrentPrimary(member, ticket);
+        imageSafety.requireTextOnly(ticket.getStandardRequest().getAgentRun());
         var records = workLogs.findByTicketIdOrderByCreatedAtAscIdAsc(ticketId);
         return TicketDetailResponse.of(summary(ticket), primary(ticket), assignmentHistory(ticket, member),
                 standardRequests.read(ticket.getStandardRequest(), member),
@@ -91,6 +95,7 @@ public class TicketService {
         Member member = authService.currentMember(jwt);
         authorization.requireAdministrator(member);
         Ticket ticket = findTicket(ticketId);
+        imageSafety.requireTextOnly(ticket.getStandardRequest().getAgentRun());
         return TicketManagementDetailResponse.of(summary(ticket), primary(ticket), assignmentHistory(ticket, member));
     }
 
@@ -142,6 +147,7 @@ public class TicketService {
         var systemEntities = new ArrayList<ItSystem>();
         for (Ticket ticket : page) {
             validateSources(ticket);
+            imageSafety.requireTextOnly(ticket.getStandardRequest().getAgentRun());
             systemEntities.add(ticket.getStandardRequest().getReportedSystem());
             systemEntities.add(ticket.getResponsibleSystem());
         }
