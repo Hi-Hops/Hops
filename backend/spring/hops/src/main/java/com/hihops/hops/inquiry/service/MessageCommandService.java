@@ -288,11 +288,13 @@ public class MessageCommandService {
     }
 
     /**
-     * 입력이 바뀐 뒤 분석을 이어 갈지 정한다. 진행 중인 이전 실행은 언제나 대체한다(입력 버전이 바뀌어 그 결과는 버려진다).
+     * 입력이 바뀐 뒤 분석을 이어 갈지 정한다. 진행 중인 이전 실행은 입력 버전이 바뀌면 대체한다.
      * <ul>
      *   <li>이번 입력의 자기 분석: 시작 메시지가 대기 중이거나 대상이 모두 배정된 문제면 없다(보완 정보). 그 밖에는 이번 대상으로 분석한다.</li>
      *   <li>멈춘 분석(이번에 대체한 실행, 또는 대체만 되고 다시 접수되지 않은 현재 실행)이 있으면 그 대상을 새 실행에 합친다.
      *       보완 전용 입력 때문에 다른 문제의 분석이 사라지지 않게 한다. 그 사이 해결·범위 밖이 된 문제는 잇지 않는다.</li>
+     *   <li>새 문제만 분석하는 입력과 기존 문제 대상 분석은 합칠 수 없어 충돌한 명령을 거절한다.
+     *       입력 저장과 같은 트랜잭션이므로 거절하면 메시지·대상 선택과 입력 버전도 롤백된다.</li>
      * </ul>
      *
      * @param requestId 이 입력을 저장한 공개 명령. 새 실행을 접수하면 그 실행의 접수 명령으로 기록한다
@@ -302,14 +304,23 @@ public class MessageCommandService {
         Instant now = clock.instant();
         AgentRun previous = inquiry.getCurrentRun();
         Optional<InterruptedAnalysis> interrupted = interruptedAnalysis(previous);
-        if (previous != null && isActive(previous)) {
-            previous.finish(RunStatus.CANCELLED, now);
-        }
         boolean pending = jsonMapper.readValue(trigger.getPayload(), MessagePayload.class).isPendingTarget();
         boolean ownAnalysis = !pending && (problemIds.isEmpty() || !scope.assigned().containsAll(problemIds));
+        if (previous != null && isActive(previous)) {
+            boolean replacingNewAnalysis = ownAnalysis && !problemIds.isEmpty()
+                    && interrupted.map(InterruptedAnalysis::newMessageIds).isPresent();
+            if (newProblem || replacingNewAnalysis) {
+                throw new BusinessException(ErrorCode.INVALID_STATE, "진행 중인 분석이 끝난 뒤 다시 시도해 주세요.");
+            }
+            previous.finish(RunStatus.CANCELLED, now);
+        }
+        if (newProblem) {
+            startAnalysis(inquiry, trigger, List.of(), Set.of(trigger.getId()), now, requestId);
+            return;
+        }
         if (interrupted.isEmpty()) {
             if (ownAnalysis) {
-                startAnalysis(inquiry, trigger, problemIds, newProblem ? Set.of(trigger.getId()) : null, now, requestId);
+                startAnalysis(inquiry, trigger, problemIds, null, now, requestId);
             }
             return;
         }
@@ -333,8 +344,6 @@ public class MessageCommandService {
         prior.problemIds().stream().filter(scope.linkable()::contains).forEach(targets::add);
         if (!targets.isEmpty()) {
             startAnalysis(inquiry, trigger, List.copyOf(targets), null, now, requestId);
-        } else if (newProblem) {
-            startAnalysis(inquiry, trigger, List.of(), Set.of(trigger.getId()), now, requestId);
         }
     }
 

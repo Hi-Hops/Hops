@@ -694,6 +694,74 @@ class MessageCommandControllerTest {
     }
 
     @Test
+    void 기존_문제_분석_중에는_새_문제_확정을_보류하고_완료_후_다시_받는다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID first = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        UUID second = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertStandardRequest(first, firstRunId, "로그인 오류", "[]");
+        insertStandardRequest(second, firstRunId, "문서 검색 오류", "[]");
+        send(memberId, UUID.randomUUID(), 1, "파일 다운로드도 실패해요", List.of()).andExpect(status().isOk());
+        String pendingId = messageIdAt(2);
+        send(memberId, UUID.randomUUID(), 2, "첫 문제는 어제부터예요", List.of(first)).andExpect(status().isOk());
+        String existingRunId = currentRunId();
+        jdbc.update("UPDATE agent_run SET run_status = 'RUNNING', started_at = now() WHERE id = ?::uuid",
+                existingRunId);
+
+        link(memberId, pendingId, UUID.randomUUID(), 3, List.of(), true)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(jsonPath("$.inquiryVersion").value(3))
+                .andExpect(jsonPath("$.pendingTargetMessageIds[0]").value(pendingId))
+                .andExpect(jsonPath("$.currentRun.id").value(existingRunId))
+                .andExpect(jsonPath("$.currentRun.status").value("RUNNING"));
+        assertThat(problemIdsOf(currentInput())).containsExactly(first.toString());
+
+        succeedFirstRun();
+        link(memberId, pendingId, UUID.randomUUID(), 3, List.of(), true).andExpect(status().isOk());
+        assertThat(currentRunId()).isNotEqualTo(existingRunId);
+        assertThat(payloadOf(pendingId).path("pendingTarget").asBoolean()).isFalse();
+        JsonNode input = currentInput();
+        assertThat(input.path("problems").isEmpty()).isTrue();
+        assertThat(problemIdsOf(input)).isEmpty();
+        assertThat(input.path("messages").findValuesAsString("id")).containsExactly(pendingId);
+    }
+
+    @Test
+    void 새_문제_분석_중에는_기존_문제_답변을_거절하고_완료_후_다시_받는다() throws Exception {
+        String firstRunId = succeedFirstRun();
+        UUID first = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
+        UUID second = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        insertStandardRequest(first, firstRunId, "로그인 오류", "[]");
+        insertStandardRequest(second, firstRunId, "문서 검색 오류", "[]");
+        send(memberId, UUID.randomUUID(), 1, "파일 다운로드도 실패해요", List.of()).andExpect(status().isOk());
+        String newMessageId = messageIdAt(2);
+        link(memberId, newMessageId, UUID.randomUUID(), 2, List.of(), true).andExpect(status().isOk());
+        String newRunId = currentRunId();
+        String answer = "첫 문제는 어제부터예요";
+
+        send(memberId, UUID.randomUUID(), 3, answer, List.of(first))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(jsonPath("$.inquiryVersion").value(3))
+                .andExpect(jsonPath("$.currentRun.id").value(newRunId))
+                .andExpect(jsonPath("$.currentRun.status").value("QUEUED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id = ?::uuid AND sender_type = 'USER'",
+                Integer.class, inquiryId)).isEqualTo(2);
+        assertThat(currentInput().path("messages").findValuesAsString("id")).containsExactly(newMessageId);
+
+        succeedFirstRun();
+        send(memberId, UUID.randomUUID(), 3, answer, List.of(first)).andExpect(status().isOk());
+        assertThat(currentRunId()).isNotEqualTo(newRunId);
+        assertThat(problemIdsOf(currentInput())).containsExactly(first.toString());
+        assertThat(payloadOf(messageIdAt(3)).path("problemLinks").get(0).path("problemId").asString())
+                .isEqualTo(first.toString());
+    }
+
+    @Test
     void 보완_대상_확정은_대기_메시지와_이_문의의_문제만_받는다() throws Exception {
         String firstRunId = succeedFirstRun();
         UUID assigned = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRunId);
