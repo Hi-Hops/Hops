@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.knowledge.domain.AccessLevel;
 import com.hihops.hops.knowledge.domain.DocumentType;
 import com.hihops.hops.knowledge.service.KnowledgeEvidenceAssembler.IntegrityException;
+import com.hihops.hops.knowledge.service.HybridKnowledgeSearch;
 import com.hihops.hops.knowledge.service.KnowledgeQueryTokens;
 import com.hihops.hops.knowledge.service.KnowledgeSearchService;
 
@@ -40,7 +42,10 @@ class KnowledgeSearchHandler {
     private static final Set<Kind> EMPLOYEE_KINDS = EnumSet.of(Kind.GUIDE, Kind.POLICY, Kind.CASE);
 
     private final InternalRunAccess runAccess;
-    private final KnowledgeSearchService search;
+    private final KnowledgeSearchService baseline;
+    private final HybridKnowledgeSearch hybrid;
+    @Value("${hops.search.offline-sql:false}")
+    private boolean offlineSql;
     private final AnalysisRunProperties runProperties;
 
     @Transactional(readOnly = true)
@@ -68,17 +73,18 @@ class KnowledgeSearchHandler {
         if (scope.internalRead()) {
             log.info("내부 판단 읽기 지식 검색 runId={}", runId);
         }
-        List<String> tokens = KnowledgeQueryTokens.of(request.query());
+        List<String> tokens = KnowledgeQueryTokens.of(java.text.Normalizer.normalize(request.query(), java.text.Normalizer.Form.NFC));
         if (tokens.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
 
         List<KnowledgeSearchService.Hit> hits;
         try {
-            hits = search.search(new KnowledgeSearchService.Query(tokens, levels,
+            var query = new KnowledgeSearchService.Query(tokens, levels,
                     kinds.stream().map(KnowledgeSearchHandler::documentType).collect(java.util.stream.Collectors.toCollection(
                             () -> EnumSet.noneOf(DocumentType.class))),
-                    systems, scope.memberId(), topK, scope.internalRead()));
+                    systems, scope.memberId(), topK, scope.internalRead());
+            hits = offlineSql ? baseline.search(query) : hybrid.search(request.query(), query);
         } catch (IntegrityException | DataAccessException exception) {
             // 검색어·본문은 로그에 남기지 않는다. 실패를 빈 결과로 바꾸지 않고 503으로 알린다.
             log.warn("지식 검색 실패 runId={} cause={}", runId, exception.getClass().getSimpleName());

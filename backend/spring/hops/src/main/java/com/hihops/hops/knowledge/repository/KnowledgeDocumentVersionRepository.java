@@ -18,6 +18,14 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
             + "AND v.source_metadata ->> 'caseVersion' = CAST(:caseVersion AS text)", nativeQuery = true)
     Optional<KnowledgeDocumentVersion> findCaseVersion(String caseId, int caseVersion);
 
+    @Query(value = """
+            SELECT EXISTS (SELECT 1 FROM knowledge_document_version v
+                WHERE v.id = :versionId AND v.review_status = 'APPROVED'
+                  AND v.version_no = (SELECT max(latest.version_no) FROM knowledge_document_version latest
+                      WHERE latest.knowledge_document_id = v.knowledge_document_id AND latest.review_status = 'APPROVED'))
+            """, nativeQuery = true)
+    boolean isLatestApproved(UUID versionId);
+
     /**
      * 캐시된 Entity의 과거 승인·ACL 대신 현재 DB 조건으로 공개 가능 여부를 확인한다.
      *
