@@ -264,6 +264,120 @@ def inquiry_result() -> dict:
     }
 
 
+def image_observation() -> dict:
+    return {
+        "observationRef": "observation-1",
+        "attachmentId": OTHER_ID,
+        "messageId": RUN_ID,
+        "messageRevision": 1,
+        "problemRef": "new:one",
+        "text": "오류 화면이 보입니다",
+        "questionRef": "bundle-1",
+    }
+
+
+def observation_result() -> dict:
+    payload = inquiry_result()
+    payload["problemProposals"] = [
+        {
+            "problemRef": "new:one",
+            "summary": "화면 오류",
+            "intent": "OBSERVED_SYMPTOM",
+            "processingType": "INVESTIGATION",
+            "reportedSystemCandidateId": None,
+            "facts": [],
+            "assumptions": [],
+            "unknowns": [],
+            "details": request_details(),
+        }
+    ]
+    payload["imageObservations"] = [image_observation()]
+    return payload
+
+
+def test_image_observation_matches_run_input() -> None:
+    payload = inquiry_request()
+    payload["messages"] = [
+        image_message() | {"imageAttachments": [{"attachmentId": OTHER_ID, "digest": "a" * 64}]}
+    ]
+    request = AiRunRequest.model_validate(payload)
+    result = AiResult.model_validate(observation_result())
+    result.validate_image_observations_for(request)
+    assert result.model_dump(mode="json")["imageObservations"][0]["messageId"] == RUN_ID
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("attachmentId", RUN_ID),
+        ("messageId", OTHER_ID),
+        ("messageRevision", 2),
+        ("problemRef", "new:missing"),
+    ],
+)
+def test_image_observation_rejects_mismatched_input(field: str, value: object) -> None:
+    payload = inquiry_request()
+    payload["messages"] = [
+        image_message() | {"imageAttachments": [{"attachmentId": OTHER_ID, "digest": "a" * 64}]}
+    ]
+    result_payload = observation_result()
+    result_payload["imageObservations"][0][field] = value
+    if field == "problemRef":
+        result_payload["imageObservations"][0]["questionRef"] = None
+    with pytest.raises(ValueError):
+        AiResult.model_validate(result_payload).validate_image_observations_for(
+            AiRunRequest.model_validate(payload)
+        )
+
+
+@pytest.mark.parametrize("change", ["duplicate", "too_many_per_image", "question", "blank", "ref"])
+def test_image_observation_rejects_invalid_results(change: str) -> None:
+    payload = observation_result()
+    observation = payload["imageObservations"][0]
+    if change == "duplicate":
+        payload["imageObservations"].append(observation.copy())
+    elif change == "too_many_per_image":
+        payload["imageObservations"] = [
+            observation | {"observationRef": f"obs-{n}"} for n in range(4)
+        ]
+    elif change == "question":
+        observation["questionRef"] = "other"
+    elif change == "blank":
+        observation["text"] = "  "
+    else:
+        observation["observationRef"] = "invalid ref"
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(payload)
+
+
+def test_image_observation_rejects_failed_run_and_run_mismatch() -> None:
+    payload = observation_result()
+    payload.update(
+        {
+            "status": "FAILED",
+            "answer": None,
+            "questions": [],
+            "problemProposals": [],
+            "error": {"code": "INVALID_OUTPUT", "message": "실패", "retryable": False},
+        }
+    )
+    payload["imageObservations"][0]["questionRef"] = None
+    with pytest.raises(ValidationError):
+        AiResult.model_validate(payload)
+
+    result = AiResult.model_validate(observation_result())
+    request_payload = inquiry_request()
+    request_payload["inquiryVersion"] = 2
+    with pytest.raises(ValueError, match="실행 문맥"):
+        result.validate_image_observations_for(AiRunRequest.model_validate(request_payload))
+
+
+def test_image_observations_absent_from_legacy_result_serialization() -> None:
+    assert "imageObservations" not in AiResult.model_validate(inquiry_result()).model_dump(
+        mode="json"
+    )
+
+
 @pytest.mark.parametrize(
     "bodies",
     [

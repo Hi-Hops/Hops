@@ -12,7 +12,7 @@ from hops_ai.agents.base import PendingAgent, pending_agents
 from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.harness.context import RunContext
-from hops_ai.harness.errors import ComponentNotReady, UnsupportedRoute
+from hops_ai.harness.errors import ComponentNotReady, OutputRejected, UnsupportedRoute
 from hops_ai.main import create_app
 from hops_ai.services.llm.client import LLMResponse, LLMUsage
 from hops_ai.services.runs.supervisor import SupervisorPipeline
@@ -110,6 +110,50 @@ async def test_image_input_is_rejected_until_image_analysis_is_connected() -> No
     with pytest.raises(UnsupportedRoute):
         await pipeline.run(request, run_context(request))
     assert not llm.allowed_roles
+
+
+async def test_observation_without_input_image_is_rejected() -> None:
+    from hops_ai.contracts.wire import AiResult
+
+    request = make_request()
+    result = AiResult.model_validate(
+        {
+            "contractVersion": "hops-system-1",
+            "runId": request.runId,
+            "kind": request.kind,
+            "inquiryId": request.inquiryId,
+            "inquiryVersion": request.inquiryVersion,
+            "status": "SUCCEEDED",
+            "answer": "확인해 주세요.",
+            "problemProposals": [],
+            "questions": [],
+            "guide": None,
+            "ticketProposals": [],
+            "caseProposal": None,
+            "evidence": [],
+            "error": None,
+            "imageObservations": [
+                {
+                    "observationRef": "obs-1",
+                    "attachmentId": "db8da008-cbb0-43e0-a313-7168168ecaf6",
+                    "messageId": request.messages[0].id,
+                    "messageRevision": request.messages[0].revision,
+                    "problemRef": "new:one",
+                    "text": "오류 화면",
+                    "questionRef": None,
+                }
+            ],
+        }
+    )
+
+    class FakeSupervisor:
+        async def analyze(self, request, services):
+            return result
+
+    pipeline = SupervisorPipeline(RecordingLLM(), pending_agents())
+    pipeline._supervisor = FakeSupervisor()
+    with pytest.raises(OutputRejected):
+        await pipeline.run(request, run_context(request))
 
 
 def real_settings(**overrides) -> Settings:

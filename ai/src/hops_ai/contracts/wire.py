@@ -653,6 +653,16 @@ class TicketExecution(WireModel):
     errorCode: WireText | None
 
 
+class ImageObservationProposal(WireModel):
+    observationRef: Annotated[StrictStr, Field(pattern=r"^[A-Za-z0-9-]{1,64}$")]
+    attachmentId: WireUuid
+    messageId: WireUuid
+    messageRevision: Version
+    problemRef: ProblemRef
+    text: Annotated[WireContent, Field(max_length=400)]
+    questionRef: WireText | None
+
+
 class AiResult(WireModel):
     contractVersion: Literal["hops-system-1"]
     runId: WireUuid
@@ -672,9 +682,52 @@ class AiResult(WireModel):
     requiresFollowUp: StrictBool = False
     # 이전 생산자의 제안 전용 결과를 읽을 수 있는 가산 필드. 신규 출력에는 항상 포함한다.
     ticketCreationResults: list[TicketExecution] = Field(default_factory=list)
+    # 이미지가 없는 기존 결과의 직렬화와 해시는 그대로 유지한다.
+    imageObservations: list[ImageObservationProposal] = Field(
+        default_factory=list, max_length=15, exclude_if=lambda value: not value
+    )
+
+    def validate_image_observations_for(self, request: AiRunRequest) -> None:
+        """결과의 이미지 출처를 해당 실행의 고정된 입력과 대조한다."""
+        if (self.runId, self.inquiryId, self.inquiryVersion, self.kind) != (
+            request.runId,
+            request.inquiryId,
+            request.inquiryVersion,
+            request.kind,
+        ):
+            raise ValueError("이미지 관찰의 실행 문맥이 일치하지 않습니다")
+        sources = {
+            image.attachmentId: (message.id, message.revision)
+            for message in request.messages
+            for image in message.imageAttachments
+        }
+        problems = {item.id for item in request.problems} | {
+            item.problemRef for item in self.problemProposals if item.problemRef.startswith("new:")
+        }
+        for item in self.imageObservations:
+            if sources.get(item.attachmentId) != (item.messageId, item.messageRevision):
+                raise ValueError("이미지 관찰의 출처가 실행 입력과 일치하지 않습니다")
+            if item.problemRef not in problems:
+                raise ValueError("이미지 관찰의 문제가 실행 입력 또는 결과에 없습니다")
 
     @model_validator(mode="after")
     def validate_result(self) -> "AiResult":
+        observation_refs = [item.observationRef for item in self.imageObservations]
+        if len(observation_refs) != len(set(observation_refs)) or any(
+            sum(item.attachmentId == image.attachmentId for item in self.imageObservations) > 3
+            for image in self.imageObservations
+        ):
+            raise ValueError("이미지 관찰 참조 또는 개수가 올바르지 않습니다")
+        if self.imageObservations and (
+            self.kind != "INQUIRY_ANALYSIS" or self.status != "SUCCEEDED"
+        ):
+            raise ValueError("이미지 관찰은 성공한 상담 결과에서만 허용합니다")
+        questions = {(question.problemRef, question.bundleRef) for question in self.questions}
+        if any(
+            item.questionRef is not None and (item.problemRef, item.questionRef) not in questions
+            for item in self.imageObservations
+        ):
+            raise ValueError("이미지 관찰의 확인 질문이 같은 문제의 질문과 일치하지 않습니다")
         if self.requiresFollowUp and (
             self.kind != "INQUIRY_ANALYSIS" or self.status != "SUCCEEDED"
         ):

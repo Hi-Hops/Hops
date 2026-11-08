@@ -14,7 +14,7 @@ from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
-from hops_ai.harness.errors import UnsupportedRoute
+from hops_ai.harness.errors import OutputRejected, UnsupportedRoute
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.knowledge_source import KNOWLEDGE_TOOLS, KnowledgeSource
@@ -124,6 +124,11 @@ class SupervisorPipeline:
                     ticket_tools=ticket_tools,
                 ),
             )
+            if result.imageObservations:
+                try:
+                    result.validate_image_observations_for(request)
+                except ValueError as exc:
+                    raise OutputRejected("이미지 관찰의 출처를 확인할 수 없습니다") from exc
             if span is not None:
                 output = {
                     "status": result.status,
