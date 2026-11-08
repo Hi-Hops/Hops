@@ -53,6 +53,18 @@ it('이미지 공개 대상과 담당자 목록의 형식을 검증한다', () =
     }),
   ).toThrow();
   expect(() => readImageMetadata({ ...metadata, messageId: null })).toThrow();
+  const selection = { ...metadata, analysisRevision: 0, analysisProblemIds: [crypto.randomUUID()] };
+  expect(readImageMetadata(selection)).toEqual(selection);
+  for (const bad of [
+    { ...metadata, analysisRevision: 0 },
+    { ...selection, analysisRevision: -1 },
+    {
+      ...selection,
+      analysisProblemIds: [selection.analysisProblemIds[0], selection.analysisProblemIds[0]],
+    },
+    { ...selection, analysisProblemIds: ['invalid'] },
+  ])
+    expect(() => readImageMetadata(bad)).toThrow();
   const attachment = { id, mediaType: 'image/png', byteSize: 24 };
   expect(readTicketImages([attachment])).toEqual([attachment]);
   expect(() => readTicketImages([attachment, attachment])).toThrow();

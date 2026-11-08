@@ -122,6 +122,12 @@ const imageMetadata: Check = (value) =>
   Array.isArray(value.problemIds) &&
   value.problemIds.length <= 100 &&
   new Set(value.problemIds).size === value.problemIds.length &&
+  ((value.analysisRevision === undefined && value.analysisProblemIds === undefined) ||
+    (integer(value.analysisRevision) &&
+      Array.isArray(value.analysisProblemIds) &&
+      value.analysisProblemIds.length <= 100 &&
+      value.analysisProblemIds.every(isUuid) &&
+      new Set(value.analysisProblemIds).size === value.analysisProblemIds.length)) &&
   (value.state === 'BOUND' ? isUuid(value.messageId) : value.messageId === null);
 const imageObservation = obj({
   observationId: isUuid,

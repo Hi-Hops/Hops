@@ -15,6 +15,7 @@ import type {
   RunRetryCommand,
   ImageObservationResponseCommand,
   ImageProblemLinkCommand,
+  ImageAnalysisTargetCommand,
 } from '@/shared/api/types/hopsSystem1';
 export const systemChatKeys = {
   inquiry: (actor: string, id: string) => ['hops-system-1', 'chat', actor, id, 'inquiry'] as const,
@@ -96,6 +97,18 @@ export function imageProblemLinkCommand(
 ): SystemCommand {
   return {
     path: `/api/v2/inquiries/${encodeURIComponent(inquiryId)}/image-attachments/${encodeURIComponent(attachmentId)}/problem-links`,
+    body,
+    expectedResource: { type: 'INQUIRY', id: inquiryId },
+  };
+}
+
+export function imageAnalysisTargetCommand(
+  inquiryId: string,
+  attachmentId: string,
+  body: ImageAnalysisTargetCommand,
+): SystemCommand {
+  return {
+    path: `/api/v2/inquiries/${encodeURIComponent(inquiryId)}/image-attachments/${encodeURIComponent(attachmentId)}/analysis-targets`,
     body,
     expectedResource: { type: 'INQUIRY', id: inquiryId },
   };

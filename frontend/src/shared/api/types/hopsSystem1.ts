@@ -39,6 +39,14 @@ export type ImageAttachmentMetadata = ImageAttachment & {
   messageId: Uuid | null;
   linkRevision: number;
   problemIds: Uuid[];
+  analysisRevision?: number;
+  analysisProblemIds?: Uuid[];
+};
+export type ImageAnalysisTargetCommand = {
+  requestId: Uuid;
+  expectedInquiryVersion: number;
+  expectedAnalysisRevision: number;
+  problemIds: Uuid[];
 };
 export type ImageProblemLinkCommand = {
   requestId: Uuid;

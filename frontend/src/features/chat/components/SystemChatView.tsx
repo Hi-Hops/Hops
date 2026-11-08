@@ -27,6 +27,7 @@ import { SystemMessageRevision } from './SystemMessageRevision';
 import { MessageImage } from './MessageImage';
 import { ImageObservationConfirmation } from './ImageObservationConfirmation';
 import { ImageProblemLinkEditor } from './ImageProblemLinkEditor';
+import { ImageAnalysisTargetEditor } from './ImageAnalysisTargetEditor';
 import styles from './ChatView.module.css';
 
 export function SystemChatView({ inquiryId }: { inquiryId: string }) {
@@ -166,12 +167,20 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                         />
                         {import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' &&
                           message.sender === 'USER' && (
-                            <ImageProblemLinkEditor
-                              inquiry={inquiry}
-                              messageId={message.id}
-                              attachmentId={attachment.id}
-                              disabled={!chat.ready}
-                            />
+                            <>
+                              <ImageProblemLinkEditor
+                                inquiry={inquiry}
+                                messageId={message.id}
+                                attachmentId={attachment.id}
+                                disabled={!chat.ready}
+                              />
+                              <ImageAnalysisTargetEditor
+                                inquiry={inquiry}
+                                messageId={message.id}
+                                attachmentId={attachment.id}
+                                disabled={!chat.ready || closed}
+                              />
+                            </>
                           )}
                       </div>
                     ))}
