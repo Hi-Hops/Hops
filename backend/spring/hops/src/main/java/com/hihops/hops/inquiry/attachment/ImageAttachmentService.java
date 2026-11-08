@@ -108,8 +108,16 @@ class ImageAttachmentService {
 
     AttachmentMetadata findOwned(UUID ownerId, UUID attachmentId) {
         return jdbc.query("""
-                SELECT id, attachment_status, byte_size, created_at, expires_at, message_id, link_revision
-                FROM image_attachment WHERE id = ? AND owner_member_id = ?
+                SELECT a.id, a.attachment_status, a.byte_size, a.created_at, a.expires_at, a.message_id, a.link_revision,
+                    ARRAY(SELECT l.problem_id FROM image_attachment_problem_link l
+                      JOIN message m ON m.id = a.message_id JOIN inquiry i ON i.id = m.inquiry_id
+                      JOIN inquiry_problem p ON p.id = l.problem_id
+                      WHERE l.attachment_id = a.id AND a.attachment_status = 'BOUND'
+                        AND i.requester_member_id = a.owner_member_id AND i.deleted_at IS NULL
+                        AND m.sender_type = 'USER' AND m.message_status = 'COMPLETED' AND m.deleted_at IS NULL
+                        AND m.revision = l.source_message_revision AND l.link_revision = a.link_revision
+                        AND p.inquiry_id = m.inquiry_id AND p.deleted_at IS NULL ORDER BY l.problem_id) AS problem_ids
+                FROM image_attachment a WHERE a.id = ? AND a.owner_member_id = ?
                 """, (rs, row) -> {
                     String state = rs.getString("attachment_status");
                     var expires = rs.getTimestamp("expires_at");
@@ -120,7 +128,7 @@ class ImageAttachmentService {
                     return new AttachmentMetadata(rs.getObject("id", UUID.class), state, "image/png",
                             rs.getInt("byte_size"), rs.getTimestamp("created_at").toInstant(),
                             expires == null ? null : expires.toInstant(), rs.getObject("message_id", UUID.class),
-                            rs.getInt("link_revision"), List.of());
+                            rs.getInt("link_revision"), List.of((UUID[]) rs.getArray("problem_ids").getArray()));
                 }, attachmentId, ownerId).stream().findFirst().orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 

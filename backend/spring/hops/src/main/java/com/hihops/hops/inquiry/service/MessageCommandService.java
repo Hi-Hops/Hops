@@ -41,7 +41,9 @@ import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
+import com.hihops.hops.inquiry.dto.ImageProblemLinkCommand;
 import com.hihops.hops.inquiry.attachment.AttachmentBindingService;
+import com.hihops.hops.inquiry.attachment.ImageProblemLinks;
 import com.hihops.hops.inquiry.privacy.SensitiveTextMasker;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
@@ -95,6 +97,7 @@ public class MessageCommandService {
 
     private final IdempotencyService idempotencyService;
     private final AttachmentBindingService attachmentBindingService;
+    private final ImageProblemLinks imageProblemLinks;
     private final InquiryRepository inquiryRepository;
     private final InquiryProblemRepository inquiryProblemRepository;
     private final MessageRepository messageRepository;
@@ -127,7 +130,34 @@ public class MessageCommandService {
         MessageReviseCommand masked = new MessageReviseCommand(command.requestId(), command.expectedInquiryVersion(),
                 command.expectedMessageRevision(), SensitiveTextMasker.mask(command.content()));
         return idempotencyService.execute(request, operationId -> new ResourceRef(ResourceType.INQUIRY,
-                reviseMessage(request.actorId(), inquiryId, messageId, masked)));
+                reviseMessage(request.actorId(), inquiryId, messageId, masked, operationId)));
+    }
+
+    /** 이미지 전체의 공개 대상을 교체한다. 이력 응답에는 이미지 내용이 들어가지 않는다. */
+    public CommandResult linkImageProblems(IdempotentRequest request, UUID inquiryId, UUID attachmentId,
+            ImageProblemLinkCommand command) {
+        if (command.problemIds().stream().distinct().count() != command.problemIds().size()
+                || (!command.problemIds().isEmpty() && !command.confirmImageDisclosure())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        imageProblemLinks.requireOwned(request.actorId(), inquiryId, attachmentId, false);
+        return idempotencyService.execute(request, operationId -> {
+            Inquiry inquiry = inquiryRepository.findByIdAndDeletedAtIsNull(inquiryId)
+                    .filter(found -> found.getRequester().getId().equals(request.actorId()))
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+            if (inquiry.getVersion() != command.expectedInquiryVersion()) {
+                throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
+            }
+            var source = imageProblemLinks.requireOwned(request.actorId(), inquiryId, attachmentId, true);
+            imageProblemLinks.replace(request.actorId(), inquiryId, attachmentId, operationId, source,
+                    command.expectedLinkRevision(), command.problemIds());
+            inquiry.recordInput();
+            resumeInterruptedAnalysis(inquiry, request.requestId());
+            eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), source.messageId(), request.requestId()));
+            return new ResourceRef(ResourceType.INQUIRY, inquiryId);
+        });
     }
 
     /** 트랜잭션 밖(Controller)에서 부른다. */
@@ -171,7 +201,8 @@ public class MessageCommandService {
         return inquiry.getId();
     }
 
-    private UUID reviseMessage(UUID requesterId, UUID inquiryId, UUID messageId, MessageReviseCommand command) {
+    private UUID reviseMessage(UUID requesterId, UUID inquiryId, UUID messageId, MessageReviseCommand command,
+            UUID operationId) {
         Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
         Message message = userMessage(inquiryId, messageId);
         if (message.getRevision() != command.expectedMessageRevision()) {
@@ -183,6 +214,7 @@ public class MessageCommandService {
         messageRevisionRepository.save(new MessageRevision(message, previousRevision, previousContent));
         message.revise(command.content(), UserMessagePayload.revised(jsonMapper, message.getPayload(), previousRevision,
                 previousContent, Math.incrementExact(previousRevision), command.content(), command.requestId()));
+        imageProblemLinks.invalidateForRevision(requesterId, messageId, Math.incrementExact(previousRevision), operationId);
         inquiry.recordInput();
         // 그 사이 삭제된 문제는 대상에서 뺀다. 대기 중인 메시지를 정정하면 계속 대상 선택을 기다린다
         ProblemScope scope = scopeOf(inquiryId);
@@ -328,6 +360,27 @@ public class MessageCommandService {
         interrupted.get().stream().filter(scope.linkable()::contains).forEach(targets::add);
         if (!targets.isEmpty()) {
             startAnalysis(inquiry, trigger, List.copyOf(targets), now, requestId);
+        }
+    }
+
+    /** 공개 범위 변경만으로 새 업무를 만들지 않고 현재 진행 중이던 분석 대상만 이어 간다. */
+    private void resumeInterruptedAnalysis(Inquiry inquiry, UUID requestId) {
+        AgentRun previous = inquiry.getCurrentRun();
+        if (previous == null || !isActive(previous)) return;
+        List<UUID> targets = interruptedTargets(previous).orElseThrow();
+        Message trigger = previous.getTriggerMessage();
+        if (trigger == null || trigger.isDeleted() || trigger.getSenderType() != SenderType.USER
+                || !trigger.getInquiry().getId().equals(inquiry.getId())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE);
+        }
+        Instant now = clock.instant();
+        previous.finish(RunStatus.CANCELLED, now);
+        if (targets.isEmpty()) {
+            startAnalysis(inquiry, trigger, List.of(), now, requestId);
+        } else {
+            Set<UUID> allowed = scopeOf(inquiry.getId()).linkable();
+            List<UUID> remaining = targets.stream().filter(allowed::contains).distinct().toList();
+            if (!remaining.isEmpty()) startAnalysis(inquiry, trigger, remaining, now, requestId);
         }
     }
 

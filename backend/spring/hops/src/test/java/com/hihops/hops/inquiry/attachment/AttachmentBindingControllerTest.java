@@ -65,14 +65,201 @@ class AttachmentBindingControllerTest {
 
     @AfterEach
     void cleanup() {
+        jdbc.update("DELETE FROM image_attachment_problem_link WHERE attachment_id IN (SELECT id FROM image_attachment WHERE owner_member_id IN (?, ?))", owner, other);
+        jdbc.update("DELETE FROM image_attachment_problem_link_history WHERE attachment_id IN (SELECT id FROM image_attachment WHERE owner_member_id IN (?, ?))", owner, other);
         jdbc.update("DELETE FROM image_attachment WHERE owner_member_id IN (?, ?)", owner, other);
         jdbc.update("UPDATE inquiry SET current_run_id = NULL WHERE requester_member_id IN (?, ?)", owner, other);
+        jdbc.update("DELETE FROM message_revision WHERE message_id IN (SELECT id FROM message WHERE inquiry_id IN (SELECT id FROM inquiry WHERE requester_member_id IN (?, ?)))", owner, other);
+        jdbc.update("DELETE FROM standard_request WHERE inquiry_problem_id IN (SELECT id FROM inquiry_problem WHERE inquiry_id IN (SELECT id FROM inquiry WHERE requester_member_id IN (?, ?)))", owner, other);
+        jdbc.update("DELETE FROM inquiry_problem WHERE inquiry_id IN (SELECT id FROM inquiry WHERE requester_member_id IN (?, ?))", owner, other);
         jdbc.update("DELETE FROM agent_run WHERE inquiry_id IN (SELECT id FROM inquiry WHERE requester_member_id IN (?, ?))", owner, other);
         jdbc.update("DELETE FROM message WHERE inquiry_id IN (SELECT id FROM inquiry WHERE requester_member_id IN (?, ?))", owner, other);
         jdbc.update("DELETE FROM inquiry WHERE requester_member_id IN (?, ?)", owner, other);
         jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id IN (?, ?)", owner, other);
         jdbc.update("DELETE FROM member WHERE id IN (?, ?)", owner, other);
         jdbc.update("DELETE FROM department WHERE id = ?", department);
+    }
+
+    private UUID createWithImage(UUID id) throws Exception {
+        UUID request = UUID.randomUUID();
+        String response = create(owner, request, createBody(request, List.of(id))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return UUID.fromString(mapper.readTree(response).path("resource").path("id").asString());
+    }
+
+    private void finishCurrent(UUID inquiry) {
+        jdbc.update("UPDATE agent_run SET run_status='SUCCEEDED', started_at=now(), completed_at=now() "
+                + "WHERE id=(SELECT current_run_id FROM inquiry WHERE id=?)", inquiry);
+    }
+
+    private UUID problem(UUID inquiry, int number) {
+        UUID id = UUID.randomUUID();
+        UUID run = UUID.randomUUID();
+        jdbc.update("INSERT INTO agent_run (id,inquiry_id,task,run_status,input_version,input_snapshot,model_version,prompt_version,schema_version,started_at,completed_at) "
+                + "VALUES (?,?,'INQUIRY_ANALYSIS','SUCCEEDED',1,'{}','test','test','test',now(),now())", run, inquiry);
+        jdbc.update("INSERT INTO inquiry_problem (id,inquiry_id,problem_no,title,problem_status) VALUES (?,?,?,'테스트','CLARIFYING')", id, inquiry, number);
+        String details = "{\"taskOrScreen\":null,\"requestedAccess\":null,\"businessPurpose\":null,\"expectedBehavior\":null,\"actualBehavior\":null,\"occurredAt\":null,\"currentWorkflow\":null,\"desiredChange\":null,\"acceptanceCriteria\":[]}";
+        jdbc.update("INSERT INTO standard_request (inquiry_problem_id,inquiry_version,agent_run_id,intent,work_type,summary,type_detail) "
+                + "VALUES (?,1,?,'OBSERVED_SYMPTOM','INVESTIGATION','테스트',?::jsonb)", id, run, details);
+        return id;
+    }
+
+    private ResultActions link(UUID actor, UUID inquiry, UUID image, UUID request, int inquiryVersion,
+            int linkRevision, List<UUID> problems, boolean confirmed) throws Exception {
+        return mvc.perform(post("/api/v2/inquiries/{inquiry}/image-attachments/{image}/problem-links", inquiry, image)
+                .with(jwt().jwt(token -> token.subject(actor.toString())))
+                .header("Idempotency-Key", request).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsBytes(Map.of("requestId", request, "expectedInquiryVersion", inquiryVersion,
+                        "expectedLinkRevision", linkRevision, "problemIds", problems, "confirmImageDisclosure", confirmed))));
+    }
+
+    @Test
+    void 문의자가_이미지_공개_대상을_확인하면_이력과_차수를_저장하고_재전송은_재사용한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID first = problem(inquiry, 1);
+        UUID second = problem(inquiry, 2);
+        UUID key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 1, 0, List.of(first, second), true).andExpect(status().isOk());
+        link(owner, inquiry, image, key, 1, 0, List.of(first, second), true).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id=?", Integer.class, inquiry)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link_history WHERE attachment_id=?", Integer.class, image)).isEqualTo(1);
+        assertThat(jdbc.queryForList("SELECT problem_id FROM image_attachment_problem_link WHERE attachment_id=?", UUID.class, image))
+                .containsExactlyInAnyOrder(first, second);
+        mvc.perform(get("/api/v2/image-attachments/{id}", image).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.linkRevision").value(1))
+                .andExpect(jsonPath("$.problemIds.length()").value(2));
+        link(owner, inquiry, image, key, 1, 0, List.of(first), true).andExpect(status().isConflict());
+    }
+
+    @Test
+    void 공개_확인과_본인_소유_같은_문의_차수를_검사한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        UUID key = UUID.randomUUID();
+        link(other, inquiry, image, key, 1, 0, List.of(problem), true).andExpect(status().isNotFound());
+        key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 1, 0, List.of(problem), false).andExpect(status().isBadRequest());
+        key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 1, 0, List.of(problem, problem), true).andExpect(status().isBadRequest());
+        key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 1, 0, List.of(UUID.randomUUID()), true).andExpect(status().isBadRequest());
+        key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 2, 0, List.of(problem), true).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INQUIRY_VERSION_CONFLICT"));
+        key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 1, 1, List.of(problem), true).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_LINK_VERSION_CONFLICT"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link_history WHERE attachment_id=?", Integer.class, image)).isZero();
+    }
+
+    @Test
+    void 같은_문의자의_다른_문의에_속한_이미지나_문제도_연결하지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID ownProblem = problem(inquiry, 1);
+        UUID createKey = UUID.randomUUID();
+        String receipt = create(owner, createKey, createBody(createKey, null)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID otherInquiry = UUID.fromString(mapper.readTree(receipt).path("resource").path("id").asString());
+        UUID otherProblem = problem(otherInquiry, 1);
+        link(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(otherProblem), true).andExpect(status().isBadRequest());
+        link(owner, otherInquiry, image, UUID.randomUUID(), 1, 0, List.of(ownProblem), true).andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link_history WHERE attachment_id=?", Integer.class, image)).isZero();
+    }
+
+    @Test
+    void 공개_철회와_메시지_정정은_연결을_보류하고_이미지와_이력을_보존한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        UUID key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 1, 0, List.of(problem), true).andExpect(status().isOk());
+        UUID message = jdbc.queryForObject("SELECT message_id FROM image_attachment WHERE id=?", UUID.class, image);
+        UUID revise = UUID.randomUUID();
+        mvc.perform(post("/api/v2/inquiries/{inquiry}/messages/{message}/revisions", inquiry, message)
+                .with(jwt().jwt(token -> token.subject(owner.toString()))).header("Idempotency-Key", revise)
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsBytes(Map.of("requestId", revise,
+                        "expectedInquiryVersion", 2, "expectedMessageRevision", 1, "content", "정정한 화면 설명"))))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link WHERE attachment_id=?", Integer.class, image)).isZero();
+        assertThat(jdbc.queryForList("SELECT reason FROM image_attachment_problem_link_history WHERE attachment_id=? ORDER BY link_revision", String.class, image))
+                .containsExactly("USER_CONFIRMED", "MESSAGE_REVISED");
+        assertThat(jdbc.queryForObject("SELECT link_revision FROM image_attachment WHERE id=?", Integer.class, image)).isEqualTo(2);
+        assertThat(state(image)).isEqualTo("BOUND");
+    }
+
+    @Test
+    void 빈_문제_목록은_공개를_철회하고_이전_선택을_이력에_남긴다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        link(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem), true).andExpect(status().isOk());
+        link(owner, inquiry, image, UUID.randomUUID(), 2, 1, List.of(), false).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link WHERE attachment_id=?", Integer.class, image)).isZero();
+        var history = jdbc.queryForList("SELECT problem_ids::text FROM image_attachment_problem_link_history WHERE attachment_id=? ORDER BY link_revision", String.class, image);
+        assertThat(history).hasSize(2);
+        assertThat(mapper.readTree(history.get(0)).get(0).asString()).isEqualTo(problem.toString());
+        assertThat(mapper.readTree(history.get(1))).isEmpty();
+        mvc.perform(get("/api/v2/image-attachments/{id}", image).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.linkRevision").value(2))
+                .andExpect(jsonPath("$.problemIds").isEmpty());
+    }
+
+    @Test
+    void 공개_변경은_진행_중인_분석을_같은_대상으로_이어가고_티켓을_만들지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        UUID oldRun = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        UUID key = UUID.randomUUID();
+        link(owner, inquiry, image, key, 1, 0, List.of(), false).andExpect(status().isOk());
+        UUID next = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        assertThat(next).isNotEqualTo(oldRun);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, oldRun)).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT input_version FROM agent_run WHERE id=?", Integer.class, next)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
+    }
+
+    @Test
+    void 진행_중인_분석의_대상_문제도_공개_범위_변경_후_유지한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        UUID problem = problem(inquiry, 1);
+        UUID oldRun = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        jdbc.update("UPDATE agent_run SET input_snapshot=jsonb_set(input_snapshot,'{problemIds}',?::jsonb) WHERE id=?",
+                mapper.writeValueAsString(List.of(problem)), oldRun);
+        link(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem), true).andExpect(status().isOk());
+        UUID next = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        var snapshot = mapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id=?", String.class, next));
+        assertThat(snapshot.path("problemIds").get(0).asString()).isEqualTo(problem.toString());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
+    }
+
+    @Test
+    void 동시_공개_변경은_한_요청만_반영하고_이력을_중복하지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var calls = java.util.stream.IntStream.range(0, 2).mapToObj(n -> pool.submit(() -> {
+                start.await();
+                return link(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem), true)
+                        .andReturn().getResponse().getStatus();
+            })).toList();
+            start.countDown();
+            assertThat(List.of(calls.get(0).get(10, TimeUnit.SECONDS), calls.get(1).get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(200, 409);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link_history WHERE attachment_id=?", Integer.class, image)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link WHERE attachment_id=?", Integer.class, image)).isEqualTo(1);
     }
 
     @Test
