@@ -395,7 +395,7 @@ async def test_model_receives_messages_systems_and_the_injection_rule() -> None:
     await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
 
     [request] = llm.requests
-    assert request.prompt_version == "inquiry-extraction-v7"
+    assert request.prompt_version == "inquiry-extraction-v8"
     assert request.response_model is InquiryExtraction
     assert "따르지 않는다" in request.messages[0].content
     assert "전자결재" in request.messages[1].content
@@ -531,3 +531,43 @@ async def test_only_second_problem_is_returned_for_its_reply(with_model_ref: boo
     services, _ = services_for(request, InquiryExtraction(problems=[wrong_source]))
     rejected = await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
     assert rejected.problems == rejected.questions == []
+
+
+@pytest.mark.parametrize("duplicate_existing", [False, True])
+async def test_linked_reply_can_answer_an_existing_problem_and_add_a_new_one(
+    duplicate_existing: bool,
+) -> None:
+    reply_id = uid(13)
+    fields = make_request(question_count=1).model_dump(mode="json")
+    fields["messages"].append(
+        {
+            **fields["messages"][0],
+            "id": reply_id,
+            "sequenceNo": 2,
+            "content": "어제부터 그랬고, 별개로 공통 로그인도 안 돼요.",
+        }
+    )
+    request = AiRunRequest.model_validate(fields)
+    state = reserve(running_state(request), AgentRole.INQUIRY, "inv-1")
+    answer = extracted(
+        problemRef=PROBLEM,
+        actualBehavior=None,
+        occurredAt=QuotedValue(messageId=reply_id, quote="어제부터"),
+    )
+    new_problem = extracted(
+        problemRef=None,
+        summary="별개의 로그인 실패",
+        systemCode="COMMON_LOGIN",
+        actualBehavior=QuotedValue(messageId=reply_id, quote="공통 로그인도 안 돼요"),
+    )
+    proposals = [answer, answer, new_problem] if duplicate_existing else [answer, new_problem]
+    services, _ = services_for(request, InquiryExtraction(problems=proposals))
+
+    result = await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
+    merged = merge_inquiry_result(state, result)
+
+    assert [proposal.problemRef for proposal in result.problems] == [PROBLEM, "new:1"]
+    assert merged["problems"][PROBLEM].details.occurredAt == "어제부터"
+    assert merged["problems"][PROBLEM].details.actualBehavior is None
+    assert merged["problems"]["new:1"].details.actualBehavior == "공통 로그인도 안 돼요"
+    assert merged["problems"]["new:1"].facts[0].sourceMessageIds == [reply_id]

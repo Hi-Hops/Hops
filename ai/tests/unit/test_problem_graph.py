@@ -71,7 +71,7 @@ async def test_an_answerable_how_to_ends_with_the_guide_and_no_selection_call() 
 
     assert result.status == "SUCCEEDED"
     assert result.guide is not None and result.questions == [] and result.ticketProposals == []
-    assert prompt_versions(llm) == ["inquiry-extraction-v7", "knowledge.assessment.v4"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v8", "knowledge.assessment.v4"]
 
 
 async def test_a_partial_verdict_with_something_to_ask_ends_in_the_question_not_the_guide() -> None:
@@ -153,7 +153,7 @@ async def test_the_model_picks_between_the_legal_actions_at_each_fork() -> None:
 
     assert result.guide is not None and result.questions == []
     assert prompt_versions(llm) == [
-        "inquiry-extraction-v7",
+        "inquiry-extraction-v8",
         "supervisor.selection.v1",
         "knowledge.assessment.v4",
         "supervisor.selection.v1",
@@ -180,7 +180,7 @@ async def test_the_model_can_ask_before_searching() -> None:
     )
 
     assert len(result.questions) == 1 and result.guide is None
-    assert prompt_versions(llm) == ["inquiry-extraction-v7", "supervisor.selection.v1"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v8", "supervisor.selection.v1"]
 
 
 @pytest.mark.parametrize(
@@ -207,7 +207,7 @@ async def test_a_selection_the_budget_cannot_afford_uses_the_safe_default_withou
     result, llm = await run(request, InquiryExtraction(problems=[extracted()]))
 
     assert result.status == "SUCCEEDED", "선택이 예산 초과로 실행을 실패시키지 않는다"
-    assert prompt_versions(llm) == ["inquiry-extraction-v7"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v8"]
     assert len(result.questions) == 1, "검색도 평가도 못 했지만 물을 수 있는 정보로 끝난다"
 
 
@@ -232,7 +232,7 @@ async def test_a_ready_access_request_can_go_straight_to_the_ticket() -> None:
 
     assert len(result.ticketProposals) == 1 and result.guide is None and result.questions == []
     assert prompt_versions(llm) == [
-        "inquiry-extraction-v7",
+        "inquiry-extraction-v8",
         "supervisor.selection.v1",
         "ticket.proposal.v2",
     ]

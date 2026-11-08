@@ -119,24 +119,24 @@ class ExtractionInquiryAgent:
         analysis: list[ProblemAnalysis] = []
         texts = user_texts(request)
         new_count = 0
+        seen_existing: set[str] = set()
         for extracted in extraction.problems[:MAX_PROBLEMS]:
             grounded = ground(extracted, messages)
             unknown = ground_unknown(extracted, messages)
             cited = {message_id for message_id, _ in grounded.values()} | set(unknown.values())
-            linked = [
-                set(messages[message_id].problemIds)
-                for message_id in cited
-                if messages[message_id].problemIds
-            ]
             ref = extracted.problemRef
-            if ref is None and linked:
-                candidates = set.intersection(*linked) & targets
-                if len(candidates) != 1:
+            if "problemRef" not in extracted.model_fields_set:
+                # 이전 추출 형식에서만 원문의 연결로 기존 문제를 찾는다. 명시적 null은 신규 문제다.
+                linked = [
+                    set(messages[message_id].problemIds)
+                    for message_id in cited
+                    if messages[message_id].problemIds
+                ]
+                candidates = set.intersection(*linked) & targets if linked else targets
+                if linked and len(candidates) != 1:
                     continue
-                ref = candidates.pop()
-            if ref is None and "problemRef" not in extracted.model_fields_set and len(targets) == 1:
-                # 이전 추출 형식에서 인용이 없더라도 단일 대상이면 위치를 추측할 필요가 없다.
-                ref = next(iter(targets))
+                if len(candidates) == 1:
+                    ref = next(iter(candidates))
             original = None
             if ref is not None:
                 if ref not in existing:
@@ -144,16 +144,19 @@ class ExtractionInquiryAgent:
                 validate_problem_ref(call.state, ref)
                 original = existing[ref]
             else:
-                if existing and not any(
-                    not messages[message_id].problemIds for message_id in cited
-                ):
+                if existing and not cited:
                     continue
-                new_count += 1
-                ref = f"new:{new_count}"
+                ref = f"new:{new_count + 1}"
             allowed = get_problem_message_ids(call.state, ref)
             if cited - allowed:
                 # 다른 문제에 연결된 답변이나 미연결 원문을 기존 문제에 넣지 않는다.
                 continue
+            if original is None:
+                new_count += 1
+            else:
+                if ref in seen_existing:
+                    continue
+                seen_existing.add(ref)
             # 같은 실행에서 앞서 만든 같은 문제. 다시 호출돼도 이전 확인 사실을 이어받는다.
             previous = call.state["problems"].get(ref)
             problem, question = _assemble(
