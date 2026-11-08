@@ -157,7 +157,7 @@ public class Neo4jRelationReader {
     public List<Linkable> linkable(UUID systemId, UUID memberId) {
         var params = parameters(List.of(systemId), new Viewer(memberId, false))
                 .addValue("system", systemId.toString());
-        return query(params.getValues(), List.of("""
+        var rows = query(params.getValues(), List.of("""
                 MATCH (sys:HopsP0:System {id: $system})-[:HAS_FEATURE]->(f:HopsP0:Feature)-[:HAS_SYMPTOM]->(n:HopsP0:Symptom)
                 WHERE $system IN $staffSystems AND $features[f.id] = $system AND n.it_system_id = $system
                   AND n.review_status = 'APPROVED' AND $sources[n.source_document_version_id] = $system
@@ -169,8 +169,17 @@ public class Neo4jRelationReader {
                   AND n.review_status = 'APPROVED' AND $sources[n.source_document_version_id] = $system
                   AND n.access_level IN ['EMPLOYEE', 'STAFF']
                 RETURN n.id AS id, 'CHECK_ITEM' AS kind, n.label AS label, n.catalog_key AS key
-                """)).getFirst().stream().sorted(java.util.Comparator.comparing(row -> value(row, 3)))
-                .map(row -> new Linkable(id(row, 0), value(row, 1), value(row, 2))).toList();
+                """)).getFirst();
+        if (rows.stream().anyMatch(row -> !row.isArray() || row.size() != 4
+                || row.valueStream().anyMatch(value -> !value.isString() || value.asString().isBlank()))) {
+            throw new Unavailable("Neo4j 사례 후보 응답 형식 오류");
+        }
+        try {
+            return rows.stream().sorted(java.util.Comparator.comparing(row -> value(row, 3)))
+                    .map(row -> new Linkable(id(row, 0), value(row, 1), value(row, 2))).toList();
+        } catch (IllegalArgumentException exception) {
+            throw new Unavailable("Neo4j 사례 후보 ID 형식 오류");
+        }
     }
 
     private MapSqlParameterSource parameters(Collection<UUID> systems, Viewer viewer) {
@@ -215,9 +224,16 @@ public class Neo4jRelationReader {
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
+    /** PostgreSQL 정본 조회 오류와 Neo4j 연결·응답 오류를 구분한다. */
+    public static final class Unavailable extends DataAccessResourceFailureException {
+        private Unavailable(String message) {
+            super(message);
+        }
+    }
+
     private List<List<JsonNode>> query(Map<String, ?> params, List<String> cypher) {
         if (password.isBlank()) {
-            throw new DataAccessResourceFailureException("Neo4j 자격 증명이 없습니다");
+            throw new Unavailable("Neo4j 자격 증명이 없습니다");
         }
         var statements = cypher.stream().map(statement -> Map.of("statement", statement, "parameters", params)).toList();
         try {
@@ -225,14 +241,14 @@ public class Neo4jRelationReader {
                     .retrieve().body(JsonNode.class);
             if (response == null || !response.path("errors").isArray() || !response.path("errors").isEmpty()
                     || !response.path("results").isArray() || response.path("results").size() != cypher.size()) {
-                throw new DataAccessResourceFailureException("Neo4j 트랜잭션 실패");
+                throw new Unavailable("Neo4j 트랜잭션 실패");
             }
             return response.path("results").valueStream()
                     .map(result -> result.required("data").valueStream().map(row -> row.required("row")).toList()).toList();
         } catch (RestClientResponseException exception) {
-            throw new DataAccessResourceFailureException("Neo4j HTTP " + exception.getStatusCode().value());
+            throw new Unavailable("Neo4j HTTP " + exception.getStatusCode().value());
         } catch (RestClientException | IllegalArgumentException exception) {
-            throw new DataAccessResourceFailureException("Neo4j 조회 실패 " + exception.getClass().getSimpleName());
+            throw new Unavailable("Neo4j 조회 실패 " + exception.getClass().getSimpleName());
         }
     }
 

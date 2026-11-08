@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class RelationLinkCandidateReader {
+    private static final Logger log = LoggerFactory.getLogger(RelationLinkCandidateReader.class);
     /** AI wire(LinkCandidate)의 종류별 상한과 같다. 입력에 담는 후보에만 적용하고 결과 확인에는 적용하지 않는다. */
     public static final int MAX_SYMPTOMS = 30;
     public static final int MAX_CHECK_ITEMS = 40;
@@ -37,7 +40,13 @@ public class RelationLinkCandidateReader {
 
     /** 입력에 담을 후보. 종류별 상한까지 catalogKey 순이다. */
     public List<Candidate> candidates(UUID systemId, UUID memberId) {
-        return limited(all(systemId, memberId));
+        try {
+            return limited(all(systemId, memberId));
+        } catch (Neo4jRelationReader.Unavailable exception) {
+            // 후보는 부가 정보다. 그래프 장애 중에도 처리 기록과 해결 확인 요청을 보존한다.
+            log.warn("사례 후보 조회 실패 systemId={} cause={}", systemId, exception.getMessage());
+            return List.of();
+        }
     }
 
     /** 지금 연결할 수 있는 모든 노드(상한 없음). AI 결과의 연결 대상이 아직 유효한지 확인하는 데 쓴다. */
