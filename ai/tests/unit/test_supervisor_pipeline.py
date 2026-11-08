@@ -12,11 +12,12 @@ from hops_ai.agents.base import PendingAgent, pending_agents
 from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.harness.context import RunContext
-from hops_ai.harness.errors import ComponentNotReady
+from hops_ai.harness.errors import ComponentNotReady, UnsupportedRoute
 from hops_ai.main import create_app
 from hops_ai.services.llm.client import LLMResponse, LLMUsage
 from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.tools.disabled import DisabledToolGateway
+from hops_ai.services.tracing import RunTracing
 from hops_ai.settings import RunMode, Settings
 from hops_ai.supervisor.bootstrap import create_run_services
 from hops_ai.supervisor.choices import implemented_roles
@@ -91,6 +92,24 @@ async def test_registry_without_implemented_roles_ends_safely_without_success() 
     assert result.status == "FAILED"
     assert result.answer is None
     assert result.problemProposals == result.questions == result.ticketProposals == []
+
+
+async def test_image_input_is_rejected_until_image_analysis_is_connected() -> None:
+    payload = make_request().model_dump(mode="json")
+    payload["messages"][0]["imageAttachments"] = [
+        {"attachmentId": "db8da008-cbb0-43e0-a313-7168168ecaf6", "digest": "a" * 64}
+    ]
+    from hops_ai.contracts.wire import AiRunRequest
+
+    request = AiRunRequest.model_validate(payload)
+    llm = RecordingLLM()
+    pipeline = SupervisorPipeline(
+        llm, pending_agents(), tracing=RunTracing(object(), capture_content=True)
+    )
+    assert pipeline._tracing_for(request).capture_content is False
+    with pytest.raises(UnsupportedRoute):
+        await pipeline.run(request, run_context(request))
+    assert not llm.allowed_roles
 
 
 def real_settings(**overrides) -> Settings:

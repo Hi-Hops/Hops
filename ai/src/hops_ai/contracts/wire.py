@@ -234,6 +234,11 @@ class SupportedSystem(WireModel):
     features: list[SystemFeature]
 
 
+class InputImageRef(WireModel):
+    attachmentId: WireUuid
+    digest: Annotated[StrictStr, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
 class InputMessage(WireModel):
     id: WireUuid
     revision: Version
@@ -242,6 +247,16 @@ class InputMessage(WireModel):
     content: WireContent
     problemIds: list[WireUuid]
     createdAt: WireTime
+    imageAttachments: list[InputImageRef] = Field(
+        default_factory=list, max_length=5, exclude_if=lambda value: not value
+    )
+
+    @model_validator(mode="after")
+    def validate_image_attachments(self) -> "InputMessage":
+        ids = [item.attachmentId for item in self.imageAttachments]
+        if (ids and self.sender != "USER") or len(ids) != len(set(ids)):
+            raise ValueError("이미지 첨부는 중복 없는 사용자 메시지에만 허용합니다")
+        return self
 
 
 class EvidenceStatement(WireModel):
@@ -469,6 +484,13 @@ class AiRunRequest(WireModel):
 
     @model_validator(mode="after")
     def validate_kind_fields(self) -> "AiRunRequest":
+        image_ids = [
+            image.attachmentId for message in self.messages for image in message.imageAttachments
+        ]
+        if len(image_ids) > 5 or len(image_ids) != len(set(image_ids)):
+            raise ValueError("실행의 이미지 첨부 수 또는 식별자가 올바르지 않습니다")
+        if self.kind != "INQUIRY_ANALYSIS" and image_ids:
+            raise ValueError("사례 초안에는 이미지 첨부를 허용하지 않습니다")
         if self.kind == "INQUIRY_ANALYSIS":
             if self.answerMessageId is None or self.workRecord is not None:
                 raise ValueError("상담 실행의 답변 ID 또는 처리 기록이 올바르지 않습니다")

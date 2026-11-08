@@ -194,6 +194,50 @@ def inquiry_request() -> dict:
     }
 
 
+def image_message() -> dict:
+    return {
+        "id": RUN_ID,
+        "revision": 1,
+        "sequenceNo": 1,
+        "sender": "USER",
+        "content": "화면 오류",
+        "problemIds": [],
+        "createdAt": "2026-11-02T00:00:00Z",
+    }
+
+
+def test_optional_image_refs_preserve_old_request_serialization() -> None:
+    payload = inquiry_request()
+    payload["messages"] = [image_message()]
+    parsed = AiRunRequest.model_validate(payload)
+    assert parsed.model_dump(mode="json")["messages"] == payload["messages"]
+    image = {"attachmentId": OTHER_ID, "digest": "a" * 64}
+    payload["messages"][0]["imageAttachments"] = [image]
+    assert (
+        AiRunRequest.model_validate(payload).model_dump(mode="json")["messages"]
+        == payload["messages"]
+    )
+
+
+@pytest.mark.parametrize("change", ["duplicate", "digest", "sender", "too_many"])
+def test_image_refs_reject_invalid_input(change: str) -> None:
+    message = image_message()
+    image = {"attachmentId": OTHER_ID, "digest": "a" * 64}
+    message["imageAttachments"] = [image]
+    if change == "duplicate":
+        message["imageAttachments"] = [image, image]
+    elif change == "digest":
+        image["digest"] = "broken"
+    elif change == "sender":
+        message["sender"] = "AI"
+    else:
+        message["imageAttachments"] = [image] * 6
+    payload = inquiry_request()
+    payload["messages"] = [message]
+    with pytest.raises(ValidationError):
+        AiRunRequest.model_validate(payload)
+
+
 def inquiry_result() -> dict:
     return {
         "contractVersion": "hops-system-1",

@@ -14,6 +14,7 @@ from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
+from hops_ai.harness.errors import UnsupportedRoute
 from hops_ai.harness.policy import ToolPolicy
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.knowledge_source import KNOWLEDGE_TOOLS, KnowledgeSource
@@ -85,14 +86,19 @@ class SupervisorPipeline:
     def _tracing_for(self, request: AiRunRequest) -> RunTracing:
         """이 실행에 쓸 추적 설정. 내부 판단 경계(옵션) 실행은 내용을 외부 추적에 남기지 않는다.
 
-        담당자 전용 자료가 모델 입력에 들어갈 수 있으므로 추적 서비스(Langfuse)에 메시지·출력 본문을
-        기록하는 설정(langfuse_capture_content)이 켜져 있어도 이 실행에서는 끈다(SEC-02, LLM02).
+        담당자 전용 자료나 이미지가 모델 입력에 들어갈 수 있다.
+        본문 추적 설정이 켜져 있어도 이 실행에서는 끈다(SEC-02, LLM02).
         """
-        if request.accessContext.retrievalScopes is not None and self._tracing.capture_content:
+        sensitive_input = request.accessContext.retrievalScopes is not None or any(
+            message.imageAttachments for message in request.messages
+        )
+        if sensitive_input and self._tracing.capture_content:
             return RunTracing(self._tracing.client, capture_content=False)
         return self._tracing
 
     async def run(self, request: AiRunRequest, context: RunContext) -> AiResult:
+        if any(message.imageAttachments for message in request.messages):
+            raise UnsupportedRoute("이미지 조회와 분석 경로가 아직 연결되지 않았습니다")
         tracing = self._tracing_for(request)
         llm = TracedLLMClient(self._raw_llm, tracing) if tracing.client else self._raw_llm
         allowed = dict(context.tool_policy.allowed_by_role)
