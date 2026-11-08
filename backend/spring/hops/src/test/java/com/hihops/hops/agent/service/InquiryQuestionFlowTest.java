@@ -167,6 +167,54 @@ class InquiryQuestionFlowTest {
     }
 
     @Test
+    void 두번째_질문의_답만_받으면_해당_문제의_출처와_질문_이력만_다음_실행에_반영한다() throws Exception {
+        UUID inquiryId = askOnce("문서함과 로그인 화면에서 각각 오류가 나요");
+        UUID first = problemOf(inquiryId);
+        String loginQuestion = "로그인 오류는 언제부터 발생했나요?";
+        JsonNode split = secondRunInput(inquiryId, "로그인 화면에서도 접속 오류가 나요");
+        UUID splitRun = UUID.fromString(split.path("runId").asString());
+        when(client.snapshot(splitRun.toString())).thenReturn(snapshot(splitRun, inquiryId, 2, loginQuestion,
+                List.of(proposal("new:login", "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, userMessageOf(inquiryId))),
+                List.of(question("new:login", "login-time", loginQuestion, "occurredAt"))));
+        dispatcher.deliver(splitRun);
+        UUID second = jdbc.queryForObject("SELECT id FROM inquiry_problem WHERE inquiry_id=? AND problem_no=2",
+                UUID.class, inquiryId);
+
+        String reply = "오늘 오전부터요";
+        JsonNode answerInput = secondRunInput(inquiryId, reply);
+        UUID answerRun = UUID.fromString(answerInput.path("runId").asString());
+        JsonNode replyMessage = answerInput.path("messages").get(4);
+        UUID replyId = UUID.fromString(replyMessage.path("id").asString());
+        assertThat(replyMessage.path("content").asString()).isEqualTo(reply);
+        assertThat(replyMessage.path("problemIds").toString()).isEqualTo(jsonMapper.writeValueAsString(List.of(second)));
+        assertThat(answerInput.path("problemIds")).isEqualTo(replyMessage.path("problemIds"));
+        assertThat(answerInput.path("problems").get(0).path("state").asString()).isEqualTo("WAITING_USER");
+        assertThat(answerInput.path("problems").get(1).path("state").asString()).isEqualTo("ANALYZING");
+
+        String nextQuestion = "오류 문구가 무엇인가요?";
+        when(client.snapshot(answerRun.toString())).thenReturn(snapshot(answerRun, inquiryId, 3, nextQuestion,
+                List.of(proposal(second.toString(), "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, replyId)),
+                List.of(question(second.toString(), "login-error", nextQuestion, "actualBehavior"))));
+        dispatcher.deliver(answerRun);
+        mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.problems[0].id").value(first.toString()))
+                .andExpect(jsonPath("$.problems[0].state").value("WAITING_USER"))
+                .andExpect(jsonPath("$.problems[0].questionCount").value(1))
+                .andExpect(jsonPath("$.problems[1].id").value(second.toString()))
+                .andExpect(jsonPath("$.problems[1].questionCount").value(2));
+
+        JsonNode next = secondRunInput(inquiryId, "접속 오류라고 나와요");
+        assertThat(next.path("problemIds")).isEqualTo(answerInput.path("problemIds"));
+        JsonNode firstInput = next.path("problems").get(0);
+        JsonNode secondInput = next.path("problems").get(1);
+        assertThat(firstInput.path("askedFields").toString()).isEqualTo("[\"taskOrScreen\"]");
+        assertThat(firstInput.path("standardRequest").path("confirmedFacts").toString()).doesNotContain(replyId.toString());
+        assertThat(secondInput.path("askedFields").toString()).isEqualTo("[\"occurredAt\",\"actualBehavior\"]");
+        assertThat(secondInput.path("standardRequest").path("confirmedFacts").get(0).path("sourceMessageIds").get(0)
+                .asString()).isEqualTo(replyId.toString());
+    }
+
+    @Test
     void 물은_항목은_묶음마다_모아_중복_없이_물은_순서대로_입력에_돌려준다() throws Exception {
         UUID inquiryId = createInquiry("결재 문서가 안 열려요");
         assertThat(jsonMapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE inquiry_id=?",

@@ -19,13 +19,12 @@ import tools.jackson.databind.node.ObjectNode;
  * USER 메시지 payload JSON (docs/DATA.md 11.3). 모든 키를 두고, 해당 없는 값은 null·빈 목록이다.
  *
  * <p>problemLinks는 서버가 정한 문제를 메시지 전체 구간 [0, 코드 포인트 길이)에 연결한다. 담당자 화면은 spans가 있는 구간만 보여 주므로
- * 비워 두지 않는다. 사용자가 고른 문제이거나, 대상을 고르지 않았을 때 서버가 답으로 판단한 문제다(MessageCommandService). 서버가
- * 판단해 이은 메시지는 전송 때 실행 대상을 비워 분석이 대상을 정한다. 분석 뒤 사실이 인용한 문제도 연결된다(MessageProblemLinker).
+ * 비워 두지 않는다. 사용자가 고른 문제나 서버가 확인한 답변 대상이다(MessageCommandService). 분석 뒤 사실이 인용한 문제도 연결된다(MessageProblemLinker).
  *
  * <p>revisionRequestIds는 정정한 차수마다 그 정정 요청 ID를 남긴다(처음 원문은 requestId). 정정으로 시작한 실행의 오류에
  * 접수 명령 ID를 넣는 데 쓴다 (WIRE_CONTRACT 12.8 끝).
  *
- * <p>pendingTarget은 배정된 문제가 있는데 대상을 고르지 않아 어느 문제의 보완인지 정하지 못한 메시지다 (WIRE_CONTRACT 12.6).
+ * <p>pendingTarget은 후보가 여럿이고 어느 문제의 보완인지 정하지 못한 메시지다 (WIRE_CONTRACT 12.6).
  * problem-links로 대상을 정하면 false가 된다. 대기 메시지는 대상이 정해질 때까지 AI 입력의 대화에서 뺀다.
  *
  * <p>runRequestIds는 이 메시지를 시작점으로 접수한 실행마다 그 실행을 접수한 공개 명령 ID를 남긴다. 실행 오류의 requestId로 쓴다

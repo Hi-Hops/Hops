@@ -127,7 +127,7 @@ Spring–AI 내부 `AiResult`의 필드와 가산 필드 호환은 [에이전트
 | InquiryCreateCommand | content:string, reportedSystemId:Uuid? | 선택하지 않아도 시작 가능 |
 | MessageSendCommand | expectedInquiryVersion:int, content:string, problemIds:Uuid[] | []는 분석으로 대상 식별. 이미 배정된 문제의 대상 불명확 메시지는 보완 대상을 확인 |
 | MessageReviseCommand | expectedInquiryVersion:int, expectedMessageRevision:int, content:string | URL의 messageId와 현재 문의 일치 |
-| MessageProblemLinkCommand | expectedInquiryVersion:int, problemIds:Uuid[] | 비어 있지 않은 기존 문제 목록. 아직 연결되지 않은 본인 메시지의 보완 대상만 확정 |
+| MessageProblemLinkCommand | expectedInquiryVersion:int, problemIds:Uuid[], newProblem?:boolean | 대기 중인 본인 메시지의 기존 문제 목록을 확정한다. 새 문제로 분석할 때는 newProblem=true와 빈 problemIds를 보낸다 |
 | SystemConfirmCommand | expectedInquiryVersion:int, systemId:Uuid | WAITING_SYSTEM 또는 아직 미확정인 분석 전 문제에만 허용 |
 | RunRetryCommand | expectedInquiryVersion:int | FAILED/TIMED_OUT이며 현재 활성 run일 때 새 run 생성 |
 | CreationRetryCommand | expectedInquiryVersion:int | NOT_CREATED 작업만, 같은 workItemId 유지 |

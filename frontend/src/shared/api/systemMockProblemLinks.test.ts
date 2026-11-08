@@ -88,6 +88,30 @@ describe('F003 Mock 복합 문의의 보완 대상 격리', () => {
     expect(messages(before.id).find((m) => m.id === messageId)?.problemIds).toEqual([problemId]);
   });
 
+  it('보류한 메시지를 새 문제로 분석하고 기존 문제를 그대로 둔다', async () => {
+    const before = await create(null);
+    const pending = send(before, [], '별개로 파일 다운로드도 실패해요');
+    const messageId = pending.pendingTargetMessageIds[0];
+    if (!messageId) throw new Error('대기 메시지 필요');
+
+    post(`/inquiries/${before.id}/messages/${messageId}/problem-links`, {
+      expectedInquiryVersion: pending.inquiryVersion,
+      problemIds: [],
+      newProblem: true,
+    });
+    await vi.advanceTimersByTimeAsync(200);
+
+    const after = inquiry(before.id);
+    expect(after.pendingTargetMessageIds).toEqual([]);
+    expect(after.problems.slice(0, 2)).toEqual(before.problems);
+    const added = after.problems[2];
+    expect(added).toMatchObject({
+      summary: '별개로 파일 다운로드도 실패해요',
+      state: 'WAITING_USER',
+    });
+    expect(messages(before.id).find((m) => m.id === messageId)?.problemIds).toEqual([added?.id]);
+  });
+
   it('F003-CONTRACT-05 명시한 대상만 분석하고 배정 후 보완을 다른 문제에 적용하지 않는다', async () => {
     const before = await create(systems[0].id);
     const first = before.problems[0];
