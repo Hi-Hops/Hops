@@ -24,6 +24,7 @@ import { ProblemStatusContent } from './ProblemStatusContent';
 import { ProgressSteps } from './ProgressSteps';
 import { SystemMessageComposer } from './SystemMessageComposer';
 import { SystemMessageRevision } from './SystemMessageRevision';
+import { MessageImage } from './MessageImage';
 import styles from './ChatView.module.css';
 
 export function SystemChatView({ inquiryId }: { inquiryId: string }) {
@@ -153,6 +154,15 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                     ) : (
                       <p>{message.content}</p>
                     )}
+                    {message.attachments?.map((attachment, position) => (
+                      <MessageImage
+                        key={`${actor}:${attachment.id}`}
+                        actor={actor}
+                        inquiryId={inquiryId}
+                        attachmentId={attachment.id}
+                        position={position}
+                      />
+                    ))}
                   </div>
                   {message.sender === 'USER' && !closed && (
                     <SystemMessageRevision

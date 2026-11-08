@@ -63,6 +63,7 @@ const resource = obj({
     'CASE',
     'INDEX_JOB',
     'CASE_GENERATION',
+    'IMAGE_ATTACHMENT',
   ),
   id: isUuid,
 });
@@ -87,7 +88,7 @@ const related = obj({
   revisions: list(revision),
   createdAt: time,
 });
-const message = obj({
+const messageShape = obj({
   id: isUuid,
   inquiryId: isUuid,
   requestId: nullable(isUuid),
@@ -99,6 +100,18 @@ const message = obj({
   revisions: list(revision),
   createdAt: time,
 });
+const imageAttachment = obj({
+  id: isUuid,
+  mediaType: one('image/png'),
+  byteSize: (value) => positive(value) && Number(value) <= 8 * 1024 * 1024,
+});
+const message: Check = (value) =>
+  messageShape(value) &&
+  isRecord(value) &&
+  (!('attachments' in value) ||
+    (Array.isArray(value.attachments) &&
+      value.attachments.length <= 5 &&
+      value.attachments.every(imageAttachment)));
 const runShape = obj({
   id: isUuid,
   inquiryId: isUuid,

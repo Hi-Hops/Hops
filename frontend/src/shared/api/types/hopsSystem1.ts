@@ -31,6 +31,7 @@ export type CommandReceipt = {
 };
 export type Page<T> = { items: T[]; page: number; size: number; totalElements: number };
 export type MessageRevision = { revisionNo: number; content: string; createdAt: string };
+export type ImageAttachment = { id: Uuid; mediaType: 'image/png'; byteSize: number };
 export type ChatMessage = {
   id: Uuid;
   inquiryId: Uuid;
@@ -42,6 +43,7 @@ export type ChatMessage = {
   problemIds: Uuid[];
   revisions: MessageRevision[];
   createdAt: string;
+  attachments?: ImageAttachment[];
 };
 export type MessagePage = { items: ChatMessage[]; nextBeforeSequenceNo: number | null };
 export type RunSummary = {
@@ -204,12 +206,14 @@ export type InquiryCreateCommand = {
   requestId: Uuid;
   content: string;
   reportedSystemId: Uuid | null;
+  attachmentIds?: Uuid[];
 };
 export type MessageSendCommand = {
   requestId: Uuid;
   expectedInquiryVersion: number;
   content: string;
   problemIds: Uuid[];
+  attachmentIds?: Uuid[];
 };
 export type MessageReviseCommand = {
   requestId: Uuid;

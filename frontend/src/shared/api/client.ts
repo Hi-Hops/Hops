@@ -50,7 +50,13 @@ type RequestOptions = {
   skipRefresh?: boolean;
   idempotencyKey?: string;
   timeoutMs?: number;
+  responseType?: 'png';
 };
+
+/** 인증된 문의 첨부만 메모리로 읽는다. 토큰을 이미지 URL에 넣지 않는다. */
+export function apiImageRequest(path: string, signal?: AbortSignal): Promise<Blob> {
+  return apiRequest<Blob>(path, { signal, responseType: 'png' });
+}
 
 /** 화면은 모드에 관계없이 같은 REST 경계를 사용한다. live 장애를 Mock으로 대체하지 않는다. */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -119,6 +125,7 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
         },
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
         signal: options.signal,
+        cache: options.responseType === 'png' ? 'no-store' : 'default',
         credentials: /^\/api\/v2\/auth\/(?:login|refresh|logout)$/u.test(path) ? 'include' : 'omit',
       });
     } catch (error) {
@@ -131,7 +138,44 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
         retryable: true,
       });
     }
-    if (response.status === 204 && response.ok) return undefined as T;
+    if (response.status === 204 && response.ok && options.responseType !== 'png')
+      return undefined as T;
+    if (response.ok && options.responseType === 'png') {
+      if (
+        response.headers.get('Content-Type')?.split(';')[0]?.trim().toLowerCase() !== 'image/png' ||
+        !response.body
+      )
+        throw new ApiError(0, localError('INVALID_RESPONSE', '이미지 응답을 확인하지 못했어요.'));
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      try {
+        for (;;) {
+          const part = await reader.read();
+          if (part.done) break;
+          total += part.value.byteLength;
+          if (total > 8 * 1024 * 1024) {
+            await reader.cancel();
+            throw new ApiError(
+              0,
+              localError('INVALID_RESPONSE', '이미지 크기를 확인하지 못했어요.'),
+            );
+          }
+          chunks.push(part.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      if (total === 0)
+        throw new ApiError(0, localError('INVALID_RESPONSE', '이미지 응답이 비어 있어요.'));
+      const bytes = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return new Blob([bytes.buffer], { type: 'image/png' }) as T;
+    }
     let body: unknown;
     try {
       body = await response.json();
@@ -194,6 +238,11 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
     // HTTP JSON 역직렬화 경계. 신규 DTO는 기능 API에서 검증한다.
     return body as T;
   }
+  if (options.responseType === 'png')
+    throw new ApiError(
+      0,
+      localError('IMAGE_UNAVAILABLE', '현재 연결에서는 이미지를 불러올 수 없어요.'),
+    );
   if (options.signal?.aborted) throw new DOMException('요청 취소', 'AbortError');
   await new Promise<void>((resolve) => setTimeout(resolve, 40));
   if (options.signal?.aborted) throw new DOMException('요청 취소', 'AbortError');

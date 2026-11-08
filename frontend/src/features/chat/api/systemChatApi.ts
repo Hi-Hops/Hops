@@ -1,4 +1,5 @@
 import { systemGet } from '@/shared/api/systemCommands';
+import { apiImageRequest } from '@/shared/api/client';
 import { readInquiry, readMessages, readRun, readSystems } from '@/shared/api/systemWire';
 import type { SystemCommand } from '@/shared/api/systemCommands';
 import type {
@@ -59,6 +60,11 @@ export const getSystemRun = (id: string, signal?: AbortSignal) =>
     signal,
   );
 export const getChatSystems = (signal?: AbortSignal) => systemGet('/systems', readSystems, signal);
+export const getMessageImage = (inquiryId: string, attachmentId: string, signal?: AbortSignal) =>
+  apiImageRequest(
+    `/api/v2/inquiries/${encodeURIComponent(inquiryId)}/image-attachments/${encodeURIComponent(attachmentId)}/content`,
+    signal,
+  );
 
 export function createInquiryCommand(body: InquiryCreateCommand): SystemCommand {
   return { path: '/api/v2/inquiries', body, expectedResource: { type: 'INQUIRY' } };
