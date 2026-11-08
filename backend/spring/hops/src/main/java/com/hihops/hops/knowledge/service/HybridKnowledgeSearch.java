@@ -4,11 +4,16 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
+import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import com.hihops.hops.knowledge.domain.KnowledgeDocumentVersion;
 import com.hihops.hops.knowledge.repository.HybridKnowledgeRepository;
+import com.hihops.hops.knowledge.repository.HybridKnowledgeRepository.RankedChunk;
 import com.hihops.hops.knowledge.repository.KnowledgeDocumentVersionRepository;
 import com.hihops.hops.knowledge.service.KnowledgeSearchService.Hit;
 import com.hihops.hops.knowledge.service.KnowledgeSearchService.Query;
@@ -42,13 +47,22 @@ public class HybridKnowledgeSearch {
         var rule = visibility.rule(query.internalRead());
         var candidates = repository.rank(query, query.tokens(), codes, vector, rule.requireIndexedCase(),
                 mode.name().toLowerCase(Locale.ROOT), MIN_SIMILARITY);
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        // 점수 계산 뒤 현재 승인·공개 범위를 한 번에 다시 조회한다. 시스템이 없으면 공통 정책만 통과한다.
+        var currentVersions = versions.findLatestVisibleVersions(candidates.stream().map(RankedChunk::versionId).toList(),
+                query.memberId(), rule.requireIndexedCase(), rule.internalRead(),
+                query.accessLevels().stream().map(Enum::name).toList(), query.documentTypes().stream().map(Enum::name).toList(),
+                query.systemIds().isEmpty() ? List.of("") : query.systemIds().stream().map(UUID::toString).toList())
+                .stream().collect(Collectors.toMap(KnowledgeDocumentVersion::getId, Function.identity()));
         List<Hit> hits = new ArrayList<>();
         for (var candidate : candidates) {
-            if (!versions.isLatestApproved(candidate.versionId())
-                    || !versions.isCurrentlyVisible(candidate.versionId(), query.memberId(), rule)) {
+            var version = currentVersions.get(candidate.versionId());
+            if (version == null) {
                 continue;
             }
-            versions.findById(candidate.versionId()).flatMap(assembler::assemble).ifPresent(assembled -> {
+            assembler.assemble(version).ifPresent(assembled -> {
                 if (!candidate.digest().equals(assembled.contentDigest())
                         || !CanonicalJson.sha256(candidate.content()).equals(candidate.chunkDigest())
                         || !assembled.content().contains(candidate.content())) {

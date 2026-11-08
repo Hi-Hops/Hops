@@ -32,12 +32,12 @@ public class HybridKnowledgeRepository {
                 WITH eligible AS MATERIALIZED (
                     SELECT v.id AS version_id, c.chunk_no, c.content, c.content_digest, c.chunk_digest,
                            lower(normalize(d.title)) AS title, lower(normalize(c.content)) AS body,
-                           c.embedding
+                           c.embedding, c.embedding_model
                     FROM hops_knowledge.knowledge_chunk c
                     JOIN knowledge_document_version v ON v.id = c.knowledge_document_version_id
                     JOIN knowledge_document d ON d.id = v.knowledge_document_id
                     LEFT JOIN it_system s ON s.id = d.it_system_id
-                    WHERE c.embedding_model = :model AND c.content_digest = v.content_digest
+                    WHERE c.content_digest = v.content_digest
                       AND d.deleted_at IS NULL AND d.review_status = 'APPROVED' AND v.review_status = 'APPROVED'
                       AND d.data_split = 'RAG' AND d.access_level IN (:levels) AND d.document_type IN (:types)
                       AND (%s)
@@ -75,7 +75,7 @@ public class HybridKnowledgeRepository {
                 ),
                 semantic AS (
                     SELECT e.*, 1 - (embedding <=> CAST(:vector AS vector)) AS score
-                    FROM eligible e WHERE :mode <> 'keyword'
+                    FROM eligible e WHERE :mode <> 'keyword' AND embedding_model = :model
                 ),
                 keyword_best AS (
                     SELECT DISTINCT ON (version_id) * FROM keyword ORDER BY version_id, score DESC, chunk_no

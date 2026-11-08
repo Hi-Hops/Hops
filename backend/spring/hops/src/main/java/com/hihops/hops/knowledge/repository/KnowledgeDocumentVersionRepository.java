@@ -1,5 +1,7 @@
 package com.hihops.hops.knowledge.repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,18 +28,11 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
             """, nativeQuery = true)
     boolean isLatestApproved(UUID versionId);
 
-    /**
-     * 캐시된 Entity의 과거 승인·ACL 대신 현재 DB 조건으로 공개 가능 여부를 확인한다.
-     *
-     * @param requireIndexed CASE에 Vector·Neo4j 반영 SUCCEEDED를 요구할지. 설정은 {@code KnowledgeVisibilityPolicy}가 정한다
-     * @param internalRead   내부 판단 읽기(옵션 프로필)이면 담당자 전용 문서의 주담당자 조건을 적용하지 않는다. 사용자에게 닿는 근거에는 쓰지 않는다
-     */
-    @Query(value = """
-            SELECT EXISTS (
-              SELECT 1 FROM knowledge_document_version v
+    String CURRENT_VISIBILITY = """
+              FROM knowledge_document_version v
               JOIN knowledge_document d ON d.id=v.knowledge_document_id
               LEFT JOIN it_system s ON s.id=d.it_system_id
-              WHERE v.id=:versionId AND d.deleted_at IS NULL
+              WHERE d.deleted_at IS NULL
               AND d.review_status='APPROVED' AND v.review_status='APPROVED' AND d.data_split='RAG'
               AND ((d.it_system_id IS NULL AND d.document_type='POLICY') OR (s.id IS NOT NULL AND s.deleted_at IS NULL))
               AND (d.access_level='EMPLOYEE' OR (d.access_level='STAFF' AND (
@@ -54,9 +49,28 @@ public interface KnowledgeDocumentVersionRepository extends JpaRepository<Knowle
                 AND (NOT :requireIndexed OR (c.vector_status='SUCCEEDED' AND c.graph_status='SUCCEEDED'))
                 AND t.deleted_at IS NULL AND t.ticket_status='RESOLVED' AND t.resolved_at IS NOT NULL
                 AND t.responsible_system_id=c.it_system_id
-                AND w.log_type IN ('RESOLVED','IMPLEMENTED'))))
-            """, nativeQuery = true)
+                AND w.log_type IN ('RESOLVED','IMPLEMENTED')))
+            """;
+
+    /**
+     * 캐시된 엔티티 상태 대신 현재 DB에서 공개 가능 여부를 확인한다.
+     *
+     * @param requireIndexed CASE의 양쪽 색인 성공을 요구할지
+     * @param internalRead 내부 판단에서 담당자 문서의 주담당자 조건을 생략할지
+     */
+    @Query(value = "SELECT EXISTS (SELECT 1 " + CURRENT_VISIBILITY + " AND v.id = :versionId)", nativeQuery = true)
     boolean matchesVisibility(UUID versionId, UUID memberId, boolean requireIndexed, boolean internalRead);
+
+    /** 순위 조회와 반환 사이에 바뀐 승인 버전·범위·권한을 후보 전체에 대해 다시 확인한다. */
+    @Query(value = "SELECT v.* " + CURRENT_VISIBILITY + """
+            AND v.id IN (:versionIds) AND d.access_level IN (:levels) AND d.document_type IN (:types)
+            AND (d.it_system_id IS NULL OR CAST(d.it_system_id AS text) IN (:systems))
+            AND v.version_no = (SELECT max(latest.version_no) FROM knowledge_document_version latest
+                  WHERE latest.knowledge_document_id = d.id AND latest.review_status = 'APPROVED')
+            """, nativeQuery = true)
+    List<KnowledgeDocumentVersion> findLatestVisibleVersions(Collection<UUID> versionIds, UUID memberId,
+            boolean requireIndexed, boolean internalRead, Collection<String> levels, Collection<String> types,
+            Collection<String> systems);
 
     /**
      * 현재 DB 조건으로 공개 가능 여부를 확인한다. 규칙은 {@link ReadRule}로 받는다.
