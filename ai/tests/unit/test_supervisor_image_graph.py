@@ -11,8 +11,9 @@ from hops_ai.agents.inquiry.image_observations import ImageObservation, ImageObs
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiRunRequest, QuestionProposal
-from hops_ai.harness.errors import InputRejected
+from hops_ai.harness.errors import InputRejected, UnsupportedRoute
 from hops_ai.services.attachments import SpringImageReader
+from hops_ai.services.runs.supervisor import SupervisorPipeline
 from hops_ai.services.tracing import RunTracing
 from hops_ai.settings import Settings
 from hops_ai.supervisor.graph import Supervisor
@@ -96,6 +97,126 @@ async def test_missing_image_fails_before_any_model_or_inquiry_call() -> None:
     assert result.error is not None and result.error.code == "SEARCH_UNAVAILABLE"
     assert result.answer is None and not result.imageObservations
     assert not model.requests and inquiry.calls == 0
+
+
+async def test_injected_pipeline_reads_all_images_and_preserves_unconfirmed_observations() -> None:
+    request, ids = image_fixture()
+    model = ScriptedLLM(
+        ImageObservations(observations=[ImageObservation(attachmentId=ids[0], text="오류 안내")]),
+        decision("CALL_ROLE", AgentRole.INQUIRY),
+        decision("ASK_USER"),
+    )
+    context = services_for(request, model).runtime
+    pipeline = SupervisorPipeline(
+        model, {AgentRole.INQUIRY: InquiryStub(ask=True)}, image_reader=reader(ok)
+    )
+    result = await pipeline.run(request, context)
+    assert result.status == "SUCCEEDED"
+    assert len(result.imageObservations) == 1
+    assert result.imageObservations[0].attachmentId == ids[0]
+    assert result.imageObservations[0].questionRef is not None
+    assert (context.budget.tool_calls_used, context.budget.llm_calls_used) == (2, 3)
+    result.validate_image_observations_for(request)
+
+
+async def test_injected_pipeline_fails_whole_run_when_second_image_is_unavailable() -> None:
+    request, ids = image_fixture()
+    model = ScriptedLLM()
+    inquiry = InquiryStub(ask=True)
+
+    def fail_second(http_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503) if http_request.url.path.endswith(ids[1]) else ok(http_request)
+
+    pipeline = SupervisorPipeline(
+        model, {AgentRole.INQUIRY: inquiry}, image_reader=reader(fail_second)
+    )
+    result = await pipeline.run(request, services_for(request, model).runtime)
+    assert result.status == "FAILED"
+    assert result.error is not None and result.error.code == "SEARCH_UNAVAILABLE"
+    assert result.answer is None and result.imageObservations == []
+    assert not model.requests and inquiry.calls == 0
+
+
+async def test_injected_pipeline_cancellation_during_read_does_not_call_model() -> None:
+    request, _ = image_fixture()
+    model = ScriptedLLM()
+    context = services_for(request, model).runtime
+
+    def cancel(http_request: httpx.Request) -> httpx.Response:
+        context.cancel()
+        return ok(http_request)
+
+    result = await SupervisorPipeline(model, image_reader=reader(cancel)).run(request, context)
+    assert result.status == "SUPERSEDED"
+    assert result.answer is None and result.imageObservations == []
+    assert not model.requests
+
+
+async def test_injected_reader_does_not_change_text_only_execution() -> None:
+    request = make_request(question_count=4)
+    model = ScriptedLLM(
+        decision("CALL_ROLE", AgentRole.INQUIRY),
+        decision("ASK_USER"),
+    )
+
+    def unexpected_read(_: httpx.Request) -> httpx.Response:
+        raise AssertionError("텍스트 실행에서는 이미지를 조회하지 않는다")
+
+    result = await SupervisorPipeline(
+        model, {AgentRole.INQUIRY: InquiryStub(ask=True)}, image_reader=reader(unexpected_read)
+    ).run(request, services_for(request, model).runtime)
+    assert result.status == "SUCCEEDED"
+    assert result.imageObservations == []
+    assert len(result.questions) == 1
+
+
+async def test_injected_pipeline_rejects_image_run_when_ticket_client_is_enabled() -> None:
+    request, _ = image_fixture()
+    model = ScriptedLLM()
+    pipeline = SupervisorPipeline(model, ticket_client=object(), image_reader=reader(ok))
+    with pytest.raises(UnsupportedRoute):
+        await pipeline.run(request, services_for(request, model).runtime)
+    assert not model.requests
+
+
+async def test_injected_pipeline_never_traces_image_or_text_content() -> None:
+    class Trace:
+        def __init__(self):
+            self.events = []
+
+        def start_as_current_observation(self, **values):
+            self.events.append(values)
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+        def update(self, **values):
+            self.events.append(values)
+
+    request, ids = image_fixture()
+    model = ScriptedLLM(
+        ImageObservations(observations=[ImageObservation(attachmentId=ids[0], text="오류 안내")]),
+        decision("CALL_ROLE", AgentRole.INQUIRY),
+        decision("ASK_USER"),
+    )
+    trace = Trace()
+    pipeline = SupervisorPipeline(
+        model,
+        {AgentRole.INQUIRY: InquiryStub(ask=True)},
+        image_reader=reader(ok),
+        tracing=RunTracing(trace, capture_content=True),
+    )
+    result = await pipeline.run(request, services_for(request, model).runtime)
+    assert result.status == "SUCCEEDED"
+    assert trace.events
+    assert request.messages[0].content not in repr(trace.events)
+    assert "오류 안내" not in repr(trace.events)
+    assert repr(PNG) not in repr(trace.events)
+    assert all(image_id not in repr(trace.events) for image_id in ids)
 
 
 async def test_ambiguous_image_fails_instead_of_silently_discarding_observation() -> None:

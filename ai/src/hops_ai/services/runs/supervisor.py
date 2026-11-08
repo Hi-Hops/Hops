@@ -16,6 +16,7 @@ from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import OutputRejected, UnsupportedRoute
 from hops_ai.harness.policy import ToolPolicy
+from hops_ai.services.attachments import SpringImageReader
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.retrieval.knowledge_source import KNOWLEDGE_TOOLS, KnowledgeSource
 from hops_ai.services.retrieval.relation_source import RelationSource
@@ -41,6 +42,7 @@ class SupervisorPipeline:
         problem_actions: bool | None = None,
         relation_source: RelationSource | None = None,
         guide_excerpt: bool = False,
+        image_reader: SpringImageReader | None = None,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
@@ -70,6 +72,7 @@ class SupervisorPipeline:
             else agents
         )
         self._ticket_client = ticket_client
+        self._image_reader = image_reader
         self._knowledge_connected = agents is None and knowledge_source is not None
         self._tracing = tracing or RunTracing()
         self._raw_llm = llm
@@ -80,7 +83,10 @@ class SupervisorPipeline:
         if problem_actions is None:
             problem_actions = assess_evidence and agents is None and knowledge_source is not None
         self._supervisor = Supervisor(
-            registry, restrict_roles=True, problem_actions=problem_actions
+            registry,
+            restrict_roles=True,
+            problem_actions=problem_actions,
+            image_reader=image_reader,
         )
 
     def _tracing_for(self, request: AiRunRequest) -> RunTracing:
@@ -97,7 +103,9 @@ class SupervisorPipeline:
         return self._tracing
 
     async def run(self, request: AiRunRequest, context: RunContext) -> AiResult:
-        if any(message.imageAttachments for message in request.messages):
+        if any(message.imageAttachments for message in request.messages) and (
+            self._image_reader is None or self._ticket_client is not None
+        ):
             raise UnsupportedRoute("이미지 조회와 분석 경로가 아직 연결되지 않았습니다")
         tracing = self._tracing_for(request)
         llm = TracedLLMClient(self._raw_llm, tracing) if tracing.client else self._raw_llm
