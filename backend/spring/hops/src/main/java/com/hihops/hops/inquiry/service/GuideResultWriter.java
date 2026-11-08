@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import com.hihops.hops.agent.domain.AgentRun;
@@ -83,6 +84,7 @@ public class GuideResultWriter {
         UUID systemId = uuid(proposal.path("reportedSystemCandidateId"));
         require(java.util.stream.StreamSupport.stream(input.path("systems").spliterator(), false)
                 .anyMatch(system -> systemId.toString().equals(system.path("id").asString())));
+        require(matchesReportedSystem(input, ref, systemId));
         var system = systems.findForRead(systemId).orElseThrow(GuideResultWriter::invalid);
 
         Set<UUID> cited = ids(guide.path("evidenceIds"));
@@ -158,6 +160,13 @@ public class GuideResultWriter {
     static boolean targetsProblem(JsonNode input, String ref) {
         var targets = input.path("problemIds");
         return targets.isEmpty() || targets.valueStream().anyMatch(item -> ref.equals(item.asString()));
+    }
+
+    static boolean matchesReportedSystem(JsonNode input, String ref, @Nullable UUID systemId) {
+        return input.path("problems").valueStream()
+                .filter(problem -> ref.equals(problem.path("id").asString()))
+                .map(problem -> problem.path("reportedSystemId"))
+                .noneMatch(reported -> reported.isString() && !reported.asString().equals(String.valueOf(systemId)));
     }
 
     static Set<UUID> sourceMessages(JsonNode input, String ref) {

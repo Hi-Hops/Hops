@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
 import com.hihops.hops.agent.dto.AiRunRequest.ExistingWorkItem;
@@ -23,8 +24,11 @@ import com.hihops.hops.inquiry.domain.StandardRequest;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.StandardRequestRepository;
+import com.hihops.hops.inquiry.service.ReportedSystemCorrections;
+import com.hihops.hops.inquiry.service.ReportedSystemCorrections.Applied;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.dto.StandardRequestResponse;
+import com.hihops.hops.ticket.dto.StandardRequestResponse.RequestDetailsResponse;
 import com.hihops.hops.ticket.repository.TicketRepository;
 import com.hihops.hops.ticket.service.TicketStandardRequestReader;
 
@@ -58,6 +62,7 @@ public class InputProblemReader {
     private final TicketStandardRequestReader standardRequestReader;
     private final MessageRepository messageRepository;
     private final JsonMapper jsonMapper;
+    private final ReportedSystemCorrections reportedSystemCorrections;
 
     /** AiRunRequest의 problems와 existingWorkItems. */
     public record ProblemInputs(List<InputProblem> problems, List<ExistingWorkItem> existingWorkItems) {
@@ -80,6 +85,7 @@ public class InputProblemReader {
         Map<UUID, StandardRequest> latest = new LinkedHashMap<>();
         standardRequestRepository.findAppliedNewestFirst(problems.stream().map(InquiryProblem::getId).toList())
                 .forEach(request -> latest.putIfAbsent(request.getInquiryProblem().getId(), request));
+        var corrections = reportedSystemCorrections.latest(inquiry.getId());
         Map<UUID, List<String>> asked = askedFields(inquiry.getId());
         List<InputProblem> inputs = new ArrayList<>();
         List<ExistingWorkItem> workItems = new ArrayList<>();
@@ -87,7 +93,8 @@ public class InputProblemReader {
             Optional<Ticket> ticket = ticketRepository.findByInquiryProblem_Id(problem.getId())
                     .filter(found -> !found.isDeleted());
             inputs.add(input(inquiry, problem, latest.get(problem.getId()), ticket,
-                    targetProblemIds.contains(problem.getId()), asked.getOrDefault(problem.getId(), List.of())));
+                    targetProblemIds.contains(problem.getId()), asked.getOrDefault(problem.getId(), List.of()),
+                    corrections.get(problem.getId())));
             workItemOf(problem, ticket).ifPresent(workItems::add);
         }
         return new ProblemInputs(List.copyOf(inputs), List.copyOf(workItems));
@@ -113,9 +120,19 @@ public class InputProblemReader {
     }
 
     private InputProblem input(Inquiry inquiry, InquiryProblem problem, StandardRequest request, Optional<Ticket> ticket,
-            boolean targeted, List<String> askedFields) {
+            boolean targeted, List<String> askedFields, @Nullable Applied correction) {
         if (request == null) {
             throw new IllegalStateException("적용된 표준 요청서가 없는 문제다: " + problem.getId());
+        }
+        if (correction != null && correction.inquiryVersion() > request.getInquiryVersion()) {
+            // 이전 범위의 기능·분석·지식은 이력으로 보존하고 새 범위에서 다시 분석한다.
+            // 문제당 질문 횟수와 질문 이력은 유지한다.
+            String summary = correction.summary();
+            var details = new RequestDetailsResponse(null, null, null, null, null, null, null, null, List.of());
+            return new InputProblem(problem.getId(), summary, request.getIntent().name(), request.getWorkType().name(),
+                    correction.systemId(), null, stateOf(problem, ticket, targeted), problem.getClarifyCount(), askedFields,
+                    new StandardRequestBody(summary, List.of(), List.of(), List.of(), null, List.of(), details, List.of()),
+                    null, correction.sourceMessageId());
         }
         StandardRequestResponse body = standardRequestReader.read(request, inquiry.getRequester());
         return new InputProblem(problem.getId(), request.getSummary(), request.getIntent().name(),

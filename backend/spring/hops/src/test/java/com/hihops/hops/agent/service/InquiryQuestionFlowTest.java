@@ -17,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -96,7 +97,7 @@ class InquiryQuestionFlowTest {
         jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM knowledge_document_version WHERE knowledge_document_id=?", document);
         jdbc.update("DELETE FROM knowledge_document WHERE id=?", document);
-        jdbc.update("DELETE FROM it_system WHERE id = ?", systemId);
+        jdbc.update("DELETE FROM it_system WHERE primary_owner_member_id = ?", ownerId);
         jdbc.update("DELETE FROM member WHERE id IN (?, ?)", memberId, ownerId);
         jdbc.update("DELETE FROM department WHERE id = ?", departmentId);
     }
@@ -164,6 +165,90 @@ class InquiryQuestionFlowTest {
         assertThat(input.path("standardRequest").path("unknowns").get(0).asString()).isEqualTo("화면");
         // 사용자 메시지에 문제 연결이 생겨 AI가 어느 문제의 메시지인지 알 수 있다
         assertThat(next.path("messages").get(0).path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "전자결재에서 로그인하려고 하면 오류가 나요.|전자결재가 아니라 공통 로그인입니다|COMMON_LOGIN|공통 로그인",
+            "전자결재에서 지운 파일이 안 보여요.|아, 전자결재가 아니라 파일 공유 시스템 이야기였어요.|FILE_SHARING|파일 공유"
+    })
+    void 보고_시스템을_정정하면_같은_문제에_원문을_잇고_다음_실행부터_새_범위로_저장한다(
+            String initial, String correction, String correctedCode, String correctedName) throws Exception {
+        jdbc.update("UPDATE it_system SET code='ELECTRONIC_APPROVAL', name='전자결재' WHERE id=?", systemId);
+        UUID correctedSystem = UUID.randomUUID();
+        jdbc.update("INSERT INTO it_system (id, code, name, primary_owner_member_id) VALUES (?, ?, ?, ?)",
+                correctedSystem, correctedCode, correctedName, ownerId);
+        UUID inquiryId = askOnce(initial);
+        UUID problemId = problemOf(inquiryId);
+
+        JsonNode next = secondRunInput(inquiryId, correction);
+        UUID runId = UUID.fromString(next.path("runId").asString());
+        JsonNode source = next.path("messages").get(2);
+        UUID sourceId = UUID.fromString(source.path("id").asString());
+        assertThat(source.path("content").asString()).isEqualTo(correction);
+        assertThat(source.path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+        JsonNode storedCorrection = jsonMapper.readTree(jdbc.queryForObject(
+                "SELECT payload::text FROM message WHERE id=?", String.class, sourceId)).path("reportedSystemCorrection");
+        assertThat(storedCorrection.path("sourceMessageId").asString()).isEqualTo(sourceId.toString());
+        assertThat(storedCorrection.path("sourceRevision").asInt()).isEqualTo(1);
+        assertThat(storedCorrection.path("systemId").asString()).isEqualTo(correctedSystem.toString());
+        assertThat(next.path("problemIds").get(0).asString()).isEqualTo(problemId.toString());
+        JsonNode problem = next.path("problems").get(0);
+        assertThat(problem.path("reportedSystemId").asString()).isEqualTo(correctedSystem.toString());
+        assertThat(problem.path("reportedFeatureId").isNull()).isTrue();
+        assertThat(problem.path("questionCount").asInt()).isEqualTo(1);
+        assertThat(problem.path("askedFields").get(0).asString()).isEqualTo("taskOrScreen");
+        assertThat(problem.path("reportedSystemCorrectionMessageId").asString()).isEqualTo(sourceId.toString());
+        JsonNode standard = problem.path("standardRequest");
+        assertThat(standard.path("responsibleSystemCandidateId").isNull()).isTrue();
+        assertThat(standard.path("knowledge").isEmpty()).isTrue();
+        assertThat(standard.path("confirmedFacts").isEmpty()).isTrue();
+
+        // 오래된 범위의 제안을 적용하지 않는다. 정정은 실패한 분석과 독립적으로 남는다.
+        when(client.snapshot(runId.toString())).thenReturn(snapshot(runId, inquiryId, 2, QUESTION,
+                List.of(proposal(problemId.toString(), "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, sourceId)),
+                List.of(question(problemId.toString(), "stale", QUESTION, "taskOrScreen"))));
+        dispatcher.deliver(runId);
+        assertThat(jdbc.queryForObject("SELECT error_code FROM agent_run WHERE id=?", String.class, runId))
+                .isEqualTo("INVALID_OUTPUT");
+        mockMvc.perform(as(get("/api/v2/inquiries/" + inquiryId))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.problems[0].reportedSystemId").value(correctedSystem.toString()));
+
+        JsonNode following = secondRunInput(inquiryId, "어제부터요", List.of(problemId));
+        UUID followingRun = UUID.fromString(following.path("runId").asString());
+        assertThat(following.path("problems").get(0).path("reportedSystemId").asString())
+                .isEqualTo(correctedSystem.toString());
+        String newQuestion = "화면에 어떤 오류 문구가 표시되나요?";
+        when(client.snapshot(followingRun.toString())).thenReturn(snapshot(followingRun, inquiryId, 3, newQuestion,
+                List.of(proposal(problemId.toString(), "OBSERVED_SYMPTOM", "INVESTIGATION", correctedSystem, sourceId)),
+                List.of(question(problemId.toString(), "corrected", newQuestion, "actualBehavior"))));
+        dispatcher.deliver(followingRun);
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, followingRun))
+                .isEqualTo("SUCCEEDED");
+        assertThat(jdbc.queryForObject("SELECT reported_system_id FROM standard_request WHERE agent_run_id=?",
+                UUID.class, followingRun)).isEqualTo(correctedSystem);
+        assertThat(count("SELECT count(*) FROM inquiry_problem WHERE inquiry_id=?", inquiryId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM ticket WHERE inquiry_id=?", inquiryId)).isZero();
+
+        UUID ticketRun = UUID.fromString(secondRunInput(inquiryId, "추가 오류 정보").path("runId").asString());
+        jdbc.update("UPDATE agent_run SET run_status='RUNNING', started_at=now() WHERE id=?", ticketRun);
+        var ticketBody = (tools.jackson.databind.node.ObjectNode) jsonMapper.valueToTree(
+                TicketCreationTestBodies.body(problemId.toString(), 4, correctedSystem, sourceId,
+                        correction.codePointCount(0, correction.length())));
+        var ticketProposal = (tools.jackson.databind.node.ObjectNode) ticketBody.path("proposal");
+        ticketProposal.put("responsibleSystemCandidateId", systemId.toString());
+        ticketProposal.putArray("evidenceIds").add(sourceId.toString());
+        ((tools.jackson.databind.node.ObjectNode) ticketProposal.path("standardRequestSnapshot"))
+                .put("responsibleSystemCandidateId", systemId.toString());
+        mockMvc.perform(post("/internal/v2/runs/" + ticketRun + "/ticket-creations")
+                .header("Authorization", "Bearer " + TicketCreationTestBodies.TOKEN)
+                .contentType(MediaType.APPLICATION_JSON).content(ticketBody.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("STORED"));
+        assertThat(jdbc.queryForMap("""
+                SELECT s.reported_system_id, t.responsible_system_id, t.assignee_member_id
+                FROM ticket t JOIN standard_request s ON s.id=t.standard_request_id WHERE t.inquiry_problem_id=?
+                """, problemId)).containsEntry("reported_system_id", correctedSystem)
+                .containsEntry("responsible_system_id", systemId).containsEntry("assignee_member_id", ownerId);
     }
 
     @Test
@@ -586,11 +671,15 @@ class InquiryQuestionFlowTest {
 
     // 사용자가 답하고, 그 답으로 접수한 다음 실행의 입력을 돌려준다
     private JsonNode secondRunInput(UUID inquiryId, String reply) throws Exception {
+        return secondRunInput(inquiryId, reply, List.of());
+    }
+
+    private JsonNode secondRunInput(UUID inquiryId, String reply, List<UUID> problemIds) throws Exception {
         int version = jdbc.queryForObject("SELECT version FROM inquiry WHERE id=?", Integer.class, inquiryId);
         UUID sendId = UUID.randomUUID();
         mockMvc.perform(as(post("/api/v2/inquiries/" + inquiryId + "/messages")).header("Idempotency-Key", sendId)
                 .contentType(MediaType.APPLICATION_JSON).content(jsonMapper.writeValueAsString(Map.of(
-                        "requestId", sendId, "expectedInquiryVersion", version, "content", reply, "problemIds", List.of()))))
+                        "requestId", sendId, "expectedInquiryVersion", version, "content", reply, "problemIds", problemIds))))
                 .andExpect(status().isOk());
         return jsonMapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run "
                 + "WHERE id=(SELECT current_run_id FROM inquiry WHERE id=?)", String.class, inquiryId));

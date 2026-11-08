@@ -57,7 +57,7 @@ class KnowledgeSearchHandler {
         RunScope scope = RunScope.of(input, access.inquiry().getRequester().getId(), runProperties.internalJudgement().enabled());
         Set<AccessLevel> levels = scope.levels();
         Set<Kind> allowedKinds = scope.includesStaff() ? EnumSet.allOf(Kind.class) : EMPLOYEE_KINDS;
-        Set<UUID> accessibleSystems = scope.systemIds();
+        Set<UUID> accessibleSystems = access.systemsFor(request.problemRef(), scope.systemIds());
         int topK = request.effectiveTopK();
         var applied = new KnowledgeSearchResponse.Applied(scope.scopeNames(), allowedKinds.stream().map(Enum::name).toList(),
                 List.copyOf(accessibleSystems), topK, scope.internalRead());
@@ -67,7 +67,7 @@ class KnowledgeSearchHandler {
             return denied(runId, request, applied, "KIND_NOT_ALLOWED");
         }
         Set<UUID> systems = request.systemIds() == null ? accessibleSystems : new LinkedHashSet<>(request.systemIds());
-        if (!accessibleSystems.containsAll(systems)) {
+        if (systems.isEmpty() || !accessibleSystems.containsAll(systems)) {
             return denied(runId, request, applied, "SYSTEM_NOT_ALLOWED");
         }
         if (scope.internalRead()) {
@@ -90,8 +90,8 @@ class KnowledgeSearchHandler {
             log.warn("지식 검색 실패 runId={} cause={}", runId, exception.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.SEARCH_UNAVAILABLE);
         }
-        log.info("문서 검색 runId={} problemRef={} engine={} versions={}", runId, request.problemRef(),
-                offlineSql ? "offline-sql" : "pgvector-hybrid", hits.stream().map(hit ->
+        log.info("문서 검색 runId={} problemRef={} engine={} systems={} versions={}", runId, request.problemRef(),
+                offlineSql ? "offline-sql" : "pgvector-hybrid", systems, hits.stream().map(hit ->
                         hit.assembled().evidence().documentId() + ":v" + hit.assembled().evidence().documentVersion()).toList());
         var results = hits.stream().map(hit -> new KnowledgeSearchResponse.Result(hit.assembled().evidence(),
                 hit.assembled().documentKey(), hit.assembled().content(), hit.assembled().contentDigest(),

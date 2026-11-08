@@ -105,7 +105,7 @@ class MessageCommandControllerTest {
         jdbc.update("DELETE FROM inquiry WHERE requester_member_id IN (?, ?)", memberId, otherMemberId);
         jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id IN (?, ?)", memberId, otherMemberId);
         jdbc.update("DELETE FROM system_feature WHERE id = ?", featureId);
-        jdbc.update("DELETE FROM it_system WHERE id = ?", systemId);
+        jdbc.update("DELETE FROM it_system WHERE primary_owner_member_id = ?", otherMemberId);
         jdbc.update("DELETE FROM member WHERE id IN (?, ?)", memberId, otherMemberId);
         jdbc.update("DELETE FROM department WHERE id = ?", departmentId);
     }
@@ -568,6 +568,47 @@ class MessageCommandControllerTest {
         mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId + "/messages")))
                 .andExpect(jsonPath("$.items[1].problemIds.length()").value(1))
                 .andExpect(jsonPath("$.items[1].problemIds[0]").value(linked.toString()));
+    }
+
+    @Test
+    void 복수_문제의_정정은_대상을_고를_때까지_보류하고_선택한_두번째_문제만_바꾼다() throws Exception {
+        String firstRun = succeedFirstRun();
+        UUID first = insertProblem(1, "TICKET_CREATED", 0, "STORED", firstRun);
+        UUID second = insertProblem(2, "CLARIFYING", 1, null, firstRun);
+        insertTicket(first, insertStandardRequest(first, firstRun, "첫 번째 문제", "[]"));
+        insertStandardRequest(second, firstRun, "두 번째 문제", "[]");
+        jdbc.update("UPDATE it_system SET code='ELECTRONIC_APPROVAL', name='전자결재' WHERE id=?", systemId);
+        UUID login = UUID.randomUUID();
+        jdbc.update("INSERT INTO it_system (id, code, name, primary_owner_member_id) VALUES (?, 'COMMON_LOGIN', '공통 로그인', ?)",
+                login, otherMemberId);
+
+        send(memberId, UUID.randomUUID(), 1, "전자결재가 아니라 공통 로그인입니다", List.of())
+                .andExpect(status().isOk());
+        String message = messageIdAt(2);
+        assertThat(payloadOf(message).path("pendingTarget").asBoolean()).isTrue();
+        assertThat(payloadOf(message).has("reportedSystemCorrection")).isFalse();
+        assertThat(currentRunId()).isEqualTo(firstRun);
+        link(memberId, message, UUID.randomUUID(), 2, List.of(first, second))
+                .andExpect(status().isBadRequest());
+        link(memberId, message, UUID.randomUUID(), 2, List.of(second)).andExpect(status().isOk());
+
+        JsonNode input = currentInput();
+        assertThat(problemIdsOf(input)).containsExactly(second.toString());
+        assertThat(input.path("problems").get(0).path("reportedSystemId").asString()).isEqualTo(systemId.toString());
+        assertThat(input.path("problems").get(1).path("reportedSystemId").asString()).isEqualTo(login.toString());
+        assertThat(input.path("problems").get(1).path("reportedFeatureId").isNull()).isTrue();
+        assertThat(payloadOf(message).path("reportedSystemCorrection").path("sourceMessageId").asString()).isEqualTo(message);
+        assertThat(jdbc.queryForMap("SELECT ticket_status, responsible_system_id, assignee_member_id FROM ticket WHERE inquiry_problem_id=?", first))
+                .containsEntry("ticket_status", "OPEN").containsEntry("responsible_system_id", systemId)
+                .containsEntry("assignee_member_id", otherMemberId);
+
+        // 같은 정정문을 배정된 문제에 명시적으로 연결해도 보완으로만 저장한다.
+        succeedFirstRun();
+        String correctionRun = currentRunId();
+        send(memberId, UUID.randomUUID(), 3, "전자결재가 아니라 공통 로그인입니다", List.of(first))
+                .andExpect(status().isOk());
+        assertThat(payloadOf(messageIdAt(3)).has("reportedSystemCorrection")).isFalse();
+        assertThat(currentRunId()).isEqualTo(correctionRun);
     }
 
     @Test

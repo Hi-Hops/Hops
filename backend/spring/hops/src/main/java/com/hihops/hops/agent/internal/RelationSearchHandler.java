@@ -49,13 +49,14 @@ class RelationSearchHandler {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
         int limit = request.effectiveLimit();
-        var applied = new RelationSearchResponse.Applied(scope.scopeNames(), List.copyOf(scope.systemIds()), limit, scope.internalRead());
+        Set<UUID> accessibleSystems = access.systemsFor(request.problemRef(), scope.systemIds());
+        var applied = new RelationSearchResponse.Applied(scope.scopeNames(), List.copyOf(accessibleSystems), limit, scope.internalRead());
         if (scope.internalRead()) {
             log.info("내부 판단 읽기 관계 조회 runId={}", runId);
         }
 
-        Set<UUID> systems = request.systemIds() == null ? scope.systemIds() : new LinkedHashSet<>(request.systemIds());
-        if (!scope.systemIds().containsAll(systems)) {
+        Set<UUID> systems = request.systemIds() == null ? accessibleSystems : new LinkedHashSet<>(request.systemIds());
+        if (systems.isEmpty() || !accessibleSystems.containsAll(systems)) {
             return denied(runId, request, applied, "SYSTEM_NOT_ALLOWED");
         }
         try {
@@ -67,8 +68,8 @@ class RelationSearchHandler {
             }
             var symptoms = search.search(new RelationSearchService.Query(tokens, featureIds, scope.levels(), scope.includesStaff(),
                     systems, scope.memberId(), scope.internalRead(), limit));
-            log.info("관계 조회 runId={} problemRef={} engine={} symptoms={} checks={} questions={}",
-                    runId, request.problemRef(), offlineSql ? "offline-sql" : "neo4j",
+            log.info("관계 조회 runId={} problemRef={} engine={} systems={} symptoms={} checks={} questions={}",
+                    runId, request.problemRef(), offlineSql ? "offline-sql" : "neo4j", systems,
                     symptoms.stream().map(s -> s.id() + ":" + s.catalogKey()).toList(),
                     symptoms.stream().flatMap(s -> s.checkItems().stream()).map(c -> c.id() + ":" + c.catalogKey()).toList(),
                     symptoms.stream().flatMap(s -> s.checkItems().stream()).flatMap(c -> c.questions().stream())

@@ -65,6 +65,13 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
             """)
     List<Message> findAllCompletedInOrder(UUID inquiryId);
 
+    @Query(value = """
+            SELECT * FROM message
+            WHERE inquiry_id = :inquiryId AND sender_type = 'USER' AND message_status = 'COMPLETED'
+              AND deleted_at IS NULL AND payload -> 'reportedSystemCorrection' IS NOT NULL
+            """, nativeQuery = true)
+    List<Message> findReportedSystemCorrections(UUID inquiryId);
+
     /** 다음 메시지 순번을 정할 마지막 순번. 삭제·미완료 행도 (문의, 순번) 유일 제약에 걸리므로 모두 센다. 메시지가 없으면 0. */
     @Query("SELECT COALESCE(MAX(m.sequenceNo), 0) FROM Message m WHERE m.inquiry.id = :inquiryId")
     int findLastSequenceNo(UUID inquiryId);
