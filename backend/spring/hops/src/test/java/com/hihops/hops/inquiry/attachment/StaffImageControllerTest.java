@@ -94,6 +94,30 @@ class StaffImageControllerTest extends TicketCommandFixture {
     }
 
     @Test
+    void 이미지_분석_티켓은_명시적_공개_이미지만_조회하고_업무_내용은_차단한다() throws Exception {
+        share(problem);
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?",
+                "{\"messages\":[{\"imageAttachments\":[{\"attachmentId\":\"" + image + "\"}]}]}", analysis);
+        when(storage.get(image)).thenReturn(bytes);
+
+        mvc.perform(as(staff, get("/api/v2/tickets/{ticket}/image-attachments", ticket)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(image.toString()));
+        mvc.perform(as(staff, get("/api/v2/tickets/{ticket}/image-attachments/{image}/content", ticket, image)))
+                .andExpect(status().isOk()).andExpect(content().bytes(bytes));
+        mvc.perform(as(other, get("/api/v2/tickets/{ticket}/image-attachments/{image}/content", ticket, image)))
+                .andExpect(status().isNotFound());
+        mvc.perform(as(staff, get("/api/v2/tickets/{ticket}", ticket))).andExpect(status().isServiceUnavailable());
+        mvc.perform(command(staff, "/tickets/" + ticket + "/work-records", work("PROGRESS")))
+                .andExpect(status().isServiceUnavailable());
+
+        jdbc.update("DELETE FROM image_attachment_problem_link WHERE attachment_id=?", image);
+        mvc.perform(as(staff, get("/api/v2/tickets/{ticket}/image-attachments", ticket)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        mvc.perform(as(staff, get("/api/v2/tickets/{ticket}/image-attachments/{image}/content", ticket, image)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void 담당자_변경과_메시지_정정은_이전_접근을_차단한다() throws Exception {
         when(storage.get(image)).thenReturn(bytes);
         share(problem);

@@ -77,6 +77,17 @@ public class TicketService {
         return ticket;
     }
 
+    /** 이미지 조회에는 티켓 내용 대신 현재 담당 권한과 문제 식별자만 전달한다. */
+    @Transactional(readOnly = true)
+    public ImageAccessScope requireStaffImageScope(Jwt jwt, UUID ticketId) {
+        Member member = authService.currentMember(jwt);
+        Ticket ticket = findTicket(ticketId);
+        authorization.requireCurrentPrimary(member, ticket);
+        return new ImageAccessScope(ticket.getInquiry().getId(), ticket.getInquiryProblem().getId());
+    }
+
+    public record ImageAccessScope(UUID inquiryId, UUID problemId) { }
+
     @Transactional(readOnly = true)
     public TicketDetailResponse detail(Jwt jwt, UUID ticketId) {
         Member member = authService.currentMember(jwt);

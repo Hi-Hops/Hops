@@ -11,8 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
-import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.service.TicketService;
+import com.hihops.hops.ticket.service.TicketService.ImageAccessScope;
 
 import lombok.RequiredArgsConstructor;
 
@@ -44,27 +44,27 @@ class StaffImageAccess {
 
     @Transactional(readOnly = true)
     public List<LinkedRef> list(Jwt jwt, UUID ticketId) {
-        Ticket ticket = ticket(jwt, ticketId);
+        ImageAccessScope scope = scope(jwt, ticketId);
         return jdbc.query("SELECT a.id, a.byte_size, l.link_revision, m.revision " + LINKED
                 + " ORDER BY m.sequence_no, a.message_position",
                 (rs, row) -> new LinkedRef(rs.getObject("id", UUID.class), rs.getInt("byte_size"),
                         rs.getInt("link_revision"), rs.getInt("revision")),
-                ticket.getInquiry().getId(), ticket.getInquiryProblem().getId());
+                scope.inquiryId(), scope.problemId());
     }
 
     @Transactional(readOnly = true)
     public ContentRef readable(Jwt jwt, UUID ticketId, UUID attachmentId) {
-        Ticket ticket = ticket(jwt, ticketId);
+        ImageAccessScope scope = scope(jwt, ticketId);
         return jdbc.query("SELECT a.content_sha256, a.byte_size, l.link_revision, m.revision " + LINKED + " AND a.id = ?",
                 (rs, row) -> new ContentRef(rs.getString("content_sha256"), rs.getInt("byte_size"),
                         rs.getInt("link_revision"), rs.getInt("revision")),
-                ticket.getInquiry().getId(), ticket.getInquiryProblem().getId(), attachmentId).stream().findFirst()
+                scope.inquiryId(), scope.problemId(), attachmentId).stream().findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
     }
 
-    private Ticket ticket(Jwt jwt, UUID ticketId) {
+    private ImageAccessScope scope(Jwt jwt, UUID ticketId) {
         try {
-            return tickets.requireStaffTicket(jwt, ticketId);
+            return tickets.requireStaffImageScope(jwt, ticketId);
         } catch (BusinessException exception) {
             if (exception.errorCode() == ErrorCode.ACCESS_DENIED) throw new BusinessException(ErrorCode.NOT_FOUND);
             throw exception;
