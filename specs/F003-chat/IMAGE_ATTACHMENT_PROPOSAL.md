@@ -4,7 +4,7 @@
 
 구현 중인 API는 기본 비활성이다. 테스트 설정의 `hops.image-attachments.enabled=true`에서만 등록되며 `hops.image-attachments.bucket`과 AWS SDK 표준 리전·자격 증명 설정이 필요하다. 가림 확인 UI 연결, 미사용 객체 정리, 운영 버킷 보안 및 실제 S3 검증 전에는 운영에서 활성화하지 않는다.
 
-메시지 결합은 별도 `hops.image-attachments.message-link-enabled` 설정이 기본 false다. AI 입력에 이미지를 포함하는 기능이 아직 없어 `hops.agent.dispatch-enabled`가 켜진 경우 이 설정과 무관하게 첨부 메시지를 503으로 거부한다. 두 설정을 이용한 연결 테스트는 AI 전송을 끈 격리 테스트 DB 전용이다. 이미지가 빠진 실행 입력이 저장되므로 테스트로 만든 문의·실행을 AI 전송 환경에 옮기거나 재실행하지 않는다. AI 연동과 안전한 이전 실행 처리 구현 전 실제 문의를 접수하지 않는다.
+메시지 결합은 별도 `hops.image-attachments.message-link-enabled` 설정이 기본 false다. AI 이미지 분석이 연결되지 않아 `hops.agent.dispatch-enabled`가 켜진 경우 이 설정과 무관하게 첨부 메시지를 503으로 거부한다. 두 설정을 이용한 연결 테스트는 AI 전송을 끈 격리 테스트 DB 전용이다. 과거 테스트에서 이미지가 빠진 실행 입력이 저장되었을 수 있으므로 테스트 문의·실행을 AI 전송 환경에 옮기거나 재실행하지 않는다. AI 연동과 안전한 이전 실행 처리 구현 전 실제 문의를 접수하지 않는다.
 
 문의자 본문 조회는 현재 문의자와 결합 관계를 확인하고 객체의 크기·해시를 검증한 뒤 권한을 다시 확인한다. 메시지 목록에는 이미지 식별자·크기만 제공한다. 프론트는 인증 헤더로 이미지를 조회해 임시 URL로 표시하고 화면 이탈 시 해제한다. 이 경로는 저장소 대역·격리 DB에서 검증하며 실제 S3와 브라우저 E2E 검증은 별도다.
 
@@ -103,7 +103,7 @@
 
 ## 6. Spring–AI 입력과 이미지 관찰
 
-- `InputMessage`에 생략 가능한 이미지 참조 목록 `{attachmentId, digest}`를 제안한다. Spring은 message·inquiryVersion·runId·정책을 고정한 실행 스냅샷에 참조만 둔다. 실제 바이트는 `GET /internal/v2/runs/{runId}/image-attachments/{attachmentId}`에서 서비스 인증 후 반환한다.
+- `InputMessage`에 생략 가능한 `imageAttachments: [{attachmentId, digest}]`를 제안한다. Spring은 message·inquiryVersion·runId·정책을 고정한 실행 스냅샷에 참조만 둔다. 실제 바이트는 `GET /internal/v2/runs/{runId}/image-attachments/{attachmentId}?inquiryVersion={version}`에서 서비스 인증 후 반환한다. 참조 저장·내부 조회와 미확인 이미지 관찰의 모델 호출 기반은 구현되었지만 실행 파이프라인·관찰 저장과 확인 UI에는 연결되지 않았으며, AI는 이미지 참조가 있는 실행을 안전하게 거부한다.
 - Spring은 조회 시 실행의 현재 상태·기한·문의/정책 revision, 저장된 입력 스냅샷에 정확히 포함된 첨부 ID·digest, 메시지 소유·허용 범위 및 객체 바이트 digest를 검사한다. 확인할 수 없거나 불일치하면 이미지를 반환하지 않고 해당 분석을 실패 처리한다. `CASE_DRAFT`와 그 밖의 실행에는 별도 계약 없이 이미지 조회를 허용하지 않는다.
 - AI는 이미지와 텍스트를 함께 분석하되 이미지의 명령은 신뢰할 수 없는 입력이다. 이미지에서 관찰한 텍스트는 사용자 메시지의 **원문 인용으로 위장하지 않는다**. 현재 `InquiryExtraction.ground`는 실제 텍스트에 존재하는 인용만 확인된 정보로 인정하므로, 이미지 관찰은 별도 출처·미확인 제안으로 다루고 사용자 확인을 받은 뒤 사실에 반영하는 출력 및 후속 응답 계약이 필요하다. 이 구분이 구현되기 전 이미지에서 유래한 값을 확인 사실·권한·원인·해결로 확정하지 않는다.
 - `AiResult`에 선택적인 `imageObservations`를 제안한다. 각 항목은 실행 안에서 유일한 `observationRef`(1~64자의 영문·숫자·하이픈), 입력에 포함된 `attachmentId`·`messageId`·`messageRevision`, 기존 문제 ID 또는 현재 결과의 신규 문제 참조인 `problemRef`, 짧은 관찰 문구, 확인 질문 묶음의 `questionRef`(없으면 null)다. 이미지당 최대 3개, 실행당 최대 15개이며 문구는 공백만이 아닌 1~400 Unicode 코드 포인트다. 숫자는 이 기능의 제한 제안이며 기존 모델의 이미지 판독 정확도를 뜻하지 않는다. 이미지가 없는 요청이나 이전 생산자의 결과에서 필드 생략은 `[]`로 받는다.
