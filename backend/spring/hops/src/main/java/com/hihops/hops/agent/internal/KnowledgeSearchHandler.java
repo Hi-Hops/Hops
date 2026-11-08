@@ -90,6 +90,9 @@ class KnowledgeSearchHandler {
             log.warn("지식 검색 실패 runId={} cause={}", runId, exception.getClass().getSimpleName());
             throw new BusinessException(ErrorCode.SEARCH_UNAVAILABLE);
         }
+        log.info("문서 검색 runId={} problemRef={} engine={} versions={}", runId, request.problemRef(),
+                offlineSql ? "offline-sql" : "pgvector-hybrid", hits.stream().map(hit ->
+                        hit.assembled().evidence().documentId() + ":v" + hit.assembled().evidence().documentVersion()).toList());
         var results = hits.stream().map(hit -> new KnowledgeSearchResponse.Result(hit.assembled().evidence(),
                 hit.assembled().documentKey(), hit.assembled().content(), hit.assembled().contentDigest(),
                 hit.assembled().digestBasis(), hit.score(), hit.assembled().caseIndexStatus())).toList();
