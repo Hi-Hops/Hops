@@ -134,6 +134,23 @@ class InquiryAnswerHandlerTest {
     }
 
     @Test
+    void 이미지_관찰을_저장할_수_없으면_답변도_저장하지_않는다() {
+        for (String invalid : new String[] {"null", "{}", "[{\"text\":\"관찰\"}]"}) {
+            assertThatThrownBy(() -> handler.apply(run, input(), result(",\"imageObservations\":" + invalid)))
+                    .isInstanceOfSatisfying(AgentResultRejectedException.class,
+                            e -> assertThat(e.code()).isEqualTo("INVALID_OUTPUT"));
+        }
+        verify(writer, never()).insert(any(), any(), any(), anyString());
+        verify(events, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void 빈_이미지_관찰은_기존_답변과_호환된다() {
+        handler.apply(run, input(), result(",\"imageObservations\":[]"));
+        verify(writer).insert(any(), any(), any(), anyString());
+    }
+
+    @Test
     void 추가_응답_표시가_boolean이_아니면_답변을_저장하지_않는다() {
         for (String invalid : new String[] {"null", "\"true\"", "1"}) {
             assertThatThrownBy(() -> handler.apply(run, input(), result(",\"requiresFollowUp\":" + invalid)))

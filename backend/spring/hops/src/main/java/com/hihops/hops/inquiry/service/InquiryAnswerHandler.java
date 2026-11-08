@@ -91,6 +91,11 @@ public class InquiryAnswerHandler implements AgentRunResultHandler {
         // 늦은 결과는 위에서 SUPERSEDED로 걸러졌다. 현재 결과라면 쓰기 직전에 권한 세대를 다시 확인한다.
         checkAccess(inquiry, input);
 
+        // 관찰을 저장하고 확인하는 경로가 준비되기 전에는 결과 일부를 조용히 버리지 않는다.
+        var observations = result.path("imageObservations");
+        if (!observations.isMissingNode() && (!observations.isArray() || !observations.isEmpty())) {
+            throw new AgentResultRejectedException("INVALID_OUTPUT", "이미지 관찰 결과는 아직 처리할 수 없습니다");
+        }
         boolean requiresFollowUp = requiresFollowUp(result);
         String answer = answerOf(result);
         UUID answerMessageId = reservedAnswerMessageId(input);
