@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatusCode;
  */
 public enum ErrorCode {
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.", false),
+    PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "요청 크기가 허용 범위를 벗어났습니다.", false),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.", false),
     // 서명은 맞지만 만료된 Access. 프론트는 refresh 1회 후 같은 요청을 다시 보낸다 (WIRE_CONTRACT 12.3)
     ACCESS_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "로그인 시간이 만료되었습니다.", false),

@@ -121,6 +121,14 @@ public class IdempotencyRecord extends CreatedOnlyEntity {
         this.responseBody = responseBody;
     }
 
+    public void attachPendingResource(ResourceRef resource) {
+        if (operationState != OperationState.PENDING || resourceId != null) {
+            throw new IllegalStateException("접수된 요청에만 대상을 지정할 수 있습니다");
+        }
+        resourceType = resource.type().name();
+        resourceId = resource.id();
+    }
+
     /**
      * 업무 규칙으로 거절한 응답을 기록한다. 업무 트랜잭션은 롤백되므로 별도 트랜잭션에서 새 행으로 저장한다.
      *

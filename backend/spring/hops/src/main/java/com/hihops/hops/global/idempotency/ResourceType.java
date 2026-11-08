@@ -19,5 +19,6 @@ public enum ResourceType {
     RESOLUTION_REQUEST,
     CASE,
     INDEX_JOB,
-    CASE_GENERATION
+    CASE_GENERATION,
+    IMAGE_ATTACHMENT
 }

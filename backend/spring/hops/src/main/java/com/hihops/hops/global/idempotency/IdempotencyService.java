@@ -118,6 +118,51 @@ public class IdempotencyService {
         }
     }
 
+    /** 외부 저장 전에 접수와 대상을 확정한다. 외부 호출은 이 메서드의 트랜잭션 밖에서 한다. */
+    public CommandResult reserve(IdempotentRequest request, Function<UUID, ResourceRef> work) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("접수는 트랜잭션 밖에서 호출해야 합니다");
+        }
+        String requestHash = hash(request.body());
+        Optional<CommandResult> previous = findPrevious(request, requestHash);
+        if (previous.isPresent()) return previous.get();
+        try {
+            return transactionTemplate.execute(status -> {
+                UUID operationId = UUID.randomUUID();
+                IdempotencyRecord record = idempotencyRecordRepository.saveAndFlush(new IdempotencyRecord(
+                        memberRepository.getReferenceById(request.actorId()), CONTRACT_VERSION, request.httpMethod(),
+                        request.requestPath(), request.requestId().toString(), requestHash, operationId,
+                        OperationState.PENDING, clock.instant().plus(RESULT_RETENTION)));
+                ResourceRef resource = work.apply(operationId);
+                record.attachPendingResource(resource);
+                return new CommandResult(HttpStatus.ACCEPTED,
+                        new CommandReceipt(request.requestId(), operationId, OperationState.PENDING, resource, null));
+            });
+        } catch (DataIntegrityViolationException e) {
+            if (!isDuplicateKey(e)) throw e;
+            return findPrevious(request, requestHash).orElseThrow(() -> e);
+        }
+    }
+
+    /** 외부 결과를 확인한 뒤 대상 상태와 영수증을 함께 확정한다. */
+    public CommandResult completeReserved(IdempotentRequest request, UUID operationId, Runnable work) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("완료 처리는 트랜잭션 밖에서 호출해야 합니다");
+        }
+        return transactionTemplate.execute(status -> {
+            IdempotencyRecord record = idempotencyRecordRepository.lockByOperationIdAndActorId(operationId, request.actorId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+            CommandResult current = replay(record, request, hash(request.body()));
+            if (current.receipt().state() != OperationState.PENDING) return current;
+            ResourceRef resource = current.receipt().resource();
+            if (resource == null) throw new IllegalStateException("접수된 대상이 없습니다");
+            work.run();
+            CommandReceipt receipt = CommandReceipt.succeeded(request.requestId(), operationId, resource);
+            record.succeed(resource, HttpStatus.OK.value(), jsonMapper.writeValueAsString(receipt));
+            return new CommandResult(HttpStatus.OK, receipt);
+        });
+    }
+
     /**
      * GET /operations/{operationId}: 요청자 본인의 작업 결과. 남의 작업이면 없는 것과 같이 404다.
      *
