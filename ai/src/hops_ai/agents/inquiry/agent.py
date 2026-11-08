@@ -68,7 +68,8 @@ from hops_ai.rules.analysis import (
     user_texts,
 )
 from hops_ai.rules.intent_policy import is_guide_type, policy_for
-from hops_ai.rules.progress import problems_without_guide, searched_queries
+from hops_ai.rules.progress import get_problem_message_ids, problems_without_guide, searched_queries
+from hops_ai.rules.proposals import validate_problem_ref
 from hops_ai.services.llm.client import LLMMessage, LLMRequest
 from hops_ai.services.shared import SharedServices
 
@@ -98,7 +99,8 @@ class ExtractionInquiryAgent:
         if call.action == "ASK":
             return await self._ask(call, services)
         request = call.state["input"]
-        existing = list(request.problems)
+        existing = {item.id: item for item in request.problems}
+        targets = set(request.problemIds) or existing.keys()
         # Knowledge가 그 문제를 오류 없이 검색했지만 안내를 만들지 못했다면 사용법 문제는 안내 대신
         # 담당자 전달에 필요한 정보를 묻는다. 검색 오류는 여기에 해당하지 않는다.
         no_guide = problems_without_guide(call.state)
@@ -116,17 +118,50 @@ class ExtractionInquiryAgent:
         questions: list[QuestionProposal] = []
         analysis: list[ProblemAnalysis] = []
         texts = user_texts(request)
-        for index, extracted in enumerate(extraction.problems[:MAX_PROBLEMS]):
-            original = existing[index] if index < len(existing) else None
-            ref = original.id if original is not None else f"new:{index + 1}"
+        new_count = 0
+        for extracted in extraction.problems[:MAX_PROBLEMS]:
+            grounded = ground(extracted, messages)
+            unknown = ground_unknown(extracted, messages)
+            cited = {message_id for message_id, _ in grounded.values()} | set(unknown.values())
+            linked = [
+                set(messages[message_id].problemIds)
+                for message_id in cited
+                if messages[message_id].problemIds
+            ]
+            ref = extracted.problemRef
+            if ref is None and linked:
+                candidates = set.intersection(*linked) & targets
+                if len(candidates) != 1:
+                    continue
+                ref = candidates.pop()
+            if ref is None and "problemRef" not in extracted.model_fields_set and len(targets) == 1:
+                # 이전 추출 형식에서 인용이 없더라도 단일 대상이면 위치를 추측할 필요가 없다.
+                ref = next(iter(targets))
+            original = None
+            if ref is not None:
+                if ref not in existing:
+                    raise OutputRejected("추출 결과에 알 수 없는 기존 문제 ID가 있다")
+                validate_problem_ref(call.state, ref)
+                original = existing[ref]
+            else:
+                if existing and not any(
+                    not messages[message_id].problemIds for message_id in cited
+                ):
+                    continue
+                new_count += 1
+                ref = f"new:{new_count}"
+            allowed = get_problem_message_ids(call.state, ref)
+            if cited - allowed:
+                # 다른 문제에 연결된 답변이나 미연결 원문을 기존 문제에 넣지 않는다.
+                continue
             # 같은 실행에서 앞서 만든 같은 문제. 다시 호출돼도 이전 확인 사실을 이어받는다.
             previous = call.state["problems"].get(ref)
             problem, question = _assemble(
                 ref,
                 original,
                 extracted,
-                ground(extracted, messages),
-                ground_unknown(extracted, messages),
+                grounded,
+                set(unknown),
                 system_ids,
                 system_names,
                 guide_first=self._guide_first,
@@ -235,17 +270,13 @@ class ExtractionInquiryAgent:
             LLMRequest(
                 messages=[
                     LLMMessage("system", SYSTEM_PROMPT),
-                    LLMMessage(
-                        "user",
-                        build_user_payload(
-                            request.messages,
-                            request.systems,
-                            [(item.id, item.summary, item.intent) for item in request.problems],
-                        ),
-                    ),
+                    LLMMessage("user", build_user_payload(request)),
                 ],
                 response_model=InquiryExtraction,
-                response_schema=extraction_schema([system.code for system in request.systems]),
+                response_schema=extraction_schema(
+                    [system.code for system in request.systems],
+                    request.problemIds or [item.id for item in request.problems],
+                ),
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 prompt_version=PROMPT_VERSION,
             )
