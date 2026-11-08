@@ -39,7 +39,8 @@ public class RelatedMessageService {
             UUID messageId = cursorMessage(ticketId, request.cursor());
             Message previous = messages.findByIdAndInquiryIdAndDeletedAtIsNull(messageId, ticket.getInquiry().getId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT));
-            if (projector.project(previous, ticket.getInquiryProblem().getId(), List.of()).isEmpty()) invalid();
+            if (projector.project(previous, ticket.getInquiryProblem().getId(), List.of(),
+                    projector.restricted(List.of(previous))).isEmpty()) invalid();
             afterSequence = previous.getSequenceNo();
         }
         List<RelatedMessageResponse> visible = new ArrayList<>();
@@ -50,8 +51,9 @@ public class RelatedMessageService {
             if (batch.isEmpty()) break;
             var histories = revisions.findByMessageIds(batch.stream().map(Message::getId).toList()).stream()
                     .collect(Collectors.groupingBy(old -> old.getMessage().getId()));
+            var restricted = projector.restricted(batch);
             for (Message message : batch) {
-                projector.project(message, ticket.getInquiryProblem().getId(), histories.getOrDefault(message.getId(), List.of()))
+                projector.project(message, ticket.getInquiryProblem().getId(), histories.getOrDefault(message.getId(), List.of()), restricted)
                         .ifPresent(visible::add);
                 if (visible.size() > size) break;
             }

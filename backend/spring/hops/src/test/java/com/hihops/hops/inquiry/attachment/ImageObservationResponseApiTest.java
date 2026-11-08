@@ -27,6 +27,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
+import com.hihops.hops.inquiry.repository.MessageRepository;
+import com.hihops.hops.ticket.service.RelatedMessageProjector;
+
 import software.amazon.awssdk.services.s3.S3Client;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -37,6 +40,8 @@ class ImageObservationResponseApiTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired JsonMapper mapper;
+    @Autowired MessageRepository messages;
+    @Autowired RelatedMessageProjector projector;
     @MockitoBean S3Client s3;
     @MockitoBean S3AttachmentStore storage;
     private final UUID department = UUID.randomUUID();
@@ -219,5 +224,14 @@ class ImageObservationResponseApiTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[1].imageObservationQuestions").doesNotExist());
         UUID key = UUID.randomUUID();
         send(owner, key, body(key, 1, List.of(response(first, 1, "CONFIRMED")))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 관찰이_있는_AI_답변은_문의자가_확인한_뒤에도_담당자에게_자동_공개하지_않는다() throws Exception {
+        var answerMessage = messages.findById(answer).orElseThrow();
+        assertThat(projector.restricted(List.of(answerMessage))).containsExactly(answer);
+        UUID key = UUID.randomUUID();
+        send(owner, key, body(key, 1, List.of(response(first, 1, "CONFIRMED")))).andExpect(status().isOk());
+        assertThat(projector.restricted(List.of(answerMessage))).containsExactly(answer);
     }
 }

@@ -254,9 +254,10 @@ public class CurationInputFactory {
      */
     private List<InputMessage> sourceMessages(Ticket ticket, List<Message> inquiryMessages) {
         UUID problemId = ticket.getInquiryProblem().getId();
+        var restricted = relatedMessages.restricted(inquiryMessages);
         var projected = inquiryMessages.stream()
                 .filter(message -> !mapper.readTree(message.getPayload()).path("pendingTarget").asBoolean(false))
-                .flatMap(message -> relatedMessages.project(message, problemId, List.of()).stream()
+                .flatMap(message -> relatedMessages.project(message, problemId, List.of(), restricted).stream()
                         .map(visible -> new InputMessage(message.getId(), message.getRevision(), message.getSequenceNo(),
                                 message.getSenderType(), visible.content(), List.of(problemId), AiRunRequest.time(message.getCreatedAt()))))
                 .toList();

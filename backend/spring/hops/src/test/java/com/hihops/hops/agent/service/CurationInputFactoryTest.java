@@ -1,9 +1,12 @@
 package com.hihops.hops.agent.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -56,6 +59,14 @@ class CurationInputFactoryTest extends TicketCommandFixture {
         return id;
     }
 
+    private UUID analysisFor(UUID answerId, Object messageInput) {
+        UUID run = UUID.randomUUID();
+        String snapshot = mapper.writeValueAsString(Map.of("answerMessageId", answerId.toString(), "messages", messageInput));
+        jdbc.update("INSERT INTO agent_run (id,inquiry_id,task,run_status,input_version,input_snapshot,model_version,prompt_version,schema_version) "
+                + "VALUES (?,?,'INQUIRY_ANALYSIS','QUEUED',1,?::jsonb,'test','test','test')", run, inquiry, snapshot);
+        return run;
+    }
+
     private JsonNode record(String kind) throws Exception {
         int revision = detail().path("ticketRevision").asInt();
         return result(command(staff, "/tickets/" + ticket + "/work-records",
@@ -95,6 +106,41 @@ class CurationInputFactoryTest extends TicketCommandFixture {
         assertThat(byId.get(question.toString()).path("content").asString()).isEqualTo("어떤 파일 형식인가요?");
         byId.values().forEach(item -> assertThat(ids(item.path("problemIds"))).containsExactly(problem.toString()));
         assertThat(byId).doesNotContainKeys(otherProblemAi.toString(), unlinkedAi.toString(), pending.toString());
+    }
+
+    @Test
+    void 이미지_실행의_AI_답변은_담당자_대화와_사례_초안에서_제외한다() throws Exception {
+        UUID user = addLinked("USER", "사용자가 입력한 오류 설명", problem);
+        UUID imageAnswer = addLinked("AI", "이미지에서 본 미확인 관찰", problem);
+        UUID textAnswer = addLinked("AI", "텍스트 전용 질문", problem);
+        UUID invalidAnswer = addLinked("AI", "잘못된 이미지 입력의 답변", problem);
+        UUID payloadAnswer = addLinked("AI", "실행 식별자로 연결한 이미지 답변", problem);
+        analysisFor(imageAnswer, List.of(Map.of("imageAttachments", List.of(Map.of("attachmentId", UUID.randomUUID())))));
+        analysisFor(textAnswer, List.of(Map.of("imageAttachments", List.of())));
+        analysisFor(invalidAnswer, "invalid-input");
+        UUID payloadRun = analysisFor(UUID.randomUUID(), List.of(Map.of("imageAttachments", List.of(Map.of("attachmentId", UUID.randomUUID())))));
+        var payload = (ObjectNode) mapper.readTree(links(problem, "실행 식별자로 연결한 이미지 답변", false));
+        payload.put("answerRunId", payloadRun.toString());
+        jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(payload), payloadAnswer);
+        jdbc.update("UPDATE standard_request SET confirmed_facts=?::jsonb WHERE id=?", mapper.writeValueAsString(List.of(
+                Map.of("text", "이미지 유래 사실", "sourceMessageIds", List.of(imageAnswer.toString()), "knowledgeEvidenceIds", List.of()))), standard);
+
+        var response = mvc.perform(as(staff, get("/api/v2/tickets/{id}/related-messages", ticket)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var visible = json(response).path("items");
+        assertThat(visible.toString()).contains(user.toString(), textAnswer.toString())
+                .doesNotContain(imageAnswer.toString(), invalidAnswer.toString(), payloadAnswer.toString(), "미확인 관찰");
+        String cursor = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                ("1:" + ticket + ":" + imageAnswer).getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        mvc.perform(as(staff, get("/api/v2/tickets/{id}/related-messages", ticket).param("cursor", cursor)))
+                .andExpect(status().isBadRequest());
+        assertThat(detail().toString()).doesNotContain("이미지 유래 사실");
+
+        record("VERIFIED_RESOLUTION");
+        var context = curationInput().path("messages").toString();
+        assertThat(context).contains(user.toString(), textAnswer.toString())
+                .doesNotContain(imageAnswer.toString(), invalidAnswer.toString(), payloadAnswer.toString(), "미확인 관찰");
+        assertThat(curationInput().path("problems").toString()).doesNotContain("이미지 유래 사실");
     }
 
     @Test

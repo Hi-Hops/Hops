@@ -25,10 +25,12 @@ public class TicketEvidence {
         if (!systems.findActivePrimaryOwnerId(ticket.getResponsibleSystem().getId()).filter(member.getId()::equals).isPresent()) {
             return List.of();
         }
-        var allowed = messages.findAllById(ids).stream()
+        var candidates = messages.findAllById(ids);
+        var restricted = projector.restricted(candidates);
+        var allowed = candidates.stream()
                 .filter(message -> !message.isDeleted() && message.getMessageStatus() == MessageStatus.COMPLETED
                         && message.getInquiry().getId().equals(ticket.getInquiry().getId()))
-                .filter(message -> projector.project(message, ticket.getInquiryProblem().getId(), List.of()).isPresent())
+                .filter(message -> projector.project(message, ticket.getInquiryProblem().getId(), List.of(), restricted).isPresent())
                 .map(message -> message.getId()).toList();
         return ids.stream().filter(allowed::contains).distinct().toList();
     }

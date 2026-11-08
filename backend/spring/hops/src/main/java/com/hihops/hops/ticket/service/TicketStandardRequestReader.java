@@ -45,10 +45,12 @@ public class TicketStandardRequestReader {
         var sourceIds = Stream.concat(storedFacts.stream(), storedAssumptions.stream())
                 .flatMap(item -> item.sourceMessageIds().stream()).collect(Collectors.toCollection(HashSet::new));
         sourceIds.addAll(evidence);
-        var allowedMessages = messages.findAllById(sourceIds).stream()
+        var candidatesByMessage = messages.findAllById(sourceIds);
+        var restricted = projector.restricted(candidatesByMessage);
+        var allowedMessages = candidatesByMessage.stream()
                 .filter(message -> !message.isDeleted() && message.getMessageStatus() == MessageStatus.COMPLETED
                         && message.getInquiry().getId().equals(value.getInquiryProblem().getInquiry().getId()))
-                .filter(message -> projector.project(message, value.getInquiryProblem().getId(), List.of()).isPresent())
+                .filter(message -> projector.project(message, value.getInquiryProblem().getId(), List.of(), restricted).isPresent())
                 .map(message -> message.getId()).collect(Collectors.toSet());
         var facts = storedFacts.stream().filter(item -> allowedMessages.containsAll(item.sourceMessageIds())
                 && allowedIds.containsAll(item.knowledgeEvidenceIds())

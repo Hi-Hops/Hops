@@ -1,10 +1,12 @@
 package com.hihops.hops.ticket.service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Set;
 
 import org.springframework.stereotype.Component;
 
@@ -22,8 +24,16 @@ import tools.jackson.databind.JsonNode;
 @RequiredArgsConstructor
 public class RelatedMessageProjector {
     private final TicketStoredData data;
+    private final ImageDerivedMessageReader imageDerivedMessages;
 
-    public Optional<RelatedMessageResponse> project(Message message, UUID problemId, List<MessageRevision> history) {
+    /** 각 조회 범위의 이미지 유래 답변을 한 번에 확인한다. */
+    public Set<UUID> restricted(Collection<Message> messages) {
+        return imageDerivedMessages.restricted(messages);
+    }
+
+    public Optional<RelatedMessageResponse> project(Message message, UUID problemId, List<MessageRevision> history,
+            Set<UUID> restricted) {
+        if (restricted.contains(message.getId())) return Optional.empty();
         JsonNode links = data.parse(message.getPayload()).path("problemLinks");
         Optional<String> content = content(message.getContent(), message.getRevision(), problemId, links);
         if (content.isEmpty()) return Optional.empty();
