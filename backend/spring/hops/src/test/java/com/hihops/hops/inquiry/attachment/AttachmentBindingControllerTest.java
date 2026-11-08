@@ -98,6 +98,19 @@ class AttachmentBindingControllerTest {
                 + "WHERE id=(SELECT current_run_id FROM inquiry WHERE id=?)", inquiry);
     }
 
+    private UUID imageDerivedAnswer(UUID inquiry) {
+        UUID run = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        UUID answer = UUID.randomUUID();
+        jdbc.update("INSERT INTO message(id,inquiry_id,sequence_no,sender_type,content,message_status,payload) "
+                + "VALUES (?,?,2,'AI','가상 이미지 관찰','COMPLETED',?::jsonb)", answer, inquiry,
+                mapper.writeValueAsString(Map.of("answerRunId", run)));
+        jdbc.update("UPDATE agent_run SET run_status='SUCCEEDED', started_at=now(), completed_at=now(), "
+                + "input_snapshot=jsonb_set(jsonb_set(input_snapshot,'{answerMessageId}',to_jsonb(?::text)), "
+                + "'{messages,0,imageAttachments}',?::jsonb) WHERE id=?", answer.toString(),
+                mapper.writeValueAsString(List.of(Map.of("attachmentId", UUID.randomUUID(), "digest", "a".repeat(64)))), run);
+        return answer;
+    }
+
     private UUID problem(UUID inquiry, int number) {
         UUID id = UUID.randomUUID();
         UUID run = UUID.randomUUID();
@@ -639,6 +652,46 @@ class AttachmentBindingControllerTest {
         send(owner, inquiry, validKey, List.of(good)).andExpect(status().isOk());
         assertThat(state(good)).isEqualTo("BOUND");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id = ?", Integer.class, inquiry)).isEqualTo(2);
+    }
+
+    @Test
+    void 이미지_유래_답변을_포함하는_텍스트_실행은_거부하고_메시지도_되돌린다() throws Exception {
+        UUID request = UUID.randomUUID();
+        String created = create(owner, request, createBody(request, null)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(created).path("resource").path("id").asString());
+        imageDerivedAnswer(inquiry);
+        UUID run = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+
+        send(owner, inquiry, UUID.randomUUID(), List.of()).andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id=?", Integer.class, inquiry)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=?", Integer.class, inquiry)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry)).isEqualTo(run);
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id=?", Integer.class, inquiry)).isEqualTo(1);
+    }
+
+    @Test
+    void 이전에_저장한_이미지_유래_텍스트_실행도_재시도하지_않는다() throws Exception {
+        UUID request = UUID.randomUUID();
+        String created = create(owner, request, createBody(request, null)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(created).path("resource").path("id").asString());
+        UUID answer = imageDerivedAnswer(inquiry);
+        UUID failed = UUID.randomUUID();
+        String snapshot = mapper.writeValueAsString(Map.of("answerMessageId", UUID.randomUUID(),
+                "messages", List.of(Map.of("sender", "AI", "id", answer))));
+        UUID trigger = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id=? AND sequence_no=1", UUID.class, inquiry);
+        jdbc.update("INSERT INTO agent_run(id,inquiry_id,trigger_message_id,task,run_status,input_version,input_snapshot,model_version,prompt_version,schema_version,error_code,started_at,completed_at) "
+                + "VALUES (?,?,?,'INQUIRY_ANALYSIS','FAILED',1,?::jsonb,'test','test','test','MODEL_UNAVAILABLE',now(),now())",
+                failed, inquiry, trigger, snapshot);
+        jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", failed, inquiry);
+        UUID retryKey = UUID.randomUUID();
+        mvc.perform(post("/api/v2/runs/{id}/retries", failed).with(jwt().jwt(token -> token.subject(owner.toString())))
+                .header("Idempotency-Key", retryKey).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsBytes(Map.of("requestId", retryKey, "expectedInquiryVersion", 1))))
+                .andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=?", Integer.class, inquiry)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry)).isEqualTo(failed);
     }
 
     @Test

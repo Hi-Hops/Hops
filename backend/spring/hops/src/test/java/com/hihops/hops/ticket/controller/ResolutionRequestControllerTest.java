@@ -88,6 +88,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
         input.putArray("messages");
         input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?", input.toString(), analysis);
         var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
                 .put("requiresFollowUp", true);
         output.putArray("problemProposals");
@@ -116,6 +117,7 @@ class ResolutionRequestControllerTest extends TicketCommandFixture {
         var input = mapper.createObjectNode().put("answerMessageId", UUID.randomUUID().toString());
         input.putArray("messages");
         input.putObject("accessContext").put("actorId", requester.toString()).put("policyRevision", 1);
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?", input.toString(), analysis);
         var output = mapper.createObjectNode().put("answer", "문의 내용을 조금 더 알려주시겠어요?")
                 .put("requiresFollowUp", true);
         output.putArray("problemProposals");

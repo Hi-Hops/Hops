@@ -43,6 +43,7 @@ public class AnalysisInputFactory {
     private final AnalysisRunProperties properties;
     private final JsonMapper jsonMapper;
     private final ImageRunReferences imageReferences;
+    private final ImageInputProvenanceGuard imageProvenance;
 
     /**
      * @param run              저장해서 ID가 정해진 대기 실행
@@ -71,6 +72,7 @@ public class AnalysisInputFactory {
         if (onlyImages != null && images.values().stream().flatMap(List::stream).count() != onlyImages.size()) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "선택한 이미지의 분석 대상을 확인할 수 없습니다.");
         }
+        if (images.isEmpty()) imageProvenance.requireTextSafe(messages);
         AiRunRequest request = new AiRunRequest(CONTRACT_VERSION, run.getId(), "INQUIRY_ANALYSIS", inquiry.getId(),
                 run.getInputVersion(), UUID.randomUUID(), List.copyOf(targetProblemIds),
                 messages.stream().map(message -> input(message, images.get(message.getId()))).toList(), problems.problems(), systems, access,
@@ -89,6 +91,7 @@ public class AnalysisInputFactory {
     public String retrySnapshot(AgentRun failed, AgentRun run, Inquiry inquiry, List<SupportedSystemResponse> systems,
             Instant now) {
         ObjectNode request = (ObjectNode) jsonMapper.readTree(failed.getInputSnapshot());
+        imageProvenance.requireRetrySafe(request, inquiry.getId());
         request.put("runId", run.getId().toString());
         request.put("answerMessageId", UUID.randomUUID().toString());
         request.put("expiresAt", AiRunRequest.time(now.plus(properties.deadline())));
