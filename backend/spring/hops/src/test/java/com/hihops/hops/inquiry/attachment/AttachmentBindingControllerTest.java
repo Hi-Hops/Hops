@@ -39,7 +39,8 @@ import tools.jackson.databind.json.JsonMapper;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @SpringBootTest(properties = {"hops.image-attachments.message-link-enabled=true",
-        "hops.image-attachments.enabled=true", "hops.image-attachments.bucket=test-private"})
+        "hops.image-attachments.enabled=true", "hops.image-attachments.bucket=test-private",
+        "SPRING_SERVICE_TOKEN=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"})
 @AutoConfigureMockMvc
 @ActiveProfiles({"db", "test"})
 class AttachmentBindingControllerTest {
@@ -227,6 +228,53 @@ class AttachmentBindingControllerTest {
         });
         mvc.perform(get("/api/v2/inquiries/" + inquiry + "/image-attachments/" + id + "/content")
                 .with(jwt().jwt(token -> token.subject(owner.toString())))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 내부_이미지_조회는_서비스_인증과_실행_참조_버전_무결성을_확인한다() throws Exception {
+        UUID id = attachment(owner, "READY", false);
+        byte[] png = {1, 2, 3};
+        String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(png));
+        jdbc.update("UPDATE image_attachment SET content_sha256 = ? WHERE id = ?", digest, id);
+        UUID request = UUID.randomUUID();
+        String response = create(owner, request, createBody(request, List.of(id))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(response).path("resource").path("id").asString());
+        UUID run = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id = ?", UUID.class, inquiry);
+        String snapshot = jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id = ?", String.class, run);
+        assertThat(snapshot).contains(id.toString(), digest).doesNotContain("AQID");
+        String path = "/internal/v2/runs/" + run + "/image-attachments/" + id + "?inquiryVersion=1";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).with(jwt().jwt(token -> token.subject(owner.toString())))).andExpect(status().isUnauthorized());
+        String auth = "Bearer " + "A".repeat(43);
+        mvc.perform(get("/internal/v2/runs/" + run + "/image-attachments/" + UUID.randomUUID() + "?inquiryVersion=1")
+                .header("Authorization", auth)).andExpect(status().isNotFound());
+        verify(store, never()).get(any());
+        when(store.get(id)).thenReturn(png, new byte[]{3, 2, 1});
+        mvc.perform(get(path).header("Authorization", auth)).andExpect(status().isOk()).andExpect(content().bytes(png))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")));
+        mvc.perform(get(path).header("Authorization", auth)).andExpect(status().isServiceUnavailable());
+        jdbc.update("UPDATE message SET revision = 2 WHERE inquiry_id = ?", inquiry);
+        mvc.perform(get(path).header("Authorization", auth)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 내부_이미지를_읽는_동안_문의_버전이_바뀌면_바이트를_반환하지_않는다() throws Exception {
+        UUID id = attachment(owner, "READY", false);
+        byte[] png = {1, 2, 3};
+        jdbc.update("UPDATE image_attachment SET content_sha256 = ? WHERE id = ?",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(png)), id);
+        UUID request = UUID.randomUUID();
+        String response = create(owner, request, createBody(request, List.of(id))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(response).path("resource").path("id").asString());
+        UUID run = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id = ?", UUID.class, inquiry);
+        when(store.get(id)).thenAnswer(invocation -> {
+            jdbc.update("UPDATE inquiry SET version = version + 1 WHERE id = ?", inquiry);
+            return png;
+        });
+        mvc.perform(get("/internal/v2/runs/" + run + "/image-attachments/" + id + "?inquiryVersion=1")
+                .header("Authorization", "Bearer " + "A".repeat(43))).andExpect(status().isConflict());
     }
 
     private UUID attachment(UUID actor, String state, boolean expired) {

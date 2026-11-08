@@ -21,7 +21,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 /**
  * Spring → AI 실행 입력 (contracts/agents/README.md AiRunRequest). agent_run.input_snapshot에 이 JSON을 그대로 고정한다.
  *
- * <p>AI 서버는 계약에 없는 필드를 거부한다(extra=forbid). 그래서 필드를 더하거나 빼지 않고, null 값도 키를 생략하지 않는다.
+ * <p>AI 서버는 계약에 없는 필드를 거부한다(extra=forbid). 선택 이미지 참조가 없는 기존 입력은 필드를 생략한다.
  * 시각은 UTC RFC 3339 Z 문자열이며 소수초는 최대 6자리다 ({@link #time}).
  *
  * <p>resolutionContext는 아직 투영하지 않아 null을 보낸다.
@@ -33,8 +33,16 @@ public record AiRunRequest(String contractVersion, UUID runId, String kind, UUID
 
     /** AI에 보여 줄 저장된 메시지. revision·content는 현재 저장값이다. */
     public record InputMessage(UUID id, int revision, int sequenceNo, SenderType sender, String content,
-            List<UUID> problemIds, String createdAt) {
+            List<UUID> problemIds, String createdAt,
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) @Nullable List<ImageRef> imageAttachments) {
+        public InputMessage(UUID id, int revision, int sequenceNo, SenderType sender, String content,
+                List<UUID> problemIds, String createdAt) {
+            this(id, revision, sequenceNo, sender, content, problemIds, createdAt, null);
+        }
     }
+
+    /** 이미지 바이트나 저장소 위치가 없는 실행 입력 참조. */
+    public record ImageRef(UUID attachmentId, String digest) { }
 
     /**
      * 기존 문제. 상태·질문 수는 inquiry_problem, 의도·처리 유형·시스템·요청서는 최신 적용 실행의 standard_request에서 읽는다.

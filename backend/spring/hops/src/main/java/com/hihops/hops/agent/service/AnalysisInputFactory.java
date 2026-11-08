@@ -2,6 +2,7 @@ package com.hihops.hops.agent.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
@@ -10,6 +11,7 @@ import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.dto.AiRunRequest;
 import com.hihops.hops.agent.dto.AiRunRequest.AccessContext;
 import com.hihops.hops.agent.dto.AiRunRequest.InputMessage;
+import com.hihops.hops.agent.dto.AiRunRequest.ImageRef;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
@@ -36,6 +38,7 @@ public class AnalysisInputFactory {
 
     private final AnalysisRunProperties properties;
     private final JsonMapper jsonMapper;
+    private final ImageRunReferences imageReferences;
 
     /**
      * @param run              저장해서 ID가 정해진 대기 실행
@@ -48,9 +51,10 @@ public class AnalysisInputFactory {
     public String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, InputProblemReader.ProblemInputs problems,
             List<UUID> targetProblemIds, List<SupportedSystemResponse> systems, Instant now) {
         AccessContext access = accessOf(inquiry, systems);
+        Map<UUID, List<ImageRef>> images = imageReferences.forMessages(inquiry.getRequester().getId(), messages);
         AiRunRequest request = new AiRunRequest(CONTRACT_VERSION, run.getId(), "INQUIRY_ANALYSIS", inquiry.getId(),
                 run.getInputVersion(), UUID.randomUUID(), List.copyOf(targetProblemIds),
-                messages.stream().map(this::input).toList(), problems.problems(), systems, access,
+                messages.stream().map(message -> input(message, images.get(message.getId()))).toList(), problems.problems(), systems, access,
                 problems.existingWorkItems(), null,
                 AiRunRequest.time(now.plus(properties.deadline())), properties.limits());
         return jsonMapper.writeValueAsString(request);
@@ -84,10 +88,10 @@ public class AnalysisInputFactory {
     }
 
     // 문제 연결은 서버가 확인해 payload.problemLinks에 둔 값이다 (docs/DATA.md 11.3)
-    private InputMessage input(Message message) {
+    private InputMessage input(Message message, List<ImageRef> images) {
         List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
                 .problemIds(message.getRevision());
         return new InputMessage(message.getId(), message.getRevision(), message.getSequenceNo(), message.getSenderType(),
-                message.getContent(), problemIds, AiRunRequest.time(message.getCreatedAt()));
+                message.getContent(), problemIds, AiRunRequest.time(message.getCreatedAt()), images);
     }
 }

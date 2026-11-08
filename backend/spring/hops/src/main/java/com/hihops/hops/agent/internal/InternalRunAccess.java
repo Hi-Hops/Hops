@@ -52,6 +52,8 @@ class InternalRunAccess {
         // 읽기 전용 API라 문의 행을 잠그지 않는다(findByIdAndDeletedAtIsNull은 쓰기 잠금이라 읽기 전용 거래에서 실패한다).
         Inquiry inquiry = inquiries.findById(run.getInquiry().getId()).filter(found -> !found.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        entities.refresh(inquiry);
+        if (inquiry.isDeleted()) throw new BusinessException(ErrorCode.NOT_FOUND);
         // 취소·교체된 실행의 캐시를 쓰지 않는다.
         entities.refresh(run);
         AiRunRequest input = mapper.readValue(run.getInputSnapshot(), AiRunRequest.class);
