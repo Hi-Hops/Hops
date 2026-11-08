@@ -224,7 +224,10 @@ def finalize_result(
     image_proposals = []
     if image_observations:
         bound = bind_image_questions(
-            request, list(candidate["questions"].values()), image_observations
+            request,
+            list(candidate["questions"].values()),
+            image_observations,
+            proposals=list(candidate["problems"].values()),
         )
         if bound.unlinked:
             raise OutputRejected("이미지 관찰을 확인 질문에 연결할 수 없다")

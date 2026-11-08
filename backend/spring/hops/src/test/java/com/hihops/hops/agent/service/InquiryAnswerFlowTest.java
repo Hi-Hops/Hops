@@ -484,6 +484,50 @@ class InquiryAnswerFlowTest {
     }
 
     @Test
+    void 첫_문의의_새_문제와_질문에_연결된_이미지_관찰을_실제_ID로_저장한다() throws Exception {
+        UUID inquiryId = createInquiry("결재 오류 화면을 확인해 주세요");
+        UUID runId = runOf(inquiryId);
+        UUID userMessage = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id=? AND sender_type='USER'", UUID.class, inquiryId);
+        UUID image = UUID.randomUUID();
+        UUID operation = UUID.randomUUID();
+        jdbc.update("INSERT INTO idempotency_key (actor_member_id, contract_version, http_method, request_path, idempotency_key, request_hash, operation_id, operation_state, expires_at) "
+                + "VALUES (?, 'test', 'POST', '/test/image', ?, ?, ?, 'PENDING', now() + interval '1 day')", memberId, operation.toString(), "a".repeat(64), operation);
+        jdbc.update("INSERT INTO image_attachment (id, owner_member_id, operation_id, input_sha256, content_sha256, byte_size, attachment_status, message_id, message_position) "
+                + "VALUES (?, ?, ?, ?, ?, 1, 'BOUND', ?, 0)", image, memberId, operation, "a".repeat(64), "b".repeat(64), userMessage);
+        var input = (tools.jackson.databind.node.ObjectNode) jsonMapper.readTree(jdbc.queryForObject(
+                "SELECT input_snapshot::text FROM agent_run WHERE id=?", String.class, runId));
+        ((tools.jackson.databind.node.ObjectNode) input.path("messages").get(0)).putArray("imageAttachments")
+                .addObject().put("attachmentId", image.toString()).put("digest", "b".repeat(64));
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?", input.toString(), runId);
+        String question = "어느 화면인가요?\n\n화면에 ‘오류 안내’가 보이나요?";
+        var snapshot = (tools.jackson.databind.node.ObjectNode) succeeded(runId, inquiryId, 1, question);
+        var result = (tools.jackson.databind.node.ObjectNode) snapshot.path("result");
+        var proposal = result.putArray("problemProposals").addObject().put("problemRef", "new:one")
+                .put("summary", "결재 오류").put("intent", "OBSERVED_SYMPTOM").put("processingType", "INVESTIGATION")
+                .put("reportedSystemCandidateId", systemId.toString());
+        proposal.putArray("facts").addObject().put("text", "결재 오류 화면").putArray("sourceMessageIds").add(userMessage.toString());
+        ((tools.jackson.databind.node.ObjectNode) proposal.path("facts").get(0)).putArray("knowledgeEvidenceIds");
+        proposal.putArray("assumptions"); proposal.putArray("unknowns");
+        proposal.set("details", jsonMapper.valueToTree(new com.hihops.hops.ticket.dto.StandardRequestResponse.RequestDetailsResponse(
+                null, null, null, null, null, null, null, null, List.of())));
+        result.putArray("questions").addObject().put("problemRef", "new:one").put("bundleRef", "first-question")
+                .put("text", question).putArray("requestedFields").add("taskOrScreen");
+        result.putArray("imageObservations").addObject().put("observationRef", "img-" + image)
+                .put("attachmentId", image.toString()).put("messageId", userMessage.toString()).put("messageRevision", 1)
+                .put("problemRef", "new:one").put("text", "오류 안내").put("questionRef", "first-question");
+        when(client.snapshot(runId.toString())).thenReturn(snapshot);
+
+        dispatcher.deliver(runId);
+
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, runId)).isEqualTo("SUCCEEDED");
+        UUID problem = jdbc.queryForObject("SELECT id FROM inquiry_problem WHERE inquiry_id=?", UUID.class, inquiryId);
+        assertThat(jdbc.queryForObject("SELECT clarify_count FROM inquiry_problem WHERE id=?", Integer.class, problem)).isEqualTo(1);
+        assertThat(jdbc.queryForMap("SELECT problem_id, observation_state, question_bundle_ref FROM image_observation WHERE run_id=?", runId))
+                .containsEntry("problem_id", problem).containsEntry("observation_state", "UNCONFIRMED")
+                .containsEntry("question_bundle_ref", "first-question");
+    }
+
+    @Test
     void 접수한_문의에_AI_답변이_예약한_ID로_저장되고_실행이_성공으로_끝난다() throws Exception {
         UUID inquiryId = createInquiry("결재 문서가 안 열려요");
         UUID runId = runOf(inquiryId);

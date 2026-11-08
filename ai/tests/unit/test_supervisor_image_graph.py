@@ -9,13 +9,14 @@ import pytest
 
 from hops_ai.agents.inquiry.image_observations import ImageObservation, ImageObservations
 from hops_ai.contracts.domain import AgentRole
-from hops_ai.contracts.wire import AiRunRequest
+from hops_ai.contracts.roles import InquiryResult
+from hops_ai.contracts.wire import AiRunRequest, QuestionProposal
 from hops_ai.harness.errors import InputRejected
 from hops_ai.services.attachments import SpringImageReader
 from hops_ai.services.tracing import RunTracing
 from hops_ai.settings import Settings
 from hops_ai.supervisor.graph import Supervisor
-from tests.supervisor_fixtures import make_request
+from tests.supervisor_fixtures import make_problem, make_request
 from tests.unit.test_supervisor_graph import InquiryStub, ScriptedLLM, decision, services_for
 
 PNG = b"\x89PNG\r\n\x1a\nfixture"
@@ -110,6 +111,45 @@ async def test_ambiguous_image_fails_instead_of_silently_discarding_observation(
     assert result.status == "FAILED"
     assert result.error is not None and result.error.code == "INVALID_OUTPUT"
     assert result.answer is None and result.questions == result.imageObservations == []
+
+
+async def test_first_inquiry_with_one_sourced_new_problem_produces_confirmation() -> None:
+    request, ids = image_fixture(problem_ids=[])
+    payload = request.model_dump(mode="json")
+    payload["problemIds"] = []
+    payload["problems"] = []
+    request = AiRunRequest.model_validate(payload)
+
+    class NewInquiry:
+        role = AgentRole.INQUIRY
+
+        async def run(self, role_request, services):
+            return InquiryResult(
+                invocationId=role_request.invocation_id,
+                problems=[make_problem("new:one")],
+                questions=[
+                    QuestionProposal(
+                        problemRef="new:one",
+                        bundleRef="first-question",
+                        text="어느 화면인가요?",
+                        requestedFields=["taskOrScreen"],
+                    )
+                ],
+            )
+
+    model = ScriptedLLM(
+        ImageObservations(observations=[ImageObservation(attachmentId=ids[0], text="오류 안내")]),
+        decision("CALL_ROLE", AgentRole.INQUIRY),
+        decision("ASK_USER"),
+    )
+    result = await Supervisor({AgentRole.INQUIRY: NewInquiry()}, image_reader=reader(ok)).analyze(
+        request, services_for(request, model)
+    )
+    assert result.status == "SUCCEEDED"
+    assert result.imageObservations[0].problemRef == "new:one"
+    assert result.imageObservations[0].questionRef == "first-question"
+    assert result.answer is not None and "오류 안내" in result.answer
+    result.validate_image_observations_for(request)
 
 
 async def test_image_model_call_shares_budget_with_supervisor() -> None:

@@ -109,3 +109,57 @@ def test_duplicate_problem_questions_are_rejected() -> None:
     request, question, observations = fixture()
     with pytest.raises(OutputRejected):
         bind_image_questions(request, [question, question], observations)
+
+
+def test_first_inquiry_binds_only_single_new_problem_citing_image_message() -> None:
+    request, question, observations = fixture(problem_ids=[])
+    payload = request.model_dump(mode="json")
+    payload["problems"] = []
+    payload["problemIds"] = []
+    request = AiRunRequest.model_validate(payload)
+    proposal = make_problem("new:one")
+    question = question.model_copy(update={"problemRef": "new:one"})
+
+    bound = bind_image_questions(request, [question], observations, proposals=[proposal])
+
+    assert not bound.unlinked
+    assert all(item.problemRef == "new:one" for item in bound.observations)
+    assert all(item.text in bound.questions[0].text for item in bound.observations)
+    result = AiResult.model_validate(
+        {
+            "contractVersion": request.contractVersion,
+            "runId": request.runId,
+            "kind": request.kind,
+            "inquiryId": request.inquiryId,
+            "inquiryVersion": request.inquiryVersion,
+            "status": "SUCCEEDED",
+            "answer": bound.questions[0].text,
+            "problemProposals": [proposal.model_dump()],
+            "questions": [item.model_dump() for item in bound.questions],
+            "guide": None,
+            "ticketProposals": [],
+            "caseProposal": None,
+            "evidence": [],
+            "error": None,
+            "imageObservations": [item.model_dump() for item in bound.observations],
+        }
+    )
+    result.validate_image_observations_for(request)
+
+
+@pytest.mark.parametrize("case", ["no-source", "two-problems", "existing-problem"])
+def test_first_inquiry_never_guesses_unconfirmed_problem(case: str) -> None:
+    request, question, observations = fixture(problem_ids=[])
+    payload = request.model_dump(mode="json")
+    if case != "existing-problem":
+        payload["problems"] = []
+        payload["problemIds"] = []
+    request = AiRunRequest.model_validate(payload)
+    proposal = make_problem("new:one")
+    if case == "no-source":
+        proposal = proposal.model_copy(update={"facts": []})
+    proposals = [proposal, make_problem("new:two")] if case == "two-problems" else [proposal]
+    question = question.model_copy(update={"problemRef": "new:one"})
+    bound = bind_image_questions(request, [question], observations, proposals=proposals)
+    assert bound.observations == ()
+    assert bound.unlinked == tuple(observations)
