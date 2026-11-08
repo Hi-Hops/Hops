@@ -1,5 +1,6 @@
 """검증된 State를 외부 AiResult로 확정한다. 업무 저장 성공을 만들지 않는다."""
 
+from hops_ai.agents.inquiry.image_observations import ImageObservation
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import AiResult
 from hops_ai.harness.errors import OutputRejected
@@ -10,6 +11,7 @@ from hops_ai.rules.proposals import (
     validate_statements,
     validate_ticket,
 )
+from hops_ai.supervisor.image_questions import bind_image_questions
 from hops_ai.supervisor.state import SupervisorState, transition_phase
 from hops_ai.supervisor.validation import (
     ensure_active,
@@ -171,7 +173,9 @@ def _validate_final_state(state: SupervisorState) -> None:
         validate_ticket(state, ticket)
 
 
-def finalize_result(state: SupervisorState) -> SupervisorState:
+def finalize_result(
+    state: SupervisorState, *, image_observations: list[ImageObservation] | None = None
+) -> SupervisorState:
     """새 제안을 최종 AiResult로 고정한 State를 반환한다.
 
     Args:
@@ -188,6 +192,8 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
         DeadlineExceeded / RunCancelled / BudgetExceeded: 실행 기한·취소·누적 한도 위반.
     """
     if state["finalResult"] is not None:
+        if image_observations:
+            raise OutputRejected("완료된 결과에 이미지 관찰을 추가할 수 없다")
         return state
 
     request = state["input"]
@@ -215,6 +221,20 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
     if state["phase"] not in ("RUNNING", "FINALIZING") or state["activeRole"] is not None:
         raise OutputRejected("역할 실행을 마친 뒤에만 최종화할 수 있다")
     candidate = transition_phase(state, "FINALIZING")
+    image_proposals = []
+    if image_observations:
+        bound = bind_image_questions(
+            request, list(candidate["questions"].values()), image_observations
+        )
+        if bound.unlinked:
+            raise OutputRejected("이미지 관찰을 확인 질문에 연결할 수 없다")
+        candidate = {
+            **candidate,
+            "questions": {
+                (question.problemRef, question.bundleRef): question for question in bound.questions
+            },
+        }
+        image_proposals = list(bound.observations)
     _validate_final_state(candidate)
     validate_completion(candidate)
 
@@ -240,6 +260,7 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
             # 되묻기만 사용자 답을 기다린다. 인사·감사 응답은 처리 중인 문제의 완료를 막지 않는다.
             requiresFollowUp=is_reply(candidate) and candidate["replyKind"] == "CLARIFY",
             ticketCreationResults=list(candidate["ticketCreationResults"].values()),
+            imageObservations=image_proposals,
         )
     else:
         if (
@@ -268,5 +289,10 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
 
     # 중첩 모델도 다시 검증하고 복사하여, 최종 결과와 작업 map의 가변 목록을 분리한다.
     result = AiResult.model_validate(result.model_dump(mode="json"))
+    if image_proposals:
+        try:
+            result.validate_image_observations_for(request)
+        except ValueError as error:
+            raise OutputRejected("이미지 관찰의 출처를 확인할 수 없다") from error
     candidate = {**candidate, "answer": result.answer, "finalResult": result}
     return transition_phase(candidate, "SUCCEEDED")

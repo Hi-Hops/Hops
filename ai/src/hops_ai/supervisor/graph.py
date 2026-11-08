@@ -14,12 +14,14 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from hops_ai.agents.base import Agent, PendingAgent, pending_agents
+from hops_ai.agents.inquiry.image_observations import ImageObservation
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.roles import InquiryResult
 from hops_ai.contracts.wire import AiResult, AiRunRequest
 from hops_ai.harness.errors import InputRejected, OutputRejected
 from hops_ai.rules.legal_actions import legal_actions, run_actions
+from hops_ai.services.attachments import SpringImageReader
 from hops_ai.services.shared import SharedServices
 from hops_ai.supervisor.choices import Choices, compute_choices
 from hops_ai.supervisor.decision import (
@@ -31,6 +33,7 @@ from hops_ai.supervisor.decisions import apply_decision, apply_reply, prepare_de
 from hops_ai.supervisor.execution import execute_role
 from hops_ai.supervisor.facts import pending_problem_refs, problem_facts
 from hops_ai.supervisor.finalize import finalize_result
+from hops_ai.supervisor.image_observations import observe_run_images
 from hops_ai.supervisor.runtime import (
     SupervisorRuntime,
     describe_failure_for_log,
@@ -96,6 +99,7 @@ class Supervisor:
         *,
         restrict_roles: bool = False,
         problem_actions: bool = False,
+        image_reader: SpringImageReader | None = None,
     ) -> None:
         """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다.
 
@@ -106,6 +110,7 @@ class Supervisor:
         self._restrict_roles = restrict_roles
         # 참이면 상담 실행을 문제별 행동 경로로 돈다(판정 모드). 사례 초안은 기존 경로 그대로다.
         self._problem_actions = problem_actions
+        self._image_reader = image_reader
 
     async def analyze(self, request: AiRunRequest, services: SharedServices) -> AiResult:
         """문의 분석 또는 사례 초안 실행을 최종 AiResult로 반환한다.
@@ -128,6 +133,13 @@ class Supervisor:
         """
         if not isinstance(request, AiRunRequest) or not isinstance(services, SharedServices):
             raise InputRejected("실행 요청과 공유 서비스가 필요하다")
+        has_images = any(message.imageAttachments for message in request.messages)
+        if has_images and (
+            self._image_reader is None
+            or services.ticket_tools is not None
+            or services.tracing.capture_content
+        ):
+            raise InputRejected("이미지 실행의 안전한 연결이 준비되지 않았다")
         # 판정 모드는 상담 실행에서만 쓴다. 사례 초안은 Curator를 쓰는 기존 경로다.
         judgment = self._problem_actions and request.kind == RunKind.INQUIRY_ANALYSIS
         initial = create_initial_state(request, judgment=judgment)
@@ -139,9 +151,23 @@ class Supervisor:
             # 각 순환은 모델 호출을 소비한다. 그래프 자체 한도도 호출 상한에 맞춘다.
             limit = min(request.limits.maxModelCalls, services.runtime.budget.max_llm_calls)
             recursion_limit = PROBLEM_GRAPH_RECURSION_LIMIT if judgment else 2 * limit + 4
-            await runtime.run(self._stream(runtime, last, recursion_limit, judgment=judgment))
+
+            async def execute() -> list[ImageObservation]:
+                observations: list[ImageObservation] = []
+                if has_images:
+                    assert self._image_reader is not None
+                    observations = await observe_run_images(runtime, self._image_reader)
+                await self._stream(runtime, last, recursion_limit, judgment=judgment)
+                return observations
+
+            observations = await runtime.run(execute())
             # 비동기 실행의 취소·마감 검사를 마친 뒤 결과를 한 번만 고정한다.
-            candidate = finalize_result(runtime.sync_state(last.state))
+            state = runtime.sync_state(last.state)
+            candidate = (
+                finalize_result(state, image_observations=observations)
+                if observations
+                else finalize_result(state)
+            )
             # 본문·출처 검증에 걸린 시간도 서버의 더 짧은 실행 기한에 포함한다.
             # 검사에 실패하면 마지막 확정 State는 FINALIZING이므로 안전한 실패로 끝낼 수 있다.
             services.runtime.ensure_active()
