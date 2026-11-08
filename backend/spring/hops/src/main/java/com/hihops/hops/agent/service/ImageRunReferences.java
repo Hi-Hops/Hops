@@ -13,13 +13,15 @@ import org.springframework.stereotype.Component;
 import com.hihops.hops.agent.dto.AiRunRequest.ImageRef;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
+import com.hihops.hops.inquiry.attachment.AttachmentBindingService;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.SenderType;
 
 /** 실행 입력의 사용자 메시지에 연결된 이미지 참조만 고정한다. 바이트는 조회하지 않는다. */
 @Component
 class ImageRunReferences {
-    private static final int MAX_IMAGES = 5;
+    // 문의 단위 첨부 한도와 같다. 실행 입력에는 문의의 모든 메시지가 들어간다.
+    private static final int MAX_IMAGES = AttachmentBindingService.MAX_IMAGES_PER_INQUIRY;
     private static final long MAX_TOTAL_BYTES = 40L * 1024 * 1024;
     private final NamedParameterJdbcTemplate jdbc;
     private final boolean enabled;

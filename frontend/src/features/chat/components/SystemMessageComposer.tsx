@@ -26,13 +26,17 @@ type SystemMessageComposerProps = {
   onStored: (inquiryId: string) => void;
   disabled?: boolean;
   focusKey?: string;
+  /** 이 문의에 이미 첨부된 이미지 수. 서버가 문의 단위 한도를 최종 검사한다. */
+  usedImages?: number;
 };
+const maxImagesPerInquiry = 5;
 export function SystemMessageComposer({
   inquiry,
   revise,
   onStored,
   disabled = false,
   focusKey,
+  usedImages = 0,
 }: SystemMessageComposerProps) {
   const actor = useSession((s) => s.user?.id);
   const key = `${actor ?? ''}:${revise ? `revision:${revise.id}` : (inquiry?.id ?? 'new')}`;
@@ -75,7 +79,9 @@ export function SystemMessageComposer({
   const blocked = disabled || Boolean(inquiry && !editableInquiryStatus(inquiry.status));
   const imageFeature = import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' && !revise;
   const unfinishedUpload = draftImages.some((image) => image.attempted && !image.attachmentId);
-  const imageEditingLocked = draftImages.some((image) => image.attempted);
+  // 업로드가 끝나고 메시지가 거부되면(예: 문의 한도 초과) 이미지를 다시 고를 수 있어야 한다.
+  const imageEditingLocked = unfinishedUpload;
+  const imageSlots = Math.max(0, maxImagesPerInquiry - usedImages);
   const needsImageConfirmation = selectedImages > 0 && draftImages.length !== selectedImages;
   async function submit(confirm = false) {
     if (
@@ -216,9 +222,15 @@ export function SystemMessageComposer({
           />{' '}
           보낼 내용에 비밀번호와 불필요한 개인정보가 없는지 확인했어요.
         </label>
-        {imageFeature && (
+        {imageFeature && imageSlots === 0 && draftImages.length === 0 && (
+          <p className={styles.helper}>
+            이 문의에는 이미지를 최대 {maxImagesPerInquiry}장까지 첨부할 수 있어요.
+          </p>
+        )}
+        {imageFeature && (imageSlots > 0 || draftImages.length > 0) && (
           <>
             <ImageAttachmentEditor
+              maxImages={imageSlots}
               key={`${key}:${String(editorVersion)}`}
               disabled={blocked || busy || Boolean(pending) || imageEditingLocked}
               onSelectionChange={(count) => {

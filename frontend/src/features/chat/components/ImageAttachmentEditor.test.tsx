@@ -102,3 +102,15 @@ it('이미지 개수 한도를 넘으면 전체 선택을 거부한다', async (
   expect(screen.queryByAltText('첨부할 이미지 미리보기')).not.toBeInTheDocument();
   expect(ready).not.toHaveBeenCalled();
 });
+
+it('문의에 남은 장수보다 많이 고르면 전체 선택을 거부한다', async () => {
+  const user = userEvent.setup();
+  render(<ImageAttachmentEditor onReady={vi.fn()} onInvalidate={vi.fn()} maxImages={2} />);
+  const files = Array.from(
+    { length: 3 },
+    (_, index) => new File(['x'], `${String(index)}.png`, { type: 'image/png' }),
+  );
+  await user.upload(screen.getByLabelText(/이미지 선택 \(최대 2장/), files);
+  expect(screen.getByRole('alert')).toHaveTextContent('최대 2장');
+  expect(screen.queryByAltText('첨부할 이미지 미리보기')).not.toBeInTheDocument();
+});

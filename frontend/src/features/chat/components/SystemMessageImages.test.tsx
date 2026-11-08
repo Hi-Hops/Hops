@@ -9,20 +9,24 @@ import * as upload from '../api/imageUpload';
 import { useSystemDrafts } from '../model/systemDraftStore';
 import { SystemMessageComposer } from './SystemMessageComposer';
 import type { InquiryResult } from '@/shared/api/types/hopsSystem1';
+import { ApiError } from '@/shared/api/client';
 
 vi.mock('./ImageAttachmentEditor', () => ({
   ImageAttachmentEditor: ({
     onReady,
     onSelectionChange,
     disabled,
+    maxImages,
   }: {
     onReady: (images: Blob[]) => void;
     onSelectionChange: (count: number) => void;
     disabled: boolean;
+    maxImages: number;
   }) => (
     <button
       type="button"
       disabled={disabled}
+      data-max-images={maxImages}
       onClick={() => {
         onSelectionChange(2);
         onReady([new Blob(['redacted-a']), new Blob(['redacted-b'])]);
@@ -154,4 +158,65 @@ it('F003-CONTRACT 후속 메시지에도 확인한 이미지 순서와 현재 �
     path: `/api/v2/inquiries/${inquiry.id}/messages`,
     body: { expectedInquiryVersion: 7, attachmentIds: ids },
   });
+});
+
+const followUp: InquiryResult = {
+  id: crypto.randomUUID(),
+  inquiryNumber: 'INQ-LIMIT',
+  inquiryVersion: 3,
+  status: 'IN_PROGRESS',
+  problems: [],
+  currentRun: null,
+  pendingTargetMessageIds: [],
+  resultRevision: 1,
+  createdAt: '2026-11-08T00:00:00Z',
+  updatedAt: '2026-11-08T00:00:00Z',
+};
+
+function renderFollowUp(usedImages: number) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <SystemMessageComposer inquiry={followUp} onStored={vi.fn()} usedImages={usedImages} />
+    </QueryClientProvider>,
+  );
+}
+
+it('F003-CONTRACT 문의에 이미 첨부한 장수만큼 더 고를 수 있는 이미지를 줄인다', () => {
+  renderFollowUp(3);
+  expect(screen.getByRole('button', { name: '가림 확인 테스트' })).toHaveAttribute(
+    'data-max-images',
+    '2',
+  );
+});
+
+it('F003-CONTRACT 문의 한도를 모두 쓰면 이미지 선택을 숨기고 안내한다', () => {
+  renderFollowUp(5);
+  expect(screen.queryByRole('button', { name: '가림 확인 테스트' })).not.toBeInTheDocument();
+  expect(screen.getByText(/이 문의에는 이미지를 최대 5장까지/)).toBeInTheDocument();
+});
+
+it('F003-CONTRACT 서버가 문의 한도로 거부하면 이미지를 다시 고를 수 있다', async () => {
+  vi.spyOn(upload, 'uploadDraftImage')
+    .mockResolvedValueOnce(crypto.randomUUID())
+    .mockResolvedValueOnce(crypto.randomUUID());
+  vi.spyOn(commands, 'sendSystemCommand').mockRejectedValue(
+    new ApiError(400, {
+      code: 'INVALID_INPUT',
+      message: '한 문의에는 이미지를 최대 5장까지 첨부할 수 있습니다.',
+      requestId: crypto.randomUUID(),
+      retryable: false,
+      fieldErrors: [],
+    }),
+  );
+  const user = userEvent.setup();
+  renderFollowUp(0);
+  await user.type(screen.getByRole('textbox', { name: '메시지 입력' }), '추가 화면');
+  await user.click(screen.getByRole('button', { name: '가림 확인 테스트' }));
+  await user.click(screen.getByRole('checkbox', { name: /보낼 내용에 비밀번호/ }));
+  await user.click(screen.getByRole('button', { name: '보내기 ↑' }));
+  await waitFor(() => {
+    expect(screen.getByRole('button', { name: '가림 확인 테스트' })).toBeEnabled();
+  });
+  expect(screen.queryByRole('button', { name: '같은 이미지 업로드 확인' })).not.toBeInTheDocument();
 });

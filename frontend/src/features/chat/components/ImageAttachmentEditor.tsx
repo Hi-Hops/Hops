@@ -17,6 +17,8 @@ type Props = {
   onInvalidate: () => void;
   onSelectionChange?: (count: number) => void;
   disabled?: boolean;
+  /** 이 메시지에 더 고를 수 있는 장수. 문의 전체 한도에서 이미 첨부한 장수를 뺀 값이다. */
+  maxImages?: number;
 };
 
 function MaskCoordinates({
@@ -81,6 +83,7 @@ export function ImageAttachmentEditor({
   onInvalidate,
   onSelectionChange,
   disabled = false,
+  maxImages = 5,
 }: Props) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [prepared, setPrepared] = useState<Prepared[]>([]);
@@ -119,7 +122,7 @@ export function ImageAttachmentEditor({
   function select(files: File[]) {
     if (disabled || preparing.current || !files.length) return;
     if (
-      drafts.length + files.length > 5 ||
+      drafts.length + files.length > maxImages ||
       files.some(
         (file) =>
           !['image/png', 'image/jpeg'].includes(file.type) ||
@@ -127,7 +130,9 @@ export function ImageAttachmentEditor({
           file.size > 5 * 1024 * 1024,
       )
     ) {
-      setNotice('PNG 또는 JPEG 이미지를 장당 5MB 이하, 최대 5장까지 선택해 주세요.');
+      setNotice(
+        `PNG 또는 JPEG 이미지를 장당 5MB 이하, 최대 ${String(maxImages)}장까지 선택해 주세요.`,
+      );
       return;
     }
     const created: string[] = [];
@@ -215,7 +220,7 @@ export function ImageAttachmentEditor({
     <section aria-label="이미지 첨부" className={styles.editor}>
       <fieldset disabled={disabled}>
         <label>
-          이미지 선택 (최대 5장, 장당 5MB)
+          이미지 선택 (최대 {maxImages}장, 장당 5MB)
           <input
             type="file"
             accept="image/png,image/jpeg"

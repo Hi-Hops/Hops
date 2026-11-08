@@ -228,6 +228,11 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
               <SystemMessageComposer
                 inquiry={inquiry}
                 disabled={!chat.ready}
+                // 불러온 메시지 기준이라 이전 페이지가 남아 있으면 적게 셀 수 있다. 서버가 최종 거부한다.
+                usedImages={chat.items.reduce(
+                  (count, message) => count + (message.attachments?.length ?? 0),
+                  0,
+                )}
                 onStored={() => {
                   bottom();
                 }}

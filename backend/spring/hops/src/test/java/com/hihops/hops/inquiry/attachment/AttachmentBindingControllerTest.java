@@ -132,6 +132,24 @@ class AttachmentBindingControllerTest {
     }
 
     @Test
+    void 이미지는_메시지가_아니라_문의_전체에서_5장까지만_연결한다() throws Exception {
+        UUID createKey = UUID.randomUUID();
+        List<UUID> initial = List.of(attachment(owner, "READY", false), attachment(owner, "READY", false),
+                attachment(owner, "READY", false));
+        String response = create(owner, createKey, createBody(createKey, initial)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(response).path("resource").path("id").asString());
+        List<UUID> tooMany = List.of(attachment(owner, "READY", false), attachment(owner, "READY", false),
+                attachment(owner, "READY", false));
+        send(owner, inquiry, UUID.randomUUID(), tooMany).andExpect(status().isBadRequest());
+        assertThat(tooMany).allSatisfy(id -> assertThat(state(id)).isEqualTo("READY"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id = ?", Integer.class, inquiry)).isEqualTo(1);
+        send(owner, inquiry, UUID.randomUUID(), tooMany.subList(0, 2)).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment a JOIN message m ON m.id = a.message_id "
+                + "WHERE m.inquiry_id = ? AND a.attachment_status = 'BOUND'", Integer.class, inquiry)).isEqualTo(5);
+    }
+
+    @Test
     void 기존_본문의_해시는_유지하고_빈_목록은_같은_요청으로_취급한다() throws Exception {
         UUID request = UUID.randomUUID();
         Map<String, Object> body = createBody(request, null);
