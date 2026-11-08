@@ -72,6 +72,8 @@ class ImageObservationSchemaTest {
     void cleanup() {
         jdbc.update("DELETE FROM image_observation_response WHERE observation_id IN (SELECT id FROM image_observation WHERE inquiry_id = ?)", inquiry);
         jdbc.update("DELETE FROM image_observation WHERE inquiry_id = ?", inquiry);
+        jdbc.update("DELETE FROM image_attachment_problem_link WHERE attachment_id = ?", image);
+        jdbc.update("DELETE FROM image_attachment_problem_link_history WHERE attachment_id = ?", image);
         jdbc.update("DELETE FROM image_attachment WHERE id = ?", image);
         jdbc.update("DELETE FROM idempotency_key WHERE operation_id IN (?, ?)", operation, responseOperation);
         jdbc.update("DELETE FROM inquiry_problem WHERE id = ?", problem);
@@ -80,6 +82,21 @@ class ImageObservationSchemaTest {
         jdbc.update("DELETE FROM inquiry WHERE id = ?", inquiry);
         jdbc.update("DELETE FROM member WHERE id = ?", member);
         jdbc.update("DELETE FROM department WHERE id = ?", department);
+    }
+
+    @Test
+    void 이미지_문제_연결은_확인_이력과_차수에_연결되고_중복을_거부한다() {
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO image_attachment_problem_link (attachment_id, problem_id, link_revision, source_message_revision) VALUES (?, ?, 1, 1)", image, problem))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        jdbc.update("INSERT INTO image_attachment_problem_link_history (id, attachment_id, link_revision, actor_member_id, operation_id, source_message_revision, reason, problem_ids) "
+                + "VALUES (?, ?, 1, ?, ?, 1, 'USER_CONFIRMED', ?::jsonb)", UUID.randomUUID(), image, member, responseOperation,
+                mapper.writeValueAsString(List.of(problem)));
+        jdbc.update("INSERT INTO image_attachment_problem_link (attachment_id, problem_id, link_revision, source_message_revision) VALUES (?, ?, 1, 1)", image, problem);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO image_attachment_problem_link (attachment_id, problem_id, link_revision, source_message_revision) VALUES (?, ?, 1, 1)", image, problem))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO image_attachment_problem_link_history (id, attachment_id, link_revision, actor_member_id, operation_id, source_message_revision, reason, problem_ids) "
+                + "VALUES (?, ?, 2, ?, ?, 2, 'MESSAGE_REVISED', ?::jsonb)", UUID.randomUUID(), image, member, operation,
+                mapper.writeValueAsString(List.of(problem)))).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private void insertObservation(UUID id, String ref, String text, String question) {
