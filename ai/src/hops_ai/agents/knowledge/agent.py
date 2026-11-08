@@ -31,6 +31,7 @@
 Supervisor 병합 단계가 현재 접근 범위와 다시 대조한다.
 """
 
+import logging
 from dataclasses import replace
 from uuid import uuid4
 
@@ -115,6 +116,7 @@ from hops_ai.services.shared import SharedServices
 
 # 질의에 쓰는 최근 사용자 메시지 수. 오래된 대화가 최신 질문을 가리지 않게 한다.
 MAX_QUERY_MESSAGES = 5
+logger = logging.getLogger(__name__)
 
 
 class SearchKnowledgeAgent:
@@ -156,6 +158,11 @@ class SearchKnowledgeAgent:
             hits = list(await self._source.search(query))
         except RetrievalUnavailable:
             # 검색 오류를 0건으로 바꾸지 않는다. 원인 상세는 사용자·모델 입력에 싣지 않는다.
+            logger.info(
+                "지식 검색 runId=%s problemRef=%s documents=ERROR",
+                services.runtime.run_id,
+                target.problemRef,
+            )
             return RoleResponse(
                 result=_error_result(call.invocation_id, target.problemRef, query.digest())
             )
@@ -187,6 +194,14 @@ class SearchKnowledgeAgent:
             crowdedOut=crowded,
             assessment=assessment,
             relations=relations,
+        )
+        logger.info(
+            "지식 검색 runId=%s problemRef=%s documents=%s relations=%s verdict=%s",
+            services.runtime.run_id,
+            target.problemRef,
+            result.search.state,
+            relations.state if relations is not None else None,
+            assessment.verdict if assessment is not None else None,
         )
         return RoleResponse(
             result=result,

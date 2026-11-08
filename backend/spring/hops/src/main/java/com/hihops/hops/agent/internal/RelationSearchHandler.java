@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,8 @@ class RelationSearchHandler {
     private final InternalRunAccess runAccess;
     private final RelationSearchService search;
     private final AnalysisRunProperties runProperties;
+    @Value("${hops.search.offline-sql:false}")
+    private boolean offlineSql;
 
     @Transactional(readOnly = true)
     RelationSearchResponse search(UUID runId, RelationSearchRequest request) {
@@ -64,6 +67,12 @@ class RelationSearchHandler {
             }
             var symptoms = search.search(new RelationSearchService.Query(tokens, featureIds, scope.levels(), scope.includesStaff(),
                     systems, scope.memberId(), scope.internalRead(), limit));
+            log.info("관계 조회 runId={} problemRef={} engine={} symptoms={} checks={} questions={}",
+                    runId, request.problemRef(), offlineSql ? "offline-sql" : "neo4j",
+                    symptoms.stream().map(s -> s.id() + ":" + s.catalogKey()).toList(),
+                    symptoms.stream().flatMap(s -> s.checkItems().stream()).map(c -> c.id() + ":" + c.catalogKey()).toList(),
+                    symptoms.stream().flatMap(s -> s.checkItems().stream()).flatMap(c -> c.questions().stream())
+                            .map(q -> q.catalogKey()).toList());
             return new RelationSearchResponse(CONTRACT, runId, request.problemRef(), symptoms.isEmpty() ? "NO_RESULT" : "FOUND",
                     null, applied, symptoms);
         } catch (IntegrityException | DataAccessException exception) {

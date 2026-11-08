@@ -1,12 +1,12 @@
 # 지식 검색 내부 REST 계약
 
-Knowledge는 Spring의 내부 REST로 승인된 지식 문서를 읽는다. 업무 정본·접근 범위·공개 규칙은 Spring이 확정하고, AI는 접근 범위가 확정된 승인 문서만 받는다. 모델 출력이나 AI 쪽 필터를 권한 확인으로 해석하지 않는다. 1차 검색은 임베딩 없이 PostgreSQL SQL로 하며 `KnowledgeSource` 뒤에서 2차에 교체한다([AGENT_ARCHITECTURE](../../docs/ai/AGENT_ARCHITECTURE.md) 8절, [CLEANUP_PLAN](../../docs/ai/CLEANUP_PLAN.md) D4).
+Knowledge는 Spring의 내부 REST로 승인된 지식 문서를 읽는다. 업무 정본·접근 범위·공개 규칙은 Spring이 확정하고, AI는 접근 범위가 확정된 승인 문서만 받는다. 모델 출력이나 AI 쪽 필터를 권한 확인으로 해석하지 않는다. P0 문서 검색은 pgvector와 청크 키워드를 결합하고 관계 조회는 Neo4j를 사용한다([AGENT_ARCHITECTURE](../../docs/ai/AGENT_ARCHITECTURE.md) 8절, [CLEANUP_PLAN](../../docs/ai/CLEANUP_PLAN.md) D4).
 
 이 문서는 팀 리뷰를 거쳐 병합된 뒤 기준이 된다. 병합 전까지는 구현 제안이다. 문서 검색은 아래 본문, 증상→확인 항목→질문 문구를 찾는 **관계 조회**는 "관계 조회" 절이 정한다. 두 API는 같은 인증·실행 검사·접근 범위 규칙을 쓴다.
 
 ## 구현 상태
 
-Spring의 지식 검색 API와 관계 조회 API, 내부 판단 경계(옵션, 기본 꺼짐)를 구현했다. AI 쪽에는 `SpringKnowledgeSource`(`HOPS_AI_KNOWLEDGE_SOURCE=spring`)와 `SpringRelationSource`가 있다. `SpringKnowledgeSource`는 Knowledge 역할이 사용법 안내 검색에 쓴다. `SpringRelationSource`는 클라이언트·변환·오류 매핑까지이고 상담 흐름에서 부르는 것(질문 생성·평가)은 #181 범위다.
+AI의 `SpringKnowledgeSource`와 `SpringRelationSource`는 같은 내부 API를 사용한다. `HOPS_AI_KNOWLEDGE_SOURCE=spring`과 `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`를 적용하면 판정 모드의 증상 상담에서 문서 검색과 관계 조회가 모두 실행된다. 문서 0건은 `NO_MATCH`이며, 조회된 승인 직원 질문을 추가 확인에 쓸 수 있다. 기존 SQL 구현은 `hops.search.offline-sql=true`를 명시한 오프라인 검사에서만 사용하며 런타임 장애 시 전환하지 않는다.
 
 AI 클라이언트의 처리: 고정 origin과 서비스 토큰만 쓰고 리다이렉트·환경 프록시를 쓰지 않으며 응답 크기와 시간을 제한한다. 호출마다 실행 전체의 도구 호출 한도(`toolCalls`)를 소비하고 Knowledge 역할만 허용한다. 재시도하지 않는다. `NO_RESULT`는 빈 목록, `DENIED`·HTTP 오류·시간 초과·잘못된 응답은 `RetrievalUnavailable`, 401·403은 `PolicyDenied`다. 응답은 신뢰하지 않고 실행·문제 일치, 근거 형식, 본문 digest(`digestBasis=CONTENT`), 요청 시스템 안의 근거인지를 다시 검증한다. 사용자 범위 밖의 근거(내부 판단 읽기 응답의 담당자 자료)는 근거로 쓰지 않고 건수만 경고 로그에 남긴다.
 
@@ -55,7 +55,7 @@ problemRef: 요청과 같음
 outcome: FOUND | NO_RESULT | DENIED
 deniedReason: KIND_NOT_ALLOWED | SYSTEM_NOT_ALLOWED | null
 applied: { accessScopes: [...], kinds: [...], systemIds: [...], topK: n }
-results: 점수가 높은 순, 같으면 documentKey 순. FOUND가 아니면 빈 배열
+results: 결합 점수가 높은 순, 같으면 채널 순위 순. FOUND가 아니면 빈 배열
 ```
 
 | outcome | 뜻 | AI의 처리 |
@@ -64,7 +64,7 @@ results: 점수가 높은 순, 같으면 documentKey 순. FOUND가 아니면 빈
 | `NO_RESULT` | 범위 안에서 검색했지만 일치하는 문서가 없음 | 빈 목록 |
 | `DENIED` | 요청이 실행의 접근 범위를 넘음(예: 직원 실행에서 담당자 전용 `RUNBOOK` 요청, 접근 밖 시스템). **조용히 빼지 않는다** | 빈 목록이 아니라 검색 실패로 처리 |
 
-- 검색 실패(DB 오류, 저장 원문 digest 불일치)는 **HTTP 503 `SEARCH_UNAVAILABLE`**이다. 오류를 `NO_RESULT`나 빈 `results`로 바꾸지 않는다(평가 성질 P2).
+- 검색 실패(임베딩 호출·DB 오류, 승인 원문과 검색 청크의 무결성 오류)는 **HTTP 503 `SEARCH_UNAVAILABLE`**이다. 오류를 `NO_RESULT`나 빈 `results`로 바꾸지 않는다(평가 성질 P2).
 - 이 API는 결과가 없다는 이유로 접근 거부를 숨기거나, 접근 거부를 결과 없음으로 바꾸지 않는다. 직원 실행에서 담당자 문서는 `DENIED`가 아니라 접근 범위 밖이라 결과에 나타나지 않으며, 담당자 종류를 **직접 요청한 경우에만** `DENIED`다.
 
 ### 결과 항목
@@ -108,15 +108,22 @@ caseIndexStatus: CASE만 { vector, graph }. 저장된 색인 상태 그대로
 
 | `hops.knowledge.case-visibility` | CASE 공개 조건 |
 |---|---|
-| `APPROVED_SNAPSHOT` (기본, 1차 SQL 검색) | 승인(`APPROVED`)된 현재 사례 스냅샷, 같은 시스템·공개 범위, 승인자·승인 일시, 해결된 티켓과 해결·구현 기록. **색인 상태는 조건이 아니다** |
-| `INDEXED` (2차, 계약 원안) | 위 조건에 더해 `vector_status`·`graph_status`가 모두 `SUCCEEDED` |
+| `APPROVED_SNAPSHOT` (오프라인 SQL 비교 옵션) | 승인(`APPROVED`)된 현재 사례 스냅샷, 같은 시스템·공개 범위, 승인자·승인 일시, 해결된 티켓과 해결·구현 기록. **색인 상태는 조건이 아니다** |
+| `INDEXED` (P0 기본) | 위 조건에 더해 `vector_status`·`graph_status`가 모두 `SUCCEEDED` |
 
 - 색인 상태를 `SUCCEEDED`로 바꾸거나 위장하지 않는다. 응답의 `caseIndexStatus`에 저장된 값이 그대로 나간다.
 - 이 설정은 지식 검색과 저장된 근거의 현재 공개 검증이 함께 따른다. 한쪽만 바꾸면 검색에서 나온 근거를 티켓 생성·안내 저장 단계가 거부하기 때문이다.
 - 사례 검토 API(`GET /api/v2/cases/{id}`)의 `publication.state`는 **색인 반영 상태**이며 이 설정과 무관하다. 1차 SQL 검색에서는 `publication.state = PRIVATE`인 승인 사례가 검색에 나올 수 있다. 이 차이는 같은 응답의 가산 필드 `publication.searchRule`(적용 중인 규칙)과 `publication.visibleToSearch`(그 규칙에서 이 사용자 권한으로 지금 지식 검색에 나오는지)로 알린다. `state`의 의미(색인 반영 상태)는 바꾸지 않으므로 기존 표시는 그대로이고, 화면이 "검색에 쓰이는 중"을 보이려면 `visibleToSearch`를 쓴다.
-- 2차에 실제 색인이 생기면 설정을 `INDEXED`로 바꿔 계약대로 되돌린다.
+- P0의 수동 적재는 격리된 시연 환경의 기존 가상 사례를 양쪽 저장소에 반영한 뒤 해당 버전의 상태를 갱신한다. 기존 승인 사례 중 양쪽 색인을 완료하지 않은 버전과 새 승인 사례는 색인 상태가 충족되기 전까지 검색과 관계 이웃에 나타나지 않는다. 새 사례 자동 색인은 P1 범위다.
 
-## 검색 방법과 한계 (1차)
+## P0 검색 방법
+
+- 승인 원문의 연속 구간을 청크로 적재한다. 원문 버전 FK, 원문·청크 digest, 임베딩 모델을 기록한다. 조회 시 최신 승인 버전과 권한을 확인한다. 반환 본문은 기존 digest 계약대로 승인 원문을 유지한다.
+- NFC 정규화, 기존 한국어 토큰·조사 제거 규칙, 식별자 일치 가중치를 쓴다. 같은 `text-embedding-3-small` 1536차원으로 문의를 임베딩해 청크 코사인 유사도를 계산한다. 모델 표시가 없는 승인 청크의 원문은 키워드 후보에 들어가며 코사인 연산은 현재 모델로 색인한 청크에만 적용한다. 미적재 문서는 채널별 후보를 만들 수 없다.
+- 채널별로 문서 버전당 최고 청크를 남긴 뒤 최대 20개 버전을 결합한다. 코사인 유사도 하한은 0.25이고, 결합 순위는 `0.8/(10+키워드 순위) + 1/(10+벡터 순위)`다. 빠진 채널은 0점이다. Spring이 최종 권한을 검증하고 `topK`를 적용한다.
+- 수동 시연 적재는 `scripts/knowledge/load_search_demo.py --isolated-demo`를 사용한다. 가상 회사 카탈로그와 격리 DB의 최신 승인 문서 ID·본문·해시가 일치해야 한다. 실제 업무 DB에 시연 시드를 적재하지 않는다.
+
+## 오프라인 SQL 검색 기준선
 
 - 질의에서 한글·영문·숫자 토큰을 만들고(2자 이상, 불용어 제외) 흔한 조사를 떼어 최대 20개까지 쓴다. 제목과 승인 원문에서 부분 문자열로 찾는다. 점수는 제목 일치에 가중하며 항상 같은 질의에 같은 순서를 낸다. 형태소 분석이 없어서 어미 변화·동의어는 찾지 못한다.
 - PostgreSQL FTS(`simple`)와 비교한 결과와 한계는 아래 "한국어 검색 품질 확인"에 기록한다. 개선(임베딩·형태소·`pg_trgm`)은 2차로 넘긴다.
@@ -134,7 +141,7 @@ Spring 공통 ApiError. 400 INVALID_INPUT(형식·알 수 없는 필드·빈 검
 
 `POST /internal/v2/runs/{runId}/relation-searches`
 
-`RelationSource`([AGENT_ARCHITECTURE](../../docs/ai/AGENT_ARCHITECTURE.md) 8절)의 1차 SQL 구현이다. 키워드·기능 후보·시스템으로 **증상 → 확인 항목 → 직원용 질문 문구 → 승인 사례 이웃**과 각 항목의 근거·공개 범위를 돌려준다. 연결은 후보일 뿐이며 현재 문의의 원인을 확정하는 필드는 없다. Neo4j는 같은 인터페이스 뒤로 2차에 교체한다. 인증·실행 검사·알 수 없는 필드 거부·오류 코드는 지식 검색과 같다.
+`RelationSource`([AGENT_ARCHITECTURE](../../docs/ai/AGENT_ARCHITECTURE.md) 8절)의 Neo4j 구현이다. 키워드·기능 후보·시스템으로 **증상 → 확인 항목 → 직원용 질문 문구 → 승인 사례 이웃**과 각 항목의 근거·공개 범위를 돌려준다. 연결은 후보일 뿐이며 현재 문의의 원인을 확정하는 필드는 없다. 시스템·기능·문서의 현재 승인과 담당 범위는 PostgreSQL 정본과 대조한다. Curator 후보와 결과 적용 시 대상 검증도 Neo4j를 조회한다. 후보 조회 중 Neo4j가 실패하면 후보를 비우고 처리 기록과 해결 확인 요청을 저장한다. 증상·확인 항목 링크를 적용할 때는 현재 그래프 조회가 성공하고 입력 후보와 일치해야 한다. 책임 시스템만 연결하는 경우에는 Spring의 책임 시스템을 확인한다. 인증·실행 검사·알 수 없는 필드 거부·오류 코드는 지식 검색과 같다.
 
 요청 본문(알 수 없는 필드는 거부):
 
@@ -178,7 +185,7 @@ symptoms: 점수 순(같으면 catalogKey 순)
 - **담당자 범위 실행**(옵션 프로필, 서버가 실행 입력으로만 켠다): 문서 검색과 같이 해당 시스템의 주담당자인 실행 문의자에게만 `STAFF` 증상·원인·모든 확인 항목·사례를 돌려준다. 확인 항목에는 `label`과 직원 공개 여부가 붙는다.
 - 사례 이웃은 지식 검색과 같은 현재 공개 판정(`isCurrentlyVisible`)과 `hops.knowledge.case-visibility`를 따른다. 사례의 색인 상태는 저장된 값 그대로다.
 - `DENIED`는 요청이 실행의 접근 범위(시스템·기능)를 넘을 때만이며, 담당자 전용 항목이 걸러진 것은 `DENIED`가 아니다.
-- 검색 실패(DB 오류)는 HTTP 503 `SEARCH_UNAVAILABLE`이다. 오류를 `NO_RESULT`로 바꾸지 않는다.
+- 검색 실패(Neo4j 연결·쿼리 오류 포함)는 HTTP 503 `SEARCH_UNAVAILABLE`이다. 오류를 `NO_RESULT`로 바꾸지 않는다.
 
 **직원 실행이 확인 항목을 찾는 방식(결정)**: 확인 항목은 "증상 → 후보 원인 → 확인 항목" 연결(담당자 전용)으로 찾되 이 계산은 **서버 안에서만** 한다. 응답은 원인의 어떤 속성(이름·키·공개 범위·개수)에도 의존하지 않고 직원 공개 확인 항목과 질문 문구만 담는다(원인 이름·키·공개 범위를 바꿔도 직원 응답이 같음을 `RelationSearchApiTest`가 고정한다). 직원 경로가 담당자 전용 연결을 전혀 읽지 않게 하려면 직원용 증상→확인 항목 연결을 별도로 두는 방법이 있으나(새 마이그레이션 필요) 현재는 두지 않는다. 보안 리뷰에서 요구하면 그때 추가한다.
 

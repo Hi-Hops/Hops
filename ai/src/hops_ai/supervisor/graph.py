@@ -159,6 +159,14 @@ class Supervisor:
         result = final["finalResult"]
         if result is None:
             raise OutputRejected("실행이 최종 결과 없이 끝났다")
+        usage = final["usage"]
+        logger.info(
+            "실행 종료 runId=%s status=%s modelCalls=%d toolCalls=%d",
+            request.runId,
+            result.status,
+            usage["calls"],
+            usage["toolCalls"],
+        )
         return result
 
     async def _stream(
