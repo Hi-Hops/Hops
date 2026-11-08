@@ -47,6 +47,8 @@ class AttachmentBindingControllerTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired JsonMapper mapper;
+    @Autowired ImageAnalysisTargets analysisTargets;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @MockitoBean S3Client s3Client;
     @MockitoBean S3AttachmentStore store;
     private final UUID department = UUID.randomUUID();
@@ -65,6 +67,8 @@ class AttachmentBindingControllerTest {
 
     @AfterEach
     void cleanup() {
+        jdbc.update("DELETE FROM image_attachment_analysis_target WHERE attachment_id IN (SELECT id FROM image_attachment WHERE owner_member_id IN (?, ?))", owner, other);
+        jdbc.update("DELETE FROM image_attachment_analysis_history WHERE attachment_id IN (SELECT id FROM image_attachment WHERE owner_member_id IN (?, ?))", owner, other);
         jdbc.update("DELETE FROM image_attachment_problem_link WHERE attachment_id IN (SELECT id FROM image_attachment WHERE owner_member_id IN (?, ?))", owner, other);
         jdbc.update("DELETE FROM image_attachment_problem_link_history WHERE attachment_id IN (SELECT id FROM image_attachment WHERE owner_member_id IN (?, ?))", owner, other);
         jdbc.update("DELETE FROM image_attachment WHERE owner_member_id IN (?, ?)", owner, other);
@@ -180,6 +184,10 @@ class AttachmentBindingControllerTest {
         UUID problem = problem(inquiry, 1);
         UUID key = UUID.randomUUID();
         link(owner, inquiry, image, key, 1, 0, List.of(problem), true).andExpect(status().isOk());
+        UUID operation = jdbc.queryForObject("SELECT operation_id FROM idempotency_key WHERE actor_member_id=? AND idempotency_key=?",
+                UUID.class, owner, key.toString());
+        new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(status ->
+                analysisTargets.replace(owner, inquiry, image, operation, 0, List.of(problem)));
         UUID message = jdbc.queryForObject("SELECT message_id FROM image_attachment WHERE id=?", UUID.class, image);
         UUID revise = UUID.randomUUID();
         mvc.perform(post("/api/v2/inquiries/{inquiry}/messages/{message}/revisions", inquiry, message)
@@ -191,6 +199,9 @@ class AttachmentBindingControllerTest {
         assertThat(jdbc.queryForList("SELECT reason FROM image_attachment_problem_link_history WHERE attachment_id=? ORDER BY link_revision", String.class, image))
                 .containsExactly("USER_CONFIRMED", "MESSAGE_REVISED");
         assertThat(jdbc.queryForObject("SELECT link_revision FROM image_attachment WHERE id=?", Integer.class, image)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_target WHERE attachment_id=?", Integer.class, image)).isZero();
+        assertThat(jdbc.queryForList("SELECT reason FROM image_attachment_analysis_history WHERE attachment_id=? ORDER BY analysis_revision", String.class, image))
+                .containsExactly("USER_SELECTED", "MESSAGE_REVISED");
         assertThat(state(image)).isEqualTo("BOUND");
     }
 

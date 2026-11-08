@@ -34,6 +34,7 @@ class ImageObservationSchemaTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ImageObservationWriter observationWriter;
     @Autowired ImageObservationProblemResolver problemResolver;
+    @Autowired ImageAnalysisTargets analysisTargets;
     @Autowired PlatformTransactionManager transactions;
     @Autowired JsonMapper mapper;
     private final UUID department = UUID.randomUUID();
@@ -72,6 +73,8 @@ class ImageObservationSchemaTest {
     void cleanup() {
         jdbc.update("DELETE FROM image_observation_response WHERE observation_id IN (SELECT id FROM image_observation WHERE inquiry_id = ?)", inquiry);
         jdbc.update("DELETE FROM image_observation WHERE inquiry_id = ?", inquiry);
+        jdbc.update("DELETE FROM image_attachment_analysis_target WHERE attachment_id = ?", image);
+        jdbc.update("DELETE FROM image_attachment_analysis_history WHERE attachment_id = ?", image);
         jdbc.update("DELETE FROM image_attachment_problem_link WHERE attachment_id = ?", image);
         jdbc.update("DELETE FROM image_attachment_problem_link_history WHERE attachment_id = ?", image);
         jdbc.update("DELETE FROM image_attachment WHERE id = ?", image);
@@ -82,6 +85,84 @@ class ImageObservationSchemaTest {
         jdbc.update("DELETE FROM inquiry WHERE id = ?", inquiry);
         jdbc.update("DELETE FROM member WHERE id = ?", member);
         jdbc.update("DELETE FROM department WHERE id = ?", department);
+    }
+
+    @Test
+    void 분석_대상은_공개_관계와_별도로_저장하고_정정하면_이력과_함께_보류한다() {
+        new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, inquiry, image, responseOperation, 0, List.of(problem)));
+        assertThat(jdbc.queryForList("SELECT problem_id FROM image_attachment_analysis_target WHERE attachment_id=?", UUID.class, image))
+                .containsExactly(problem);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link WHERE attachment_id=?", Integer.class, image)).isZero();
+        assertThat(jdbc.queryForObject("SELECT link_revision FROM image_attachment WHERE id=?", Integer.class, image)).isZero();
+
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            jdbc.update("UPDATE message SET revision=2 WHERE id=?", userMessage);
+            analysisTargets.invalidateForRevision(member, userMessage, 2, operation);
+        });
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_target WHERE attachment_id=?", Integer.class, image)).isZero();
+        assertThat(jdbc.queryForList("SELECT reason FROM image_attachment_analysis_history WHERE attachment_id=? ORDER BY analysis_revision", String.class, image))
+                .containsExactly("USER_SELECTED", "MESSAGE_REVISED");
+        assertThat(jdbc.queryForObject("SELECT analysis_revision FROM image_attachment WHERE id=?", Integer.class, image)).isEqualTo(2);
+    }
+
+    @Test
+    void 분석_대상은_소유자_문의_문제_차수와_거래를_검증한다() {
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                UUID.randomUUID(), inquiry, image, responseOperation, 0, List.of(problem))))
+                .isInstanceOfSatisfying(com.hihops.hops.global.exception.BusinessException.class,
+                        error -> assertThat(error.errorCode()).isEqualTo(com.hihops.hops.global.exception.ErrorCode.NOT_FOUND));
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, UUID.randomUUID(), image, responseOperation, 0, List.of(problem))))
+                .isInstanceOf(com.hihops.hops.global.exception.BusinessException.class);
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, inquiry, image, responseOperation, 0, List.of(UUID.randomUUID()))))
+                .isInstanceOf(com.hihops.hops.global.exception.BusinessException.class);
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, inquiry, image, responseOperation, 0, List.of(problem, problem))))
+                .isInstanceOf(com.hihops.hops.global.exception.BusinessException.class);
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            analysisTargets.replace(member, inquiry, image, responseOperation, 0, List.of(problem));
+            throw new IllegalStateException("fixture rollback");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_history WHERE attachment_id=?", Integer.class, image)).isZero();
+        new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, inquiry, image, responseOperation, 0, List.of(problem)));
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, inquiry, image, operation, 0, List.of())))
+                .isInstanceOfSatisfying(com.hihops.hops.global.exception.BusinessException.class,
+                        error -> assertThat(error.errorCode()).isEqualTo(com.hihops.hops.global.exception.ErrorCode.ATTACHMENT_LINK_VERSION_CONFLICT));
+    }
+
+    @Test
+    void 분석_대상을_비워도_공개_대상은_변경하지_않는다() {
+        jdbc.update("INSERT INTO image_attachment_problem_link_history (id, attachment_id, link_revision, actor_member_id, operation_id, source_message_revision, reason, problem_ids) "
+                + "VALUES (?, ?, 1, ?, ?, 1, 'USER_CONFIRMED', ?::jsonb)", UUID.randomUUID(), image, member, responseOperation,
+                mapper.writeValueAsString(List.of(problem)));
+        jdbc.update("INSERT INTO image_attachment_problem_link (attachment_id, problem_id, link_revision, source_message_revision) VALUES (?, ?, 1, 1)", image, problem);
+        new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, inquiry, image, responseOperation, 0, List.of(problem)));
+        new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                member, inquiry, image, operation, 1, List.of()));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_target WHERE attachment_id=?", Integer.class, image)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link WHERE attachment_id=?", Integer.class, image)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT analysis_revision FROM image_attachment WHERE id=?", Integer.class, image)).isEqualTo(2);
+    }
+
+    @Test
+    void 같은_문의의_여러_문제를_분석_대상으로_선택해도_공개하지_않는다() {
+        UUID second = UUID.randomUUID();
+        jdbc.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) VALUES (?, ?, 2, '테스트2', 'CLARIFYING')", second, inquiry);
+        try {
+            new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
+                    member, inquiry, image, responseOperation, 0, List.of(problem, second)));
+            assertThat(jdbc.queryForList("SELECT problem_id FROM image_attachment_analysis_target WHERE attachment_id=?", UUID.class, image))
+                    .containsExactlyInAnyOrder(problem, second);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link WHERE attachment_id=?", Integer.class, image)).isZero();
+        } finally {
+            jdbc.update("DELETE FROM image_attachment_analysis_target WHERE problem_id=?", second);
+            jdbc.update("DELETE FROM inquiry_problem WHERE id=?", second);
+        }
     }
 
     @Test

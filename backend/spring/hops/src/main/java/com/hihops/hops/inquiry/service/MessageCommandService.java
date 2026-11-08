@@ -43,6 +43,7 @@ import com.hihops.hops.inquiry.dto.MessageSendCommand;
 import com.hihops.hops.inquiry.dto.ImageProblemLinkCommand;
 import com.hihops.hops.inquiry.attachment.AttachmentBindingService;
 import com.hihops.hops.inquiry.attachment.ImageProblemLinks;
+import com.hihops.hops.inquiry.attachment.ImageAnalysisTargets;
 import com.hihops.hops.inquiry.privacy.SensitiveTextMasker;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
@@ -95,6 +96,7 @@ public class MessageCommandService {
     private final IdempotencyService idempotencyService;
     private final AttachmentBindingService attachmentBindingService;
     private final ImageProblemLinks imageProblemLinks;
+    private final ImageAnalysisTargets imageAnalysisTargets;
     private final InquiryRepository inquiryRepository;
     private final InquiryProblemRepository inquiryProblemRepository;
     private final MessageRepository messageRepository;
@@ -218,6 +220,7 @@ public class MessageCommandService {
         message.revise(command.content(), UserMessagePayload.revised(jsonMapper, message.getPayload(), previousRevision,
                 previousContent, Math.incrementExact(previousRevision), command.content(), command.requestId()));
         imageProblemLinks.invalidateForRevision(requesterId, inquiryId, messageId, Math.incrementExact(previousRevision), operationId);
+        imageAnalysisTargets.invalidateForRevision(requesterId, messageId, Math.incrementExact(previousRevision), operationId);
         inquiry.recordInput();
         // 그 사이 삭제된 문제는 대상에서 뺀다. 대기 중인 메시지를 정정하면 계속 대상 선택을 기다린다
         ProblemScope scope = scopeOf(inquiryId);
