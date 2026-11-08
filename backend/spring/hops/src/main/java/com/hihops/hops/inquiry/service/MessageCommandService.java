@@ -41,6 +41,7 @@ import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
+import com.hihops.hops.inquiry.attachment.AttachmentBindingService;
 import com.hihops.hops.inquiry.privacy.SensitiveTextMasker;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
@@ -93,6 +94,7 @@ import tools.jackson.databind.json.JsonMapper;
 public class MessageCommandService {
 
     private final IdempotencyService idempotencyService;
+    private final AttachmentBindingService attachmentBindingService;
     private final InquiryRepository inquiryRepository;
     private final InquiryProblemRepository inquiryProblemRepository;
     private final MessageRepository messageRepository;
@@ -113,7 +115,7 @@ public class MessageCommandService {
         inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         MessageSendCommand masked = new MessageSendCommand(command.requestId(), command.expectedInquiryVersion(),
-                SensitiveTextMasker.mask(command.content()), command.problemIds());
+                SensitiveTextMasker.mask(command.content()), command.problemIds(), command.attachmentIds());
         return idempotencyService.execute(request,
                 operationId -> new ResourceRef(ResourceType.INQUIRY, sendMessage(request.actorId(), inquiryId, masked)));
     }
@@ -162,6 +164,7 @@ public class MessageCommandService {
                 command.content(),
                 UserMessagePayload.json(jsonMapper, command.requestId(), null, links, command.content(), pending),
                 MessageStatus.COMPLETED));
+        attachmentBindingService.bind(requesterId, message.getId(), command.attachmentIds());
         continueAnalysis(inquiry, message, problemIds, scope, command.requestId());
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));

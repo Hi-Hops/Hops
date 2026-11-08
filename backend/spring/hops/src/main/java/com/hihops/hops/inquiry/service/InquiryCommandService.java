@@ -22,6 +22,7 @@ import com.hihops.hops.global.idempotency.ResourceRef;
 import com.hihops.hops.global.idempotency.ResourceType;
 import com.hihops.hops.global.validation.UserContentValidator;
 import com.hihops.hops.inquiry.domain.Inquiry;
+import com.hihops.hops.inquiry.attachment.AttachmentBindingService;
 import com.hihops.hops.inquiry.domain.InquiryStatus;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessageStatus;
@@ -59,6 +60,7 @@ public class InquiryCommandService {
     private static final int MAX_TITLE_CODE_POINTS = 200; // inquiry.title VARCHAR(200)
 
     private final IdempotencyService idempotencyService;
+    private final AttachmentBindingService attachmentBindingService;
     private final InquiryRepository inquiryRepository;
     private final MessageRepository messageRepository;
     private final AgentRunRepository agentRunRepository;
@@ -75,7 +77,7 @@ public class InquiryCommandService {
     /** 트랜잭션 밖(Controller)에서 부른다. */
     public CommandResult create(IdempotentRequest request, InquiryCreateCommand command) {
         InquiryCreateCommand masked = new InquiryCreateCommand(command.requestId(),
-                SensitiveTextMasker.mask(command.content()), command.reportedSystemId());
+                SensitiveTextMasker.mask(command.content()), command.reportedSystemId(), command.attachmentIds());
         return idempotencyService.execute(request,
                 operationId -> new ResourceRef(ResourceType.INQUIRY, createInquiry(request.actorId(), masked)));
     }
@@ -96,6 +98,7 @@ public class InquiryCommandService {
         Message first = messageRepository.saveAndFlush(new Message(inquiry, 1, SenderType.USER, command.content(),
                 UserMessagePayload.json(jsonMapper, command.requestId(), reportedSystemId, List.of(), command.content()),
                 MessageStatus.COMPLETED));
+        attachmentBindingService.bind(requesterId, first.getId(), command.attachmentIds());
         // runId는 저장할 때 정해지므로 빈 입력으로 먼저 저장하고, 같은 거래 안에서 입력을 고정한다
         AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, first, inquiry.getVersion(), "{}",
                 runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));

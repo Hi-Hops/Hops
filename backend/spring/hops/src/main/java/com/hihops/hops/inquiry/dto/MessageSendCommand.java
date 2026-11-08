@@ -3,25 +3,51 @@ package com.hihops.hops.inquiry.dto;
 import java.util.List;
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import com.hihops.hops.global.validation.UserContent;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
-/**
- * POST /inquiries/{inquiryId}/messages 본문 (DATA_TYPES 신규 절 MessageSendCommand).
- *
- * <pre>
- * { "requestId": "UUID", "expectedInquiryVersion": 1, "content": "보고서 작성일은 10월 6일이에요", "problemIds": [] }
- * </pre>
- *
- * @param requestId              Idempotency-Key와 같은 값. 이 메시지의 requestId로 보존한다
- * @param expectedInquiryVersion 화면이 본 문의 버전. 다르면 409 INQUIRY_VERSION_CONFLICT
- * @param content                메시지 입력. 자르거나 trim하지 않으며 탐지된 일부 개인정보는 저장 전에 가린다
- * @param problemIds             사용자가 고른 대상 문제. []이면 분석으로 대상을 정한다
- */
-public record MessageSendCommand(@NotNull UUID requestId,
-        @NotNull @Min(1) @Max(Integer.MAX_VALUE) Integer expectedInquiryVersion, @NotNull @UserContent String content,
-        @NotNull List<@NotNull UUID> problemIds) {
+/** 후속 메시지 입력. 첨부 목록 생략은 기존 요청과 같으며 명시적 null은 허용하지 않는다. */
+@JsonPropertyOrder({"requestId", "expectedInquiryVersion", "content", "problemIds", "attachmentIds"})
+public class MessageSendCommand {
+    @NotNull private UUID requestId;
+    @NotNull @Min(1) @Max(Integer.MAX_VALUE) private Integer expectedInquiryVersion;
+    @NotNull @UserContent private String content;
+    @NotNull private List<@NotNull UUID> problemIds;
+    @Size(max = 5) private @Nullable List<@NotNull UUID> attachmentIds;
+
+    @JsonCreator public MessageSendCommand() { }
+
+    public MessageSendCommand(UUID requestId, Integer expectedInquiryVersion, String content,
+            List<UUID> problemIds, @Nullable List<UUID> attachmentIds) {
+        this.requestId = requestId;
+        this.expectedInquiryVersion = expectedInquiryVersion;
+        this.content = content;
+        this.problemIds = problemIds;
+        this.attachmentIds = attachmentIds;
+    }
+
+    @JsonProperty public UUID requestId() { return requestId; }
+    @JsonProperty public Integer expectedInquiryVersion() { return expectedInquiryVersion; }
+    @JsonProperty public String content() { return content; }
+    @JsonProperty public List<UUID> problemIds() { return problemIds; }
+    @JsonProperty @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public @Nullable List<UUID> attachmentIds() { return attachmentIds; }
+
+    @JsonSetter public void setRequestId(UUID requestId) { this.requestId = requestId; }
+    @JsonSetter public void setExpectedInquiryVersion(Integer version) { this.expectedInquiryVersion = version; }
+    @JsonSetter public void setContent(String content) { this.content = content; }
+    @JsonSetter public void setProblemIds(List<UUID> problemIds) { this.problemIds = problemIds; }
+    @JsonSetter(nulls = Nulls.FAIL) public void setAttachmentIds(List<UUID> attachmentIds) { this.attachmentIds = attachmentIds; }
 }

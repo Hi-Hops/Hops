@@ -9,6 +9,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -21,6 +22,8 @@ import com.hihops.hops.global.dto.PageResponse;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.inquiry.domain.Inquiry;
+import com.hihops.hops.inquiry.attachment.AttachmentHistoryReader;
+import com.hihops.hops.inquiry.attachment.AttachmentHistoryReader.AttachmentRef;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
 import com.hihops.hops.inquiry.domain.MessageRevision;
@@ -58,6 +61,7 @@ public class InquiryQueryService {
     private final ProblemProjector problemProjector;
     private final GuideVisibility guideVisibility;
     private final JsonMapper jsonMapper;
+    private final ObjectProvider<AttachmentHistoryReader> attachmentHistory;
 
     /** 내 문의 목록 한 페이지. page·size 범위는 컨트롤러에서 검사한다. */
     @Transactional(readOnly = true)
@@ -101,10 +105,14 @@ public class InquiryQueryService {
 
         Map<UUID, List<MessageRevision>> revisions = revisionsOf(messages);
         Map<UUID, GuideVisibility.GuideView> guides = guideVisibility.viewsOf(inquiry, messages);
+        AttachmentHistoryReader reader = attachmentHistory.getIfAvailable();
+        Map<UUID, List<AttachmentRef>> attachments = reader == null ? Map.of()
+                : reader.forMessages(requesterId, inquiryId, messages.stream().map(Message::getId).toList());
         List<ChatMessageResponse> items = messages.stream()
                 .map(message -> ChatMessageResponse.of(message, guides.get(message.getId()).contentOf(message),
                         payloadOf(message),
-                        MessageRevisionResponse.listOf(message, revisions.getOrDefault(message.getId(), List.of()))))
+                        MessageRevisionResponse.listOf(message, revisions.getOrDefault(message.getId(), List.of())),
+                        attachments.getOrDefault(message.getId(), List.of())))
                 .toList();
         return new MessagePageResponse(items, hasOlder ? messages.getFirst().getSequenceNo() : null);
     }

@@ -6,6 +6,8 @@ import java.util.UUID;
 
 import org.jspecify.annotations.Nullable;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.hihops.hops.inquiry.attachment.AttachmentHistoryReader.AttachmentRef;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
 import com.hihops.hops.inquiry.domain.SenderType;
@@ -18,13 +20,13 @@ import com.hihops.hops.inquiry.domain.SenderType;
  */
 public record ChatMessageResponse(UUID id, UUID inquiryId, @Nullable UUID requestId, int revision, int sequenceNo,
         SenderType sender, String content, List<UUID> problemIds, List<MessageRevisionResponse> revisions,
-        Instant createdAt) {
+        Instant createdAt, @JsonInclude(JsonInclude.Include.NON_EMPTY) List<AttachmentRef> attachments) {
 
     /** content: 문의자에게 보여 줄 본문. 저장된 본문에서 지금 볼 수 없는 안내를 숨긴 값일 수 있다. */
     public static ChatMessageResponse of(Message message, String content, MessagePayload payload,
-            List<MessageRevisionResponse> revisions) {
+            List<MessageRevisionResponse> revisions, List<AttachmentRef> attachments) {
         return new ChatMessageResponse(message.getId(), message.getInquiry().getId(), payload.requestId(),
                 message.getRevision(), message.getSequenceNo(), message.getSenderType(), content,
-                payload.problemIds(message.getRevision()), List.copyOf(revisions), message.getCreatedAt());
+                payload.problemIds(message.getRevision()), List.copyOf(revisions), message.getCreatedAt(), List.copyOf(attachments));
     }
 }
