@@ -184,6 +184,29 @@ async def test_cancellation_during_image_read_produces_superseded_result() -> No
     assert result.answer is None and not model.requests
 
 
+async def test_no_available_question_keeps_observation_unconfirmed_and_informs_requester() -> None:
+    request, ids = image_fixture()
+    payload = make_request(question_count=5, outcome="STORED").model_dump(mode="json")
+    payload["messages"][0]["imageAttachments"] = request.messages[0].model_dump(mode="json")[
+        "imageAttachments"
+    ]
+    request = AiRunRequest.model_validate(payload)
+    model = ScriptedLLM(
+        ImageObservations(observations=[ImageObservation(attachmentId=ids[0], text="오류 안내")]),
+        decision(),
+    )
+    result = await Supervisor(image_reader=reader(ok)).analyze(
+        request, services_for(request, model)
+    )
+    assert result.status == "SUCCEEDED"
+    assert len(result.imageObservations) == 1
+    assert result.imageObservations[0].questionRef is None
+    assert not result.questions
+    assert result.answer is not None and "확인되지 않아" in result.answer
+    assert "오류 안내" not in result.answer
+    result.validate_image_observations_for(request)
+
+
 @pytest.mark.parametrize("unsafe", ["missing-reader", "content-tracing", "ticket-tools"])
 async def test_image_run_rejects_unsafe_service_configuration(unsafe: str) -> None:
     request, _ = image_fixture()

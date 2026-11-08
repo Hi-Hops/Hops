@@ -245,6 +245,8 @@ def finalize_result(
         if candidate["caseProposal"] is not None:
             raise OutputRejected("상담 결과에 사례 초안을 넣을 수 없다")
         body = compose_public_answer(candidate)
+        if any(observation.questionRef is None for observation in image_proposals):
+            body += "\n\n이미지 관찰 일부는 확인되지 않아 문의 내용으로 확정하지 않았어요."
         result = AiResult(
             contractVersion="hops-system-1",
             runId=request.runId,

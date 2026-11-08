@@ -27,7 +27,7 @@ def bind_image_questions(
     *,
     proposals: list[ProblemProposal] | None = None,
 ) -> BoundImageQuestions:
-    """단일 문제의 출처 메시지와 질문이 모두 있을 때만 확인 문구를 더한다.
+    """문제를 확인할 수 있으면 질문 또는 미확인 관찰로 연결한다.
 
     연결하지 못한 관찰은 버리지 않고 unlinked로 돌려준다. 호출자는 최종화 전에 이를
     안전하게 처리해야 한다. 반환값은 아직 사용자 확인이나 담당자 공개를 뜻하지 않는다.
@@ -43,6 +43,7 @@ def bind_image_questions(
     ):
         raise OutputRejected("관찰의 이미지 출처를 확인할 수 없습니다")
     counts = {problem.id: problem.questionCount for problem in request.problems}
+    existing_problem_ids = set(counts)
     new_problem = None
     if not request.problems and proposals is not None and len(proposals) == 1:
         only = proposals[0]
@@ -66,21 +67,23 @@ def bind_image_questions(
         ):
             problem = new_problem.problemRef
             counts[problem] = 0
-        if (
-            problem is None
-            or problem not in counts
-            or counts[problem] >= QUESTION_LIMIT
-            or problem not in by_problem
-        ):
+        if problem is None or problem not in counts:
             unlinked.append(observation)
             continue
-        index = by_problem[problem]
-        question = updated[index]
-        text = f"{question.text}\n\n화면에 ‘{observation.text}’가 보이나요?"
-        if len(text) > 4000:
+        question_ref = None
+        if counts[problem] < QUESTION_LIMIT and problem in by_problem:
+            index = by_problem[problem]
+            question = updated[index]
+            text = f"{question.text}\n\n화면에 ‘{observation.text}’가 보이나요?"
+            if len(text) <= 4000:
+                updated[index] = QuestionProposal.model_validate(
+                    {**question.model_dump(), "text": text}
+                )
+                question_ref = question.bundleRef
+        # 새 문제는 질문 없이 저장되지 않을 수 있어 실제 ID가 보장되는 기존 문제만 보류한다.
+        if question_ref is None and problem not in existing_problem_ids:
             unlinked.append(observation)
             continue
-        updated[index] = QuestionProposal.model_validate({**question.model_dump(), "text": text})
         linked.append(
             ImageObservationProposal(
                 observationRef=f"img-{observation.attachmentId}",
@@ -89,7 +92,7 @@ def bind_image_questions(
                 messageRevision=source.revision,
                 problemRef=problem,
                 text=observation.text,
-                questionRef=question.bundleRef,
+                questionRef=question_ref,
             )
         )
     return BoundImageQuestions(tuple(updated), tuple(linked), tuple(unlinked))

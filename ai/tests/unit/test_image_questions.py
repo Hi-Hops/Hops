@@ -82,19 +82,36 @@ def test_missing_or_ambiguous_problem_keeps_observations_unlinked(problem_ids) -
     assert bound.unlinked == tuple(observations)
 
 
-def test_question_limit_and_missing_question_keep_observations_unlinked() -> None:
+def test_question_limit_and_missing_question_preserve_unconfirmed_observations() -> None:
     request, question, observations = fixture(question_count=5)
-    assert bind_image_questions(request, [question], observations).unlinked == tuple(observations)
+    bound = bind_image_questions(request, [question], observations)
+    assert bound.questions == (question,)
+    assert not bound.unlinked
+    assert all(item.questionRef is None for item in bound.observations)
     request, _, observations = fixture()
-    assert bind_image_questions(request, [], observations).unlinked == tuple(observations)
+    bound = bind_image_questions(request, [], observations)
+    assert not bound.unlinked
+    assert all(item.questionRef is None for item in bound.observations)
 
 
-def test_question_too_long_is_not_silently_truncated() -> None:
+def test_question_too_long_is_preserved_without_confirmation() -> None:
     request, question, observations = fixture()
     question = question.model_copy(update={"text": "가" * 4000})
     bound = bind_image_questions(request, [question], observations)
     assert bound.questions == (question,)
-    assert bound.unlinked == tuple(observations)
+    assert not bound.unlinked
+    assert all(item.questionRef is None for item in bound.observations)
+
+
+def test_overflow_keeps_each_observation_in_the_same_problem() -> None:
+    request, question, observations = fixture()
+    question = question.model_copy(update={"text": "가" * 3970})
+    bound = bind_image_questions(request, [question], observations)
+    assert not bound.unlinked
+    assert len(bound.observations) == 2
+    assert bound.observations[0].questionRef == question.bundleRef
+    assert bound.observations[1].questionRef is None
+    assert all(item.problemRef == PROBLEM for item in bound.observations)
 
 
 def test_unknown_image_and_duplicate_observation_are_rejected() -> None:
