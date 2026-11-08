@@ -4,9 +4,15 @@ import hashlib
 
 import httpx
 
-from hops_ai.contracts.wire import InputImageRef
+from hops_ai.contracts.wire import AiRunRequest, InputImageRef
 from hops_ai.harness.context import RunContext
-from hops_ai.harness.errors import ComponentNotReady, PolicyDenied, RetrievalUnavailable
+from hops_ai.harness.errors import (
+    ComponentNotReady,
+    InputRejected,
+    PolicyDenied,
+    RetrievalUnavailable,
+)
+from hops_ai.services.llm.client import LLMImage
 from hops_ai.settings import Settings
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -67,3 +73,23 @@ class SpringImageReader:
         if not data.startswith(PNG_SIGNATURE) or hashlib.sha256(data).hexdigest() != image.digest:
             raise RetrievalUnavailable("이미지 무결성을 확인하지 못했다")
         return bytes(data)
+
+
+async def read_run_images(
+    request: AiRunRequest, context: RunContext, reader: SpringImageReader
+) -> dict[str, LLMImage]:
+    """입력 전체의 참조를 순서대로 확인한다. 하나라도 실패하면 일부 결과를 돌려주지 않는다."""
+    if (
+        request.kind != "INQUIRY_ANALYSIS"
+        or request.runId != context.run_id
+        or request.inquiryId != context.inquiry_id
+        or request.inquiryVersion != context.inquiry_version
+    ):
+        raise InputRejected("이미지 조회의 실행 문맥이 일치하지 않습니다")
+    images: dict[str, LLMImage] = {}
+    for message in request.messages:
+        for ref in message.imageAttachments:
+            context.ensure_active()
+            data = await reader.read(context, ref)
+            images[ref.attachmentId] = LLMImage(media_type="image/png", data=data)
+    return images

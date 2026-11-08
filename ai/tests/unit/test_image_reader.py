@@ -6,11 +6,12 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from hops_ai.contracts.wire import InputImageRef
+from hops_ai.contracts.wire import AiRunRequest, InputImageRef
 from hops_ai.harness.context import RunContext
 from hops_ai.harness.errors import PolicyDenied, RetrievalUnavailable
-from hops_ai.services.attachments import MAX_IMAGE_BYTES, SpringImageReader
+from hops_ai.services.attachments import MAX_IMAGE_BYTES, SpringImageReader, read_run_images
 from hops_ai.settings import Settings
+from tests.supervisor_fixtures import make_request
 
 PNG = b"\x89PNG\r\n\x1a\nfixture"
 TOKEN = "A" * 43
@@ -87,3 +88,61 @@ async def test_invalid_or_unavailable_image_is_failure(
     )
     with pytest.raises(RetrievalUnavailable):
         await reader.read(context, ref())
+
+
+async def test_multiple_images_are_loaded_as_one_run_input() -> None:
+    first, second = ref(), ref()
+    payload = make_request().model_dump(mode="json")
+    payload["messages"][0]["imageAttachments"] = [
+        first.model_dump(mode="json"),
+        second.model_dump(mode="json"),
+    ]
+    request = AiRunRequest.model_validate(payload)
+    _, settings = context_and_settings()
+    context = RunContext.create(
+        run_id=request.runId,
+        inquiry_id=request.inquiryId,
+        inquiry_version=request.inquiryVersion,
+        access_scope_ref="fixture",
+        settings=settings,
+    )
+    calls = 0
+
+    def handle(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+
+    images = await read_run_images(
+        request, context, SpringImageReader(settings, transport=httpx.MockTransport(handle))
+    )
+    assert list(images) == [first.attachmentId, second.attachmentId]
+    assert all(image.data == PNG for image in images.values())
+    assert calls == 2
+
+
+async def test_image_failure_does_not_return_partial_run_input() -> None:
+    first, second = ref(), ref()
+    payload = make_request().model_dump(mode="json")
+    payload["messages"][0]["imageAttachments"] = [
+        first.model_dump(mode="json"),
+        second.model_dump(mode="json"),
+    ]
+    request = AiRunRequest.model_validate(payload)
+    _, settings = context_and_settings()
+    context = RunContext.create(
+        run_id=request.runId,
+        inquiry_id=request.inquiryId,
+        inquiry_version=request.inquiryVersion,
+        access_scope_ref="fixture",
+        settings=settings,
+    )
+
+    def handle(http_request: httpx.Request) -> httpx.Response:
+        if http_request.url.path.endswith(first.attachmentId):
+            return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
+        return httpx.Response(503)
+
+    reader = SpringImageReader(settings, transport=httpx.MockTransport(handle))
+    with pytest.raises(RetrievalUnavailable):
+        await read_run_images(request, context, reader)
