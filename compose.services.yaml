@@ -26,6 +26,17 @@ services:
       timeout: 3s
       retries: 10
 
+  neo4j:
+    image: neo4j:5.26.0-community
+    environment:
+      NEO4J_AUTH: 'neo4j/${HOPS_NEO4J_PASSWORD:-local-hops-graph}'
+      NEO4J_server_memory_heap_max__size: '384m'
+      NEO4J_server_memory_pagecache_size: '128m'
+    ports:
+      - '127.0.0.1:${NEO4J_HTTP_PORT:-7474}:7474'
+    volumes:
+      - neo4j-data:/data
+
   ai:
     build:
       context: ./ai
@@ -39,6 +50,8 @@ services:
       HOPS_AI_TICKET_MAX_QUERIES: '${HOPS_AI_TICKET_MAX_QUERIES:-4}'
       HOPS_AI_TICKET_MAX_ATTEMPTS: '${HOPS_AI_TICKET_MAX_ATTEMPTS:-3}'
       HOPS_AI_TICKET_POLL_INTERVAL_SECONDS: '${HOPS_AI_TICKET_POLL_INTERVAL_SECONDS:-0.25}'
+      HOPS_AI_KNOWLEDGE_ASSESSMENT: '${HOPS_AI_KNOWLEDGE_ASSESSMENT:-false}'
+      HOPS_AI_GUIDE_EXCERPT: '${HOPS_AI_GUIDE_EXCERPT:-true}'
       HOPS_AI_KNOWLEDGE_SOURCE: '${HOPS_AI_KNOWLEDGE_SOURCE:-none}'
       HOPS_AI_KNOWLEDGE_HTTP_TIMEOUT_SECONDS: '${HOPS_AI_KNOWLEDGE_HTTP_TIMEOUT_SECONDS:-5}'
       HOPS_AI_RUN_DEADLINE_SECONDS: '${HOPS_AI_RUN_DEADLINE_SECONDS:-60}'
@@ -71,6 +84,12 @@ services:
       SPRING_DATASOURCE_USERNAME: '${POSTGRES_USER:-hops}'
       SPRING_DATASOURCE_PASSWORD: '${POSTGRES_PASSWORD:?backend/spring/hops/.env에 POSTGRES_PASSWORD를 설정하세요}'
       HOPS_JWT_SECRET: '${HOPS_JWT_SECRET:?backend/spring/hops/.env에 32바이트 이상의 HOPS_JWT_SECRET을 설정하세요}'
+      # AI와 한도를 조정할 때 Spring 실행 합계도 함께 설정한다.
+      HOPS_AGENT_RUN_LIMITS_MAXMODELCALLS: '${HOPS_AI_MAX_LLM_CALLS:-8}'
+      HOPS_AGENT_RUN_LIMITS_MAXOUTPUTTOKENS: '${HOPS_AGENT_RUN_LIMITS_MAXOUTPUTTOKENS:-12000}'
+      HOPS_SEARCH_EMBEDDING_API_KEY: '${HOPS_SEARCH_EMBEDDING_API_KEY:-}'
+      HOPS_SEARCH_NEO4J_URL: '${HOPS_SEARCH_NEO4J_URL:-http://neo4j:7474}'
+      HOPS_NEO4J_PASSWORD: '${HOPS_NEO4J_PASSWORD:-local-hops-graph}'
       HOPS_AGENT_BASEURL: '${HOPS_AGENT_BASEURL:-http://ai:8000}'
       # Spring→AI 서비스 토큰. ai/.env의 같은 값을 쓰며 비어 있으면 AI 호출을 보내지 않고 실행을 실패로 끝낸다.
       AI_SERVICE_TOKEN: '${AI_SERVICE_TOKEN:-}'
@@ -109,3 +128,4 @@ services:
 
 volumes:
   postgres-data:
+  neo4j-data:

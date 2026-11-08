@@ -53,6 +53,14 @@ EC2의 Spring 컨테이너는 Flyway를 실행하지 않는다(`SPRING_FLYWAY_EN
 5. `flyway_schema_history`에서 새 버전이 `success`인지 확인한 뒤, 적용한 커밋으로 위 명령을 실행해 `spring-migrations.tree`를 갱신한다.
 6. 실패했던 이전 배포 run이 아니라 **기준을 갱신한 커밋의 배포 run(보통 최신 develop)** 을 다시 실행한다. 다른 커밋의 run은 tree가 달라 다시 실패한다.
 
+## P0 검색을 배포하는 환경
+
+1. 대상 업무 DB에 V27을 별도로 적용하고 위 절차대로 Flyway 이력과 배포 기준 tree를 확인한다. 격리 시연 DB의 승인 가상 지식과 Neo4j 투영은 `scripts/knowledge/load_search_demo.py --isolated-demo`로 적재한다. 이 스크립트는 카탈로그와 일치하는 격리 시연 DB용이다. 공유 DB의 승인 문서는 해당 DB의 데이터를 사용한 별도 색인 이관이 필요하다.
+2. Neo4j는 Spring이 사용하는 `hops-internal` 네트워크에 연결한다. Spring env 파일에 `HOPS_SEARCH_NEO4J_URL`, `HOPS_NEO4J_PASSWORD`, `HOPS_SEARCH_EMBEDDING_API_KEY`를 주입한다. 기본 Neo4j 사용자와 데이터베이스는 `neo4j`이며 다른 값을 쓰는 경우 `HOPS_NEO4J_USERNAME`, `HOPS_SEARCH_NEO4J_DATABASE`도 맞춘다. 임베딩 키는 `text-embedding-3-small`을 호출할 수 있어야 한다.
+3. AI를 real·spring·내부 API·판정 모드로 실행한다. 기본 모델 호출 상한은 양쪽 8회다. 조정할 때 AI의 `HOPS_AI_MAX_LLM_CALLS`와 Spring의 `HOPS_AGENT_RUN_LIMITS_MAXMODELCALLS`, `HOPS_AGENT_RUN_LIMITS_MAXOUTPUTTOKENS`를 함께 확인한다. Spring 출력 한도는 실행당 총량이다.
+4. env 파일을 적용해 컨테이너를 다시 만든 뒤 Spring에서 임베딩과 Neo4j 조회를 확인하고 AI `/readyz` 및 실제 판정 옵션을 확인한다. V27과 컨테이너 생존 확인만으로는 검색이 준비됐는지 알 수 없다. pgvector의 현재 모델 청크와 Neo4j의 가상 카탈로그 데이터가 존재하는지 확인하고 브라우저에서 승인 가이드·승인 질문·답변 재반영을 실행한다.
+5. 사례 공개 기준은 `INDEXED`다. 같은 승인 버전의 두 색인 상태가 모두 성공이어야 사례 검색 및 그래프 이웃에 나타난다. 새 승인 사례 자동 색인은 P1에서 연결한다.
+
 ## AWS 일회성 준비
 
 AWS 계정에 장기 액세스 키를 만들거나 저장소에 비밀값을 넣지 않는다. 실제 생성 전 대상 계정·리전·비용과 기존 리소스를 확인한다.

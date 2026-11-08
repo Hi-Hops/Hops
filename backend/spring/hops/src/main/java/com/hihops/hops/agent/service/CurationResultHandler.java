@@ -167,10 +167,15 @@ public class CurationResultHandler implements AgentRunResultHandler {
             offered.put(candidate.path("id").asString(), candidate.path("kind").asString());
         }
         Set<String> linkable = new LinkedHashSet<>();
-        var actor = UUID.fromString(input.path("accessContext").path("actorId").asString());
-        for (var current : relationLinks.currentlyLinkable(systemId, actor)) {
-            if (offered.get(current.id().toString()) != null && offered.get(current.id().toString()).equals(current.kind())) {
-                linkable.add(current.id().toString());
+        boolean hasGraphLinks = links.valueStream()
+                .map(link -> link.path("relation").asString())
+                .anyMatch(relation -> "ADDRESSES".equals(relation) || "USES_CHECK".equals(relation));
+        if (hasGraphLinks && !offered.isEmpty()) {
+            var actor = UUID.fromString(input.path("accessContext").path("actorId").asString());
+            for (var current : relationLinks.currentlyLinkable(systemId, actor)) {
+                if (current.kind().equals(offered.get(current.id().toString()))) {
+                    linkable.add(current.id().toString());
+                }
             }
         }
         Set<String> seen = new LinkedHashSet<>();

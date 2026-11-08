@@ -33,10 +33,10 @@ import com.hihops.hops.knowledge.domain.DocumentType;
 class KnowledgeSearchQualityTest {
     private static final String REQUESTER = "a0000000-0000-7000-8000-000000000101";
 
-    private record Case(String query, String systemCode, String expected) {
+    record Case(String query, String systemCode, String expected) {
     }
 
-    private static final List<Case> CASES = List.of(
+    static final List<Case> CASES = List.of(
             new Case("전자결재에서 지난 문서를 찾는 방법을 알려주세요.", "ELECTRONIC_APPROVAL", "guide-ea-document-search"),
             new Case("전자결재에서 임시 저장한 문서는 어디서 확인하나요?", "ELECTRONIC_APPROVAL", "guide-ea-document-create"),
             new Case("상신한 문서가 지금 어느 결재자 단계에서 멈췄는지 보고 싶어요.", "ELECTRONIC_APPROVAL", "guide-ea-approval-status"),
