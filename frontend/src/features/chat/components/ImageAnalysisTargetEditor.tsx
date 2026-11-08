@@ -5,6 +5,7 @@ import { SystemCommandButton, useSystemOperations } from '@/features/inquiry';
 import type { InquiryResult } from '@/shared/api/types/hopsSystem1';
 import { Button } from '@/shared/ui/Button';
 import { getImageMetadata, imageAnalysisTargetCommand } from '../api/systemChatApi';
+import { ImageAnalysisRunControl } from './ImageAnalysisRunControl';
 import styles from './ImageProblemLinkEditor.module.css';
 
 type Props = {
@@ -86,6 +87,8 @@ function TargetForm({
 }) {
   const operationKey = `image-analysis-targets:${inquiry.id}:${attachmentId}`;
   const pending = useSystemOperations((state) => state.pending[`${actor}:${operationKey}`]);
+  const runOperationKey = `image-analysis-run:${inquiry.id}:${attachmentId}`;
+  const pendingRun = useSystemOperations((state) => state.pending[`${actor}:${runOperationKey}`]);
   const [selected, setSelected] = useState(() => new Set(problemIds));
   const known = new Set(inquiry.problems.map((problem) => problem.id));
   const missing = problemIds.some((id) => !known.has(id));
@@ -106,7 +109,10 @@ function TargetForm({
       </p>
       {missing && <p role="alert">선택된 문제를 확인할 수 없어요. 문의를 다시 불러와 주세요.</p>}
       {!inquiry.problems.length && <p>아직 선택할 문제가 없어요.</p>}
-      <fieldset disabled={disabled || Boolean(pending) || missing} className={styles.options}>
+      <fieldset
+        disabled={disabled || Boolean(pending) || Boolean(pendingRun) || missing}
+        className={styles.options}
+      >
         <legend>이 이미지를 분석할 문제</legend>
         {inquiry.problems.map((problem) => (
           <label key={problem.id}>
@@ -133,7 +139,17 @@ function TargetForm({
           })
         }
         label="분석 대상 저장"
-        disabled={disabled || missing || !changed || selected.size > 100}
+        disabled={disabled || Boolean(pendingRun) || missing || !changed || selected.size > 100}
+      />
+      {/* 서버가 실제 AI 전송을 허용하고 전체 흐름을 검증하기 전에는 접수하지 않는다. */}
+      <ImageAnalysisRunControl
+        available={false}
+        operationKey={runOperationKey}
+        inquiryId={inquiry.id}
+        inquiryVersion={inquiry.inquiryVersion}
+        attachmentId={attachmentId}
+        revision={revision}
+        disabled={disabled || Boolean(pending) || missing || changed || problemIds.length !== 1}
       />
     </div>
   );

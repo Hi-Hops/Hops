@@ -79,6 +79,8 @@ it('F003-CONTRACT 이미지 분석 대상만 저장하며 담당자 공개나 �
   const user = userEvent.setup();
   show();
   await user.click(screen.getByRole('button', { name: '분석 문제 선택' }));
+  expect(await screen.findByText('이미지 재분석은 아직 사용할 수 없어요.')).toBeVisible();
+  expect(screen.queryByRole('button', { name: '이미지 재분석 요청' })).not.toBeInTheDocument();
   await user.click(await screen.findByRole('checkbox', { name: '로그인 오류' }));
   await user.click(screen.getByRole('button', { name: '분석 대상 저장' }));
   expect(await screen.findByText('저장했어요. 최신 상태를 확인해 주세요.')).toBeVisible();

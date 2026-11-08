@@ -48,6 +48,11 @@ export type ImageAnalysisTargetCommand = {
   expectedAnalysisRevision: number;
   problemIds: Uuid[];
 };
+export type ImageAnalysisRunCommand = {
+  requestId: Uuid;
+  expectedInquiryVersion: number;
+  expectedAnalysisRevision: number;
+};
 export type ImageProblemLinkCommand = {
   requestId: Uuid;
   expectedInquiryVersion: number;
