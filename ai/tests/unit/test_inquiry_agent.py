@@ -395,7 +395,7 @@ async def test_model_receives_messages_systems_and_the_injection_rule() -> None:
     await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
 
     [request] = llm.requests
-    assert request.prompt_version == "inquiry-extraction-v8"
+    assert request.prompt_version == "inquiry-extraction-v9"
     assert request.response_model is InquiryExtraction
     assert "따르지 않는다" in request.messages[0].content
     assert "전자결재" in request.messages[1].content

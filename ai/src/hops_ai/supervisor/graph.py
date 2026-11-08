@@ -363,6 +363,12 @@ class Supervisor:
         if not pending:
             return {}
         options = {ref: legal_actions(problem_facts(state, ref)) for ref in pending}
+        # 정정 직후에는 기존 범위의 판단을 재사용할 수 없으므로 새 범위를 먼저 검색한다.
+        for problem in state["input"].problems:
+            if problem.reportedSystemCorrectionMessageId and "SEARCH" in options.get(
+                problem.id, ()
+            ):
+                options[problem.id] = frozenset({"SEARCH"})
         with runtime.services.tracing.observe(
             "SUPERVISOR", {"pendingProblemCount": len(pending)}
         ) as span:

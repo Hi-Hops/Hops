@@ -17,7 +17,7 @@ from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import AiRunRequest, InputMessage, Intent
 
-PROMPT_VERSION = "inquiry-extraction-v8"
+PROMPT_VERSION = "inquiry-extraction-v9"
 # 사용자가 직접 모른다고 말한 구절로 인정하는 표현. 인식하지 못하면 필수 질문이 유지되는
 # 쪽(안전한 쪽)으로 실패하므로 표현을 넓히는 것은 평가 데이터가 생긴 뒤에 한다.
 UNKNOWN_EXPRESSION = re.compile(
@@ -73,7 +73,9 @@ SYSTEM_PROMPT = """\
    - UNKNOWN: 무엇을 원하는지 알 수 없다.
    - OUT_OF_SCOPE: systems 목록의 시스템과 무관한 문의다.
 4. systemCode는 사용자가 말했거나 문맥상 분명할 때만 systems 목록의 코드로 적는다.
-   확실하지 않으면 null이다.
+   기존 문제의 reportedSystemCode가 있으면 Spring이 확인한 현재 보고 시스템이다. 그 코드를 사용한다.
+   사용자가 예전 시스템을 정정했다면 정정에서 부정한 시스템이나 그 시스템에만 속한 기능을
+   현재 문제의 요약과 기능 후보에 넣지 않는다. 확실하지 않으면 null이다.
 5. 사용자가 "모른다", "기억나지 않는다"처럼 직접 말한 필드만 unknownFields에 적는다.
    그렇게 말한 구절을 한 글자도 바꾸지 말고 quote에 옮기고, 그 메시지의 messageId를 함께 적는다.
    말하지 않았을 뿐인 필드, 말하지 않아서 알 수 없다고 판단한 필드는 적지 않는다.
@@ -159,6 +161,7 @@ def extraction_schema(
 
 
 def build_user_payload(request: AiRunRequest) -> str:
+    system_codes = {system.id: system.code for system in request.systems}
     return json.dumps(
         {
             "systems": [
@@ -173,7 +176,14 @@ def build_user_payload(request: AiRunRequest) -> str:
             ],
             "targetProblemIds": request.problemIds,
             "existingProblems": [
-                {"id": item.id, "summary": item.summary, "intent": item.intent}
+                {
+                    "id": item.id,
+                    "summary": item.summary,
+                    "intent": item.intent,
+                    "reportedSystemCode": system_codes.get(item.reportedSystemId)
+                    if item.reportedSystemId
+                    else None,
+                }
                 for item in request.problems
             ],
             "messages": [

@@ -18,12 +18,13 @@ from hops_ai.supervisor.graph import Supervisor
 from hops_ai.supervisor.selection import ActionSelection, selection_context
 from tests.doubles.agents import ticket_decisions
 from tests.doubles.llm import FakeLLMClient
-from tests.supervisor_fixtures import MESSAGE, PROBLEM
+from tests.supervisor_fixtures import MESSAGE, OTHER_SYSTEM, PROBLEM, make_request, uid
 from tests.unit.test_inquiry_agent import EA_SYMPTOM, extracted, first_message_request
 from tests.unit.test_knowledge_agent import RecordingSource
 from tests.unit.test_knowledge_assessment import DEFAULT_HITS, GUIDE, draft
 from tests.unit.test_knowledge_wiring import services_for
 from tests.unit.test_problem_decisions import base_state, with_assessment, with_guide
+from tests.unit.test_relation_lookup import FakeRelations
 
 HOW_TO_TEXT = "전자결재 문서 조회 방법을 알려주세요"
 REF = "new:1"
@@ -71,7 +72,67 @@ async def test_an_answerable_how_to_ends_with_the_guide_and_no_selection_call() 
 
     assert result.status == "SUCCEEDED"
     assert result.guide is not None and result.questions == [] and result.ticketProposals == []
-    assert prompt_versions(llm) == ["inquiry-extraction-v8", "knowledge.assessment.v4"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v9", "knowledge.assessment.v4"]
+
+
+async def test_reported_system_correction_searches_before_asking_in_the_new_scope() -> None:
+    request_data = make_request(question_count=1).model_dump(mode="json")
+    (original,) = request_data["messages"]
+    original["content"] = "전자결재에서 로그인하려고 하면 오류가 나요."
+    correction_id = uid(21)
+    previous_feature, corrected_feature = uid(24), uid(25)
+    request_data["systems"][0]["features"] = [{"id": previous_feature, "name": "문서 조회"}]
+    request_data["systems"][1]["features"] = [{"id": corrected_feature, "name": "로그인"}]
+    request_data["messages"].append(
+        {
+            **original,
+            "id": correction_id,
+            "sequenceNo": 2,
+            "content": "전자결재가 아니라 공통 로그인입니다",
+        }
+    )
+    request_data["problems"][0].update(
+        reportedSystemId=OTHER_SYSTEM,
+        reportedSystemCorrectionMessageId=correction_id,
+        summary="정정한 보고 시스템은 공통 로그인입니다.",
+    )
+    request = AiRunRequest.model_validate(request_data)
+    source, relations = RecordingSource(), FakeRelations()
+    agents = build_registry(
+        source,
+        assess_evidence=True,
+        defer_questions=True,
+        generate_questions=True,
+        relation_source=relations,
+    )
+    llm = FakeLLMClient(
+        InquiryExtraction(
+            problems=[
+                extracted(
+                    problemRef=PROBLEM,
+                    featureCandidates=[previous_feature, corrected_feature],
+                    systemCode="ELECTRONIC_APPROVAL",
+                    summary="공통 로그인 오류",
+                    actualBehavior=QuotedValue(messageId=MESSAGE, quote="오류가 나요"),
+                )
+            ]
+        )
+    )
+    result = await Supervisor(agents, restrict_roles=True, problem_actions=True).analyze(
+        request, services_for(request, llm)
+    )
+
+    assert result.status == "SUCCEEDED"
+    [query] = source.queries
+    assert query.system_ids == {OTHER_SYSTEM}
+    [relation_query] = relations.queries
+    assert relation_query.system_ids == {OTHER_SYSTEM}
+    assert relation_query.feature_ids == {corrected_feature}
+    [proposal] = result.problemProposals
+    assert (proposal.problemRef, proposal.reportedSystemCandidateId) == (PROBLEM, OTHER_SYSTEM)
+    assert result.questions[0].problemRef == PROBLEM
+    assert "전자결재" not in result.questions[0].text
+    assert prompt_versions(llm) == ["inquiry-extraction-v9"]
 
 
 async def test_a_partial_verdict_with_something_to_ask_ends_in_the_question_not_the_guide() -> None:
@@ -153,7 +214,7 @@ async def test_the_model_picks_between_the_legal_actions_at_each_fork() -> None:
 
     assert result.guide is not None and result.questions == []
     assert prompt_versions(llm) == [
-        "inquiry-extraction-v8",
+        "inquiry-extraction-v9",
         "supervisor.selection.v1",
         "knowledge.assessment.v4",
         "supervisor.selection.v1",
@@ -180,7 +241,7 @@ async def test_the_model_can_ask_before_searching() -> None:
     )
 
     assert len(result.questions) == 1 and result.guide is None
-    assert prompt_versions(llm) == ["inquiry-extraction-v8", "supervisor.selection.v1"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v9", "supervisor.selection.v1"]
 
 
 @pytest.mark.parametrize(
@@ -207,7 +268,7 @@ async def test_a_selection_the_budget_cannot_afford_uses_the_safe_default_withou
     result, llm = await run(request, InquiryExtraction(problems=[extracted()]))
 
     assert result.status == "SUCCEEDED", "선택이 예산 초과로 실행을 실패시키지 않는다"
-    assert prompt_versions(llm) == ["inquiry-extraction-v8"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v9"]
     assert len(result.questions) == 1, "검색도 평가도 못 했지만 물을 수 있는 정보로 끝난다"
 
 
@@ -232,7 +293,7 @@ async def test_a_ready_access_request_can_go_straight_to_the_ticket() -> None:
 
     assert len(result.ticketProposals) == 1 and result.guide is None and result.questions == []
     assert prompt_versions(llm) == [
-        "inquiry-extraction-v8",
+        "inquiry-extraction-v9",
         "supervisor.selection.v1",
         "ticket.proposal.v2",
     ]
