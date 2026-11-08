@@ -144,6 +144,40 @@ class CurationInputFactoryTest extends TicketCommandFixture {
     }
 
     @Test
+    void 이미지_관찰_결과나_손상된_실행은_담당자와_사례에_공개하지_않는다() throws Exception {
+        UUID resultAnswer = addLinked("AI", "관찰 결과에만 남은 이미지 답변", problem);
+        UUID malformedResultAnswer = addLinked("AI", "결과 형식이 손상된 답변", problem);
+        UUID malformedObservationAnswer = addLinked("AI", "관찰 목록이 손상된 답변", problem);
+        UUID malformedInputAnswer = addLinked("AI", "입력 형식이 손상된 답변", problem);
+        UUID textAnswer = addLinked("AI", "기존 텍스트 답변", problem);
+        UUID resultRun = analysisFor(resultAnswer, List.of());
+        UUID malformedResultRun = analysisFor(malformedResultAnswer, List.of());
+        UUID malformedObservationRun = analysisFor(malformedObservationAnswer, List.of());
+        UUID malformedInputRun = analysisFor(malformedInputAnswer, List.of());
+        UUID textRun = analysisFor(textAnswer, List.of());
+        jdbc.update("UPDATE agent_run SET result=?::jsonb WHERE id=?", "{\"imageObservations\":[{}]}", resultRun);
+        jdbc.update("UPDATE agent_run SET result='[]'::jsonb WHERE id=?", malformedResultRun);
+        jdbc.update("UPDATE agent_run SET result='{\"imageObservations\":null}'::jsonb WHERE id=?", malformedObservationRun);
+        jdbc.update("UPDATE agent_run SET result='{\"imageObservations\":[]}'::jsonb WHERE id=?", textRun);
+        var payload = (ObjectNode) mapper.readTree(links(problem, "입력 형식이 손상된 답변", false));
+        payload.put("answerRunId", malformedInputRun.toString());
+        jdbc.update("UPDATE message SET payload=?::jsonb WHERE id=?", mapper.writeValueAsString(payload), malformedInputAnswer);
+        jdbc.update("UPDATE agent_run SET input_snapshot='[]'::jsonb WHERE id=?", malformedInputRun);
+
+        var response = mvc.perform(as(staff, get("/api/v2/tickets/{id}/related-messages", ticket)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).contains(textAnswer.toString())
+                .doesNotContain(resultAnswer.toString(), malformedResultAnswer.toString(), malformedObservationAnswer.toString(),
+                        malformedInputAnswer.toString());
+
+        record("VERIFIED_RESOLUTION");
+        var context = curationInput().path("messages").toString();
+        assertThat(context).contains(textAnswer.toString())
+                .doesNotContain(resultAnswer.toString(), malformedResultAnswer.toString(), malformedObservationAnswer.toString(),
+                        malformedInputAnswer.toString());
+    }
+
+    @Test
     void 이미지_실행에서_만든_표준_요청은_담당자_상세와_목록에_노출하지_않는다() throws Exception {
         String snapshot = mapper.writeValueAsString(Map.of("messages", List.of(
                 Map.of("imageAttachments", List.of(Map.of("attachmentId", UUID.randomUUID()))))));

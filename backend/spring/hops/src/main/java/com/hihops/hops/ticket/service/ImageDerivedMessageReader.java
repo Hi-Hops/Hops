@@ -40,16 +40,25 @@ class ImageDerivedMessageReader {
                     WHERE r.inquiry_id = m.inquiry_id AND r.task = 'INQUIRY_ANALYSIS'
                       AND (r.id::text = m.payload->>'answerRunId'
                            OR r.input_snapshot->>'answerMessageId' = m.id::text)
-                      AND jsonb_exists(r.input_snapshot, 'messages')
-                      AND (jsonb_typeof(r.input_snapshot->'messages') <> 'array' OR EXISTS (
-                        SELECT 1 FROM jsonb_array_elements(
-                          CASE WHEN jsonb_typeof(r.input_snapshot->'messages') = 'array'
-                               THEN r.input_snapshot->'messages' ELSE '[]'::jsonb END
-                        ) AS entry(message)
-                        WHERE jsonb_typeof(entry.message) <> 'object'
-                           OR (jsonb_exists(entry.message, 'imageAttachments')
-                               AND entry.message->'imageAttachments' IS DISTINCT FROM '[]'::jsonb)
-                      ))
+                      AND (
+                        jsonb_typeof(r.input_snapshot) <> 'object'
+                        OR (jsonb_exists(r.input_snapshot, 'messages') AND (
+                          jsonb_typeof(r.input_snapshot->'messages') <> 'array' OR EXISTS (
+                            SELECT 1 FROM jsonb_array_elements(
+                              CASE WHEN jsonb_typeof(r.input_snapshot->'messages') = 'array'
+                                   THEN r.input_snapshot->'messages' ELSE '[]'::jsonb END
+                            ) AS entry(message)
+                            WHERE jsonb_typeof(entry.message) <> 'object'
+                               OR (jsonb_exists(entry.message, 'imageAttachments')
+                                   AND entry.message->'imageAttachments' IS DISTINCT FROM '[]'::jsonb)
+                          )
+                        ))
+                        OR (r.result IS NOT NULL AND (
+                          jsonb_typeof(r.result) <> 'object'
+                          OR (jsonb_exists(r.result, 'imageObservations')
+                              AND r.result->'imageObservations' IS DISTINCT FROM '[]'::jsonb)
+                        ))
+                      )
                   )
                 )
                 """, Map.of("ids", batch), UUID.class));
