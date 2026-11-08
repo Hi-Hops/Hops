@@ -390,8 +390,10 @@ class RelationSearchApiTest extends InternalRunApiTestBase {
         UUID member = inquiries.findById(inquiry).orElseThrow().getRequester().getId();
         var query = new RelationSearchService.Query(List.of("문서함"), Set.of(), Set.of(AccessLevel.EMPLOYEE, AccessLevel.STAFF), true,
                 Set.of(eaSystem), member, false, 5);
-        var basic = new RelationSearchService(repository, versions, assembler, new KnowledgeVisibilityPolicy(CaseVisibility.APPROVED_SNAPSHOT));
-        var indexed = new RelationSearchService(repository, versions, assembler, new KnowledgeVisibilityPolicy(CaseVisibility.INDEXED));
+        var basic = new RelationSearchService(repository, null, versions, assembler, new KnowledgeVisibilityPolicy(CaseVisibility.APPROVED_SNAPSHOT));
+        var indexed = new RelationSearchService(repository, null, versions, assembler, new KnowledgeVisibilityPolicy(CaseVisibility.INDEXED));
+        org.springframework.test.util.ReflectionTestUtils.setField(basic, "offlineSql", true);
+        org.springframework.test.util.ReflectionTestUtils.setField(indexed, "offlineSql", true);
 
         assertThat(basic.search(query).get(0).cases()).isNotEmpty();
         assertThat(indexed.search(query).get(0).cases()).isEmpty();

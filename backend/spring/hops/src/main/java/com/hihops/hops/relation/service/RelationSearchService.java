@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -12,6 +11,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.hihops.hops.knowledge.domain.AccessLevel;
@@ -20,6 +20,7 @@ import com.hihops.hops.knowledge.domain.KnowledgeDocumentVersion;
 import com.hihops.hops.knowledge.repository.KnowledgeDocumentVersionRepository;
 import com.hihops.hops.knowledge.service.KnowledgeEvidenceAssembler;
 import com.hihops.hops.knowledge.service.KnowledgeVisibilityPolicy;
+import com.hihops.hops.relation.repository.Neo4jRelationReader;
 import com.hihops.hops.relation.repository.RelationSearchRepository;
 import com.hihops.hops.relation.repository.RelationSearchRepository.CheckRow;
 import com.hihops.hops.relation.repository.RelationSearchRepository.SymptomRow;
@@ -33,7 +34,7 @@ import com.hihops.hops.relation.service.RelationSearchResult.Symptom;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 관계 조회의 1차 SQL 구현(RelationSource). 호출 쪽이 확정한 접근 범위 안에서 증상을 찾고, 증상마다
+ * Neo4j 관계 조회 결과를 기존 RelationSource 계약으로 조립한다. 호출 쪽이 확정한 접근 범위 안에서 증상을 찾고, 증상마다
  * 확인 항목·직원용 질문 문구(·담당자 범위이면 원인)와 승인 사례 이웃을 모은다. 범위를 정하거나 넓히지 않는다.
  *
  * <p>증상 점수: 기능 후보가 같으면 0.5, 키워드 토큰이 증상 이름에 든 비율의 절반. 일치 신호가 없으면 결과에 없다.
@@ -43,6 +44,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RelationSearchService {
     private final RelationSearchRepository repository;
+    private final Neo4jRelationReader graph;
+    @Value("${hops.search.offline-sql:false}")
+    private boolean offlineSql;
     private final KnowledgeDocumentVersionRepository versions;
     private final KnowledgeEvidenceAssembler assembler;
     private final KnowledgeVisibilityPolicy visibility;
@@ -54,15 +58,16 @@ public class RelationSearchService {
 
     /** 기능이 속한 시스템(없거나 삭제된 기능은 빠진다). 요청의 기능 후보가 접근 범위 안인지 확인하는 데 쓴다. */
     public Map<UUID, UUID> featureSystems(Collection<UUID> featureIds) {
-        return repository.featureSystems(featureIds);
+        return offlineSql ? repository.featureSystems(featureIds) : graph.featureSystems(featureIds);
     }
 
     /** @throws KnowledgeEvidenceAssembler.IntegrityException 사례 문서의 저장된 digest가 어긋날 때. 결과 없음으로 바꾸지 않는다 */
     public List<Symptom> search(Query query) {
         List<String> levels = query.levels().stream().map(Enum::name).toList();
         var viewer = new RelationSearchRepository.Viewer(query.memberId(), query.internalRead());
+        var graphRows = offlineSql ? null : graph.search(query);
         List<Scored> scored = new ArrayList<>();
-        for (SymptomRow row : repository.findSymptoms(levels, query.systemIds(), viewer)) {
+        for (SymptomRow row : (graphRows == null ? repository.findSymptoms(levels, query.systemIds(), viewer) : graphRows.symptoms())) {
             double score = score(query, row);
             if (score > 0) {
                 scored.add(new Scored(row, score));
@@ -75,11 +80,12 @@ public class RelationSearchService {
         }
         List<UUID> symptomIds = top.stream().map(item -> item.row().id()).toList();
 
-        var checks = repository.findCheckItems(symptomIds, query.includesStaff(), levels, viewer);
-        var questions = repository.findQuestions(checks.stream().map(CheckRow::id).distinct().toList(), query.includesStaff(), levels, viewer);
-        var causes = query.includesStaff() ? repository.findCauses(symptomIds, levels, viewer) : List.<RelationSearchRepository.CauseRow>of();
-        var causeChecks = repository.findCauseChecks(causes.stream().map(RelationSearchRepository.CauseRow::id).distinct().toList());
-        var caseLinks = repository.findCaseLinks(symptomIds, levels, viewer);
+        var checks = graphRows == null ? repository.findCheckItems(symptomIds, query.includesStaff(), levels, viewer) : graphRows.checks();
+        var questions = graphRows == null ? repository.findQuestions(checks.stream().map(CheckRow::id).distinct().toList(), query.includesStaff(), levels, viewer) : graphRows.questions();
+        var causes = graphRows != null ? graphRows.causes() : query.includesStaff()
+                ? repository.findCauses(symptomIds, levels, viewer) : List.<RelationSearchRepository.CauseRow>of();
+        var causeChecks = graphRows == null ? repository.findCauseChecks(causes.stream().map(RelationSearchRepository.CauseRow::id).distinct().toList()) : graphRows.causeChecks();
+        var caseLinks = graphRows == null ? repository.findCaseLinks(symptomIds, levels, viewer) : graphRows.cases();
         Map<UUID, String> checkKeys = checks.stream().collect(Collectors.toMap(CheckRow::id, CheckRow::catalogKey, (a, b) -> a));
         Map<UUID, Basis> bases = new HashMap<>();
 
@@ -131,7 +137,8 @@ public class RelationSearchService {
     /** 승인 사례 이웃. 지식 검색과 같은 현재 공개 판정·조립 규칙을 쓴다. 공개할 수 없는 사례는 없는 것으로 본다. */
     private java.util.Optional<CaseNeighbor> neighbor(UUID caseId, int caseVersion, RelationSearchRepository.Viewer viewer) {
         return versions.findCaseVersion(caseId.toString(), caseVersion)
-                .filter(version -> versions.isCurrentlyVisible(version.getId(), viewer.memberId(), visibility.rule(viewer.internalRead())))
+                .filter(version -> versions.isLatestApproved(version.getId())
+                        && versions.isCurrentlyVisible(version.getId(), viewer.memberId(), visibility.rule(viewer.internalRead())))
                 .flatMap(assembler::assemble)
                 .map(assembled -> new CaseNeighbor(assembled.documentKey(), assembled.evidence(), assembled.caseIndexStatus()));
     }

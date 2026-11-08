@@ -5,8 +5,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.hihops.hops.relation.repository.Neo4jRelationReader;
 import com.hihops.hops.relation.repository.RelationSearchRepository;
 import com.hihops.hops.relation.repository.RelationSearchRepository.Viewer;
 
@@ -25,6 +27,9 @@ public class RelationLinkCandidateReader {
     private static final List<String> LEVELS = List.of("EMPLOYEE", "STAFF");
 
     private final RelationSearchRepository repository;
+    private final Neo4jRelationReader graph;
+    @Value("${hops.search.offline-sql:false}")
+    private boolean offlineSql;
 
     /** @param kind SYMPTOM 또는 CHECK_ITEM (AI wire와 같은 이름) */
     public record Candidate(UUID id, String kind, String label, UUID systemId) {
@@ -41,6 +46,10 @@ public class RelationLinkCandidateReader {
     }
 
     private List<Candidate> all(UUID systemId, UUID memberId) {
+        if (!offlineSql) {
+            return graph.linkable(systemId, memberId).stream()
+                    .map(row -> new Candidate(row.id(), row.kind(), row.label(), systemId)).toList();
+        }
         var viewer = new Viewer(memberId, false);
         var symptoms = repository.findSymptoms(LEVELS, List.of(systemId), viewer).stream()
                 .map(row -> new Candidate(row.id(), "SYMPTOM", row.label(), systemId));
