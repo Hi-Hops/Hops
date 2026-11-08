@@ -320,7 +320,7 @@ class MessageCommandControllerTest {
         assertThat(payloadOf(messageIdAt(3)).path("problemLinks").get(0).path("problemId").asString())
                 .isEqualTo(asked.toString());
         assertThat(payloadOf(messageIdAt(4)).path("problemLinks").isEmpty()).isTrue();
-        assertThat(currentInput().path("problemIds").isEmpty()).isTrue();
+        assertThat(problemIdsOf(currentInput())).containsExactly(asked.toString());
     }
 
     @Test
@@ -343,26 +343,32 @@ class MessageCommandControllerTest {
     }
 
     @Test
-    void 대상을_고르지_않은_답은_직전_AI가_질문하거나_안내한_문제에_잇고_실행_대상은_분석이_정한다() throws Exception {
+    void 같은_AI_메시지에_후보가_여럿이면_답을_보류하고_고른_문제로만_새_실행을_접수한다() throws Exception {
         String firstRunId = succeedFirstRun();
         UUID asked = insertProblem(1, "CLARIFYING", 1, null, firstRunId);
-        UUID guided = insertProblem(2, "CLARIFYING", 0, null, firstRunId);
-        UUID other = insertProblem(3, "CLARIFYING", 0, null, firstRunId);
-        for (UUID problem : List.of(asked, guided, other)) {
+        UUID second = insertProblem(2, "CLARIFYING", 1, null, firstRunId);
+        for (UUID problem : List.of(asked, second)) {
             insertStandardRequest(problem, firstRunId, "로그인 실패 조사", "[]");
         }
-        insertAiMessage(2, "{\"questionBundles\": [{\"problemId\": \"" + asked + "\", \"bundleRef\": \"b-1\"}], "
-                + "\"guide\": {\"problemId\": \"" + guided + "\", \"text\": \"안내\", \"evidenceIds\": []}}");
+        insertAiMessage(2, "{\"questionBundles\": [{\"problemId\": \"" + asked + "\", \"bundleRef\": \"b-1\"}, "
+                + "{\"problemId\": \"" + second + "\", \"bundleRef\": \"b-2\"}]}");
 
         send(memberId, UUID.randomUUID(), 1, "오늘 결재를 시도했는데 실패했어", List.of()).andExpect(status().isOk());
 
-        JsonNode links = payloadOf(messageIdAt(3)).path("problemLinks");
-        assertThat(links.findValuesAsString("problemId")).containsExactly(asked.toString(), guided.toString());
+        String replyId = messageIdAt(3);
+        assertThat(payloadOf(replyId).path("problemLinks").isEmpty()).isTrue();
+        assertThat(currentRunId()).isEqualTo(firstRunId);
+        mockMvc.perform(as(memberId, get("/api/v2/inquiries/" + inquiryId)))
+                .andExpect(jsonPath("$.pendingTargetMessageIds[0]").value(replyId))
+                .andExpect(jsonPath("$.problems[0].state").value("WAITING_USER"))
+                .andExpect(jsonPath("$.problems[1].state").value("WAITING_USER"));
+
+        link(memberId, replyId, UUID.randomUUID(), 2, List.of(second)).andExpect(status().isOk());
         JsonNode input = currentInput();
-        assertThat(input.path("problemIds").isEmpty()).isTrue();
-        List<String> inputLinks = new ArrayList<>();
-        input.path("messages").get(2).path("problemIds").forEach(id -> inputLinks.add(id.asString()));
-        assertThat(inputLinks).containsExactly(asked.toString(), guided.toString()).doesNotContain(other.toString());
+        assertThat(problemIdsOf(input)).containsExactly(second.toString());
+        assertThat(input.path("messages").get(2).path("id").asString()).isEqualTo(replyId);
+        assertThat(input.path("messages").get(2).path("problemIds")).isEqualTo(input.path("problemIds"));
+        assertThat(input.path("problems").get(0).path("state").asString()).isEqualTo("WAITING_USER");
     }
 
     @Test
@@ -375,7 +381,7 @@ class MessageCommandControllerTest {
         send(memberId, UUID.randomUUID(), 1, "추가로 알려 드려요", List.of()).andExpect(status().isOk());
 
         assertThat(payloadOf(messageIdAt(3)).path("problemLinks").isEmpty()).isTrue();
-        assertThat(payloadOf(messageIdAt(3)).path("pendingTarget").asBoolean()).isFalse();
+        assertThat(payloadOf(messageIdAt(3)).path("pendingTarget").asBoolean()).isTrue();
     }
 
     private void insertAiMessage(int sequenceNo, String payload) {
