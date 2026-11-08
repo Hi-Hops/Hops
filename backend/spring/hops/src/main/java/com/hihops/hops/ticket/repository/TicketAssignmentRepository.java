@@ -12,4 +12,8 @@ import com.hihops.hops.ticket.domain.TicketAssignment;
 public interface TicketAssignmentRepository extends JpaRepository<TicketAssignment, UUID> {
     @EntityGraph(attributePaths = {"itSystem", "assignee.department", "assignedBy"})
     List<TicketAssignment> findByTicketIdAndDeletedAtIsNullOrderByAssignedAtAscIdAsc(UUID ticketId);
+
+    /** 티켓의 저장된 책임 시스템·담당자와 같은 현재(종료되지 않은) 배정이 있는지. */
+    boolean existsByTicketIdAndItSystemIdAndAssigneeIdAndEndedAtIsNullAndDeletedAtIsNull(
+            UUID ticketId, UUID itSystemId, UUID assigneeId);
 }

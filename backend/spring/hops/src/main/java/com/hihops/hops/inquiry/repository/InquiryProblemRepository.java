@@ -2,6 +2,7 @@ package com.hihops.hops.inquiry.repository;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -49,4 +50,11 @@ public interface InquiryProblemRepository extends JpaRepository<InquiryProblem, 
 
     /** 문의의 삭제되지 않은 문제, 문제 번호 순. AI 입력의 problems를 만든다. */
     List<InquiryProblem> findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(UUID inquiryId);
+
+    /** 삭제되지 않은 문제를 삭제되지 않은 본인 문의 조건과 함께 한 번에 찾는다 (작업 조회). */
+    @Query("""
+            SELECT p FROM InquiryProblem p JOIN FETCH p.inquiry i
+            WHERE p.id = :problemId AND p.deletedAt IS NULL AND i.deletedAt IS NULL AND i.requester.id = :requesterId
+            """)
+    Optional<InquiryProblem> findMine(UUID problemId, UUID requesterId);
 }
