@@ -214,7 +214,7 @@ public class MessageCommandService {
         messageRevisionRepository.save(new MessageRevision(message, previousRevision, previousContent));
         message.revise(command.content(), UserMessagePayload.revised(jsonMapper, message.getPayload(), previousRevision,
                 previousContent, Math.incrementExact(previousRevision), command.content(), command.requestId()));
-        imageProblemLinks.invalidateForRevision(requesterId, messageId, Math.incrementExact(previousRevision), operationId);
+        imageProblemLinks.invalidateForRevision(requesterId, inquiryId, messageId, Math.incrementExact(previousRevision), operationId);
         inquiry.recordInput();
         // 그 사이 삭제된 문제는 대상에서 뺀다. 대기 중인 메시지를 정정하면 계속 대상 선택을 기다린다
         ProblemScope scope = scopeOf(inquiryId);

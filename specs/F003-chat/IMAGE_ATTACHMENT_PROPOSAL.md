@@ -1,6 +1,6 @@
 # 채팅 이미지 첨부 데이터·API 계약 초안
 
-상태: 이슈 #231 구현을 위한 **제안 초안**. 기능 브랜치에는 기본 비활성인 임시 이미지 업로드·소유자 메타데이터 조회, DB 접수와 메시지 결합, 문의자용 이미지 조회·이력 표시 기반이 추가됐다. 미사용 객체 정리·담당자 조회·AI 연결과 S3 운영 설정은 아직 구현되지 않았다. 아래 전체 제안이 구현되거나 서비스 검증을 완료했다는 뜻이 아니다. 최종 필드·오류를 기존 [데이터 계약](../contracts/DATA_TYPES.md), [전송 계약](../contracts/WIRE_CONTRACT.md), [에이전트 계약](../../contracts/agents/README.md)의 정본에 옮기고 서비스 연결을 검증해야 한다.
+상태: 이슈 #231 구현을 위한 **제안 초안**. 기능 브랜치에는 기본 비활성인 임시 이미지 업로드·소유자 메타데이터 조회, DB 접수와 메시지 결합, 문의자용 이미지 조회·이력 표시와 담당자용 권한 검사 조회 기반이 추가됐다. 미사용 객체 정리·담당자 화면·AI 연결과 S3 운영 설정은 아직 구현되지 않았다. 아래 전체 제안이 구현되거나 서비스 검증을 완료했다는 뜻이 아니다. 최종 필드·오류를 기존 [데이터 계약](../contracts/DATA_TYPES.md), [전송 계약](../contracts/WIRE_CONTRACT.md), [에이전트 계약](../../contracts/agents/README.md)의 정본에 옮기고 서비스 연결을 검증해야 한다.
 
 구현 중인 API는 기본 비활성이다. 테스트 설정의 `hops.image-attachments.enabled=true`에서만 등록되며 `hops.image-attachments.bucket`과 AWS SDK 표준 리전·자격 증명 설정이 필요하다. 가림 확인 UI 연결, 미사용 객체 정리, 운영 버킷 보안 및 실제 S3 검증 전에는 운영에서 활성화하지 않는다.
 
@@ -44,6 +44,7 @@
 | `POST /api/v2/image-attachments` | 로그인. `Idempotency-Key`와 JSON `requestId` 동일. `mediaType`은 `image/png`, `dataBase64`는 사용자가 확인한 PNG 바이트의 Base64 | 확정 시 기존 `CommandReceipt` 200 `SUCCEEDED`, resource type `IMAGE_ATTACHMENT`와 id. 미확인/진행은 202 `PENDING` 또는 `UNKNOWN` |
 | `GET /api/v2/image-attachments/{attachmentId}` | 현재 업로드 소유자. 미결합이거나 자신의 문의에 결합된 항목만 | 소유자용 메타데이터: id·상태·생성/만료 시각·메시지 연결 여부. S3 위치·바이트·다른 사용자의 존재는 제외 |
 | `GET /api/v2/inquiries/{inquiryId}/image-attachments/{attachmentId}/content` | 현재 문의 소유자이고 이미지가 그 문의의 저장된 메시지에 연결 | `image/png` 바이트. 비공개·`Cache-Control: no-store`, `X-Content-Type-Options: nosniff` |
+| `GET /api/v2/tickets/{ticketId}/image-attachments` | 현재 해당 티켓 담당자이고 문의자가 이미지 전체 공개를 확인한 같은 문제의 첨부만 | 첨부 ID·미디어 유형·크기 목록. 이미지가 없거나 공개 관계가 없으면 빈 목록 |
 | `GET /api/v2/tickets/{ticketId}/image-attachments/{attachmentId}/content` | 현재 해당 티켓에 접근 가능한 담당자이고 이미지–해당 문제 연결이 유효 | 위와 같은 가림 PNG. 실패 시 대상 존재를 누출하지 않는 오류 |
 
 `ResourceType.IMAGE_ATTACHMENT`은 신규 가산값으로 제안한다. 기존 명령별 반환값과 `operations/by-request/{requestId}`를 유지하며 프론트 wire 판독기도 추가 값을 처리해야 한다. 바이너리 업로드의 다른 전송 방식은 이번 제안에 포함하지 않는다. JSON과 Base64는 임시 입력일 뿐 로그·결과 journal에 본문을 저장하지 않는다. 프록시 버퍼링/임시 파일·서버 요청 로그와 제한도 구현 및 배포 시 확인한다.
