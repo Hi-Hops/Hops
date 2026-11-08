@@ -102,6 +102,11 @@ class SupervisorRuntime:
         """공통 실행기의 취소·기한·누적 한도 검사를 호출한다."""
         self._execution.ensure_active()
 
+    @property
+    def request(self) -> AiRunRequest:
+        """이 실행에 고정된 입력을 반환한다."""
+        return self._request
+
     def sync_state(self, state: SupervisorState) -> SupervisorState:
         """공통 예산의 현재 사용량과 취소 여부를 새 State에 복사한다.
 
