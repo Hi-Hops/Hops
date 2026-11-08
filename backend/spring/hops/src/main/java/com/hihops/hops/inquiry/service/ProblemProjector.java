@@ -36,11 +36,13 @@ import com.hihops.hops.itsystem.service.ItSystemService;
 import com.hihops.hops.ticket.domain.Ticket;
 import com.hihops.hops.ticket.dto.ResolutionRequestResponse;
 import com.hihops.hops.ticket.dto.TicketSummaryResponse;
+import com.hihops.hops.ticket.repository.TicketAssignmentRepository;
 import com.hihops.hops.ticket.repository.TicketRepository;
 import com.hihops.hops.ticket.repository.TicketWorkLogRepository;
 import com.hihops.hops.ticket.service.TicketProgressReader;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -62,6 +64,7 @@ import tools.jackson.databind.json.JsonMapper;
  * WAITING_USER, 그 외 ANALYZING이다 (DATA 11.2). 대상은 현재 실행 입력의 problemIds로, AI 입력({@code InputProblemReader})과 같은 기준이다.
  * 담당자 내부 표준 요청서는 담지 않는다. 트랜잭션 안에서 부른다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ProblemProjector {
@@ -71,6 +74,7 @@ public class ProblemProjector {
     private final MessageRepository messageRepository;
     private final GuideVisibility guideVisibility;
     private final TicketRepository ticketRepository;
+    private final TicketAssignmentRepository assignmentRepository;
     private final TicketWorkLogRepository workLogRepository;
     private final TicketProgressReader progressReader;
     private final ItSystemService itSystemService;
@@ -132,9 +136,17 @@ public class ProblemProjector {
     /**
      * 한 문제의 티켓 생성 작업 결과 (GET /work-items). 작업이 없으면 null.
      *
-     * <p>문의 상세와 같은 값을 만들되 저장 결과와 티켓이 어긋나면 500이 아니라 복구해 돌려준다. 이 값은 "저장됐는지" 확인하려고
-     * 다시 읽는 값이라 어긋남을 영구 오류로 막으면 확인 경로가 사라진다. 티켓이 있으면 티켓이 정본이라 STORED, STORED인데
-     * 티켓이 없거나 삭제됐으면 확인할 수 없으므로 UNKNOWN이다 (내부 AI 조회 {@code TicketCreationService}와 같은 보정).
+     * <p>문의 상세와 같은 형식이되 저장 결과와 티켓이 어긋나면 500이 아니라 복구해 돌려준다. 이 값은 "저장됐는지" 확인하려고
+     * 다시 읽는 값이라 어긋남을 영구 오류로 막으면 확인 경로가 사라진다. 규칙은 내부 AI 조회
+     * ({@code TicketCreationService.result})와 같다.
+     * <ul>
+     *   <li>삭제되지 않은 티켓에 저장된 책임 시스템·담당자와 같은 현재 배정이 있으면 STORED</li>
+     *   <li>티켓 행이 있어도 그 외(삭제됨·배정 없음·배정 종료)면 UNKNOWN. 삭제된 행도 uk_ticket_inquiry_problem을 계속 차지해
+     *       다시 만들 수 없으므로 NOT_CREATED로 보이면 안 된다</li>
+     *   <li>티켓 행이 없으면 저장된 값, 단 STORED는 UNKNOWN</li>
+     * </ul>
+     * 정상 경로(TicketCreationService.attempt)는 티켓·배정·STORED를 한 거래로 쓰므로 보정은 수동 수정·부분 삭제 같은 데이터 손상
+     * 때만 일어난다. 문의 상세는 같은 행에 500을 내므로 보정할 때마다 WARN을 남겨 운영자가 알 수 있게 한다.
      *
      * @throws IllegalStateException 입력 버전이 없는 등 결과 행 자체가 깨진 경우
      */
@@ -143,9 +155,16 @@ public class ProblemProjector {
         if (stored == null) {
             return null;
         }
-        Optional<Ticket> ticket = liveTicket(problem);
+        Optional<Ticket> row = ticketRepository.findByInquiryProblem_Id(problem.getId());
+        Optional<Ticket> ticket = row.filter(found -> !found.isDeleted()
+                && assignmentRepository.existsByTicketIdAndItSystemIdAndAssigneeIdAndEndedAtIsNullAndDeletedAtIsNull(
+                        found.getId(), found.getResponsibleSystem().getId(), found.getAssignee().getId()));
         CreationOutcome outcome = ticket.isPresent() ? CreationOutcome.STORED
-                : stored == CreationOutcome.STORED ? CreationOutcome.UNKNOWN : stored;
+                : row.isPresent() || stored == CreationOutcome.STORED ? CreationOutcome.UNKNOWN : stored;
+        if (outcome != stored) {
+            log.warn("티켓 생성 결과를 보정합니다: problemId={}, stored={}, served={}, ticketRow={}", problem.getId(), stored,
+                    outcome, row.isPresent());
+        }
         return creationResult(problem, outcome, ticket);
     }
 
@@ -154,7 +173,7 @@ public class ProblemProjector {
         if (outcome == null) {
             return null;
         }
-        if (problem.getCreationInputVersion() == null || (outcome == CreationOutcome.STORED) != ticket.isPresent()) {
+        if ((outcome == CreationOutcome.STORED) != ticket.isPresent()) {
             throw new IllegalStateException("티켓 생성 결과와 저장된 티켓이 맞지 않는다: " + problem.getId());
         }
         return creationResult(problem, outcome, ticket);

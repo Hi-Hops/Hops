@@ -128,9 +128,13 @@ class WorkItemControllerTest {
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
     }
 
+    // 아래 복구 규칙은 내부 AI 조회(TicketCreationService.result)와 같다:
+    // 삭제되지 않은 티켓에 현재 배정이 있으면 STORED, 티켓 행이 있어도 그 외(삭제·배정 없음·배정 종료)면 UNKNOWN,
+    // 티켓 행이 없으면 저장된 값(STORED는 UNKNOWN). 정상 경로는 티켓·배정·STORED를 한 거래로 쓰므로 이 분기는 수동 수정·부분 삭제 같은
+    // 데이터 손상 때만 탄다. 삭제된 티켓 행도 uk_ticket_inquiry_problem을 계속 차지해 재시도할 수 없다.
+
     @Test
-    void 티켓이_이미_있으면_결과가_아직_UNKNOWN_PENDING_NOT_CREATED여도_STORED로_복구해_돌려준다() throws Exception {
-        // 저장 여부를 확인하려고 이 API를 폴링하는 경우: 시도가 commit됐는데 결과 갱신이 늦은 상태다
+    void 삭제되지_않은_티켓에_현재_배정이_있으면_저장된_값이_달라도_STORED로_복구한다() throws Exception {
         int no = 0;
         for (String outcome : new String[] {"UNKNOWN", "PENDING", "NOT_CREATED"}) {
             UUID problem = problem(INQUIRY_ID, ++no, "TICKET_FAILED", outcome, 1, null, false);
@@ -144,17 +148,33 @@ class WorkItemControllerTest {
     }
 
     @Test
-    void STORED인데_티켓이_없거나_삭제됐으면_500이_아니라_UNKNOWN으로_돌려준다() throws Exception {
-        UUID missing = problem(INQUIRY_ID, 1, "TICKET_CREATED", "STORED", 1, null, false);
-        UUID deleted = problem(INQUIRY_ID, 2, "TICKET_CREATED", "STORED", 1, null, false);
-        insertTicket(INQUIRY_ID, deleted, "TK-DELETED", true);
-        for (UUID id : new UUID[] {missing, deleted}) {
-            mockMvc.perform(asMember(get("/api/v2/work-items/" + id)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.outcome").value("UNKNOWN"))
-                    .andExpect(jsonPath("$.ticketId").isEmpty())
-                    .andExpect(jsonPath("$.error").isEmpty());
+    void 티켓이_삭제됐거나_현재_배정이_없으면_저장된_값과_상관없이_UNKNOWN이다() throws Exception {
+        int no = 0;
+        for (String outcome : new String[] {"STORED", "NOT_CREATED", "PENDING", "UNKNOWN"}) {
+            for (Assignment assignment : Assignment.values()) {
+                for (boolean deleted : new boolean[] {false, true}) {
+                    if (!deleted && assignment == Assignment.ACTIVE) continue; // 정상 STORED
+                    UUID problem = problem(INQUIRY_ID, ++no, "TICKET_FAILED", outcome, 1, null, false);
+                    insertTicket(INQUIRY_ID, problem, "TK-" + no, deleted, assignment);
+                    mockMvc.perform(asMember(get("/api/v2/work-items/" + problem)))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.outcome").value("UNKNOWN"))
+                            .andExpect(jsonPath("$.ticketId").isEmpty())
+                            .andExpect(jsonPath("$.error").isEmpty());
+                }
+            }
         }
+    }
+
+    @Test
+    void 티켓_행이_없는_STORED는_UNKNOWN이고_다른_값은_그대로다() throws Exception {
+        UUID stored = problem(INQUIRY_ID, 1, "TICKET_CREATED", "STORED", 1, null, false);
+        UUID notCreated = problem(INQUIRY_ID, 2, "TICKET_FAILED", "NOT_CREATED", 1, "ASSIGNMENT_UNAVAILABLE", false);
+        mockMvc.perform(asMember(get("/api/v2/work-items/" + stored)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("UNKNOWN"))
+                .andExpect(jsonPath("$.ticketId").isEmpty());
+        mockMvc.perform(asMember(get("/api/v2/work-items/" + notCreated)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("NOT_CREATED"));
     }
 
     @Test
@@ -202,6 +222,12 @@ class WorkItemControllerTest {
 
     // 티켓은 표준 요청서·분석 실행을 거쳐야 만들 수 있어 함께 넣는다
     private UUID insertTicket(UUID inquiryId, UUID problemId, String number, boolean deleted) {
+        return insertTicket(inquiryId, problemId, number, deleted, Assignment.ACTIVE);
+    }
+
+    private enum Assignment { ACTIVE, ENDED, NONE }
+
+    private UUID insertTicket(UUID inquiryId, UUID problemId, String number, boolean deleted, Assignment assignment) {
         UUID run = UUID.randomUUID();
         jdbc.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, model_version, "
                 + "prompt_version, schema_version, started_at, completed_at) VALUES (?, ?, 'INQUIRY_ANALYSIS', 'SUCCEEDED', 1, "
@@ -214,6 +240,12 @@ class WorkItemControllerTest {
         jdbc.update("INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, title, detail, "
                 + "work_type, ticket_status, responsible_system_id, assignee_member_id) VALUES (?, ?, ?, ?, ?, '티켓', "
                 + "'내용', 'INVESTIGATION', 'OPEN', ?, ?)", ticket, number, inquiryId, problemId, request, SYSTEM_ID, OTHER_MEMBER_ID);
+        if (assignment != Assignment.NONE) {
+            // 정상 경로는 티켓과 같은 거래로 현재 배정(ended_at 없음)을 함께 넣는다
+            jdbc.update("INSERT INTO ticket_assignment (ticket_id, it_system_id, assignee_member_id, source, reason, evidence, "
+                    + "assigned_at, ended_at) VALUES (?, ?, ?, 'AUTO', '자동 배정', '{}'::jsonb, now(), "
+                    + (assignment == Assignment.ENDED ? "now()" : "NULL") + ")", ticket, SYSTEM_ID, OTHER_MEMBER_ID);
+        }
         if (deleted) jdbc.update("UPDATE ticket SET deleted_at = now() WHERE id = ?", ticket);
         return ticket;
     }
