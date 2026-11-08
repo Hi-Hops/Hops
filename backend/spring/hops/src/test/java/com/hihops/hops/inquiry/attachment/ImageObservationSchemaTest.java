@@ -131,7 +131,7 @@ class ImageObservationSchemaTest {
         assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> analysisTargets.replace(
                 member, inquiry, image, operation, 0, List.of())))
                 .isInstanceOfSatisfying(com.hihops.hops.global.exception.BusinessException.class,
-                        error -> assertThat(error.errorCode()).isEqualTo(com.hihops.hops.global.exception.ErrorCode.ATTACHMENT_LINK_VERSION_CONFLICT));
+                        error -> assertThat(error.errorCode()).isEqualTo(com.hihops.hops.global.exception.ErrorCode.ATTACHMENT_ANALYSIS_VERSION_CONFLICT));
     }
 
     @Test

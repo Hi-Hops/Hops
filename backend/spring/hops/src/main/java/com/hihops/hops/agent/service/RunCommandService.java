@@ -68,7 +68,7 @@ public class RunCommandService {
         }
         boolean current = inquiry.getCurrentRun() != null && inquiry.getCurrentRun().getId().equals(runId);
         boolean open = inquiry.getInquiryStatus() != InquiryStatus.RESOLVED && inquiry.getInquiryStatus() != InquiryStatus.CLOSED;
-        if (!current || !open || !runSummaryReader.isRetryable(failed)) {
+        if (!current || !open || failed.getInputVersion() != inquiry.getVersion() || !runSummaryReader.isRetryable(failed)) {
             throw new BusinessException(ErrorCode.RUN_NOT_RETRYABLE);
         }
 

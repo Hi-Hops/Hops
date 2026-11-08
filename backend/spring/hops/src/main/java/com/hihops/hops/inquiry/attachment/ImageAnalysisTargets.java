@@ -44,7 +44,7 @@ public class ImageAnalysisTargets {
                 """, (rs, row) -> new Version(rs.getInt("analysis_revision"), rs.getInt("revision")),
                 attachmentId, actorId, inquiryId, actorId);
         Version version = rows.stream().findFirst().orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
-        if (version.analysis() != expectedRevision) throw new BusinessException(ErrorCode.ATTACHMENT_LINK_VERSION_CONFLICT);
+        if (version.analysis() != expectedRevision) throw new BusinessException(ErrorCode.ATTACHMENT_ANALYSIS_VERSION_CONFLICT);
         if (!problemIds.isEmpty()) {
             var known = namedJdbc.queryForList("SELECT id FROM inquiry_problem WHERE inquiry_id = :inquiry "
                     + "AND deleted_at IS NULL AND id IN (:ids)", Map.of("inquiry", inquiryId, "ids", problemIds), UUID.class);
@@ -60,7 +60,7 @@ public class ImageAnalysisTargets {
         }
         int changed = jdbc.update("UPDATE image_attachment SET analysis_revision = ? WHERE id = ? AND analysis_revision = ?",
                 next, attachmentId, version.analysis());
-        if (changed != 1) throw new BusinessException(ErrorCode.ATTACHMENT_LINK_VERSION_CONFLICT);
+        if (changed != 1) throw new BusinessException(ErrorCode.ATTACHMENT_ANALYSIS_VERSION_CONFLICT);
     }
 
     /** 메시지가 바뀌면 이전 분석 대상은 다시 선택할 때까지 사용하지 않는다. */

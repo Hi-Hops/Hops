@@ -25,6 +25,12 @@ public record ErrorResponse(String code, String message, String requestId, boole
         return of(errorCode, errorCode.message(), requestId);
     }
 
+    /** 오류 자체가 재시도 가능해도 현재 대상 상태에서 더 제한할 수 있다. */
+    public static ErrorResponse of(ErrorCode errorCode, String requestId, boolean allowRetry) {
+        return new ErrorResponse(errorCode.name(), errorCode.message(), requestId,
+                errorCode.retryable() && allowRetry, List.of());
+    }
+
     public static ErrorResponse of(ErrorCode errorCode, String message, String requestId) {
         return new ErrorResponse(errorCode.name(), message, requestId, errorCode.retryable(), List.of());
     }

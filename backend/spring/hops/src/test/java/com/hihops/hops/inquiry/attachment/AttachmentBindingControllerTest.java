@@ -117,6 +117,117 @@ class AttachmentBindingControllerTest {
                         "expectedLinkRevision", linkRevision, "problemIds", problems, "confirmImageDisclosure", confirmed))));
     }
 
+    private ResultActions selectAnalysis(UUID actor, UUID inquiry, UUID image, UUID request, int inquiryVersion,
+            int analysisRevision, List<UUID> problems) throws Exception {
+        return mvc.perform(post("/api/v2/inquiries/{inquiry}/image-attachments/{image}/analysis-targets", inquiry, image)
+                .with(jwt().jwt(token -> token.subject(actor.toString())))
+                .header("Idempotency-Key", request).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsBytes(Map.of("requestId", request, "expectedInquiryVersion", inquiryVersion,
+                        "expectedAnalysisRevision", analysisRevision, "problemIds", problems))));
+    }
+
+    @Test
+    void 분석_대상을_선택하고_조회해도_담당자에게_공개되지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID first = problem(inquiry, 1);
+        UUID second = problem(inquiry, 2);
+        UUID request = UUID.randomUUID();
+        selectAnalysis(owner, inquiry, image, request, 1, 0, List.of(first, second)).andExpect(status().isOk());
+        selectAnalysis(owner, inquiry, image, request, 1, 0, List.of(first, second)).andExpect(status().isOk());
+        mvc.perform(get("/api/v2/image-attachments/{id}", image).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.analysisRevision").value(1))
+                .andExpect(jsonPath("$.analysisProblemIds.length()").value(2))
+                .andExpect(jsonPath("$.linkRevision").value(0)).andExpect(jsonPath("$.problemIds").isEmpty());
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id=?", Integer.class, inquiry)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_history WHERE attachment_id=?", Integer.class, image)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link WHERE attachment_id=?", Integer.class, image)).isZero();
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 1, List.of()).andExpect(status().isOk());
+        mvc.perform(get("/api/v2/image-attachments/{id}", image).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.analysisRevision").value(2))
+                .andExpect(jsonPath("$.analysisProblemIds").isEmpty());
+    }
+
+    @Test
+    void 분석_대상_변경은_소유권_차수와_진행중인_실행을_확인한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(other, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isNotFound());
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_target WHERE attachment_id=?", Integer.class, image)).isZero();
+        finishCurrent(inquiry);
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem, problem)).andExpect(status().isBadRequest());
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(UUID.randomUUID())).andExpect(status().isBadRequest());
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 0, List.of(problem)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INQUIRY_VERSION_CONFLICT"));
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 1, List.of(problem)).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_ANALYSIS_VERSION_CONFLICT"));
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id=?", Integer.class, inquiry)).isEqualTo(1);
+    }
+
+    @Test
+    void 분석_대상_변경_전의_실패_입력은_새_버전으로_재시도하지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        UUID run = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        jdbc.update("UPDATE agent_run SET run_status='FAILED',error_code='MODEL_UNAVAILABLE',started_at=now(),completed_at=now() WHERE id=?", run);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isOk());
+        mvc.perform(get("/api/v2/runs/{id}", run).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.error.retryable").value(false));
+        UUID request = UUID.randomUUID();
+        mvc.perform(post("/api/v2/runs/{id}/retries", run).with(jwt().jwt(token -> token.subject(owner.toString())))
+                .header("Idempotency-Key", request).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsBytes(Map.of("requestId", request, "expectedInquiryVersion", 2))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("RUN_NOT_RETRYABLE"));
+        assertThat(jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry)).isEqualTo(run);
+    }
+
+    @Test
+    void 동시_분석_대상_변경은_하나만_적용한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var calls = java.util.stream.IntStream.range(0, 2).mapToObj(index -> pool.submit(() -> {
+                start.await();
+                return selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem))
+                        .andReturn().getResponse().getStatus();
+            })).toList();
+            start.countDown();
+            assertThat(List.of(calls.get(0).get(10, TimeUnit.SECONDS), calls.get(1).get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(200, 409);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_history WHERE attachment_id=?", Integer.class, image)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_analysis_target WHERE attachment_id=?", Integer.class, image)).isEqualTo(1);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"empty", "extra", "other-actor"})
+    void 분석_대상_이력이_현재_선택과_다르면_조회하지_않는다(String tamper) throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isOk());
+        switch (tamper) {
+            case "empty" -> jdbc.update("UPDATE image_attachment_analysis_history SET problem_ids='[]'::jsonb WHERE attachment_id=?", image);
+            case "extra" -> jdbc.update("UPDATE image_attachment_analysis_history SET problem_ids=?::jsonb WHERE attachment_id=?",
+                    mapper.writeValueAsString(List.of(problem, UUID.randomUUID())), image);
+            case "other-actor" -> jdbc.update("UPDATE image_attachment_analysis_history SET actor_member_id=? WHERE attachment_id=?", other, image);
+            default -> throw new IllegalArgumentException(tamper);
+        }
+        mvc.perform(get("/api/v2/image-attachments/{id}", image).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INVALID_STATE"));
+        mvc.perform(get("/api/v2/image-attachments/{id}", image).with(jwt().jwt(token -> token.subject(other.toString()))))
+                .andExpect(status().isNotFound());
+    }
+
     @Test
     void 문의자가_이미지_공개_대상을_확인하면_이력과_차수를_저장하고_재전송은_재사용한다() throws Exception {
         UUID image = attachment(owner, "READY", false);
@@ -173,6 +284,8 @@ class AttachmentBindingControllerTest {
         UUID otherProblem = problem(otherInquiry, 1);
         link(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(otherProblem), true).andExpect(status().isBadRequest());
         link(owner, otherInquiry, image, UUID.randomUUID(), 1, 0, List.of(ownProblem), true).andExpect(status().isNotFound());
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(otherProblem)).andExpect(status().isBadRequest());
+        selectAnalysis(owner, otherInquiry, image, UUID.randomUUID(), 1, 0, List.of(ownProblem)).andExpect(status().isNotFound());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link_history WHERE attachment_id=?", Integer.class, image)).isZero();
     }
 

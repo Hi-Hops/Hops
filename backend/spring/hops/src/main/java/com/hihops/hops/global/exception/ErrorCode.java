@@ -40,6 +40,7 @@ public enum ErrorCode {
     MESSAGE_REVISION_CONFLICT(HttpStatus.CONFLICT, "메시지가 이미 바뀌었습니다. 최신 원문과 비교해 주세요.", false),
     OBSERVATION_VERSION_CONFLICT(HttpStatus.CONFLICT, "이미지 확인 요청이 변경되었습니다. 최신 내용을 확인해 주세요.", false),
     ATTACHMENT_LINK_VERSION_CONFLICT(HttpStatus.CONFLICT, "이미지 공개 대상이 변경되었습니다. 최신 내용을 확인해 주세요.", false),
+    ATTACHMENT_ANALYSIS_VERSION_CONFLICT(HttpStatus.CONFLICT, "이미지 분석 대상이 변경되었습니다. 최신 내용을 확인해 주세요.", false),
     // 현재 실행이 아니거나 재분석할 수 없는 상태. 최신 실행 상태를 다시 조회한다 (WIRE_CONTRACT 10절)
     RUN_NOT_RETRYABLE(HttpStatus.CONFLICT, "지금은 다시 분석할 수 없습니다. 최신 상태를 확인해 주세요.", false),
     // 대상의 현재 상태에서 허용하지 않는 조작. 최신 상태를 다시 읽고 허용된 조작만 제공한다 (WIRE_CONTRACT 12.3)

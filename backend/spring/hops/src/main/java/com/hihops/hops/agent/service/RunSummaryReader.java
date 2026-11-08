@@ -55,7 +55,8 @@ public class RunSummaryReader {
         ErrorCode error = errorOf(run);
         return new RunSummaryResponse(run.getId(), run.getInquiry().getId(), run.getInputVersion(),
                 UUID.fromString(answerMessageId.asString()), status,
-                error == null ? null : ErrorResponse.of(error, requestIdOf(run, input).toString()));
+                error == null ? null : ErrorResponse.of(error, requestIdOf(run, input).toString(),
+                        run.getInputVersion() == run.getInquiry().getVersion()));
     }
 
     /** 수동 재분석(RunRetryCommand)을 받을 수 있는 실패인지. 공개 오류의 retryable과 같은 기준이다. */

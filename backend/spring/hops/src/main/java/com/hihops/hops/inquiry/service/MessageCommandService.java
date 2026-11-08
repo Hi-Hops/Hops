@@ -41,6 +41,7 @@ import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
 import com.hihops.hops.inquiry.dto.ImageProblemLinkCommand;
+import com.hihops.hops.inquiry.dto.ImageAnalysisTargetCommand;
 import com.hihops.hops.inquiry.attachment.AttachmentBindingService;
 import com.hihops.hops.inquiry.attachment.ImageProblemLinks;
 import com.hihops.hops.inquiry.attachment.ImageAnalysisTargets;
@@ -154,6 +155,29 @@ public class MessageCommandService {
                     command.expectedLinkRevision(), command.problemIds());
             inquiry.recordInput();
             resumeInterruptedAnalysis(inquiry, request.requestId());
+            eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), source.messageId(), request.requestId()));
+            return new ResourceRef(ResourceType.INQUIRY, inquiryId);
+        });
+    }
+
+    /** 분석 대상만 변경한다. 기존 공개 범위와 티켓 상태는 건드리지 않는다. */
+    public CommandResult selectImageAnalysisTargets(IdempotentRequest request, UUID inquiryId, UUID attachmentId,
+            ImageAnalysisTargetCommand command) {
+        if (command.problemIds().stream().distinct().count() != command.problemIds().size()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        imageProblemLinks.requireOwned(request.actorId(), inquiryId, attachmentId, false);
+        return idempotencyService.execute(request, operationId -> {
+            Inquiry inquiry = lockOpenInquiry(request.actorId(), inquiryId, command.expectedInquiryVersion());
+            if (inquiry.getCurrentRun() != null && isActive(inquiry.getCurrentRun())) {
+                throw new BusinessException(ErrorCode.INVALID_STATE, "진행 중인 분석이 끝난 뒤 다시 시도해 주세요.");
+            }
+            var source = imageProblemLinks.requireOwned(request.actorId(), inquiryId, attachmentId, true);
+            imageAnalysisTargets.replace(request.actorId(), inquiryId, attachmentId, operationId,
+                    command.expectedAnalysisRevision(), command.problemIds());
+            inquiry.recordInput();
             eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), source.messageId(), request.requestId()));
             return new ResourceRef(ResourceType.INQUIRY, inquiryId);
         });
