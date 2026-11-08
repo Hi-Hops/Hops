@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -31,6 +32,15 @@ public class ImageObservationWriter {
     private final NamedParameterJdbcTemplate namedJdbc;
     private final JsonMapper mapper;
     private final EntityManager entities;
+    private final ImageObservationProblemResolver problems;
+
+    /** 같은 결과의 문제 저장 기록을 해석한 뒤 관찰을 저장한다. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public int storeResolved(UUID runId, UUID inquiryId, UUID ownerId, UUID answerId, JsonNode input, JsonNode result,
+            GuideResultWriter.@Nullable Applied guide, ProblemQuestionWriter.Applied stored) {
+        Map<String, UUID> resolved = problems.resolve(runId, inquiryId, input, result, guide, stored);
+        return store(runId, inquiryId, ownerId, answerId, input, result, resolved);
+    }
 
     /** 문제 참조는 같은 결과 적용 거래에서 서버가 실제 저장한 문제 ID로 해석해 전달한다. */
     @Transactional(propagation = Propagation.MANDATORY)

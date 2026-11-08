@@ -20,6 +20,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.hihops.hops.agent.service.AgentResultRejectedException;
 import com.hihops.hops.inquiry.service.ImageObservationWriter;
+import com.hihops.hops.inquiry.service.ImageObservationProblemResolver;
+import com.hihops.hops.inquiry.service.GuideResultWriter;
+import com.hihops.hops.inquiry.service.ProblemQuestionWriter;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -30,6 +33,7 @@ import tools.jackson.databind.json.JsonMapper;
 class ImageObservationSchemaTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired ImageObservationWriter observationWriter;
+    @Autowired ImageObservationProblemResolver problemResolver;
     @Autowired PlatformTransactionManager transactions;
     @Autowired JsonMapper mapper;
     private final UUID department = UUID.randomUUID();
@@ -131,6 +135,130 @@ class ImageObservationSchemaTest {
         Integer count = new TransactionTemplate(transactions).execute(status -> observationWriter.store(run, inquiry,
                 member, answerMessage, input, result, Map.of(problem.toString(), problem)));
         return count == null ? -1 : count;
+    }
+
+    private Map<String, UUID> resolve(JsonNode input, JsonNode result, GuideResultWriter.Applied guide,
+            ProblemQuestionWriter.Applied stored) {
+        return new TransactionTemplate(transactions).execute(status ->
+                problemResolver.resolve(run, inquiry, input, result, guide, stored));
+    }
+
+    private JsonNode resultForProblem(String ref) {
+        var result = (tools.jackson.databind.node.ObjectNode) result("오류 화면", "오류 화면이 보입니다. 맞나요?");
+        ((tools.jackson.databind.node.ObjectNode) result.path("imageObservations").get(0)).put("problemRef", ref);
+        ((tools.jackson.databind.node.ObjectNode) result.path("questions").get(0)).put("problemRef", ref);
+        result.putArray("problemProposals").addObject().put("problemRef", ref);
+        return result;
+    }
+
+    @Test
+    void 기존_문제와_새_질문_문제_및_안내_문제의_참조를_실제_ID로_해석한다() {
+        JsonNode input = input("b".repeat(64), 1);
+        assertThat(resolve(input, resultForProblem(problem.toString()), null, ProblemQuestionWriter.Applied.NONE))
+                .containsExactly(Map.entry(problem.toString(), problem));
+        var stored = new ProblemQuestionWriter.Applied(java.util.Set.of("new:question"), 1, 0,
+                Map.of("new:question", problem));
+        assertThat(resolve(input, resultForProblem("new:question"), null, stored))
+                .containsExactly(Map.entry("new:question", problem));
+        assertThat(resolve(input, resultForProblem("new:guide"),
+                new GuideResultWriter.Applied("new:guide", problem, 1), ProblemQuestionWriter.Applied.NONE))
+                .containsExactly(Map.entry("new:guide", problem));
+    }
+
+    @Test
+    void 같은_실행의_티켓_저장_기록으로_문제_참조를_해석한다() {
+        jdbc.update("INSERT INTO agent_ticket_request (run_id, problem_ref, problem_id, request_body) "
+                + "VALUES (?, 'new:ticket', ?, '{}'::jsonb)", run, problem);
+        try {
+            assertThat(resolve(input("b".repeat(64), 1), resultForProblem("new:ticket"), null,
+                    ProblemQuestionWriter.Applied.NONE)).containsExactly(Map.entry("new:ticket", problem));
+        } finally {
+            jdbc.update("DELETE FROM agent_ticket_request WHERE run_id = ?", run);
+        }
+    }
+
+    @Test
+    void 다른_실행의_티켓_참조를_재사용하지_않는다() {
+        UUID otherRun = UUID.randomUUID();
+        jdbc.update("INSERT INTO agent_run (id, inquiry_id, task, run_status, input_version, input_snapshot, model_version, prompt_version, schema_version) "
+                + "VALUES (?, ?, 'INQUIRY_ANALYSIS', 'QUEUED', 1, '{}', 'test', 'test', 'test')", otherRun, inquiry);
+        jdbc.update("INSERT INTO agent_ticket_request (run_id, problem_ref, problem_id, request_body) "
+                + "VALUES (?, 'new:ticket', ?, '{}'::jsonb)", otherRun, problem);
+        try {
+            assertThatThrownBy(() -> resolve(input("b".repeat(64), 1), resultForProblem("new:ticket"), null,
+                    ProblemQuestionWriter.Applied.NONE)).isInstanceOf(AgentResultRejectedException.class);
+        } finally {
+            jdbc.update("DELETE FROM agent_ticket_request WHERE run_id = ?", otherRun);
+            jdbc.update("DELETE FROM agent_run WHERE id = ?", otherRun);
+        }
+    }
+
+    @Test
+    void 없는_참조나_다른_문의의_문제_또는_충돌하는_참조를_거부한다() {
+        JsonNode input = input("b".repeat(64), 1);
+        JsonNode result = resultForProblem("new:missing");
+        assertThatThrownBy(() -> resolve(input, result, null, ProblemQuestionWriter.Applied.NONE))
+                .isInstanceOf(AgentResultRejectedException.class);
+        var missing = new ProblemQuestionWriter.Applied(java.util.Set.of(), 0, 0,
+                Map.of("new:missing", UUID.randomUUID()));
+        assertThatThrownBy(() -> resolve(input, result, null, missing)).isInstanceOf(AgentResultRejectedException.class);
+        UUID otherInquiry = UUID.randomUUID();
+        UUID otherProblem = UUID.randomUUID();
+        jdbc.update("INSERT INTO inquiry (id, inquiry_number, requester_member_id, title, inquiry_status) VALUES (?, ?, ?, '테스트', 'IN_PROGRESS')",
+                otherInquiry, otherInquiry.toString().substring(0, 8), member);
+        jdbc.update("INSERT INTO inquiry_problem (id, inquiry_id, problem_no, title, problem_status) VALUES (?, ?, 1, '테스트', 'CLARIFYING')",
+                otherProblem, otherInquiry);
+        try {
+            var other = new ProblemQuestionWriter.Applied(java.util.Set.of(), 0, 0, Map.of("new:missing", otherProblem));
+            assertThatThrownBy(() -> resolve(input, result, null, other)).isInstanceOf(AgentResultRejectedException.class);
+            jdbc.update("INSERT INTO agent_ticket_request (run_id, problem_ref, problem_id, request_body) VALUES (?, 'new:missing', ?, '{}'::jsonb)", run, otherProblem);
+            assertThatThrownBy(() -> resolve(input, result, null, ProblemQuestionWriter.Applied.NONE))
+                    .isInstanceOf(AgentResultRejectedException.class);
+        } finally {
+            jdbc.update("DELETE FROM agent_ticket_request WHERE run_id = ?", run);
+            jdbc.update("DELETE FROM inquiry_problem WHERE id = ?", otherProblem);
+            jdbc.update("DELETE FROM inquiry WHERE id = ?", otherInquiry);
+        }
+        var conflicting = new ProblemQuestionWriter.Applied(java.util.Set.of(), 0, 0,
+                Map.of("new:missing", problem));
+        assertThatThrownBy(() -> resolve(input, result, new GuideResultWriter.Applied("new:missing", UUID.randomUUID(), 0), conflicting))
+                .isInstanceOf(AgentResultRejectedException.class);
+    }
+
+    @Test
+    void 문제_참조_해석_뒤_관찰_저장은_같은_거래에서_롤백된다() {
+        String answer = "오류 화면이 보입니다. 맞나요?";
+        storedAnswer(answer);
+        JsonNode input = input("b".repeat(64), 1);
+        JsonNode result = resultForProblem("new:question");
+        var stored = new ProblemQuestionWriter.Applied(java.util.Set.of("new:question"), 1, 0,
+                Map.of("new:question", problem));
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).execute(status -> {
+            observationWriter.storeResolved(run, inquiry, member, answerMessage, input, result, null, stored);
+            throw new IllegalStateException("fixture rollback");
+        })).isInstanceOf(IllegalStateException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_observation WHERE run_id = ?", Integer.class, run)).isZero();
+    }
+
+    @Test
+    void 새_문제_참조를_해석한_뒤_실제_ID로_관찰을_저장하고_중복_참조는_거부한다() {
+        String answer = "오류 화면이 보입니다. 맞나요?";
+        storedAnswer(answer);
+        JsonNode input = input("b".repeat(64), 1);
+        var result = (tools.jackson.databind.node.ObjectNode) resultForProblem("new:question");
+        var stored = new ProblemQuestionWriter.Applied(java.util.Set.of("new:question"), 1, 0,
+                Map.of("new:question", problem));
+        Integer count = new TransactionTemplate(transactions).execute(status -> observationWriter.storeResolved(
+                run, inquiry, member, answerMessage, input, result, null, stored));
+        assertThat(count).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT problem_id FROM image_observation WHERE run_id = ?", UUID.class, run))
+                .isEqualTo(problem);
+        jdbc.update("DELETE FROM image_observation WHERE run_id = ?", run);
+        var observations = (tools.jackson.databind.node.ArrayNode) result.path("imageObservations");
+        observations.add(observations.get(0).deepCopy());
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).execute(status -> observationWriter.storeResolved(
+                run, inquiry, member, answerMessage, input, result, null, stored))).isInstanceOf(AgentResultRejectedException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_observation WHERE run_id = ?", Integer.class, run)).isZero();
     }
 
     @Test

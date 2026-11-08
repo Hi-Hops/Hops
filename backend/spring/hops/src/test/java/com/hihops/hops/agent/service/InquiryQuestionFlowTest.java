@@ -25,10 +25,12 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.hihops.hops.agent.client.AgentRunClient;
+import com.hihops.hops.inquiry.service.ProblemQuestionWriter;
 import com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse;
 import com.hihops.hops.ticket.dto.StandardRequestResponse.RequestDetailsResponse;
 
@@ -61,6 +63,9 @@ class InquiryQuestionFlowTest {
 
     @MockitoBean
     private AgentRunClient client;
+
+    @MockitoSpyBean
+    private ProblemQuestionWriter problemWriter;
 
     private final UUID departmentId = UUID.randomUUID();
     private final UUID memberId = UUID.randomUUID();
@@ -103,6 +108,14 @@ class InquiryQuestionFlowTest {
 
     @Test
     void 질문_결과를_반영하면_문제와_요청서와_질문_묶음이_저장되고_질문_수가_오른다() throws Exception {
+        var applied = new java.util.concurrent.atomic.AtomicReference<ProblemQuestionWriter.Applied>();
+        org.mockito.Mockito.doAnswer(call -> {
+            var result = (ProblemQuestionWriter.Applied) call.callRealMethod();
+            applied.set(result);
+            return result;
+        }).when(problemWriter).apply(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.nullable(String.class));
         UUID inquiryId = createInquiry("결재 문서가 안 열려요");
         UUID runId = runOf(inquiryId);
         UUID userMessage = userMessageOf(inquiryId);
@@ -117,6 +130,7 @@ class InquiryQuestionFlowTest {
         assertThat(problem).containsEntry("problem_status", "CLARIFYING").containsEntry("clarify_count", 1)
                 .containsEntry("agent_run_id", runId);
         UUID problemId = (UUID) problem.get("id");
+        assertThat(applied.get().problemIds()).containsExactly(Map.entry("new:p1", problemId));
         Map<String, Object> standard = jdbc.queryForMap("SELECT * FROM standard_request WHERE inquiry_problem_id=?", problemId);
         assertThat(standard).containsEntry("intent", "OBSERVED_SYMPTOM").containsEntry("work_type", "INVESTIGATION")
                 .containsEntry("inquiry_version", 1).containsEntry("agent_run_id", runId);

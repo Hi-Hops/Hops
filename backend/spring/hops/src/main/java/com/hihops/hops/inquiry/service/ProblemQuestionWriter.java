@@ -85,9 +85,17 @@ public class ProblemQuestionWriter {
      * @param handledRefs 이번 결과에서 이미 저장됐거나 다른 저장 경로(안내·티켓)가 맡아 더 저장할 것이 없는 문제 참조
      * @param questions   이번에 새로 저장한 질문 묶음 수
      * @param repeated    같은 (문제, bundleRef)가 이미 저장돼 있어 세지 않고 건너뛴 질문 수
+     * @param problemIds  이 경로에서 확인하거나 저장한 문제 참조와 실제 문제 ID
      */
-    public record Applied(Set<String> handledRefs, int questions, int repeated) {
-        public static final Applied NONE = new Applied(Set.of(), 0, 0);
+    public record Applied(Set<String> handledRefs, int questions, int repeated, Map<String, UUID> problemIds) {
+        public Applied {
+            handledRefs = Set.copyOf(handledRefs);
+            problemIds = Map.copyOf(problemIds);
+        }
+        public Applied(Set<String> handledRefs, int questions, int repeated) {
+            this(handledRefs, questions, repeated, Map.of());
+        }
+        public static final Applied NONE = new Applied(Set.of(), 0, 0, Map.of());
     }
 
     /**
@@ -168,6 +176,7 @@ public class ProblemQuestionWriter {
                 itemIds(input.path("systems")), itemIds(input.path("problems")), itemIds(result.path("evidence")));
         ObjectNode answerPayload = (ObjectNode) mapper.readTree(messages.findById(answerId).orElseThrow().getPayload());
         Set<String> handled = new LinkedHashSet<>();
+        Map<String, UUID> resolved = new LinkedHashMap<>();
         int storedQuestions = 0;
         int repeatedQuestions = 0;
         for (var proposal : proposals) {
@@ -179,6 +188,7 @@ public class ProblemQuestionWriter {
             InquiryProblem existing = null;
             if (!NEW_REF.matcher(ref).matches()) {
                 existing = existing(context, ref);
+                resolved.put(ref, existing.getId());
                 if (!reopenable(existing)) {
                     // 티켓·확인 대기 중인 문제에는 질문할 수 없다
                     require(!questionByRef.containsKey(ref), "QUESTION_FOR_CLOSED_PROBLEM");
@@ -192,6 +202,7 @@ public class ProblemQuestionWriter {
                 continue; // 저장할 상태를 정할 수 없다. 미적용으로 남긴다
             }
             InquiryProblem problem = store(context, proposal, existing, outcome);
+            resolved.put(ref, problem.getId());
             if (question != null) {
                 if (recordQuestion(context, answerPayload, problem, question)) storedQuestions++;
                 else repeatedQuestions++;
@@ -203,7 +214,7 @@ public class ProblemQuestionWriter {
         }
         // 질문은 모두 대응하는 문제 제안이 저장돼야 한다. 대응하지 못한 질문이 남으면 거부한다.
         require(handled.containsAll(questionByRef.keySet()));
-        return new Applied(Set.copyOf(handled), storedQuestions, repeatedQuestions);
+        return new Applied(handled, storedQuestions, repeatedQuestions, resolved);
     }
 
     private record Context(AgentRun run, Inquiry inquiry, JsonNode input, JsonNode result, String answer,
