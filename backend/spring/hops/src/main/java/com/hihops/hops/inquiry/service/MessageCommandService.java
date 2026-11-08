@@ -18,6 +18,7 @@ import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.domain.RunStatus;
 import com.hihops.hops.agent.repository.AgentRunRepository;
 import com.hihops.hops.agent.service.AgentRunQueued;
+import com.hihops.hops.agent.service.AgentDispatchProperties;
 import com.hihops.hops.agent.service.AnalysisInputFactory;
 import com.hihops.hops.agent.service.AnalysisRunProperties;
 import com.hihops.hops.agent.service.InputProblemReader;
@@ -42,6 +43,7 @@ import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
 import com.hihops.hops.inquiry.dto.ImageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.ImageAnalysisTargetCommand;
+import com.hihops.hops.inquiry.dto.ImageAnalysisRunCommand;
 import com.hihops.hops.inquiry.attachment.AttachmentBindingService;
 import com.hihops.hops.inquiry.attachment.ImageProblemLinks;
 import com.hihops.hops.inquiry.attachment.ImageAnalysisTargets;
@@ -108,6 +110,7 @@ public class MessageCommandService {
     private final InputProblemReader inputProblemReader;
     private final AnalysisInputFactory analysisInputFactory;
     private final AnalysisRunProperties runProperties;
+    private final AgentDispatchProperties dispatchProperties;
     private final ApplicationEventPublisher eventPublisher;
     private final JsonMapper jsonMapper;
     private final Clock clock;
@@ -180,6 +183,47 @@ public class MessageCommandService {
             inquiry.recordInput();
             eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), source.messageId(), request.requestId()));
             return new ResourceRef(ResourceType.INQUIRY, inquiryId);
+        });
+    }
+
+    /** 선택을 반영한 현재 입력으로 이미지 한 장의 새 분석을 접수한다. */
+    public CommandResult startImageAnalysis(IdempotentRequest request, UUID inquiryId, UUID attachmentId,
+            ImageAnalysisRunCommand command) {
+        inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        imageProblemLinks.requireOwned(request.actorId(), inquiryId, attachmentId, false);
+        return idempotencyService.execute(request, operationId -> {
+            // 실제 AI 연결·티켓 안전 경계가 검증되기 전에는 격리 테스트에서만 실행을 접수한다.
+            if (dispatchProperties.dispatchEnabled()) throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+            Inquiry inquiry = lockOpenInquiry(request.actorId(), inquiryId, command.expectedInquiryVersion());
+            if (inquiry.getCurrentRun() != null && isActive(inquiry.getCurrentRun())) {
+                throw new BusinessException(ErrorCode.INVALID_STATE, "진행 중인 분석이 끝난 뒤 다시 시도해 주세요.");
+            }
+            var selection = imageAnalysisTargets.requireSingle(request.actorId(), inquiryId, attachmentId,
+                    command.expectedAnalysisRevision());
+            ProblemScope scope = scopeOf(inquiryId);
+            if (!scope.linkable().contains(selection.problemId()) || scope.assigned().contains(selection.problemId())) {
+                throw new BusinessException(ErrorCode.INVALID_STATE, "현재 이 문제는 이미지 재분석을 시작할 수 없습니다.");
+            }
+            Message trigger = userMessage(inquiryId, selection.messageId());
+            if (jsonMapper.readValue(trigger.getPayload(), MessagePayload.class).isPendingTarget()) {
+                throw new BusinessException(ErrorCode.INVALID_STATE, "메시지의 대상을 먼저 확인해 주세요.");
+            }
+            Instant now = clock.instant();
+            List<UUID> targets = List.of(selection.problemId());
+            var problems = inputProblemReader.read(inquiry, targets);
+            List<Message> messages = messageRepository.findAllCompletedInOrder(inquiryId).stream()
+                    .filter(message -> !jsonMapper.readValue(message.getPayload(), MessagePayload.class).isPendingTarget())
+                    .toList();
+            AgentRun run = agentRunRepository.saveAndFlush(new AgentRun(inquiry, trigger, inquiry.getVersion(), "{}",
+                    runProperties.modelVersion(), runProperties.promptVersion(), runProperties.schemaVersion()));
+            run.prepareInput(analysisInputFactory.snapshotForImage(run, inquiry, messages, problems, targets,
+                    systemQueryService.findSupportedSystems(), now, attachmentId));
+            trigger.updatePayload(UserMessagePayload.withRun(jsonMapper, trigger.getPayload(), run.getId(), request.requestId()));
+            inquiry.resumeAnalysis(run);
+            eventPublisher.publishEvent(new AgentRunQueued(run.getId()));
+            eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), trigger.getId(), request.requestId()));
+            return new ResourceRef(ResourceType.RUN, run.getId());
         });
     }
 

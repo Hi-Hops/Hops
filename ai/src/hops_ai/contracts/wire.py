@@ -237,6 +237,15 @@ class SupportedSystem(WireModel):
 class InputImageRef(WireModel):
     attachmentId: WireUuid
     digest: Annotated[StrictStr, Field(pattern=r"^[0-9a-f]{64}$")]
+    analysisProblemIds: list[WireUuid] = Field(
+        default_factory=list, max_length=100, exclude_if=lambda value: not value
+    )
+
+    @model_validator(mode="after")
+    def validate_analysis_problems(self) -> "InputImageRef":
+        if len(self.analysisProblemIds) != len(set(self.analysisProblemIds)):
+            raise ValueError("이미지 분석 대상이 중복됐습니다")
+        return self
 
 
 class InputMessage(WireModel):
@@ -491,6 +500,13 @@ class AiRunRequest(WireModel):
             raise ValueError("실행의 이미지 첨부 수 또는 식별자가 올바르지 않습니다")
         if self.kind != "INQUIRY_ANALYSIS" and image_ids:
             raise ValueError("사례 초안에는 이미지 첨부를 허용하지 않습니다")
+        known_problems = {problem.id for problem in self.problems}
+        targets = set(self.problemIds)
+        for message in self.messages:
+            for image in message.imageAttachments:
+                selected = set(image.analysisProblemIds)
+                if not selected <= known_problems or (targets and not selected <= targets):
+                    raise ValueError("이미지 분석 대상이 실행의 문제 범위를 벗어났습니다")
         if self.kind == "INQUIRY_ANALYSIS":
             if self.answerMessageId is None or self.workRecord is not None:
                 raise ValueError("상담 실행의 답변 ID 또는 처리 기록이 올바르지 않습니다")
@@ -697,7 +713,7 @@ class AiResult(WireModel):
         ):
             raise ValueError("이미지 관찰의 실행 문맥이 일치하지 않습니다")
         sources = {
-            image.attachmentId: (message.id, message.revision)
+            image.attachmentId: (message.id, message.revision, set(image.analysisProblemIds))
             for message in request.messages
             for image in message.imageAttachments
         }
@@ -705,8 +721,11 @@ class AiResult(WireModel):
             item.problemRef for item in self.problemProposals if item.problemRef.startswith("new:")
         }
         for item in self.imageObservations:
-            if sources.get(item.attachmentId) != (item.messageId, item.messageRevision):
+            source = sources.get(item.attachmentId)
+            if source is None or source[:2] != (item.messageId, item.messageRevision):
                 raise ValueError("이미지 관찰의 출처가 실행 입력과 일치하지 않습니다")
+            if source[2] and item.problemRef not in source[2]:
+                raise ValueError("이미지 관찰이 선택한 분석 대상과 일치하지 않습니다")
             if item.problemRef not in problems:
                 raise ValueError("이미지 관찰의 문제가 실행 입력 또는 결과에 없습니다")
 

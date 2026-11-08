@@ -33,7 +33,7 @@ def bind_image_questions(
     안전하게 처리해야 한다. 반환값은 아직 사용자 확인이나 담당자 공개를 뜻하지 않는다.
     """
     by_attachment = {
-        image.attachmentId: message
+        image.attachmentId: (message, image)
         for message in request.messages
         for image in message.imageAttachments
     }
@@ -57,8 +57,8 @@ def bind_image_questions(
     linked: list[ImageObservationProposal] = []
     unlinked: list[ImageObservation] = []
     for observation in observations:
-        source = by_attachment[observation.attachmentId]
-        problem_ids = set(source.problemIds)
+        source, image = by_attachment[observation.attachmentId]
+        problem_ids = set(image.analysisProblemIds or source.problemIds)
         problem = next(iter(problem_ids)) if len(problem_ids) == 1 else None
         if (
             not problem_ids

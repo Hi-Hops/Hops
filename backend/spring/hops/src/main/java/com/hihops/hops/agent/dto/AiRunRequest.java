@@ -42,7 +42,12 @@ public record AiRunRequest(String contractVersion, UUID runId, String kind, UUID
     }
 
     /** 이미지 바이트나 저장소 위치가 없는 실행 입력 참조. */
-    public record ImageRef(UUID attachmentId, String digest) { }
+    public record ImageRef(UUID attachmentId, String digest,
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) @Nullable List<UUID> analysisProblemIds) {
+        public ImageRef(UUID attachmentId, String digest) {
+            this(attachmentId, digest, null);
+        }
+    }
 
     /**
      * 기존 문제. 상태·질문 수는 inquiry_problem, 의도·처리 유형·시스템·요청서는 최신 적용 실행의 standard_request에서 읽는다.

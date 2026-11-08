@@ -83,6 +83,42 @@ public class ImageAnalysisTargets {
         namedJdbc.update("UPDATE image_attachment SET analysis_revision = analysis_revision + 1 WHERE id IN (:ids)", Map.of("ids", ids));
     }
 
+    /** 재분석은 한 이미지와 명시적으로 선택된 하나의 문제만 대상으로 한다. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Selected requireSingle(UUID actorId, UUID inquiryId, UUID attachmentId, int expectedRevision) {
+        var versions = jdbc.query("""
+                SELECT a.analysis_revision, m.id FROM image_attachment a
+                JOIN message m ON m.id = a.message_id JOIN inquiry i ON i.id = m.inquiry_id
+                WHERE a.id = ? AND a.owner_member_id = ? AND a.attachment_status = 'BOUND'
+                  AND i.id = ? AND i.requester_member_id = ? AND i.deleted_at IS NULL
+                  AND m.sender_type = 'USER' AND m.message_status = 'COMPLETED' AND m.deleted_at IS NULL
+                FOR UPDATE OF a
+                """, (rs, row) -> new SelectedVersion(rs.getInt("analysis_revision"), rs.getObject("id", UUID.class)),
+                attachmentId, actorId, inquiryId, actorId);
+        SelectedVersion version = versions.stream().findFirst().orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        if (version.revision() != expectedRevision) throw new BusinessException(ErrorCode.ATTACHMENT_ANALYSIS_VERSION_CONFLICT);
+        var rows = jdbc.query("""
+                SELECT t.problem_id, COALESCE(t.analysis_revision = a.analysis_revision
+                  AND t.source_message_revision = m.revision AND h.source_message_revision = m.revision
+                  AND h.actor_member_id = a.owner_member_id AND h.reason = 'USER_SELECTED'
+                  AND h.problem_ids @> jsonb_build_array(t.problem_id::text)
+                  AND jsonb_array_length(h.problem_ids) = 1
+                  AND op.actor_member_id = a.owner_member_id AND op.operation_state = 'SUCCEEDED'
+                  AND p.inquiry_id = m.inquiry_id AND p.deleted_at IS NULL, false) AS valid
+                FROM image_attachment_analysis_target t JOIN image_attachment a ON a.id = t.attachment_id
+                JOIN message m ON m.id = a.message_id
+                LEFT JOIN image_attachment_analysis_history h ON h.attachment_id = t.attachment_id
+                  AND h.analysis_revision = t.analysis_revision
+                LEFT JOIN idempotency_key op ON op.operation_id = h.operation_id
+                LEFT JOIN inquiry_problem p ON p.id = t.problem_id
+                WHERE t.attachment_id = ? ORDER BY t.problem_id LIMIT 2
+                """, (rs, row) -> new Target(rs.getObject("problem_id", UUID.class), rs.getBoolean("valid")), attachmentId);
+        if (rows.size() != 1 || !rows.getFirst().valid()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "분석할 문제 하나를 다시 선택해 주세요.");
+        }
+        return new Selected(version.messageId(), rows.getFirst().problemId());
+    }
+
     private void history(UUID attachmentId, int revision, UUID actorId, UUID operationId, int messageRevision,
             String reason, List<UUID> problemIds) {
         jdbc.update("INSERT INTO image_attachment_analysis_history (id, attachment_id, analysis_revision, actor_member_id, "
@@ -93,4 +129,7 @@ public class ImageAnalysisTargets {
 
     private record Version(int analysis, int message) { }
     private record AttachmentVersion(UUID id, int revision) { }
+    private record SelectedVersion(int revision, UUID messageId) { }
+    private record Target(UUID problemId, boolean valid) { }
+    public record Selected(UUID messageId, UUID problemId) { }
 }

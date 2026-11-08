@@ -389,6 +389,44 @@ class ImageObservationSchemaTest {
     }
 
     @Test
+    void 이미지별_선택과_다른_문제의_관찰은_저장하지_않는다() {
+        String answer = "오류 화면이 보입니다. 맞나요?";
+        storedAnswer(answer);
+        UUID other = UUID.randomUUID();
+        var input = (tools.jackson.databind.node.ObjectNode) input("b".repeat(64), 1);
+        ((tools.jackson.databind.node.ArrayNode) input.path("problems")).addObject().put("id", other.toString());
+        ((tools.jackson.databind.node.ObjectNode) input.path("messages").get(0).path("imageAttachments").get(0))
+                .putArray("analysisProblemIds").add(other.toString());
+        assertThatThrownBy(() -> store(input, result("오류 화면", answer)))
+                .isInstanceOf(AgentResultRejectedException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_observation WHERE run_id = ?", Integer.class, run)).isZero();
+    }
+
+    @Test
+    void 이미지별_선택과_일치하는_관찰은_저장한다() {
+        String answer = "오류 화면이 보입니다. 맞나요?";
+        storedAnswer(answer);
+        var input = (tools.jackson.databind.node.ObjectNode) input("b".repeat(64), 1);
+        ((tools.jackson.databind.node.ObjectNode) input.path("messages").get(0).path("imageAttachments").get(0))
+                .putArray("analysisProblemIds").add(problem.toString());
+        assertThat(store(input, result("오류 화면", answer))).isEqualTo(1);
+    }
+
+    @Test
+    void 이미지별_선택의_중복과_실행_범위_밖_참조는_거부한다() {
+        String answer = "오류 화면이 보입니다. 맞나요?";
+        storedAnswer(answer);
+        var input = (tools.jackson.databind.node.ObjectNode) input("b".repeat(64), 1);
+        var imageRef = (tools.jackson.databind.node.ObjectNode) input.path("messages").get(0).path("imageAttachments").get(0);
+        imageRef.putArray("analysisProblemIds").add(problem.toString()).add(problem.toString());
+        assertThatThrownBy(() -> store(input, result("오류 화면", answer))).isInstanceOf(AgentResultRejectedException.class);
+        imageRef.putArray("analysisProblemIds").add(problem.toString());
+        input.putArray("problemIds").add(UUID.randomUUID().toString());
+        assertThatThrownBy(() -> store(input, result("오류 화면", answer))).isInstanceOf(AgentResultRejectedException.class);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM image_observation WHERE run_id=?", Integer.class, run)).isZero();
+    }
+
+    @Test
     void 결과_다른_필드의_민감정보나_관찰과_관계없는_질문을_거부한다() {
         String answer = "오류 화면이 보입니다. 맞나요?";
         storedAnswer(answer);

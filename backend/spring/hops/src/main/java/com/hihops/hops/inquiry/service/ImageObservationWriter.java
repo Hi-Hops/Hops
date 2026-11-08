@@ -53,6 +53,7 @@ public class ImageObservationWriter {
             require(observations.isMissingNode() || observations.isEmpty());
             return 0;
         }
+        Map<UUID, Set<UUID>> selectedTargets = selectedTargets(input);
         // agent_run.result에도 원문이 기록되므로 관찰뿐 아니라 결과 전체를 검사한다.
         require(!containsSensitiveText(result));
         require(sources.size() <= 5);
@@ -99,6 +100,8 @@ public class ImageObservationWriter {
             String problemRef = text(item.path("problemRef"));
             UUID problemId = resolvedProblems.get(problemRef);
             require(problemId != null && problemIds.contains(problemId) && proposedProblem(input, result, problemRef));
+            Set<UUID> selected = selectedTargets.getOrDefault(attachmentId, Set.of());
+            require(selected.isEmpty() || (selected.contains(problemId) && problemId.toString().equals(problemRef)));
             String observation = text(item.path("text"));
             require(observation.codePointCount(0, observation.length()) <= 400 && validUnicode(observation));
             JsonNode questionNode = item.path("questionRef");
@@ -133,6 +136,26 @@ public class ImageObservationWriter {
             }
         }
         return found;
+    }
+
+    private static Map<UUID, Set<UUID>> selectedTargets(JsonNode input) {
+        Set<UUID> known = new HashSet<>();
+        for (JsonNode problem : input.path("problems")) known.add(uuid(problem.path("id")));
+        Set<UUID> runTargets = new HashSet<>();
+        for (JsonNode target : input.path("problemIds")) require(runTargets.add(uuid(target)));
+        Map<UUID, Set<UUID>> selections = new HashMap<>();
+        for (JsonNode message : input.path("messages")) {
+            for (JsonNode image : message.path("imageAttachments")) {
+                JsonNode selected = image.path("analysisProblemIds");
+                if (selected.isMissingNode()) continue;
+                require(selected.isArray() && selected.size() <= 100);
+                Set<UUID> ids = new HashSet<>();
+                for (JsonNode id : selected) require(ids.add(uuid(id)));
+                require(known.containsAll(ids) && (runTargets.isEmpty() || runTargets.containsAll(ids)));
+                selections.put(uuid(image.path("attachmentId")), Set.copyOf(ids));
+            }
+        }
+        return selections;
     }
 
     private static boolean proposedProblem(JsonNode input, JsonNode result, String ref) {

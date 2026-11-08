@@ -3,15 +3,19 @@ package com.hihops.hops.agent.service;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Component;
+import org.jspecify.annotations.Nullable;
 
 import com.hihops.hops.agent.domain.AgentRun;
 import com.hihops.hops.agent.dto.AiRunRequest;
 import com.hihops.hops.agent.dto.AiRunRequest.AccessContext;
 import com.hihops.hops.agent.dto.AiRunRequest.InputMessage;
 import com.hihops.hops.agent.dto.AiRunRequest.ImageRef;
+import com.hihops.hops.global.exception.BusinessException;
+import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
@@ -50,8 +54,23 @@ public class AnalysisInputFactory {
      */
     public String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, InputProblemReader.ProblemInputs problems,
             List<UUID> targetProblemIds, List<SupportedSystemResponse> systems, Instant now) {
+        return snapshot(run, inquiry, messages, problems, targetProblemIds, systems, now, null);
+    }
+
+    /** 사용자가 지정한 한 이미지의 재분석 입력만 만든다. */
+    public String snapshotForImage(AgentRun run, Inquiry inquiry, List<Message> messages, InputProblemReader.ProblemInputs problems,
+            List<UUID> targetProblemIds, List<SupportedSystemResponse> systems, Instant now, UUID attachmentId) {
+        return snapshot(run, inquiry, messages, problems, targetProblemIds, systems, now, Set.of(attachmentId));
+    }
+
+    private String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, InputProblemReader.ProblemInputs problems,
+            List<UUID> targetProblemIds, List<SupportedSystemResponse> systems, Instant now, @Nullable Set<UUID> onlyImages) {
         AccessContext access = accessOf(inquiry, systems);
-        Map<UUID, List<ImageRef>> images = imageReferences.forMessages(inquiry.getRequester().getId(), messages);
+        Map<UUID, List<ImageRef>> images = imageReferences.forMessages(inquiry.getRequester().getId(), messages,
+                problems.problems().stream().map(AiRunRequest.InputProblem::id).toList(), targetProblemIds, onlyImages);
+        if (onlyImages != null && images.values().stream().flatMap(List::stream).count() != onlyImages.size()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "선택한 이미지의 분석 대상을 확인할 수 없습니다.");
+        }
         AiRunRequest request = new AiRunRequest(CONTRACT_VERSION, run.getId(), "INQUIRY_ANALYSIS", inquiry.getId(),
                 run.getInputVersion(), UUID.randomUUID(), List.copyOf(targetProblemIds),
                 messages.stream().map(message -> input(message, images.get(message.getId()))).toList(), problems.problems(), systems, access,

@@ -37,6 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import tools.jackson.databind.json.JsonMapper;
 import software.amazon.awssdk.services.s3.S3Client;
+import com.hihops.hops.agent.service.AgentDispatchProperties;
 
 @SpringBootTest(properties = {"hops.image-attachments.message-link-enabled=true",
         "hops.image-attachments.enabled=true", "hops.image-attachments.bucket=test-private",
@@ -51,6 +52,7 @@ class AttachmentBindingControllerTest {
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @MockitoBean S3Client s3Client;
     @MockitoBean S3AttachmentStore store;
+    @MockitoBean AgentDispatchProperties dispatchProperties;
     private final UUID department = UUID.randomUUID();
     private final UUID owner = UUID.randomUUID();
     private final UUID other = UUID.randomUUID();
@@ -126,6 +128,136 @@ class AttachmentBindingControllerTest {
                         "expectedAnalysisRevision", analysisRevision, "problemIds", problems))));
     }
 
+    private ResultActions runImageAnalysis(UUID actor, UUID inquiry, UUID image, UUID request, int inquiryVersion,
+            int analysisRevision) throws Exception {
+        return mvc.perform(post("/api/v2/inquiries/{inquiry}/image-attachments/{image}/analysis-runs", inquiry, image)
+                .with(jwt().jwt(token -> token.subject(actor.toString())))
+                .header("Idempotency-Key", request).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsBytes(Map.of("requestId", request, "expectedInquiryVersion", inquiryVersion,
+                        "expectedAnalysisRevision", analysisRevision))));
+    }
+
+    @Test
+    void 이미지_재분석은_현재_선택과_그_이미지만_새_실행에_고정하고_중복_요청을_재사용한다() throws Exception {
+        UUID first = attachment(owner, "READY", false);
+        UUID second = attachment(owner, "READY", false);
+        UUID createKey = UUID.randomUUID();
+        String receipt = create(owner, createKey, createBody(createKey, List.of(first, second)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(receipt).path("resource").path("id").asString());
+        UUID oldRun = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        jdbc.update("UPDATE agent_run SET run_status='FAILED',error_code='MODEL_UNAVAILABLE',started_at=now(),completed_at=now() WHERE id=?", oldRun);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(owner, inquiry, first, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isOk());
+        UUID request = UUID.randomUUID();
+        String created = runImageAnalysis(owner, inquiry, first, request, 2, 1).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String replay = runImageAnalysis(owner, inquiry, first, request, 2, 1).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID newRun = UUID.fromString(mapper.readTree(created).path("resource").path("id").asString());
+        assertThat(mapper.readTree(replay).path("resource").path("id").asString()).isEqualTo(newRun.toString());
+        assertThat(mapper.readTree(created).path("resource").path("type").asString()).isEqualTo("RUN");
+        assertThat(newRun).isNotEqualTo(oldRun);
+        var input = mapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id=?", String.class, newRun));
+        assertThat(input.path("inquiryVersion").asInt()).isEqualTo(2);
+        assertThat(input.path("problemIds").get(0).asString()).isEqualTo(problem.toString());
+        var images = input.path("messages").get(0).path("imageAttachments");
+        assertThat(images.size()).isEqualTo(1);
+        assertThat(images.get(0).path("attachmentId").asString()).isEqualTo(first.toString());
+        assertThat(images.get(0).path("analysisProblemIds").get(0).asString()).isEqualTo(problem.toString());
+        assertThat(input.toString()).doesNotContain(second.toString());
+        assertThat(jdbc.queryForObject("SELECT run_status FROM agent_run WHERE id=?", String.class, oldRun)).isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
+        runImageAnalysis(owner, inquiry, first, UUID.randomUUID(), 2, 1).andExpect(status().isConflict());
+        jdbc.update("UPDATE agent_run SET run_status='FAILED',error_code='MODEL_UNAVAILABLE',started_at=now(),completed_at=now() WHERE id=?", newRun);
+        UUID retryKey = UUID.randomUUID();
+        String retry = mvc.perform(post("/api/v2/runs/{id}/retries", newRun)
+                .with(jwt().jwt(token -> token.subject(owner.toString()))).header("Idempotency-Key", retryKey)
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsBytes(Map.of(
+                        "requestId", retryKey, "expectedInquiryVersion", 2))))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID retryRun = UUID.fromString(mapper.readTree(retry).path("resource").path("id").asString());
+        var retried = mapper.readTree(jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id=?", String.class, retryRun));
+        assertThat(retried.path("messages").get(0).path("imageAttachments").get(0).path("analysisProblemIds").get(0).asString())
+                .isEqualTo(problem.toString());
+        assertThat(retried.toString()).doesNotContain(second.toString());
+    }
+
+    @Test
+    void 이미지_재분석은_소유권과_하나의_유효한_선택을_요구한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID first = problem(inquiry, 1);
+        UUID second = problem(inquiry, 2);
+        runImageAnalysis(other, inquiry, image, UUID.randomUUID(), 1, 0).andExpect(status().isNotFound());
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0).andExpect(status().isConflict());
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(first, second)).andExpect(status().isOk());
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 1).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INQUIRY_VERSION_CONFLICT"));
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 0).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ATTACHMENT_ANALYSIS_VERSION_CONFLICT"));
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 1).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVALID_STATE"));
+    }
+
+    @Test
+    void 실제_AI_전송이_켜진_환경에서는_이미지_재분석을_접수하지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isOk());
+        UUID before = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        when(dispatchProperties.dispatchEnabled()).thenReturn(true);
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 1).andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry)).isEqualTo(before);
+    }
+
+    @Test
+    void 이미지_재분석은_범위_밖이_된_문제나_손상된_선택을_사용하지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isOk());
+        UUID before = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry);
+        jdbc.update("UPDATE inquiry_problem SET problem_status='OUT_OF_SCOPE' WHERE id=?", problem);
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 1).andExpect(status().isConflict());
+        jdbc.update("UPDATE inquiry_problem SET problem_status='CLARIFYING' WHERE id=?", problem);
+        jdbc.update("UPDATE image_attachment_analysis_history SET problem_ids='[]'::jsonb WHERE attachment_id=?", image);
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 1).andExpect(status().isConflict());
+        jdbc.update("UPDATE image_attachment_analysis_history SET problem_ids=?::jsonb WHERE attachment_id=?",
+                mapper.writeValueAsString(List.of(problem)), image);
+        jdbc.update("UPDATE message SET payload=jsonb_set(payload,'{pendingTarget}','true'::jsonb) "
+                + "WHERE id=(SELECT message_id FROM image_attachment WHERE id=?)", image);
+        runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 1).andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id=?", UUID.class, inquiry)).isEqualTo(before);
+    }
+
+    @Test
+    void 이미지_재분석_동시_접수는_한_실행만_만든다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isOk());
+        int before = jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=?", Integer.class, inquiry);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var calls = java.util.stream.IntStream.range(0, 2).mapToObj(index -> pool.submit(() -> {
+                start.await();
+                return runImageAnalysis(owner, inquiry, image, UUID.randomUUID(), 2, 1)
+                        .andReturn().getResponse().getStatus();
+            })).toList();
+            start.countDown();
+            assertThat(List.of(calls.get(0).get(10, TimeUnit.SECONDS), calls.get(1).get(10, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(200, 409);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=?", Integer.class, inquiry))
+                .isEqualTo(before + 1);
+    }
+
     @Test
     void 분석_대상을_선택하고_조회해도_담당자에게_공개되지_않는다() throws Exception {
         UUID image = attachment(owner, "READY", false);
@@ -147,6 +279,54 @@ class AttachmentBindingControllerTest {
         mvc.perform(get("/api/v2/image-attachments/{id}", image).with(jwt().jwt(token -> token.subject(owner.toString()))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.analysisRevision").value(2))
                 .andExpect(jsonPath("$.analysisProblemIds").isEmpty());
+    }
+
+    @Test
+    void 새_실행_입력에는_대상_문제에_해당하는_이미지별_선택만_포함한다() throws Exception {
+        UUID first = attachment(owner, "READY", false);
+        UUID second = attachment(owner, "READY", false);
+        UUID request = UUID.randomUUID();
+        String receipt = create(owner, request, createBody(request, List.of(first, second)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(receipt).path("resource").path("id").asString());
+        finishCurrent(inquiry);
+        UUID firstProblem = problem(inquiry, 1);
+        UUID secondProblem = problem(inquiry, 2);
+        selectAnalysis(owner, inquiry, first, UUID.randomUUID(), 1, 0, List.of(firstProblem)).andExpect(status().isOk());
+        selectAnalysis(owner, inquiry, second, UUID.randomUUID(), 2, 0, List.of(secondProblem)).andExpect(status().isOk());
+        UUID sendKey = UUID.randomUUID();
+        mvc.perform(post("/api/v2/inquiries/{id}/messages", inquiry)
+                .with(jwt().jwt(token -> token.subject(owner.toString())))
+                .contentType(MediaType.APPLICATION_JSON).header("Idempotency-Key", sendKey)
+                .content(mapper.writeValueAsBytes(Map.of("requestId", sendKey, "expectedInquiryVersion", 3,
+                        "content", "첫 번째 문제 보완", "problemIds", List.of(firstProblem), "attachmentIds", List.of()))))
+                .andExpect(status().isOk());
+        var input = mapper.readTree(jdbc.queryForObject("SELECT r.input_snapshot::text FROM inquiry i "
+                + "JOIN agent_run r ON r.id=i.current_run_id WHERE i.id=?", String.class, inquiry));
+        var images = input.path("messages").get(0).path("imageAttachments");
+        assertThat(images.size()).isEqualTo(1);
+        assertThat(images.get(0).path("attachmentId").asString()).isEqualTo(first.toString());
+        assertThat(images.get(0).path("analysisProblemIds").get(0).asString()).isEqualTo(firstProblem.toString());
+        assertThat(input.toString()).doesNotContain(second.toString());
+    }
+
+    @Test
+    void 실행_입력의_이미지_분석_선택_이력이_불일치하면_메시지도_저장하지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        finishCurrent(inquiry);
+        UUID problem = problem(inquiry, 1);
+        selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(problem)).andExpect(status().isOk());
+        jdbc.update("UPDATE image_attachment_analysis_history SET problem_ids='[]'::jsonb WHERE attachment_id=?", image);
+        UUID request = UUID.randomUUID();
+        mvc.perform(post("/api/v2/inquiries/{id}/messages", inquiry)
+                .with(jwt().jwt(token -> token.subject(owner.toString())))
+                .contentType(MediaType.APPLICATION_JSON).header("Idempotency-Key", request)
+                .content(mapper.writeValueAsBytes(Map.of("requestId", request, "expectedInquiryVersion", 2,
+                        "content", "선택한 문제 보완", "problemIds", List.of(problem), "attachmentIds", List.of()))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INVALID_STATE"));
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id=?", Integer.class, inquiry)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM message WHERE inquiry_id=?", Integer.class, inquiry)).isEqualTo(1);
     }
 
     @Test
@@ -286,6 +466,7 @@ class AttachmentBindingControllerTest {
         link(owner, otherInquiry, image, UUID.randomUUID(), 1, 0, List.of(ownProblem), true).andExpect(status().isNotFound());
         selectAnalysis(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(otherProblem)).andExpect(status().isBadRequest());
         selectAnalysis(owner, otherInquiry, image, UUID.randomUUID(), 1, 0, List.of(ownProblem)).andExpect(status().isNotFound());
+        runImageAnalysis(owner, otherInquiry, image, UUID.randomUUID(), 1, 0).andExpect(status().isNotFound());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM image_attachment_problem_link_history WHERE attachment_id=?", Integer.class, image)).isZero();
     }
 
@@ -589,7 +770,7 @@ class AttachmentBindingControllerTest {
         UUID inquiry = UUID.fromString(mapper.readTree(response).path("resource").path("id").asString());
         UUID run = jdbc.queryForObject("SELECT current_run_id FROM inquiry WHERE id = ?", UUID.class, inquiry);
         String snapshot = jdbc.queryForObject("SELECT input_snapshot::text FROM agent_run WHERE id = ?", String.class, run);
-        assertThat(snapshot).contains(id.toString(), digest).doesNotContain("AQID");
+        assertThat(snapshot).contains(id.toString(), digest).doesNotContain("AQID", "analysisProblemIds");
         String path = "/internal/v2/runs/" + run + "/image-attachments/" + id + "?inquiryVersion=1";
         mvc.perform(get(path)).andExpect(status().isUnauthorized());
         mvc.perform(get(path).with(jwt().jwt(token -> token.subject(owner.toString())))).andExpect(status().isUnauthorized());
