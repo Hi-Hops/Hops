@@ -219,8 +219,10 @@ jobs:
         run: node --test .github/scripts/*.test.cjs
       - name: Check workflow syntax and expressions
         run: |
-          curl --fail --silent --show-error --location \
-            https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
+          # actionlint v1.7.7 Linux amd64 release asset
+          curl --fail --silent --show-error --location --retry 3 --max-time 25 \
+            -H 'Accept: application/octet-stream' \
+            https://api.github.com/repos/rhysd/actionlint/releases/assets/221573254 \
             -o "$RUNNER_TEMP/actionlint.tar.gz"
           echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint

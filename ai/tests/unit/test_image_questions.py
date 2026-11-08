@@ -128,6 +128,19 @@ def test_duplicate_problem_questions_are_rejected() -> None:
         bind_image_questions(request, [question, question], observations)
 
 
+def test_image_for_untargeted_problem_is_not_used_in_targeted_run() -> None:
+    request, _, observations = fixture()
+    payload = request.model_dump(mode="json")
+    other = str(uuid4())
+    second = dict(payload["problems"][0], id=other)
+    payload["problems"].append(second)
+    payload["messages"][0]["problemIds"] = [other]
+    request = AiRunRequest.model_validate(payload)
+    bound = bind_image_questions(request, [], observations)
+    assert bound.observations == ()
+    assert bound.unlinked == tuple(observations)
+
+
 def test_first_inquiry_binds_only_single_new_problem_citing_image_message() -> None:
     request, question, observations = fixture(problem_ids=[])
     payload = request.model_dump(mode="json")

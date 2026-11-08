@@ -347,9 +347,15 @@ export class SystemMockBackend {
       },
     };
     const parts = content.includes('동시에') ? [content, '일괄 다운로드 기능 추가'] : [content];
-    workspace.result.problems = parts.map((summary) => ({
+    workspace.result.problems = parts.map((summary) => this.newProblem(id, summary, systemId));
+    this.inquiries.set(id, workspace);
+    this.message(workspace, content, 'USER', requestId);
+    return workspace;
+  }
+  private newProblem(inquiryId: string, summary: string, systemId: string | null): D.Problem {
+    return {
       id: crypto.randomUUID(),
-      inquiryId: id,
+      inquiryId,
       summary,
       intent: summary.includes('기능') ? 'FEATURE_REQUEST' : 'OBSERVED_SYMPTOM',
       processingType: summary.includes('기능') ? 'CHANGE_REQUEST' : 'INVESTIGATION',
@@ -361,10 +367,7 @@ export class SystemMockBackend {
       creationResult: null,
       ticket: null,
       activeResolutionRequest: null,
-    }));
-    this.inquiries.set(id, workspace);
-    this.message(workspace, content, 'USER', requestId);
-    return workspace;
+    };
   }
   private storeTicket(workspace: Workspace, problem: D.Problem) {
     if (problem.ticket) return;
@@ -687,16 +690,29 @@ export class SystemMockBackend {
           problem.state = 'ANALYZING';
           analysisProblemIds = [problem.id];
         } else if (parts[4] === 'problem-links') {
-          if (
-            !parts[3] ||
-            !workspace.result.pendingTargetMessageIds.includes(parts[3]) ||
-            !Array.isArray(body.problemIds) ||
-            !body.problemIds.length ||
-            !body.problemIds.every((id) => workspace.result.problems.some((p) => p.id === id))
-          )
+          const newProblem = body.newProblem === true;
+          if (!parts[3] || !workspace.result.pendingTargetMessageIds.includes(parts[3]))
             mockError(409, 'INVALID_STATE', '보완 대상을 확인해 주세요.');
+          if (
+            !Array.isArray(body.problemIds) ||
+            newProblem !== (body.problemIds.length === 0) ||
+            !body.problemIds.every((id) =>
+              workspace.result.problems.some(
+                (p) => p.id === id && p.state !== 'RESOLVED' && p.state !== 'OUT_OF_SCOPE',
+              ),
+            )
+          )
+            mockError(400, 'INVALID_INPUT', '보완 대상을 확인해 주세요.');
           const message = workspace.messages.find((m) => m.id === parts[3]);
-          if (message) message.problemIds = body.problemIds as string[];
+          if (!message) mockError(404, 'NOT_FOUND', '대상 메시지가 없어요.');
+          analysisProblemIds = body.problemIds as string[];
+          if (newProblem) {
+            const problem = this.newProblem(workspace.result.id, message.content, null);
+            workspace.result.problems.push(problem);
+            workspace.result.resultRevision++;
+            analysisProblemIds = [problem.id];
+          }
+          message.problemIds = analysisProblemIds;
           workspace.result.pendingTargetMessageIds =
             workspace.result.pendingTargetMessageIds.filter((id) => id !== parts[3]);
         } else {
@@ -724,12 +740,12 @@ export class SystemMockBackend {
             )
               mockError(400, 'INVALID_INPUT', '보완 대상을 확인해 주세요.');
             const message = this.message(workspace, body.content, 'USER', body.requestId);
-            const assigned = workspace.result.problems.filter((p) => p.ticket);
             if (body.problemIds.length) message.problemIds = body.problemIds as string[];
             if (
-              assigned.length &&
               !body.problemIds.length &&
-              workspace.result.problems.length > 1
+              workspace.result.problems.filter(
+                (p) => p.state !== 'RESOLVED' && p.state !== 'OUT_OF_SCOPE',
+              ).length > 1
             ) {
               message.problemIds = [];
               workspace.result.pendingTargetMessageIds.push(message.id);
@@ -742,7 +758,6 @@ export class SystemMockBackend {
         if (previousRun && ['QUEUED', 'RUNNING'].includes(previousRun.status))
           previousRun.status = 'SUPERSEDED';
         if (
-          !workspace.result.pendingTargetMessageIds.length &&
           workspace.result.problems.some(
             (p) => analysisProblemIds.includes(p.id) && !p.ticket && p.state !== 'OUT_OF_SCOPE',
           )

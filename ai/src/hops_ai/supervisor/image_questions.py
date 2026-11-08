@@ -67,7 +67,15 @@ def bind_image_questions(
         ):
             problem = new_problem.problemRef
             counts[problem] = 0
-        if problem is None or problem not in counts:
+        if (
+            problem is None
+            or problem not in counts
+            or (
+                not problem.startswith("new:")
+                and request.problemIds
+                and problem not in request.problemIds
+            )
+        ):
             unlinked.append(observation)
             continue
         question_ref = None

@@ -227,6 +227,24 @@ class AttachmentBindingControllerTest {
     }
 
     @Test
+    void 공개_변경으로_새_문제_분석을_재개할_때_기존_원문_범위를_유지한다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID inquiry = createWithImage(image);
+        UUID original = jdbc.queryForObject("SELECT message_id FROM image_attachment WHERE id=?", UUID.class, image);
+        UUID unrelated = UUID.randomUUID();
+        jdbc.update("INSERT INTO message (id,inquiry_id,sequence_no,sender_type,content,message_status) "
+                + "VALUES (?,?,2,'USER','다른 문제','COMPLETED')", unrelated, inquiry);
+
+        link(owner, inquiry, image, UUID.randomUUID(), 1, 0, List.of(), false).andExpect(status().isOk());
+
+        var input = mapper.readTree(jdbc.queryForObject("SELECT r.input_snapshot::text FROM inquiry i "
+                + "JOIN agent_run r ON r.id=i.current_run_id WHERE i.id=?", String.class, inquiry));
+        assertThat(input.path("problems").isEmpty()).isTrue();
+        assertThat(input.path("messages").size()).isEqualTo(1);
+        assertThat(input.path("messages").get(0).path("id").asString()).isEqualTo(original.toString());
+    }
+
+    @Test
     void 진행_중인_분석의_대상_문제도_공개_범위_변경_후_유지한다() throws Exception {
         UUID image = attachment(owner, "READY", false);
         UUID inquiry = createWithImage(image);

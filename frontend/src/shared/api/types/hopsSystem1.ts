@@ -264,6 +264,7 @@ export type MessageProblemLinkCommand = {
   requestId: Uuid;
   expectedInquiryVersion: number;
   problemIds: Uuid[];
+  newProblem?: true;
 };
 export type RunRetryCommand = { requestId: Uuid; expectedInquiryVersion: number };
 export type CreationRetryCommand = { requestId: Uuid; expectedInquiryVersion: number };

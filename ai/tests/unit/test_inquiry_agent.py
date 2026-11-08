@@ -4,6 +4,8 @@ Fake는 모델이 낼 수 있는 나쁜 출력(없는 인용, 틀린 ID, 목록�
 코드의 방어 규칙을 확인하려고 쓴다.
 """
 
+import json
+
 import pytest
 
 from hops_ai.agents.base import PendingAgent
@@ -13,6 +15,7 @@ from hops_ai.agents.inquiry.extraction import (
     InquiryExtraction,
     QuotedValue,
     UnknownClaim,
+    extraction_schema,
 )
 from hops_ai.agents.registry import build_registry
 from hops_ai.contracts.domain import AgentRole
@@ -25,6 +28,7 @@ from hops_ai.supervisor.bootstrap import create_run_services
 from hops_ai.supervisor.decision import SupervisorDecision
 from hops_ai.supervisor.execution import RoleRequest
 from hops_ai.supervisor.graph import Supervisor
+from hops_ai.supervisor.merge import merge_inquiry_result
 from tests.doubles.llm import FakeLLMClient
 from tests.supervisor_fixtures import (
     MESSAGE,
@@ -34,6 +38,7 @@ from tests.supervisor_fixtures import (
     make_request,
     reserve,
     running_state,
+    uid,
 )
 
 EA_SYMPTOM = "전자결재에서 결재 문서가 안 보여요"
@@ -390,7 +395,7 @@ async def test_model_receives_messages_systems_and_the_injection_rule() -> None:
     await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
 
     [request] = llm.requests
-    assert request.prompt_version == "inquiry-extraction-v6"
+    assert request.prompt_version == "inquiry-extraction-v8"
     assert request.response_model is InquiryExtraction
     assert "따르지 않는다" in request.messages[0].content
     assert "전자결재" in request.messages[1].content
@@ -449,4 +454,120 @@ def _strict_violations(node, path="$") -> list[str]:
 
 
 def test_extraction_schema_fits_openai_strict_structured_output() -> None:
-    assert _strict_violations(InquiryExtraction.model_json_schema()) == []
+    assert _strict_violations(extraction_schema(["COMMON_LOGIN"], [PROBLEM])) == []
+
+
+@pytest.mark.parametrize("with_model_ref", [True, False])
+async def test_only_second_problem_is_returned_for_its_reply(with_model_ref: bool) -> None:
+    second = uid(11)
+    question_id = uid(12)
+    reply_id = uid(13)
+    fields = make_request(question_count=1).model_dump(mode="json")
+    first = fields["problems"][0]
+    first.update(state="WAITING_USER", askedFields=["taskOrScreen"])
+    fields["problems"].append(
+        {
+            **first,
+            "id": second,
+            "summary": "로그인 오류",
+            "reportedSystemId": OTHER_SYSTEM,
+            "state": "ANALYZING",
+            "askedFields": ["occurredAt"],
+        }
+    )
+    fields["problemIds"] = [second]
+    initial = fields["messages"][0]
+    fields["messages"].extend(
+        [
+            {
+                **initial,
+                "id": question_id,
+                "sender": "AI",
+                "sequenceNo": 2,
+                "content": "로그인 오류는 언제부터 발생했나요?",
+                "problemIds": [second],
+            },
+            {
+                **initial,
+                "id": reply_id,
+                "sequenceNo": 3,
+                "content": "오늘 오전부터요",
+                "problemIds": [second],
+            },
+        ]
+    )
+    request = AiRunRequest.model_validate(fields)
+    state = reserve(running_state(request), AgentRole.INQUIRY, "inv-1")
+    response = extracted(
+        summary="로그인 오류",
+        systemCode="COMMON_LOGIN",
+        actualBehavior=None,
+        occurredAt=QuotedValue(messageId=reply_id, quote="오늘 오전부터요"),
+    )
+    if with_model_ref:
+        response = response.model_copy(update={"problemRef": second})
+    services, llm = services_for(request, InquiryExtraction(problems=[response]))
+
+    result = await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
+    merged = merge_inquiry_result(state, result)
+
+    assert [item.problemRef for item in result.problems] == [second]
+    assert merged["problems"][PROBLEM] == state["problems"][PROBLEM]
+    assert merged["problems"][second].facts[0].sourceMessageIds == [reply_id]
+    assert all(question.problemRef == second for question in result.questions)
+    payload = json.loads(llm.requests[0].messages[1].content)
+    assert payload["targetProblemIds"] == [second]
+    assert [(item["messageId"], item["problemIds"]) for item in payload["messages"][1:]] == [
+        (question_id, [second]),
+        (reply_id, [second]),
+    ]
+
+    wrong_source = response.model_copy(
+        update={
+            "problemRef": second,
+            "actualBehavior": QuotedValue(messageId=MESSAGE, quote="첨부파일이 열리지 않아요"),
+        }
+    )
+    services, _ = services_for(request, InquiryExtraction(problems=[wrong_source]))
+    rejected = await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
+    assert rejected.problems == rejected.questions == []
+
+
+@pytest.mark.parametrize("duplicate_existing", [False, True])
+async def test_linked_reply_can_answer_an_existing_problem_and_add_a_new_one(
+    duplicate_existing: bool,
+) -> None:
+    reply_id = uid(13)
+    fields = make_request(question_count=1).model_dump(mode="json")
+    fields["messages"].append(
+        {
+            **fields["messages"][0],
+            "id": reply_id,
+            "sequenceNo": 2,
+            "content": "어제부터 그랬고, 별개로 공통 로그인도 안 돼요.",
+        }
+    )
+    request = AiRunRequest.model_validate(fields)
+    state = reserve(running_state(request), AgentRole.INQUIRY, "inv-1")
+    answer = extracted(
+        problemRef=PROBLEM,
+        actualBehavior=None,
+        occurredAt=QuotedValue(messageId=reply_id, quote="어제부터"),
+    )
+    new_problem = extracted(
+        problemRef=None,
+        summary="별개의 로그인 실패",
+        systemCode="COMMON_LOGIN",
+        actualBehavior=QuotedValue(messageId=reply_id, quote="공통 로그인도 안 돼요"),
+    )
+    proposals = [answer, answer, new_problem] if duplicate_existing else [answer, new_problem]
+    services, _ = services_for(request, InquiryExtraction(problems=proposals))
+
+    result = await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
+    merged = merge_inquiry_result(state, result)
+
+    assert [proposal.problemRef for proposal in result.problems] == [PROBLEM, "new:1"]
+    assert merged["problems"][PROBLEM].details.occurredAt == "어제부터"
+    assert merged["problems"][PROBLEM].details.actualBehavior is None
+    assert merged["problems"]["new:1"].details.actualBehavior == "공통 로그인도 안 돼요"
+    assert merged["problems"]["new:1"].facts[0].sourceMessageIds == [reply_id]

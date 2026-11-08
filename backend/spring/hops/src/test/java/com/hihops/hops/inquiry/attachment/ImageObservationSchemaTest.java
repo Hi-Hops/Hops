@@ -183,6 +183,14 @@ class ImageObservationSchemaTest {
     }
 
     @Test
+    void 실행_대상이_아닌_문제의_이미지_관찰은_해석하지_않는다() {
+        var input = (tools.jackson.databind.node.ObjectNode) input("b".repeat(64), 1);
+        input.putArray("problemIds").add(UUID.randomUUID().toString());
+        assertThatThrownBy(() -> resolve(input, resultForProblem(problem.toString()), null,
+                ProblemQuestionWriter.Applied.NONE)).isInstanceOf(AgentResultRejectedException.class);
+    }
+
+    @Test
     void 같은_실행의_티켓_저장_기록으로_문제_참조를_해석한다() {
         jdbc.update("INSERT INTO agent_ticket_request (run_id, problem_ref, problem_id, request_body) "
                 + "VALUES (?, 'new:ticket', ?, '{}'::jsonb)", run, problem);

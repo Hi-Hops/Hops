@@ -255,7 +255,14 @@ def finalize_result(
             inquiryVersion=request.inquiryVersion,
             status="SUCCEEDED",
             answer=body,
-            problemProposals=([] if is_reply(candidate) else list(candidate["problems"].values())),
+            problemProposals=(
+                []
+                if is_reply(candidate)
+                else [
+                    candidate["problems"][item["problemRef"]]
+                    for item in get_problem_progress(candidate)
+                ]
+            ),
             questions=list(candidate["questions"].values()),
             guide=candidate["guide"],
             ticketProposals=list(candidate["ticketProposals"].values()),

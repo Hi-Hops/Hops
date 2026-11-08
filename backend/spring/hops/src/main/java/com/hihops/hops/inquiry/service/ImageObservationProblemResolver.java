@@ -44,6 +44,7 @@ public class ImageObservationProblemResolver {
         for (JsonNode problem : input.path("problems")) {
             String ref = problem.path("id").asString("");
             if (!required.contains(ref)) continue;
+            require(GuideResultWriter.targetsProblem(input, ref));
             try {
                 UUID id = UUID.fromString(ref);
                 require(id.toString().equals(ref));

@@ -103,10 +103,7 @@ public class GuideResultWriter {
                 .map(KnowledgeDocumentVersion::getContent).orElseThrow(GuideResultWriter::invalid)).toList();
         require(GuideText.fromApproved(body, visible.stream().map(item -> item.title()).toList(), approved));
 
-        Set<UUID> sourceIds = new HashSet<>();
-        for (var message : input.path("messages")) {
-            if ("USER".equals(message.path("sender").asString())) sourceIds.add(uuid(message.path("id")));
-        }
+        Set<UUID> sourceIds = sourceMessages(input, ref);
         statements(proposal.path("facts"), sourceIds, cited, true);
         statements(proposal.path("assumptions"), sourceIds, cited, false);
         require(proposal.path("unknowns").isArray());
@@ -123,8 +120,7 @@ public class GuideResultWriter {
         } else {
             require(java.util.stream.StreamSupport.stream(input.path("problems").spliterator(), false)
                     .anyMatch(item -> ref.equals(item.path("id").asString())));
-            require(input.path("problemIds").isEmpty() || java.util.stream.StreamSupport.stream(
-                    input.path("problemIds").spliterator(), false).anyMatch(item -> ref.equals(item.asString())));
+            require(targetsProblem(input, ref));
             problem = problems.findById(UUID.fromString(ref)).orElseThrow(GuideResultWriter::invalid);
             require(!problem.isDeleted() && problem.getInquiry().getId().equals(inquiry.getId())
                     && problem.getCreationOutcome() == null
@@ -157,6 +153,24 @@ public class GuideResultWriter {
         payload.set("resolutionRequest", mapper.valueToTree(confirmation));
         message.recordResolution(payload.toString());
         return new Applied(ref, problem.getId(), cited.size());
+    }
+
+    static boolean targetsProblem(JsonNode input, String ref) {
+        var targets = input.path("problemIds");
+        return targets.isEmpty() || targets.valueStream().anyMatch(item -> ref.equals(item.asString()));
+    }
+
+    static Set<UUID> sourceMessages(JsonNode input, String ref) {
+        Set<UUID> sources = new HashSet<>();
+        for (var message : input.path("messages")) {
+            if (!"USER".equals(message.path("sender").asString())) continue;
+            var links = message.path("problemIds").valueStream().map(JsonNode::asString).toList();
+            boolean allowed = ref.startsWith("new:")
+                    ? links.stream().allMatch(id -> targetsProblem(input, id))
+                    : links.contains(ref);
+            if (allowed) sources.add(uuid(message.path("id")));
+        }
+        return sources;
     }
 
     static void statements(JsonNode values, Set<UUID> messages, Set<UUID> evidence, boolean confirmed) {

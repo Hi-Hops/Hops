@@ -172,7 +172,7 @@ public class ProblemQuestionWriter {
         for (var proposal : proposals) require(proposalRefs.add(text(proposal.path("problemRef"))));
         require(proposalRefs.containsAll(questionByRef.keySet()), "QUESTION_WITHOUT_PROPOSAL");
 
-        var context = new Context(run, inquiry, input, result, answer, userMessageIds(input.path("messages")),
+        var context = new Context(run, inquiry, input, result, answer,
                 itemIds(input.path("systems")), itemIds(input.path("problems")), itemIds(result.path("evidence")));
         ObjectNode answerPayload = (ObjectNode) mapper.readTree(messages.findById(answerId).orElseThrow().getPayload());
         Set<String> handled = new LinkedHashSet<>();
@@ -188,6 +188,11 @@ public class ProblemQuestionWriter {
             InquiryProblem existing = null;
             if (!NEW_REF.matcher(ref).matches()) {
                 existing = existing(context, ref);
+                if (!GuideResultWriter.targetsProblem(input, ref)) {
+                    require(!questionByRef.containsKey(ref), "QUESTION_FOR_UNTARGETED_PROBLEM");
+                    handled.add(ref); // 이전 AI 버전이 함께 반환한 비대상 문제 스냅샷은 저장하지 않는다.
+                    continue;
+                }
                 resolved.put(ref, existing.getId());
                 if (!reopenable(existing)) {
                     // 티켓·확인 대기 중인 문제에는 질문할 수 없다
@@ -218,7 +223,7 @@ public class ProblemQuestionWriter {
     }
 
     private record Context(AgentRun run, Inquiry inquiry, JsonNode input, JsonNode result, String answer,
-            Set<UUID> userMessageIds, Set<UUID> systemIds, Set<UUID> inputProblemIds, Set<UUID> evidenceIds) {
+            Set<UUID> systemIds, Set<UUID> inputProblemIds, Set<UUID> evidenceIds) {
     }
 
     private InquiryProblem existing(Context context, String ref) {
@@ -254,8 +259,9 @@ public class ProblemQuestionWriter {
             require(context.systemIds().contains(systemId), "UNKNOWN_SYSTEM");
             system = systems.findForRead(systemId).orElseThrow(() -> invalid("SYSTEM_NOT_FOUND"));
         }
-        statements(proposal.path("facts"), context.userMessageIds(), context.evidenceIds(), true);
-        statements(proposal.path("assumptions"), context.userMessageIds(), context.evidenceIds(), false);
+        Set<UUID> sourceIds = GuideResultWriter.sourceMessages(context.input(), proposal.path("problemRef").asString());
+        statements(proposal.path("facts"), sourceIds, context.evidenceIds(), true);
+        statements(proposal.path("assumptions"), sourceIds, context.evidenceIds(), false);
         require(proposal.path("unknowns").isArray());
         proposal.path("unknowns").forEach(GuideResultWriter::text);
         require(proposal.path("details").isObject());
@@ -346,12 +352,6 @@ public class ProblemQuestionWriter {
 
     private static boolean hasItems(JsonNode value) {
         return value.isArray() && !value.isEmpty();
-    }
-
-    private static Set<UUID> userMessageIds(JsonNode values) {
-        return StreamSupport.stream(values.spliterator(), false)
-                .filter(item -> "USER".equals(item.path("sender").asString()))
-                .map(item -> uuid(item.path("id"))).collect(java.util.stream.Collectors.toSet());
     }
 
     private static Set<UUID> itemIds(JsonNode values) {
