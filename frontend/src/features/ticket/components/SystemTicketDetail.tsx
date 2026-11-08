@@ -28,6 +28,7 @@ import { processingLabels, mutableTicket, workKinds } from '../model/workflow';
 import { WorkRecordEditor } from './WorkRecordEditor';
 import { TicketCorrection } from './TicketCorrection';
 import { CaseGenerationPanel } from './CaseGenerationPanel';
+import { TicketImages } from './TicketImages';
 import styles from './Tickets.module.css';
 import workflow from './Workflow.module.css';
 
@@ -222,6 +223,9 @@ function RequestContent({ ticket }: RequestContentProps) {
           </>
         )}
       </section>
+      {import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' && (
+        <TicketImages ticketId={ticket.id} />
+      )}
       <section className={styles.requestCard}>
         <h3>관련 과거 해결 사례</h3>
         {cases.length ? (

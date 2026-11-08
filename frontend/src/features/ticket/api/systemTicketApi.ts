@@ -8,7 +8,9 @@ import {
   readPrimary,
   readResolution,
   readGeneration,
+  readTicketImages,
 } from '@/shared/api/systemWire';
+import { apiImageRequest } from '@/shared/api/client';
 import type { SystemCommand } from '@/shared/api/systemCommands';
 import type {
   WorkRecordCommand,
@@ -53,6 +55,13 @@ export const getRelatedMessages = (id: string, cursor: string | null, signal?: A
         throw new Error('관련 대화 커서가 진행되지 않았어요.');
       return page;
     },
+    signal,
+  );
+export const getTicketImages = (id: string, signal?: AbortSignal) =>
+  systemGet(`/tickets/${encodeURIComponent(id)}/image-attachments`, readTicketImages, signal);
+export const getTicketImage = (ticketId: string, attachmentId: string, signal?: AbortSignal) =>
+  apiImageRequest(
+    `/api/v2/tickets/${encodeURIComponent(ticketId)}/image-attachments/${encodeURIComponent(attachmentId)}/content`,
     signal,
   );
 export const getPrimary = (systemId: string, signal?: AbortSignal) =>
