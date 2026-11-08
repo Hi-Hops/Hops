@@ -35,6 +35,15 @@ class ImageDerivedMessageReader {
                 SELECT m.id FROM message m
                 WHERE m.id IN (:ids) AND m.sender_type = 'AI' AND (
                   EXISTS (SELECT 1 FROM image_observation o WHERE o.answer_message_id = m.id)
+                  OR (jsonb_exists(m.payload, 'answerRunId') AND NOT EXISTS (
+                    SELECT 1 FROM agent_run source
+                    WHERE source.id = CASE WHEN m.payload->>'answerRunId' ~
+                        '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                      THEN (m.payload->>'answerRunId')::uuid ELSE NULL END
+                      AND source.inquiry_id = m.inquiry_id
+                      AND source.task = 'INQUIRY_ANALYSIS'
+                      AND source.input_snapshot->>'answerMessageId' = m.id::text
+                  ))
                   OR EXISTS (
                     SELECT 1 FROM agent_run r
                     WHERE r.inquiry_id = m.inquiry_id AND r.task = 'INQUIRY_ANALYSIS'

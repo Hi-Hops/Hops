@@ -178,6 +178,32 @@ class CurationInputFactoryTest extends TicketCommandFixture {
     }
 
     @Test
+    void 실행_식별자가_있지만_답변_출처가_일치하지_않으면_담당자와_사례에서_제외한다() throws Exception {
+        UUID missing = addLinked("AI", "없는 실행을 가리키는 답변", problem);
+        UUID mismatch = addLinked("AI", "다른 답변의 실행을 가리키는 답변", problem);
+        UUID invalid = addLinked("AI", "형식이 잘못된 실행 식별자", problem);
+        UUID valid = addLinked("AI", "정상 연결된 텍스트 답변", problem);
+        UUID legacy = addLinked("AI", "실행 식별자가 없는 기존 답변", problem);
+        UUID wrongRun = analysisFor(UUID.randomUUID(), List.of());
+        UUID validRun = analysisFor(valid, List.of());
+        for (var entry : Map.of(missing, UUID.randomUUID().toString(), mismatch, wrongRun.toString(),
+                invalid, "invalid-run", valid, validRun.toString()).entrySet()) {
+            jdbc.update("UPDATE message SET payload=jsonb_set(payload, '{answerRunId}', to_jsonb(?::text), true) WHERE id=?",
+                    entry.getValue(), entry.getKey());
+        }
+
+        var response = mvc.perform(as(staff, get("/api/v2/tickets/{id}/related-messages", ticket)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).contains(valid.toString(), legacy.toString())
+                .doesNotContain(missing.toString(), mismatch.toString(), invalid.toString());
+
+        record("VERIFIED_RESOLUTION");
+        var context = curationInput().path("messages").toString();
+        assertThat(context).contains(valid.toString(), legacy.toString())
+                .doesNotContain(missing.toString(), mismatch.toString(), invalid.toString());
+    }
+
+    @Test
     void 이미지_실행에서_만든_표준_요청은_담당자_상세와_목록에_노출하지_않는다() throws Exception {
         String snapshot = mapper.writeValueAsString(Map.of("messages", List.of(
                 Map.of("imageAttachments", List.of(Map.of("attachmentId", UUID.randomUUID()))))));
