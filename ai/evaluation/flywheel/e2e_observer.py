@@ -199,28 +199,17 @@ class Observer:
         row = self._one("SELECT version_no FROM resolved_case WHERE id = %s::uuid", (case_id,))
         return int(row["version_no"]) if row else None
 
-    def case_document(self, case_id: str) -> dict[str, Any] | None:
+    def case_document(self, case_id: str, case_version: int) -> dict[str, Any] | None:
         """승인된 사례의 검색 문서. document_id는 상담 근거(KnowledgeEvidence.documentId)와 같다."""
         return self._one(
             """
-            SELECT d.id::text AS document_id,
+            SELECT d.id::text AS document_id, v.id::text AS document_version_id,
                    v.review_status AS version_status, d.review_status AS document_status
             FROM knowledge_document_version v
             JOIN knowledge_document d ON d.id = v.knowledge_document_id
-            WHERE v.source_metadata::text LIKE %s ORDER BY v.created_at DESC LIMIT 1
+            WHERE v.source_metadata->>'caseId' = %s
+              AND v.source_metadata->>'caseVersion' = %s
+            ORDER BY v.created_at DESC LIMIT 1
             """,
-            (f"%{case_id}%",),
+            (case_id, str(case_version)),
         )
-
-    def relation_case_rows(self, case_id: str) -> dict[str, int]:
-        """승인 사례가 관계 테이블에 반영됐는지(증상·확인 항목 연결 행 수)."""
-        row = self._one(
-            """
-            SELECT (SELECT count(*) FROM relation_case_symptom x
-                    WHERE to_jsonb(x)::text LIKE %(n)s) AS symptoms,
-                   (SELECT count(*) FROM relation_case_check x
-                    WHERE to_jsonb(x)::text LIKE %(n)s) AS checks
-            """,
-            {"n": f"%{case_id}%"},
-        )
-        return {key: int(value) for key, value in (row or {}).items()}
