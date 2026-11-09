@@ -14,10 +14,12 @@ import com.hihops.hops.global.idempotency.ResourceRef;
 import com.hihops.hops.global.idempotency.ResourceType;
 import com.hihops.hops.inquiry.domain.CreationOutcome;
 import com.hihops.hops.inquiry.domain.InquiryStatus;
+import com.hihops.hops.inquiry.domain.ProblemStatus;
 import com.hihops.hops.inquiry.dto.WorkItemRetryCommand;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -40,6 +42,7 @@ public class WorkItemCommandService {
     private final InquiryRepository inquiries;
     private final ProblemProjector projector;
     private final TicketCreationService creation;
+    private final EntityManager entities;
 
     /** 트랜잭션 밖(Controller)에서 부른다. */
     public CommandResult retry(IdempotentRequest request, UUID workItemId, WorkItemRetryCommand command) {
@@ -57,8 +60,9 @@ public class WorkItemCommandService {
         if (inquiry.getVersion() != command.expectedInquiryVersion()) {
             throw new BusinessException(ErrorCode.INQUIRY_VERSION_CONFLICT);
         }
-        // 잠금을 잡은 뒤의 값으로 판단한다. 기다리는 사이 다른 요청이 저장했을 수 있다.
-        var problem = problems.findMine(workItemId, requesterId).orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        // 잠금을 기다리는 사이 다른 요청이 저장했을 수 있다. 잠금 전에 읽은 엔티티는 영속성 컨텍스트에 남아 있으므로 다시 읽는다.
+        entities.refresh(found);
+        var problem = found;
         var current = projector.creation(problem);
         if (current == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
@@ -66,8 +70,10 @@ public class WorkItemCommandService {
         if (CreationOutcome.STORED.name().equals(current.outcome())) {
             return workItemId;
         }
+        // 문제가 티켓 생성 실패 상태가 아니면(범위 밖·해결됨·안내됨) 다시 만들지 않는다. AI 내부 생성과 같은 기준이다.
+        boolean failed = problem.getProblemStatus() == ProblemStatus.TICKET_FAILED;
         boolean open = inquiry.getInquiryStatus() != InquiryStatus.RESOLVED && inquiry.getInquiryStatus() != InquiryStatus.CLOSED;
-        if (!CreationOutcome.NOT_CREATED.name().equals(current.outcome()) || !open) {
+        if (!CreationOutcome.NOT_CREATED.name().equals(current.outcome()) || !open || !failed) {
             throw new BusinessException(ErrorCode.WORK_ITEM_NOT_RETRYABLE);
         }
         if (current.inquiryVersion() != inquiry.getVersion()) {

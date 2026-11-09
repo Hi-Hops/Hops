@@ -310,6 +310,17 @@ class WorkItemRetryControllerTest {
     }
 
     @Test
+    void 문제가_이미_다른_상태로_끝났으면_티켓을_만들지_않고_409다() throws Exception {
+        UUID workItem = notCreated();
+        ownerReturns();
+        for (String state : List.of("OUT_OF_SCOPE", "RESOLVED_WITHOUT_TICKET", "GUIDED")) {
+            jdbc.update("UPDATE inquiry_problem SET problem_status=?, resolved_at=CASE WHEN ?='RESOLVED_WITHOUT_TICKET' THEN now() ELSE NULL END WHERE id=?", state, state, workItem);
+            retry(workItem, 1).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("WORK_ITEM_NOT_RETRYABLE"));
+        }
+        assertThat(tickets()).isZero();
+    }
+
+    @Test
     void 같은_키를_다른_본문에_쓰면_409다() throws Exception {
         UUID workItem = notCreated();
         ownerReturns();
