@@ -224,7 +224,7 @@ def ground(
             and claim.quote.strip()
             and claim.quote.strip() in message.content
             and UNKNOWN_EXPRESSION.search(claim.quote)
-            and quote in claim.quote.strip()
+            and (quote in claim.quote.strip() or claim.quote.strip() in quote)
             for claim in problem.unknownFields
         ):
             continue

@@ -5,6 +5,8 @@
 교체). 모델은 Fake이지만 두 번째 응답을 첫 번째와 일부러 다르게 줘서 그 상황을 재현한다.
 """
 
+import pytest
+
 from hops_ai.agents.inquiry.extraction import (
     ExtractedProblem,
     InquiryExtraction,
@@ -279,7 +281,17 @@ async def test_unknown_answer_is_kept_for_a_field_empty_in_the_servers_standard_
     assert "기대한 동작" in result.problems[0].unknowns
 
 
-async def test_unknown_answer_is_not_recorded_as_a_known_fact() -> None:
+@pytest.mark.parametrize(
+    "value_quote, unknown_quote",
+    [
+        ("모르겠어요", "모르겠어요"),
+        ("모르겠어요", "원하는 결과는 모르겠어요"),
+        ("원하는 결과는 모르겠어요", "모르겠어요"),
+    ],
+)
+async def test_unknown_answer_is_not_recorded_as_a_known_fact(
+    value_quote: str, unknown_quote: str
+) -> None:
     from hops_ai.agents.inquiry import ExtractionInquiryAgent
     from hops_ai.supervisor.execution import RoleRequest
     from tests.supervisor_fixtures import reserve
@@ -301,13 +313,13 @@ async def test_unknown_answer_is_not_recorded_as_a_known_fact() -> None:
                 systemCode="ELECTRONIC_APPROVAL",
                 taskOrScreen=QuotedValue(messageId=MESSAGE, quote="도장 이미지 등록"),
                 currentWorkflow=None,
-                expectedBehavior=QuotedValue(messageId=MESSAGE, quote="모르겠어요"),
+                expectedBehavior=QuotedValue(messageId=MESSAGE, quote=value_quote),
                 actualBehavior=None,
                 occurredAt=None,
                 requestedAccess=None,
                 businessPurpose=None,
                 desiredChange=None,
-                unknownFields=[unknown_expected_claim("모르겠어요")],
+                unknownFields=[unknown_expected_claim(unknown_quote)],
                 keywords=[],
                 featureCandidates=[],
             )
@@ -364,4 +376,21 @@ def test_invalid_unknown_claim_does_not_override_valid_quote_in_same_field() -> 
     assert (
         ground(item, {MESSAGE: request.messages[0]})["expectedBehavior"][1]
         == "결재선을 바꾸고 싶어요"
+    )
+
+
+def test_unknown_claim_preserves_a_separate_known_quote_in_same_field() -> None:
+    from hops_ai.agents.inquiry.extraction import ground
+
+    fields = request_with_text().model_dump(mode="json")
+    fields["messages"][0]["content"] = "목록에 문서가 보여야 해요. 다른 기대 동작은 모르겠어요"
+    request = AiRunRequest.model_validate(fields)
+    item = extraction(expectedBehavior="목록에 문서가 보여야 해요").problems[0]
+    item = item.model_copy(
+        update={"unknownFields": [unknown_expected_claim("다른 기대 동작은 모르겠어요")]}
+    )
+
+    assert ground(item, {MESSAGE: request.messages[0]})["expectedBehavior"] == (
+        MESSAGE,
+        "목록에 문서가 보여야 해요",
     )
