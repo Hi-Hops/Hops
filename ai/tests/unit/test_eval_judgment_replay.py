@@ -78,7 +78,7 @@ async def test_judgment_replay_runs_the_problem_action_path_and_records_it() -> 
     assert first.error is None and first.result is not None
     assert first.result.status == "SUCCEEDED"
     assert [item.prompt_version for item in llm.requests] == [
-        "inquiry-extraction-v9",
+        "inquiry-extraction-v10",
         "supervisor.selection.v1",
         "knowledge.assessment.v5",
     ]

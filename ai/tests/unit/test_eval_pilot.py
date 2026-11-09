@@ -148,7 +148,7 @@ async def test_batch_applies_the_per_scenario_cap() -> None:
 def test_select_scenarios_picks_the_dev_split_and_refuses_test_without_a_flag() -> None:
     dev = select_scenarios([], "DEV", allow_test=False)
 
-    assert len(dev) == 12 and {item.split for item in dev} == {"DEV"}
+    assert len(dev) == 13 and {item.split for item in dev} == {"DEV"}
     with pytest.raises(SystemExit, match="TEST"):
         select_scenarios([], "TEST", allow_test=False)
     assert len(select_scenarios([], "TEST", allow_test=True)) == 8

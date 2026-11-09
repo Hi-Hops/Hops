@@ -324,7 +324,7 @@ async def test_in_the_judgment_graph_the_chosen_ask_uses_the_model_sentence() ->
     )
 
     assert [call.prompt_version for call in llm.requests] == [
-        "inquiry-extraction-v9",
+        "inquiry-extraction-v10",
         "supervisor.selection.v1",
         "inquiry.question.v1",
     ]

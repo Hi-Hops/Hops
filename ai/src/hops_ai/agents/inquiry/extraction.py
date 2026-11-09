@@ -17,7 +17,7 @@ from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import AiRunRequest, InputMessage, Intent
 
-PROMPT_VERSION = "inquiry-extraction-v9"
+PROMPT_VERSION = "inquiry-extraction-v10"
 # 사용자가 직접 모른다고 말한 구절로 인정하는 표현. 인식하지 못하면 필수 질문이 유지되는
 # 쪽(안전한 쪽)으로 실패하므로 표현을 넓히는 것은 평가 데이터가 생긴 뒤에 한다.
 UNKNOWN_EXPRESSION = re.compile(
@@ -63,7 +63,12 @@ SYSTEM_PROMPT = """\
    원하는 결과를 expectedBehavior에, 지금 그 일을 하는 방식을 설명한 구절을
    currentWorkflow에 넣는다.
 2. 서로 다른 요청이 섞여 있으면 문제를 나눈다(최대 3개).
-   한 가지 증상의 여러 원인 후보를 문제로 나누지 않는다.
+   하나의 문장 안에 '~하고', '그리고', '~도'로 이어져 있어도, 따로 확인하고 처리할 수 있는
+   서로 다른 현상이나 요청이면 각각 별개의 문제다. 한 문제의 필드(taskOrScreen,
+   actualBehavior 등)에는 그 문제에 해당하는 구절만 넣고, 다른 문제의 현상을 같은 문제의
+   필드에 나누어 넣지 않는다.
+   한 가지 증상의 여러 원인 후보를 문제로 나누지 않는다. 한 증상의 기대, 실제 동작,
+   발생 시점처럼 같은 사실의 여러 면도 나누지 않는다.
 3. intent 정의
    - HOW_TO: 사용 방법을 묻는다.
    - ACCESS_REQUEST: 기능이나 권한을 신청한다.
