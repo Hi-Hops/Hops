@@ -11,8 +11,11 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import com.hihops.hops.ticket.controller.TicketCommandFixture;
+import com.hihops.hops.inquiry.repository.MessageRepository;
+import com.hihops.hops.ticket.service.RelatedMessageProjector;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -24,6 +27,8 @@ import tools.jackson.databind.node.ObjectNode;
  * 모델 호출이나 AI wire 검증은 포함하지 않으며 그 호환은 AI 쪽 wire 테스트가 따로 확인한다.
  */
 class CurationInputFactoryTest extends TicketCommandFixture {
+    @Autowired MessageRepository messageRepository;
+    @Autowired RelatedMessageProjector projector;
     private final UUID otherProblem = UUID.randomUUID();
     private final UUID document = UUID.randomUUID();
     private int sequence = 1;
@@ -201,6 +206,79 @@ class CurationInputFactoryTest extends TicketCommandFixture {
         var context = curationInput().path("messages").toString();
         assertThat(context).contains(valid.toString(), legacy.toString())
                 .doesNotContain(missing.toString(), mismatch.toString(), invalid.toString());
+    }
+
+    @Test
+    void 이미지_유래_답변을_여러_번_참조한_후속_답변도_담당자와_사례에서_제외한다() throws Exception {
+        UUID imageAnswer = addLinked("AI", "이미지 관찰 답변", problem);
+        UUID secondAnswer = addLinked("AI", "첫 후속 답변", problem);
+        UUID thirdAnswer = addLinked("AI", "두 번째 후속 답변", problem);
+        UUID unrelatedAnswer = addLinked("AI", "관계없는 텍스트 답변", problem);
+        analysisFor(imageAnswer, List.of(Map.of("imageAttachments", List.of(Map.of("attachmentId", UUID.randomUUID())))));
+        analysisFor(secondAnswer, List.of(Map.of("sender", "AI", "id", imageAnswer)));
+        analysisFor(thirdAnswer, List.of(Map.of("sender", "AI", "id", secondAnswer)));
+        analysisFor(unrelatedAnswer, List.of());
+
+        var response = mvc.perform(as(staff, get("/api/v2/tickets/{id}/related-messages", ticket)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).contains(unrelatedAnswer.toString())
+                .doesNotContain(imageAnswer.toString(), secondAnswer.toString(), thirdAnswer.toString());
+
+        record("VERIFIED_RESOLUTION");
+        var context = curationInput().path("messages").toString();
+        assertThat(context).contains(unrelatedAnswer.toString())
+                .doesNotContain(imageAnswer.toString(), secondAnswer.toString(), thirdAnswer.toString());
+    }
+
+    @Test
+    void 후속_답변의_AI_입력_출처가_없거나_앞선_메시지가_아니면_공개하지_않는다() throws Exception {
+        UUID missing = addLinked("AI", "없는 출처 답변", problem);
+        UUID invalid = addLinked("AI", "형식이 잘못된 출처 답변", problem);
+        UUID cycle = addLinked("AI", "자기 자신을 참조하는 답변", problem);
+        UUID revision = addLinked("AI", "다른 차수를 참조하는 답변", problem);
+        UUID malformedRevision = addLinked("AI", "차수 형식이 잘못된 답변", problem);
+        UUID safe = addLinked("AI", "독립적인 답변", problem);
+        analysisFor(missing, List.of(Map.of("sender", "AI", "id", UUID.randomUUID())));
+        analysisFor(invalid, List.of(Map.of("sender", "AI", "id", "invalid")));
+        analysisFor(cycle, List.of(Map.of("sender", "AI", "id", cycle)));
+        analysisFor(revision, List.of(Map.of("sender", "AI", "id", message, "revision", 2)));
+        analysisFor(malformedRevision, List.of(Map.of("sender", "AI", "id", message, "revision", "1")));
+        analysisFor(safe, List.of());
+        var response = mvc.perform(as(staff, get("/api/v2/tickets/{id}/related-messages", ticket)))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(response).contains(safe.toString())
+                .doesNotContain(missing.toString(), invalid.toString(), cycle.toString(), revision.toString(),
+                        malformedRevision.toString());
+    }
+
+    @Test
+    void 이미지_유래_후속_답변을_입력받은_기존_표준_요청과_티켓도_차단한다() throws Exception {
+        UUID imageAnswer = addLinked("AI", "이미지 관찰 답변", problem);
+        UUID laterAnswer = addLinked("AI", "이미지 관찰의 후속 답변", problem);
+        analysisFor(imageAnswer, List.of(Map.of("imageAttachments", List.of(Map.of("attachmentId", UUID.randomUUID())))));
+        analysisFor(laterAnswer, List.of(Map.of("sender", "AI", "id", imageAnswer)));
+        String snapshot = mapper.writeValueAsString(Map.of("messages", List.of(Map.of("sender", "AI", "id", laterAnswer))));
+        jdbc.update("UPDATE agent_run SET input_snapshot=?::jsonb WHERE id=?", snapshot, analysis);
+        jdbc.update("UPDATE standard_request SET summary='이미지에서 파생된 요약' WHERE id=?", standard);
+
+        mvc.perform(as(staff, get("/api/v2/tickets/{id}", ticket))).andExpect(status().isServiceUnavailable());
+        mvc.perform(as(staff, get("/api/v2/tickets"))).andExpect(status().isServiceUnavailable());
+        mvc.perform(command(staff, "/tickets/" + ticket + "/work-records", work("PROGRESS")))
+                .andExpect(status().isServiceUnavailable());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket_work_log WHERE ticket_id=?", Integer.class, ticket)).isZero();
+    }
+
+    @Test
+    void 출처_연결이_검사_한도를_넘으면_판단하지_못한_답변을_숨긴다() {
+        UUID prior = addLinked("AI", "시작 답변", problem);
+        analysisFor(prior, List.of());
+        for (int i = 0; i < 41; i++) {
+            UUID next = addLinked("AI", "후속 답변", problem);
+            analysisFor(next, List.of(Map.of("sender", "AI", "id", prior)));
+            prior = next;
+        }
+        var tail = messageRepository.findById(prior).orElseThrow();
+        assertThat(projector.restricted(List.of(tail))).containsExactly(prior);
     }
 
     @Test

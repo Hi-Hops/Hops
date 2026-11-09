@@ -158,10 +158,10 @@ public class TicketService {
         var systemEntities = new ArrayList<ItSystem>();
         for (Ticket ticket : page) {
             validateSources(ticket);
-            imageSafety.requireTextOnly(ticket.getStandardRequest().getAgentRun());
             systemEntities.add(ticket.getStandardRequest().getReportedSystem());
             systemEntities.add(ticket.getResponsibleSystem());
         }
+        imageSafety.requireTextOnly(page.getContent().stream().map(ticket -> ticket.getStandardRequest().getAgentRun()).toList());
         Map<UUID, SupportedSystemResponse> catalog = systems.responses(systemEntities);
         return new TicketPageResponse(page.stream().map(ticket -> summary(ticket, catalog)).toList(),
                 request.pageNumber(), request.pageSize(), page.getTotalElements());

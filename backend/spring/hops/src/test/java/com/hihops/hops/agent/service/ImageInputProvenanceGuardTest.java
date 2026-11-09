@@ -68,6 +68,24 @@ class ImageInputProvenanceGuardTest {
     }
 
     @Test
+    void 여러_실행의_AI_출처는_모아서_조회한다() {
+        Message first = answer(inquiryId);
+        UUID secondId = UUID.randomUUID();
+        Message second = answer(inquiryId);
+        when(second.getId()).thenReturn(secondId);
+        when(messages.findAllById(any())).thenReturn(List.of(first, second));
+        when(projector.restricted(List.of(first, second))).thenReturn(Set.of());
+        var firstInput = mapper.readTree("{\"messages\":[{\"sender\":\"AI\",\"id\":\"" + answerId + "\"}]}");
+        var secondInput = mapper.readTree("{\"messages\":[{\"sender\":\"AI\",\"id\":\"" + secondId + "\"}]}");
+        assertThatCode(() -> {
+            if (!guard.areRetrySafe(List.of(new ImageInputProvenanceGuard.SnapshotCheck(firstInput, inquiryId),
+                    new ImageInputProvenanceGuard.SnapshotCheck(secondInput, inquiryId)))) throw new AssertionError();
+        }).doesNotThrowAnyException();
+        verify(messages).findAllById(any());
+        verify(projector).restricted(List.of(first, second));
+    }
+
+    @Test
     void 이미지가_포함된_재시도는_기존_이미지_실행_안전_경계를_따른다() {
         var snapshot = mapper.readTree("{\"messages\":[{\"sender\":\"USER\",\"imageAttachments\":[{}]}]}");
         assertThatCode(() -> guard.requireRetrySafe(snapshot, inquiryId)).doesNotThrowAnyException();
@@ -83,11 +101,21 @@ class ImageInputProvenanceGuardTest {
         }
     }
 
+    @Test
+    void 출처_검사_한도를_넘는_AI_입력은_재시도하지_않는다() {
+        var snapshot = mapper.createObjectNode();
+        var input = snapshot.putArray("messages");
+        for (int i = 0; i < 5001; i++) input.addObject().put("sender", "AI").put("id", UUID.randomUUID().toString());
+        assertUnavailable(() -> guard.requireRetrySafe(snapshot, inquiryId));
+        verify(messages, never()).findAllById(any());
+    }
+
     private Message answer(UUID sourceInquiry) {
         Message answer = mock(Message.class);
         Inquiry inquiry = mock(Inquiry.class);
         when(inquiry.getId()).thenReturn(sourceInquiry);
         when(answer.getInquiry()).thenReturn(inquiry);
+        when(answer.getId()).thenReturn(answerId);
         when(answer.getSenderType()).thenReturn(SenderType.AI);
         return answer;
     }
