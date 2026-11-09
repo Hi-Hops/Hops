@@ -40,6 +40,7 @@ import com.hihops.hops.inquiry.domain.SenderType;
 import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
+import com.hihops.hops.inquiry.dto.SystemConfirmCommand;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
@@ -128,6 +129,15 @@ public class MessageCommandService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         return idempotencyService.execute(request, operationId -> new ResourceRef(ResourceType.INQUIRY,
                 confirmTargets(request.actorId(), inquiryId, messageId, command)));
+    }
+
+    /** 트랜잭션 밖(Controller)에서 부른다. */
+    public CommandResult confirmSystem(IdempotentRequest request, UUID inquiryId, UUID problemId,
+            SystemConfirmCommand command) {
+        inquiryRepository.findByIdAndRequester_IdAndDeletedAtIsNull(inquiryId, request.actorId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        return idempotencyService.execute(request, operationId -> new ResourceRef(ResourceType.INQUIRY,
+                selectSystem(request.actorId(), inquiryId, problemId, command)));
     }
 
     private UUID sendMessage(UUID requesterId, UUID inquiryId, MessageSendCommand command) {
@@ -228,6 +238,31 @@ public class MessageCommandService {
         continueAnalysis(inquiry, message, problemIds, scope, command.requestId(), newProblem);
         // 원문은 그대로지만 문제 연결이 바뀌었으므로 다시 조회하게 알린다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
+                command.requestId()));
+        return inquiry.getId();
+    }
+
+    /**
+     * 보고 시스템이 정해지지 않은 문제에 문의자가 고른 시스템을 저장하고, 그 문제를 대상으로 새 분석을 접수한다
+     * (WIRE_CONTRACT 12.2 system-confirmations, TARGET_CONTRACT 3·4절). 입력 버전을 1 올리고 질문 수는 그대로다.
+     * 새 메시지는 만들지 않고 선택을 문제에 연결된 원문의 정정 기록으로 남긴다({@link ReportedSystemCorrections#confirm}).
+     * 진행 중이던 분석은 대체하되 그 대상은 새 실행에 잇는다({@link #continueAnalysis}).
+     */
+    private UUID selectSystem(UUID requesterId, UUID inquiryId, UUID problemId, SystemConfirmCommand command) {
+        Inquiry inquiry = lockOpenInquiry(requesterId, inquiryId, command.expectedInquiryVersion());
+        InquiryProblem problem = inquiryProblemRepository.findById(problemId)
+                .filter(found -> !found.isDeleted() && found.getInquiry().getId().equals(inquiryId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
+        var system = systemQueryService.findSupportedSystems().stream()
+                .filter(supported -> supported.id().equals(command.systemId())).findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT, "지원 시스템을 선택해 주세요."));
+        ProblemScope scope = scopeOf(inquiryId);
+        inquiry.recordInput();
+        Message source = reportedSystemCorrections.confirm(inquiry, problem, system);
+        problem.resumeAfterSystemSelection();
+        inquiryProblemRepository.flush();
+        continueAnalysis(inquiry, source, List.of(problemId), scope, command.requestId(), false);
+        eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), source.getId(),
                 command.requestId()));
         return inquiry.getId();
     }

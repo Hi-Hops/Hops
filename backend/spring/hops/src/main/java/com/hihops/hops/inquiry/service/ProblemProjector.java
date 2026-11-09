@@ -125,10 +125,12 @@ public class ProblemProjector {
         boolean systemUnknown = "WAITING_SYSTEM".equals(state) && !corrected;
         UUID systemId = corrected ? correction.systemId()
                 : request.getReportedSystem() == null ? null : request.getReportedSystem().getId();
-        String summary = corrected ? correction.summary() : request.getSummary();
+        // 정정은 범위를 바꾸므로 요약도 바꾸지만, 문의자가 시스템을 고른 것(selection)은 빈 값을 채운 것이라 요약을 유지한다
+        boolean replaced = corrected && !correction.isSelection();
+        String summary = replaced ? correction.summary() : request.getSummary();
         return new ProblemResponse(problem.getId(), inquiry.getId(), summary, request.getIntent().name(),
                 request.getWorkType().name(), systemUnknown ? null : systemId,
-                systemUnknown || corrected || request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
+                systemUnknown || replaced || request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
                 state, problem.getClarifyCount(), guideMessage.map(message -> new GuideAnswerResponse(message.getId(), guideView.orElseThrow().evidence())).orElse(null),
                 creationOf(problem, ticket), ticket.map(this::summaryOf).orElse(null),
                 ticket.isPresent() ? resolutionOf(ticket.get())
