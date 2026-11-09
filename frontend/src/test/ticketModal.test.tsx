@@ -210,7 +210,9 @@ describe('F009 티켓 상세 모달', () => {
     expect(chat).toHaveAttribute('data-sender', 'USER');
     expect(view.getByText('Hops').closest('article')).toHaveAttribute('data-sender', 'AI');
 
-    const history = view.getByRole('heading', { name: '문의에 저장된 과거 해결 사례' }).closest('section');
+    const history = view
+      .getByRole('heading', { name: '문의에 저장된 과거 해결 사례' })
+      .closest('section');
     if (!history) throw new Error('사례 영역 필요');
     expect(within(history).getByText(/첨부파일 표시 오류 복구/u)).toBeVisible();
     const documents = within(history).getByText('참고 문서 1건').closest('details');
