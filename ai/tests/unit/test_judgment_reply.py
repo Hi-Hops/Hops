@@ -101,7 +101,7 @@ async def test_content_to_analyze_still_goes_to_inquiry(request_) -> None:
     """인사가 섞여도 분석할 내용이 있으면 분석한다. 문제를 못 찾으면 되묻는다."""
     result, llm = await run(request_, InquiryExtraction(problems=[]))
 
-    assert prompt_versions(llm) == ["inquiry-extraction-v8"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v9"]
     assert result.answer == CLARIFY_ANSWER
     assert result.requiresFollowUp is True
 
@@ -116,7 +116,7 @@ async def test_a_greeting_mixed_with_an_inquiry_is_analyzed() -> None:
 
     assert result.status == "SUCCEEDED"
     assert result.problemProposals[0].intent == "OBSERVED_SYMPTOM"
-    assert prompt_versions(llm)[:2] == ["inquiry-extraction-v8", "supervisor.selection.v1"]
+    assert prompt_versions(llm)[:2] == ["inquiry-extraction-v9", "supervisor.selection.v1"]
     assert result.questions, "문의가 있으면 인사가 섞여 있어도 분석해 문제별 행동을 고른다"
     assert result.requiresFollowUp is False
 
@@ -130,7 +130,7 @@ async def test_an_empty_analysis_is_clarified_instead_of_failing() -> None:
     assert result.answer == CLARIFY_ANSWER
     assert result.requiresFollowUp is True
     assert result.problemProposals == [] and result.evidence == []
-    assert prompt_versions(llm) == ["inquiry-extraction-v8"], "같은 분석을 반복하지 않는다"
+    assert prompt_versions(llm) == ["inquiry-extraction-v9"], "같은 분석을 반복하지 않는다"
 
 
 async def test_only_a_clarification_waits_for_the_user() -> None:

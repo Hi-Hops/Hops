@@ -337,6 +337,8 @@ class InputProblem(WireModel):
     askedFields: list[WireText] = Field(default_factory=list)
     standardRequest: StandardRequestBody | None
     resolutionContext: ResolutionContext | None
+    # 아직 새 범위의 분석이 저장되지 않은 서버 확인 정정의 원문.
+    reportedSystemCorrectionMessageId: WireUuid | None = None
 
 
 # 처리 기록의 문장(조치·검증·확인된 원인) 길이 상한(코드 포인트). Spring이 같은 값으로 자른다.

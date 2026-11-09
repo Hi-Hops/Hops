@@ -95,6 +95,7 @@ public class MessageCommandService {
     private final MessageRevisionRepository messageRevisionRepository;
     private final TicketRepository ticketRepository;
     private final AgentRunRepository agentRunRepository;
+    private final ReportedSystemCorrections reportedSystemCorrections;
     private final SystemQueryService systemQueryService;
     private final InputProblemReader inputProblemReader;
     private final AnalysisInputFactory analysisInputFactory;
@@ -136,9 +137,15 @@ public class MessageCommandService {
         if (!scope.linkable().containsAll(problemIds)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "보완할 수 있는 문제가 아닙니다.");
         }
+        var correction = correctionOf(command.content());
         boolean pending = false;
         List<UUID> links = problemIds;
-        if (problemIds.isEmpty()) {
+        if (correction.isPresent() && problemIds.size() != 1 && !scope.linkable().isEmpty()) {
+            // 정정문이 어느 기존 문제를 뜻하는지 추측하지 않는다.
+            pending = scope.linkable().size() > 1;
+            problemIds = pending ? List.of() : List.copyOf(scope.linkable());
+            links = problemIds;
+        } else if (problemIds.isEmpty()) {
             Optional<Message> answer = unansweredAiMessage(inquiryId);
             List<UUID> replied = answer.map(message -> repliedProblems(message, scope)).orElseGet(List::of);
             if (replied.size() == 1) {
@@ -160,6 +167,7 @@ public class MessageCommandService {
                 command.content(),
                 UserMessagePayload.json(jsonMapper, command.requestId(), null, links, command.content(), pending),
                 MessageStatus.COMPLETED));
+        correction.ifPresent(replacement -> reportedSystemCorrections.apply(message, replacement));
         continueAnalysis(inquiry, message, problemIds, scope, command.requestId(), false);
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
@@ -183,6 +191,7 @@ public class MessageCommandService {
         ProblemScope scope = scopeOf(inquiryId);
         List<UUID> problemIds = jsonMapper.readValue(message.getPayload(), MessagePayload.class)
                 .problemIds(message.getRevision()).stream().filter(scope.linkable()::contains).toList();
+        correctionOf(message.getContent()).ifPresent(replacement -> reportedSystemCorrections.apply(message, replacement));
         continueAnalysis(inquiry, message, problemIds, scope, command.requestId(), false);
         // 정정도 저장 알림이다. requestId는 이 정정 요청이다 (WIRE_CONTRACT 12.4 "저장 메시지·정정")
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
@@ -207,14 +216,27 @@ public class MessageCommandService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "보완할 수 있는 문제가 아닙니다.");
         }
 
+        var correction = newProblem ? Optional.<ReportedSystemCorrections.Replacement>empty()
+                : correctionOf(message.getContent());
+        if (correction.isPresent() && problemIds.size() != 1) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "보고 시스템을 정정할 문제를 한 건 선택해 주세요.");
+        }
         message.updatePayload(UserMessagePayload.confirmed(jsonMapper, message.getPayload(), message.getRevision(),
                 message.getContent(), problemIds));
         inquiry.recordInput();
+        correction.ifPresent(replacement -> reportedSystemCorrections.apply(message, replacement));
         continueAnalysis(inquiry, message, problemIds, scope, command.requestId(), newProblem);
         // 원문은 그대로지만 문제 연결이 바뀌었으므로 다시 조회하게 알린다
         eventPublisher.publishEvent(MessageStoredEvent.of(inquiryId, inquiry.getVersion(), message.getId(),
                 command.requestId()));
         return inquiry.getId();
+    }
+
+    private Optional<ReportedSystemCorrections.Replacement> correctionOf(String content) {
+        if (!content.contains("아니라") && !content.contains("아니고")) {
+            return Optional.empty();
+        }
+        return ReportedSystemCorrections.parse(content, systemQueryService.findSupportedSystems());
     }
 
     /**

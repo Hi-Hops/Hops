@@ -30,6 +30,7 @@ import com.hihops.hops.inquiry.dto.ProblemResponse.GuideAnswerResponse;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
 import com.hihops.hops.inquiry.repository.StandardRequestRepository;
+import com.hihops.hops.inquiry.service.ReportedSystemCorrections.Applied;
 import com.hihops.hops.itsystem.domain.ItSystem;
 import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 import com.hihops.hops.itsystem.service.ItSystemService;
@@ -79,6 +80,7 @@ public class ProblemProjector {
     private final TicketProgressReader progressReader;
     private final ItSystemService itSystemService;
     private final JsonMapper jsonMapper;
+    private final ReportedSystemCorrections reportedSystemCorrections;
 
     /**
      * @throws IllegalStateException 적용된 표준 요청서가 없는 문제, 티켓 생성 결과와 티켓이 어긋난 문제 등 저장 규칙이 깨진 경우
@@ -93,7 +95,9 @@ public class ProblemProjector {
         standardRequestRepository.findAppliedNewestFirst(problems.stream().map(InquiryProblem::getId).toList())
                 .forEach(request -> latest.putIfAbsent(request.getInquiryProblem().getId(), request));
         Set<String> analyzing = analyzingProblemIds(inquiry.getCurrentRun());
-        return problems.stream().map(problem -> project(inquiry, problem, latest.get(problem.getId()), analyzing)).toList();
+        var corrections = reportedSystemCorrections.latest(inquiry.getId());
+        return problems.stream().map(problem -> project(inquiry, problem, latest.get(problem.getId()), analyzing,
+                corrections.get(problem.getId()))).toList();
     }
 
     // 분석 중인 실행이 대상으로 삼은 문제. 실행이 없거나 끝났으면 없다. 대상 없이 접수한 실행은 어느 문제의 답인지 분석이 정한다.
@@ -107,7 +111,7 @@ public class ProblemProjector {
     }
 
     private ProblemResponse project(Inquiry inquiry, InquiryProblem problem, @Nullable StandardRequest request,
-            Set<String> analyzing) {
+            Set<String> analyzing, @Nullable Applied correction) {
         if (request == null) {
             throw new IllegalStateException("적용된 표준 요청서가 없는 문제다: " + problem.getId());
         }
@@ -117,11 +121,14 @@ public class ProblemProjector {
         Optional<Message> guideMessage = messageRepository.findLatestGuide(inquiry.getId(), problem.getId());
         // 안내 근거는 한 번만 확인해 근거 목록과 확인 요약에 같이 쓴다
         Optional<GuideVisibility.GuideView> guideView = guideMessage.map(message -> guideVisibility.viewOf(inquiry, message));
-        boolean systemUnknown = "WAITING_SYSTEM".equals(state);
-        return new ProblemResponse(problem.getId(), inquiry.getId(), request.getSummary(), request.getIntent().name(),
-                request.getWorkType().name(),
-                systemUnknown || request.getReportedSystem() == null ? null : request.getReportedSystem().getId(),
-                systemUnknown || request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
+        boolean corrected = correction != null && correction.inquiryVersion() > request.getInquiryVersion();
+        boolean systemUnknown = "WAITING_SYSTEM".equals(state) && !corrected;
+        UUID systemId = corrected ? correction.systemId()
+                : request.getReportedSystem() == null ? null : request.getReportedSystem().getId();
+        String summary = corrected ? correction.summary() : request.getSummary();
+        return new ProblemResponse(problem.getId(), inquiry.getId(), summary, request.getIntent().name(),
+                request.getWorkType().name(), systemUnknown ? null : systemId,
+                systemUnknown || corrected || request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
                 state, problem.getClarifyCount(), guideMessage.map(message -> new GuideAnswerResponse(message.getId(), guideView.orElseThrow().evidence())).orElse(null),
                 creationOf(problem, ticket), ticket.map(this::summaryOf).orElse(null),
                 ticket.isPresent() ? resolutionOf(ticket.get())

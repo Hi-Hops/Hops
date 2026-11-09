@@ -21,7 +21,8 @@ import jakarta.validation.constraints.PositiveOrZero;
 /**
  * Spring → AI 실행 입력 (contracts/agents/README.md AiRunRequest). agent_run.input_snapshot에 이 JSON을 그대로 고정한다.
  *
- * <p>AI 서버는 계약에 없는 필드를 거부한다(extra=forbid). 그래서 필드를 더하거나 빼지 않고, null 값도 키를 생략하지 않는다.
+ * <p>AI 서버는 계약에 없는 필드를 거부한다(extra=forbid). 필수 필드는 값이 null이어도 키를 보내고,
+ * 선택 필드는 계약이 허용하는 경우에만 생략한다.
  * 시각은 UTC RFC 3339 Z 문자열이며 소수초는 최대 6자리다 ({@link #time}).
  *
  * <p>resolutionContext는 아직 투영하지 않아 null을 보낸다.
@@ -46,7 +47,14 @@ public record AiRunRequest(String contractVersion, UUID runId, String kind, UUID
     public record InputProblem(UUID id, String summary, String intent, String processingType,
             @Nullable UUID reportedSystemId, @Nullable UUID reportedFeatureId, String state, int questionCount,
             List<String> askedFields, @Nullable StandardRequestBody standardRequest,
-            @Nullable Object resolutionContext) {
+            @Nullable Object resolutionContext,
+            @JsonInclude(JsonInclude.Include.NON_NULL) @Nullable UUID reportedSystemCorrectionMessageId) {
+        public InputProblem(UUID id, String summary, String intent, String processingType,
+                @Nullable UUID reportedSystemId, @Nullable UUID reportedFeatureId, String state, int questionCount,
+                List<String> askedFields, @Nullable StandardRequestBody standardRequest, @Nullable Object resolutionContext) {
+            this(id, summary, intent, processingType, reportedSystemId, reportedFeatureId, state, questionCount,
+                    askedFields, standardRequest, resolutionContext, null);
+        }
     }
 
     /** 문제별 표준 요청서 본문. 공개 범위는 문의자(직원) 기준으로 거른 값이다. */

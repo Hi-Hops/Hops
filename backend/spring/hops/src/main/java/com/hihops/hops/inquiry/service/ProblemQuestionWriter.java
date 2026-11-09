@@ -248,7 +248,10 @@ public class ProblemQuestionWriter {
             require(context.systemIds().contains(systemId), "UNKNOWN_SYSTEM");
             system = systems.findForRead(systemId).orElseThrow(() -> invalid("SYSTEM_NOT_FOUND"));
         }
-        Set<UUID> sourceIds = GuideResultWriter.sourceMessages(context.input(), proposal.path("problemRef").asString());
+        String ref = proposal.path("problemRef").asString();
+        UUID systemId = system == null ? null : system.getId();
+        require(GuideResultWriter.matchesReportedSystem(context.input(), ref, systemId), "REPORTED_SYSTEM_MISMATCH");
+        Set<UUID> sourceIds = GuideResultWriter.sourceMessages(context.input(), ref);
         statements(proposal.path("facts"), sourceIds, context.evidenceIds(), true);
         statements(proposal.path("assumptions"), sourceIds, context.evidenceIds(), false);
         require(proposal.path("unknowns").isArray());
@@ -282,21 +285,22 @@ public class ProblemQuestionWriter {
                 system, null, null, summary);
         standard.recordAnalysis(proposal.path("facts").toString(), proposal.path("assumptions").toString(),
                 proposal.path("unknowns").toString(), proposal.path("details").toString(),
-                mapper.writeValueAsString(citedKnowledge(context, cited, inquiry)));
+                mapper.writeValueAsString(citedKnowledge(context, cited, inquiry, systemId)));
         requests.saveAndFlush(standard);
         for (UUID source : sources) linker.link(inquiry, source, problem.getId());
         return problem;
     }
 
     // 사실·가정이 인용한 근거 중 문의자에게 공개 가능한 직원용 근거만 요청서에 남긴다. 공개할 수 없으면 제안을 거부한다.
-    private List<?> citedKnowledge(Context context, Set<UUID> cited, Inquiry inquiry) {
+    private List<?> citedKnowledge(Context context, Set<UUID> cited, Inquiry inquiry, @Nullable UUID systemId) {
         if (cited.isEmpty()) return List.of();
         var selected = mapper.createArrayNode();
         for (var evidence : context.result().path("evidence")) {
             if (cited.contains(uuid(evidence.path("id")))) selected.add(evidence);
         }
         var visible = knowledge.visible(selected.toString(), inquiry.getRequester());
-        require(visible.size() == cited.size() && visible.stream().allMatch(item -> "EMPLOYEE".equals(item.accessScope())));
+        require(visible.size() == cited.size() && visible.stream().allMatch(item -> "EMPLOYEE".equals(item.accessScope())
+                && (systemId == null || item.systemId() == null || systemId.equals(item.systemId()))));
         return visible;
     }
 

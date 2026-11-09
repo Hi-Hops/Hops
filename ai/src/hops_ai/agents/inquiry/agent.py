@@ -212,7 +212,12 @@ class ExtractionInquiryAgent:
         text: str | None = None
         source: Literal["FIXED", "MODEL", "FIXED_FALLBACK"] = "FIXED"
         fallback: str | None = None
-        if self._generate_questions and plan.action == "ASK":
+        # 정정 직후에는 이전 시스템이 적힌 원문을 재서술하지 않고 새 범위의 승인 문구를 쓴다.
+        corrected = any(
+            problem.id == ref and problem.reportedSystemCorrectionMessageId
+            for problem in call.state["input"].problems
+        )
+        if self._generate_questions and plan.action == "ASK" and not corrected:
             text, fallback = await self._write_question(call, ref, plan, services)
             source = "MODEL" if text is not None else "FIXED_FALLBACK"
         question = question_from_plan(call.state, ref, plan, text)

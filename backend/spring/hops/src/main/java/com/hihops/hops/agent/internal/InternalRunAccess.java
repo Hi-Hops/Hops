@@ -2,6 +2,7 @@ package com.hihops.hops.agent.internal;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,6 +44,15 @@ class InternalRunAccess {
             if (input.problems().stream().noneMatch(problem -> problem.id().toString().equals(problemRef))) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT);
             }
+        }
+
+        Set<UUID> systemsFor(String problemRef, Set<UUID> allowed) {
+            return input.problems().stream()
+                    .filter(problem -> problem.id().toString().equals(problemRef) && problem.reportedSystemId() != null)
+                    .findFirst()
+                    .map(problem -> allowed.contains(problem.reportedSystemId()) ? Set.of(problem.reportedSystemId())
+                            : Set.<UUID>of())
+                    .orElse(allowed);
         }
     }
 
