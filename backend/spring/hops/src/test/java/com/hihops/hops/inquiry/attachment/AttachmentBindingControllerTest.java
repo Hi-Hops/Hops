@@ -55,6 +55,7 @@ class AttachmentBindingControllerTest {
     @Autowired ImageAnalysisTargets analysisTargets;
     @Autowired ImageAttachmentExpiryService expiry;
     @Autowired ImageAttachmentCleanupService cleanup;
+    @Autowired ImageAttachmentSweepService sweep;
     @Autowired AttachmentBindingService binding;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @MockitoBean S3Client s3Client;
@@ -877,6 +878,64 @@ class AttachmentBindingControllerTest {
         });
         mvc.perform(get("/internal/v2/runs/" + run + "/image-attachments/" + id + "?inquiryVersion=1")
                 .header("Authorization", "Bearer " + "A".repeat(43))).andExpect(status().isConflict());
+    }
+
+    @Test
+    void 정리_순회는_페이지를_이어가고_실패한_이미지를_다음_순회에서_다시_확인한다() throws Exception {
+        UUID one = attachment(owner, "READY", true);
+        UUID two = attachment(owner, "READY", true);
+        UUID bound = attachment(owner, "READY", false);
+        createWithImage(bound);
+        UUID pending = attachment(owner, "PENDING", false);
+        assertThat(expiry.expireBatch()).isEqualTo(2);
+        List<UUID> ordered = jdbc.queryForList("SELECT id FROM image_attachment WHERE id IN (?, ?) ORDER BY id", UUID.class, one, two);
+        UUID first = ordered.get(0);
+        UUID second = ordered.get(1);
+        var nextPage = new S3AttachmentStore.VersionCursor("chat-attachments/" + first, "version");
+        when(store.deleteVersionPage(first, null)).thenReturn(new S3AttachmentStore.VersionPage(1, nextPage),
+                new S3AttachmentStore.VersionPage(1, null));
+        when(store.deleteVersionPage(first, nextPage)).thenReturn(new S3AttachmentStore.VersionPage(1, null));
+        when(store.deleteVersionPage(second, null)).thenThrow(software.amazon.awssdk.core.exception.SdkClientException.create("fixture"))
+                .thenReturn(new S3AttachmentStore.VersionPage(0, null));
+
+        var step = sweep.sweepNext(null);
+        assertThat(step.next().current()).isEqualTo(first);
+        assertThat(step.next().versions()).isEqualTo(nextPage);
+        step = sweep.sweepNext(step.next());
+        assertThat(step.next().after()).isEqualTo(first);
+        step = sweep.sweepNext(step.next());
+        assertThat(step.failed()).isTrue();
+        assertThat(step.next().after()).isEqualTo(second);
+        step = sweep.sweepNext(step.next());
+        assertThat(step.cycleFinished()).isTrue();
+        assertThat(step.next()).isNull();
+
+        // 순회가 끝나면 처음부터 다시 확인하므로 늦게 도착한 버전도 다음 순회에 포함된다.
+        step = sweep.sweepNext(null);
+        assertThat(step.next().after()).isEqualTo(first);
+        step = sweep.sweepNext(step.next());
+        assertThat(step.failed()).isFalse();
+        assertThat(step.next().after()).isEqualTo(second);
+        assertThat(sweep.sweepNext(step.next()).cycleFinished()).isTrue();
+        verify(store, org.mockito.Mockito.times(2)).deleteVersionPage(first, null);
+        verify(store, org.mockito.Mockito.times(2)).deleteVersionPage(second, null);
+        verify(store, never()).deleteVersionPage(bound, null);
+        verify(store, never()).deleteVersionPage(pending, null);
+    }
+
+    @Test
+    void S3_페이지_기준이_반복되면_무한_반복하지_않고_다음_순회에서_재시도한다() {
+        UUID image = attachment(owner, "READY", true);
+        assertThat(expiry.expireBatch()).isEqualTo(1);
+        var marker = new S3AttachmentStore.VersionCursor("chat-attachments/" + image, "version");
+        when(store.deleteVersionPage(image, null)).thenReturn(new S3AttachmentStore.VersionPage(0, marker));
+        when(store.deleteVersionPage(image, marker)).thenReturn(new S3AttachmentStore.VersionPage(0, marker));
+        var first = sweep.sweepNext(null);
+        var second = sweep.sweepNext(first.next());
+        assertThat(second.failed()).isTrue();
+        assertThat(second.next().after()).isEqualTo(image);
+        assertThat(sweep.sweepNext(second.next()).cycleFinished()).isTrue();
+        assertThat(sweep.sweepNext(null).next().current()).isEqualTo(image);
     }
 
     @Test
