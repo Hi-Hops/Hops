@@ -12,6 +12,7 @@ import com.hihops.hops.department.repository.DepartmentRepository;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
+import com.hihops.hops.knowledge.service.CaseQueryService;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.ticket.service.TicketService;
 import com.hihops.hops.user.domain.Member;
@@ -24,13 +25,15 @@ public class RealtimeAuthorization {
     private final DepartmentRepository departments;
     private final TicketService tickets;
     private final InquiryRepository inquiries;
+    private final CaseQueryService cases;
 
     public RealtimeAuthorization(MemberRepository members, DepartmentRepository departments, TicketService tickets,
-            InquiryRepository inquiries) {
+            InquiryRepository inquiries, CaseQueryService cases) {
         this.members = members;
         this.departments = departments;
         this.tickets = tickets;
         this.inquiries = inquiries;
+        this.cases = cases;
     }
 
     @Transactional(readOnly = true)
@@ -41,6 +44,11 @@ public class RealtimeAuthorization {
         }
         if (target.type() == RealtimeTarget.Type.SYSTEM_TICKETS) {
             tickets.checkSystemSubscription(jwt, target.id());
+            return;
+        }
+        // 사례는 상세 조회와 같이 현재 사례 시스템의 주담당자만 구독한다 (WIRE_CONTRACT 12.4).
+        if (target.type() == RealtimeTarget.Type.CASE) {
+            cases.requireReviewer(jwt, target.id());
             return;
         }
         if (jwt.getExpiresAt() == null) {

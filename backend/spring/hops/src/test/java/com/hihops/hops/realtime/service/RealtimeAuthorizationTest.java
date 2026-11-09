@@ -19,6 +19,7 @@ import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.repository.InquiryRepository;
+import com.hihops.hops.knowledge.service.CaseQueryService;
 import com.hihops.hops.realtime.dto.RealtimeTarget;
 import com.hihops.hops.ticket.service.TicketService;
 import com.hihops.hops.user.domain.Member;
@@ -29,8 +30,9 @@ class RealtimeAuthorizationTest {
     private final MemberRepository members = mock(MemberRepository.class);
     private final DepartmentRepository departments = mock(DepartmentRepository.class);
     private final InquiryRepository inquiries = mock(InquiryRepository.class);
+    private final CaseQueryService cases = mock(CaseQueryService.class);
     private final RealtimeAuthorization authorization = new RealtimeAuthorization(members, departments,
-            mock(TicketService.class), inquiries);
+            mock(TicketService.class), inquiries, cases);
     private final UUID userId = UUID.randomUUID();
     private final UUID departmentId = UUID.randomUUID();
     private final Member member = mock(Member.class);
@@ -122,6 +124,18 @@ class RealtimeAuthorizationTest {
 
         denied(token(List.of("BIZ_ADMIN")), new RealtimeTarget(RealtimeTarget.Type.INQUIRY, inquiryId),
                 ErrorCode.AUTH_CONTEXT_CHANGED);
+    }
+
+    @Test
+    void 사례는_사례_조회와_같은_담당자_검사를_쓴다() {
+        UUID caseId = UUID.randomUUID();
+        Jwt jwt = token(List.of());
+
+        authorization.check(jwt, new RealtimeTarget(RealtimeTarget.Type.CASE, caseId));
+        org.mockito.Mockito.verify(cases).requireReviewer(jwt, caseId);
+
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.NOT_FOUND)).when(cases).requireReviewer(jwt, caseId);
+        denied(jwt, new RealtimeTarget(RealtimeTarget.Type.CASE, caseId), ErrorCode.NOT_FOUND);
     }
 
     private void denied(Jwt jwt, RealtimeTarget target, ErrorCode code) {

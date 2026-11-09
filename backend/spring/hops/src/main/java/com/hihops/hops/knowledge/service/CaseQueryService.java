@@ -73,10 +73,7 @@ public class CaseQueryService {
     /** 현재 사례 시스템의 주담당자만 본다. 권한 없음·과거 버전은 존재 여부를 드러내지 않도록 404다(SEC-03). */
     public CaseDetailResponse detail(Jwt jwt, UUID caseId, CaseDetailRequest request) {
         Member member = auth.currentMember(jwt);
-        ResolvedCase resolved = cases.findActiveDetail(caseId).orElseThrow(CaseQueryService::notFound);
-        if (systems.findActivePrimaryOwnerId(resolved.getItSystem().getId()).filter(member.getId()::equals).isEmpty()) {
-            throw notFound();
-        }
+        ResolvedCase resolved = requireReviewable(member, caseId);
         Integer requested = request.requestedVersion();
         if (requested != null && requested != resolved.getVersionNo()) throw notFound();
         CaseApprovalResponse approval = null;
@@ -89,6 +86,19 @@ public class CaseQueryService {
         return new CaseDetailResponse(version(resolved), approval, indexes(resolved),
                 new PublicationResponse(resolved.getId(), resolved.getVersionNo(), searchable ? "SEARCHABLE" : "PRIVATE",
                         searchable, visibility.caseVisibility().name(), visibleToSearch(resolved, member)));
+    }
+
+    /** 사례 구독(SSE CASE)의 연결·전송 전 권한 확인. 상세 조회와 같은 기준이며 실패도 같은 404다. */
+    public void requireReviewer(Jwt jwt, UUID caseId) {
+        requireReviewable(auth.currentMember(jwt), caseId);
+    }
+
+    private ResolvedCase requireReviewable(Member member, UUID caseId) {
+        ResolvedCase resolved = cases.findActiveDetail(caseId).orElseThrow(CaseQueryService::notFound);
+        if (systems.findActivePrimaryOwnerId(resolved.getItSystem().getId()).filter(member.getId()::equals).isEmpty()) {
+            throw notFound();
+        }
+        return resolved;
     }
 
     /** 지식 검색의 공개 규칙(설정)에서 이 사용자 권한으로 지금 검색에 나오는지. 검색·근거 검증과 같은 판정을 쓴다. */
