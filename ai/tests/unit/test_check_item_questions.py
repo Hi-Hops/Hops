@@ -445,7 +445,9 @@ def test_prompt_rules_keep_user_replies_out_of_the_evidence() -> None:
 def test_prompt_rules_skip_check_items_the_user_already_answered() -> None:
     from hops_ai.agents.knowledge.assessment import SYSTEM_PROMPT, AssessmentDraft
 
-    assert "answeredCheckItems" in SYSTEM_PROMPT and "상신한 문서" in SYSTEM_PROMPT
+    assert "answeredCheckItems" in SYSTEM_PROMPT and "이미 했다고 말했으면" in SYSTEM_PROMPT
+    # 예시는 특정 업무 시나리오의 말이 아니라 일반 규칙으로 쓴다(재현에 쓴 전자결재 용어 금지)
+    assert not [word for word in ("상신", "기안", "결재", "문서함") if word in SYSTEM_PROMPT]
     # 모델이 답한 항목을 먼저 판단하도록 출력 순서에서 missingInformation보다 앞에 둔다
     order = list(AssessmentDraft.model_json_schema()["properties"])
     assert order.index("answeredCheckItems") < order.index("missingInformation")
@@ -475,4 +477,10 @@ def test_a_check_item_the_model_marks_answered_is_never_asked() -> None:
     assert [(item.kind, item.ref) for item in missing] == [
         ("CHECK_ITEM", "check-period"),
         ("FIELD", "occurredAt"),
+    ]
+    # 이번 관계 조회가 보여 주지 않은 ID를 답했다고 해도 인정하지 않는다
+    unoffered = to_assessment(PROBLEM, draft, offered=frozenset({"check-period"}))
+    assert [item.ref for item in unoffered.missingInformation][:2] == [
+        "check-state",
+        "check-period",
     ]
