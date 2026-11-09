@@ -1,6 +1,7 @@
 package com.hihops.hops.inquiry.attachment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,6 +54,7 @@ class AttachmentBindingControllerTest {
     @Autowired JsonMapper mapper;
     @Autowired ImageAnalysisTargets analysisTargets;
     @Autowired ImageAttachmentExpiryService expiry;
+    @Autowired ImageAttachmentCleanupService cleanup;
     @Autowired AttachmentBindingService binding;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @MockitoBean S3Client s3Client;
@@ -875,6 +877,25 @@ class AttachmentBindingControllerTest {
         });
         mvc.perform(get("/internal/v2/runs/" + run + "/image-attachments/" + id + "?inquiryVersion=1")
                 .header("Authorization", "Bearer " + "A".repeat(43))).andExpect(status().isConflict());
+    }
+
+    @Test
+    void 확정된_정리_대상만_S3_버전_삭제를_요청한다() throws Exception {
+        UUID expired = attachment(owner, "READY", true);
+        UUID ready = attachment(owner, "READY", false);
+        UUID pending = attachment(owner, "PENDING", false);
+        UUID bound = attachment(owner, "READY", false);
+        createWithImage(bound);
+        for (UUID id : List.of(expired, ready, pending, bound, UUID.randomUUID())) {
+            assertThatThrownBy(() -> cleanup.deleteVersionPage(id, null)).isInstanceOf(IllegalStateException.class);
+        }
+        org.mockito.Mockito.verifyNoInteractions(store);
+        assertThat(expiry.expireBatch()).isEqualTo(1);
+        var result = new S3AttachmentStore.VersionPage(1, null);
+        when(store.deleteVersionPage(expired, null)).thenReturn(result);
+        assertThat(cleanup.deleteVersionPage(expired, null)).isEqualTo(result);
+        verify(store).deleteVersionPage(expired, null);
+        assertThat(state(bound)).isEqualTo("BOUND");
     }
 
     @Test

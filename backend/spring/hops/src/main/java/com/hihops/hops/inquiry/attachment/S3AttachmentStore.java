@@ -11,11 +11,19 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /** 비공개 버킷의 첨부 바이트 저장. 호출자가 현재 권한과 이미지 처리를 먼저 확인한다. */
 public final class S3AttachmentStore {
+    private static final int VERSION_PAGE_SIZE = 100;
+
+    record VersionCursor(String keyMarker, String versionIdMarker) { }
+
+    record VersionPage(int deletedVersions, VersionCursor next) { }
     public enum SaveResult {
         STORED,
         CONFLICT,
@@ -101,6 +109,35 @@ public final class S3AttachmentStore {
             }
             return bytes;
         }
+    }
+
+    /** 한 페이지의 정확히 일치하는 객체 버전만 삭제한다. 호출자는 DB 정리 대상 여부를 확인해야 한다. */
+    VersionPage deleteVersionPage(UUID id, VersionCursor cursor) {
+        String objectKey = key(id);
+        var request = ListObjectVersionsRequest.builder().bucket(bucket).prefix(objectKey).maxKeys(VERSION_PAGE_SIZE);
+        if (cursor != null) request.keyMarker(cursor.keyMarker()).versionIdMarker(cursor.versionIdMarker());
+        ListObjectVersionsResponse page = client.listObjectVersions(request.build());
+        VersionCursor next = null;
+        if (Boolean.TRUE.equals(page.isTruncated())) {
+            if (page.nextKeyMarker() == null || page.nextVersionIdMarker() == null) {
+                throw new IllegalStateException("첨부 버전 목록의 다음 페이지를 확인할 수 없습니다");
+            }
+            next = new VersionCursor(page.nextKeyMarker(), page.nextVersionIdMarker());
+        }
+        var versions = page.versions().stream().filter(version -> objectKey.equals(version.key())).toList();
+        if (versions.stream().anyMatch(version -> version.versionId() == null || version.versionId().isBlank())) {
+            throw new IllegalStateException("첨부 버전 식별자를 확인할 수 없습니다");
+        }
+        int deleted = 0;
+        for (var version : versions) {
+            // 다음 페이지 기준 버전은 유지한다. 이후 처음부터 다시 순회할 때 삭제한다.
+            if (next != null && objectKey.equals(next.keyMarker()) && version.versionId().equals(next.versionIdMarker())) continue;
+            client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(objectKey)
+                    .versionId(version.versionId()).build());
+            deleted++;
+        }
+        // 삭제 마커는 남긴다. 뒤 페이지의 이전 버전이 일시적으로 현재 객체가 되는 것을 막는다.
+        return new VersionPage(deleted, next);
     }
 
     private static String key(UUID id) {

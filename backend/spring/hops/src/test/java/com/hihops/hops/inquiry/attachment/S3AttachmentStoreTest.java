@@ -23,10 +23,77 @@ import software.amazon.awssdk.http.AbortableInputStream;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteMarkerEntry;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsResponse;
+import software.amazon.awssdk.services.s3.model.ObjectVersion;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 class S3AttachmentStoreTest {
+    @Test
+    void 정리할_객체의_정확한_버전만_지우고_페이지_기준과_삭제_마커는_보존한다() {
+        S3Client client = mock(S3Client.class);
+        UUID id = UUID.randomUUID();
+        String key = "chat-attachments/" + id;
+        when(client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(
+                ListObjectVersionsResponse.builder().isTruncated(true).nextKeyMarker(key).nextVersionIdMarker("next")
+                        .versions(ObjectVersion.builder().key(key).versionId("old").build(),
+                                ObjectVersion.builder().key(key).versionId("next").build(),
+                                ObjectVersion.builder().key(key + "-other").versionId("other").build())
+                        .deleteMarkers(DeleteMarkerEntry.builder().key(key).versionId("marker").build()).build(),
+                ListObjectVersionsResponse.builder().isTruncated(false)
+                        .versions(ObjectVersion.builder().key(key).versionId("null").build()).build());
+        S3AttachmentStore store = new S3AttachmentStore(client, "test-private-bucket");
+        var first = store.deleteVersionPage(id, null);
+        assertThat(first.deletedVersions()).isEqualTo(1);
+        assertThat(first.next()).isEqualTo(new S3AttachmentStore.VersionCursor(key, "next"));
+        var second = store.deleteVersionPage(id, first.next());
+        assertThat(second.deletedVersions()).isEqualTo(1);
+        assertThat(second.next()).isNull();
+        ArgumentCaptor<DeleteObjectRequest> deleted = ArgumentCaptor.forClass(DeleteObjectRequest.class);
+        verify(client, times(2)).deleteObject(deleted.capture());
+        assertThat(deleted.getAllValues()).extracting(DeleteObjectRequest::versionId).containsExactly("old", "null");
+        assertThat(deleted.getAllValues()).extracting(DeleteObjectRequest::key).containsOnly(key);
+        ArgumentCaptor<ListObjectVersionsRequest> listed = ArgumentCaptor.forClass(ListObjectVersionsRequest.class);
+        verify(client, times(2)).listObjectVersions(listed.capture());
+        assertThat(listed.getAllValues().get(0).maxKeys()).isEqualTo(100);
+        assertThat(listed.getAllValues().get(1).keyMarker()).isEqualTo(key);
+        assertThat(listed.getAllValues().get(1).versionIdMarker()).isEqualTo("next");
+    }
+
+    @Test
+    void 버전_목록_또는_삭제가_실패하면_완료로_취급하지_않고_재호출할_수_있다() {
+        S3Client client = mock(S3Client.class);
+        UUID id = UUID.randomUUID();
+        String key = "chat-attachments/" + id;
+        var page = ListObjectVersionsResponse.builder().isTruncated(false)
+                .versions(ObjectVersion.builder().key(key).versionId("v1").build(),
+                        ObjectVersion.builder().key(key).versionId("v2").build()).build();
+        when(client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(page);
+        when(client.deleteObject(any(DeleteObjectRequest.class))).thenReturn(null).thenThrow(s3Error(403)).thenReturn(null);
+        S3AttachmentStore store = new S3AttachmentStore(client, "test-private-bucket");
+        assertThatThrownBy(() -> store.deleteVersionPage(id, null)).isInstanceOf(S3Exception.class);
+        assertThat(store.deleteVersionPage(id, null).deletedVersions()).isEqualTo(2);
+        verify(client, times(4)).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void 버전_식별자나_다음_페이지_기준을_확인할_수_없으면_삭제하지_않는다() {
+        S3Client client = mock(S3Client.class);
+        UUID id = UUID.randomUUID();
+        String key = "chat-attachments/" + id;
+        when(client.listObjectVersions(any(ListObjectVersionsRequest.class))).thenReturn(
+                ListObjectVersionsResponse.builder().isTruncated(false)
+                        .versions(ObjectVersion.builder().key(key).build()).build(),
+                ListObjectVersionsResponse.builder().isTruncated(true).nextKeyMarker(key).build());
+        S3AttachmentStore store = new S3AttachmentStore(client, "test-private-bucket");
+        assertThatThrownBy(() -> store.deleteVersionPage(id, null)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> store.deleteVersionPage(id, null)).isInstanceOf(IllegalStateException.class);
+        verify(client, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
     @Test
     void 저장_후_같은_바이트를_확인해야_저장_완료다() {
         S3Client client = mock(S3Client.class);
