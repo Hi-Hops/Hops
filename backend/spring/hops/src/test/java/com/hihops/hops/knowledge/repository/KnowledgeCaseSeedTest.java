@@ -1,6 +1,7 @@
 package com.hihops.hops.knowledge.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -19,6 +20,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.hihops.hops.knowledge.service.QueryEmbedding;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,9 +44,42 @@ class KnowledgeCaseSeedTest {
     private static final String REQUESTER1 = "a0000000-0000-7000-8000-000000000101";
     private static final String REQUESTER3 = "a0000000-0000-7000-8000-000000000103";
 
+    @MockitoBean private QueryEmbedding embedding;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private MockMvc mockMvc;
     @Autowired private KnowledgeDocumentVersionRepository versions;
+
+    @Test
+    void 담당자_추천은_양쪽_색인이_완료된_현재_승인_사례만_반환한다() throws Exception {
+        loadSeeds();
+        var row = jdbc.queryForMap("""
+                SELECT c.id, c.title, w.ticket_id, v.id AS version_id, v.content, v.content_digest
+                FROM resolved_case c JOIN it_system s ON s.id=c.it_system_id
+                JOIN ticket_work_log w ON w.id=c.source_work_log_id
+                JOIN knowledge_document_version v ON v.knowledge_document_id=c.id
+                WHERE s.primary_owner_member_id=CAST(? AS uuid) ORDER BY c.id LIMIT 1
+                """, EA_OWNER);
+        String title = (String) row.get("title");
+        String content = (String) row.get("content");
+        String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(content.getBytes(StandardCharsets.UTF_8)));
+        String vector = "[" + String.join(",", java.util.Collections.nCopies(1536, "0.1")) + "]";
+        jdbc.update("UPDATE ticket SET title=? WHERE id=?", title, row.get("ticket_id"));
+        jdbc.update("""
+                INSERT INTO hops_knowledge.knowledge_chunk
+                (knowledge_document_version_id, chunk_no, content, embedding, content_digest, chunk_digest, embedding_model)
+                VALUES (?,1,?,CAST(? AS vector),?,?,'text-embedding-3-small')
+                """, row.get("version_id"), content, vector, row.get("content_digest"), digest);
+        when(embedding.embed(title)).thenReturn(vector);
+        String path = "/api/v2/tickets/" + row.get("ticket_id") + "/recommended-cases";
+        mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        jdbc.update("UPDATE resolved_case SET vector_status='SUCCEEDED' WHERE id=?", row.get("id"));
+        mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+        jdbc.update("UPDATE resolved_case SET graph_status='SUCCEEDED' WHERE id=?", row.get("id"));
+        mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].title").value(title));
+        mockMvc.perform(get(path).with(auth(REQUESTER1))).andExpect(status().isForbidden());
+    }
 
     @Test
     void 사례_6건과_이력_체인이_정본의_행_수대로_들어간다() throws Exception {

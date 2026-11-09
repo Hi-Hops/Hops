@@ -1,5 +1,6 @@
 import { systemGet } from '@/shared/api/systemCommands';
 import {
+  readRecommendedCases,
   readTickets,
   readTicket,
   readManagementTicket,
@@ -34,6 +35,8 @@ export const getSystemTicket = (id: string, signal?: AbortSignal) =>
     },
     signal,
   );
+export const getRecommendedCases = (id: string, signal?: AbortSignal) =>
+  systemGet(`/tickets/${encodeURIComponent(id)}/recommended-cases`, readRecommendedCases, signal);
 export const getManagementTicket = (id: string, signal?: AbortSignal) =>
   systemGet(
     `/management/tickets/${encodeURIComponent(id)}`,

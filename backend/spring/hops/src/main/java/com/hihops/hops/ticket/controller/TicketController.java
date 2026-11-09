@@ -1,6 +1,7 @@
 package com.hihops.hops.ticket.controller;
 
 import java.util.UUID;
+import java.util.List;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -17,6 +18,8 @@ import com.hihops.hops.ticket.dto.TicketListRequest;
 import com.hihops.hops.ticket.dto.TicketPageResponse;
 import com.hihops.hops.ticket.service.RelatedMessageService;
 import com.hihops.hops.ticket.service.TicketService;
+import com.hihops.hops.ticket.service.TicketCaseRecommendationService;
+import com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse;
 
 import jakarta.validation.Valid;
 
@@ -28,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 public class TicketController {
     private final TicketService tickets;
     private final RelatedMessageService related;
+    private final TicketCaseRecommendationService recommendations;
 
     @GetMapping
     public TicketPageResponse list(@AuthenticationPrincipal Jwt jwt, @Valid @ModelAttribute TicketListRequest request) {
@@ -37,6 +41,11 @@ public class TicketController {
     @GetMapping("/{ticketId}")
     public TicketDetailResponse detail(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID ticketId) {
         return tickets.detail(jwt, ticketId);
+    }
+
+    @GetMapping("/{ticketId}/recommended-cases")
+    public List<KnowledgeEvidenceResponse> recommendedCases(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID ticketId) {
+        return recommendations.recommend(jwt, ticketId);
     }
 
     @GetMapping("/{ticketId}/related-messages")

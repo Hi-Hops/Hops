@@ -55,3 +55,7 @@ Vector 저장·RunLedger·개발 origin·평가 게이트는 [결정 대장](../
 [PR #69](https://github.com/Hi-Hops/Hops/pull/69)의 물리 ERD를 기준으로 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 상태/버전·원문/표준 요청·CASE/색인·실행/명령 매핑을 확정했다. 현재 PRIMARY DTO는 관계 ID 없이 반환하고 처리 기록의 FAILED_ATTEMPT·확인된 원인/적용 버전·CASE 문제 설명을 포함한다. 저장 보완은 ERD6절의 공통 계약 설계다. 프론트는 신규 계약으로 전환됐으며 서버의 업무 DTO·저장·권한 연결은 별도다. 전환 전 계약은 기록으로 보존한다.
 
 담당자의 실제 장애 확정은 POST /api/v2/tickets/{ticketId}/processing-type-corrections로 INVESTIGATION↔INCIDENT만 변경한다. 자동 AI 확정과 관리자 역할만으로의 변경은 허용하지 않으며 상태·확인 요청과 분리한다.
+
+### 담당자 티켓 추천 사례
+
+`GET /api/v2/tickets/{ticketId}/recommended-cases`는 현재 책임 시스템의 주담당자에게 티켓 제목과 유사한 승인 사례를 최대 5건 반환한다. 해당 시스템의 공개 범위와 현재 승인 버전을 확인하며 Vector와 Neo4j가 모두 성공한 사례만 포함한다. 응답은 기존 지식 근거 객체 배열이며, 후보의 적용 가능성은 담당자가 확인한다. 검색을 수행할 수 없으면 빈 결과 대신 검색 불가 오류를 반환한다. 검색을 위해 티켓 제목을 기존 임베딩 서비스로 전달한다.
