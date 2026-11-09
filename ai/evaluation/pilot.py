@@ -43,6 +43,7 @@ from evaluation.harness.trace_io import save_trace
 from hops_ai.agents.base import Agent
 from hops_ai.contracts.domain import AgentRole
 from hops_ai.services.llm.client import LLMClient
+from hops_ai.services.llm.routing import validate_role_models
 
 SCENARIO_DIR = Path(__file__).resolve().parent / "scenarios"
 SYSTEM_CODE_BY_ID = {system["id"]: system["code"] for system in SYSTEMS}
@@ -364,9 +365,28 @@ async def run_batch(
     return aggregate(total, reports)
 
 
+class ModelUsageLLM:
+    """응답의 모델 ID별 호출 수와 토큰을 센다. 역할별 모델 배분의 비용을 비교하려고 남긴다."""
+
+    def __init__(self, inner: LLMClient) -> None:
+        self._inner = inner
+        self.usage: dict[str, dict[str, int]] = {}
+
+    async def generate(self, request):  # noqa: ANN001, ANN201 - LLMClient 규약과 같다
+        response = await self._inner.generate(request)
+        entry = self.usage.setdefault(
+            response.model_id, {"calls": 0, "inputTokens": 0, "outputTokens": 0}
+        )
+        entry["calls"] += 1
+        entry["inputTokens"] += response.usage.input_tokens
+        entry["outputTokens"] += response.usage.output_tokens
+        return response
+
+
 def _build_real(
     model: str | None,
     *,
+    role_models: Mapping[str, str] | None = None,
     judgment: bool = False,
     corpus: bool = False,
     fixed_questions: bool = False,
@@ -397,7 +417,9 @@ def _build_real(
         return build_registry(source, relation_source=relation_source, **options)
 
     return (
-        OpenAIClient(key, model or settings.supervisor_model),
+        ModelUsageLLM(
+            OpenAIClient(key, model or settings.supervisor_model, role_models=role_models)
+        ),
         agents_for,
         (model or settings.supervisor_model),
     )
@@ -444,6 +466,7 @@ def run_metadata(
     limits: Mapping[str, int] | None = None,
     model_questions: bool = False,
     relations: bool = False,
+    role_models: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """실행 조건 기록. 같은 조건끼리만 결과를 비교하려고 남긴다(EVALUATION.md 반복 실행 절).
 
@@ -465,6 +488,8 @@ def run_metadata(
         # 커밋되지 않은 변경이 있으면 그 코드로 돌린 것이므로 기록한다
         "gitDirty": bool(git("status", "--porcelain")),
         "model": model,
+        # 프롬프트 계열별 모델. 비어 있으면 모든 호출이 model을 쓴다
+        "roleModels": dict(role_models or {}),
         "knowledgeSource": CORPUS_SOURCE_NAME if corpus else FIXTURE_SOURCE_NAME,
         "judgmentMode": judgment,
         # 판정 모드에서 질문 문장을 모델이 쓰는지(꺼져 있으면 고정 문구)
@@ -515,6 +540,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--model", default=None, help="기본값은 설정의 supervisor_model")
     parser.add_argument(
+        "--role-models",
+        default=None,
+        help='프롬프트 계열별 모델 JSON. 예: {"knowledge.assessment": "gpt-6.1-terra"}',
+    )
+    parser.add_argument(
         "--judgment",
         action="store_true",
         help="문제별 행동 경로(판정 모드)로 돌린다. 기본은 역할 단위 결정 경로",
@@ -550,8 +580,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     scenarios = select_scenarios(args.caseFamilies, args.split, allow_test=args.allow_test)
+    role_models = validate_role_models(json.loads(args.role_models)) if args.role_models else {}
     llm, agents_for, model = _build_real(
         args.model,
+        role_models=role_models,
         judgment=args.judgment,
         corpus=args.corpus,
         fixed_questions=args.fixed_questions,
@@ -570,6 +602,7 @@ def main(argv: list[str] | None = None) -> int:
         limits=limits,
         model_questions=args.judgment and not args.fixed_questions,
         relations=args.relations,
+        role_models=role_models,
     )
 
     def save_partial(report: dict[str, Any]) -> None:
@@ -618,6 +651,7 @@ def main(argv: list[str] | None = None) -> int:
         _log("중단됨. 끝난 시나리오까지만 저장한다(진행 중이던 시나리오는 포함되지 않는다).")
         return 130
     report["run"] = finish_run_info(run_info)
+    report["modelUsage"] = llm.usage
     text = json.dumps(report, ensure_ascii=False, indent=2)
     print(text)
     if args.out:
