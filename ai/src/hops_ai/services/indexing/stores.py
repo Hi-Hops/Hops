@@ -191,6 +191,7 @@ class GraphStore:
             "systemId": case.systemId,
             "level": level,
             "documentVersionId": source.documentVersionId,
+            "caseNumber": source.caseNumber,
         }
         statements: list[dict[str, Any]] = [
             {
@@ -198,7 +199,8 @@ class GraphStore:
                     MERGE (c:HopsP0:ApprovedCase {id: $caseId})
                     SET c.version_no = $version, c.it_system_id = $systemId,
                         c.access_level = $level, c.review_status = 'APPROVED',
-                        c.source_document_version_id = $documentVersionId
+                        c.source_document_version_id = $documentVersionId,
+                        c.case_number = $caseNumber
                     WITH c
                     OPTIONAL MATCH (c)-[old:ADDRESSES|USES_CHECK|APPLIES_TO]->()
                     DELETE old

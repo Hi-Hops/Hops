@@ -118,6 +118,7 @@ class Source:
             contractVersion="hops-system-1",
             caseId=case_id,
             caseVersion=case_version,
+            caseNumber="RC-0001",
             documentVersionId=DOC_VERSION,
             title="제목",
             applicability="조건",

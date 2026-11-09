@@ -261,6 +261,7 @@ def neo4j(client, statements):
         raise ValueError(
             "Neo4j 트랜잭션 실패 " + ", ".join(error["code"] for error in errors)
         )
+    return response.json()["results"]
 
 
 def statement(cypher, rows=None):
@@ -275,6 +276,45 @@ def statement(cypher, rows=None):
     }
 
 
+# 승인 사례 자동 색인(AI index-jobs)이 만드는 사례 연결. 시드 적재가 지우면 안 된다.
+INDEXED_CASE_LINKS = ("ADDRESSES", "USES_CHECK", "APPLIES_TO")
+
+
+def indexed_cases(client, seed_case_ids):
+    """시드에 없는 ApprovedCase(자동 색인으로 만든 사례)와 그 연결을 읽는다.
+
+    시드 적재는 HopsP0 노드를 모두 지우고 다시 만든다. 자동 색인한 사례는 SQL 관계 테이블에 없어
+    시드로 다시 만들 수 없고, Spring의 NEO4J 상태는 SUCCEEDED로 남는다. 지우기 전에 읽어 두었다가
+    같은 트랜잭션에서 되살린다.
+    """
+    [result] = neo4j(
+        client,
+        [
+            {
+                "statement": """
+                    MATCH (c:HopsP0:ApprovedCase) WHERE NOT c.id IN $seed
+                    OPTIONAL MATCH (c)-[r]->(t:HopsP0)
+                    RETURN properties(c),
+                           [link IN collect(CASE WHEN r IS NULL THEN null
+                             ELSE {type: type(r), target: t.id, props: properties(r)} END)
+                            WHERE link IS NOT NULL]
+                """,
+                "parameters": {"seed": [str(case_id) for case_id in seed_case_ids]},
+            }
+        ],
+    )
+    cases, links = [], {name: [] for name in INDEXED_CASE_LINKS}
+    for row in result["data"]:
+        props, case_links = row["row"]
+        cases.append(props)
+        for link in case_links:
+            if link["type"] in links:
+                links[link["type"]].append(
+                    {"source": props["id"], "target": link["target"], "props": link["props"]}
+                )
+    return cases, links
+
+
 def load_graph(client, nodes, edges):
     neo4j(
         client,
@@ -284,6 +324,9 @@ def load_graph(client, nodes, edges):
                 "FOR (n:HopsP0) REQUIRE n.id IS UNIQUE"
             )
         ],
+    )
+    kept_cases, kept_links = indexed_cases(
+        client, [row["id"] for row in nodes.get("ApprovedCase", [])]
     )
     # P0 관리 라벨의 이전 스냅샷만 한 트랜잭션에서 교체한다. 다른 라벨은 건드리지 않는다.
     statements = [statement("MATCH (n:HopsP0) DETACH DELETE n")]
@@ -307,7 +350,31 @@ def load_graph(client, nodes, edges):
                 rows,
             )
         )
-    neo4j(client, statements)
+    # 자동 색인한 사례를 같은 트랜잭션에서 되살린다. 연결 대상이 새 시드에 없으면 그 연결은 빠진다.
+    statements.append(
+        {
+            "statement": "UNWIND $cases AS props CREATE (c:HopsP0:ApprovedCase) SET c = props",
+            "parameters": {"cases": kept_cases},
+        }
+    )
+    for name, rows in kept_links.items():
+        statements.append(
+            {
+                "statement": f"""
+                    UNWIND $rows AS row
+                    MATCH (c:HopsP0:ApprovedCase {{id: row.source}}), (t:HopsP0 {{id: row.target}})
+                    MERGE (c)-[r:{name}]->(t) SET r = row.props
+                    RETURN count(r)
+                """,
+                "parameters": {"rows": rows},
+            }
+        )
+    results = neo4j(client, statements)
+    restored = sum(
+        result["data"][0]["row"][0] for result in results[-len(kept_links) :] if result["data"]
+    )
+    expected = sum(map(len, kept_links.values()))
+    return len(kept_cases), restored, expected
 
 
 def main():
@@ -338,7 +405,7 @@ def main():
             docs = load_documents(db)
             nodes, edges = graph_rows(db, docs)
             chunk_count = load_vectors(db, client, docs)
-            load_graph(client, nodes, edges)
+            kept, restored, expected = load_graph(client, nodes, edges)
             # 사전 검수된 기존 시연 사례만, 실제 양쪽 반영이 완료된 뒤 공개 상태를 갱신한다.
             db.execute(
                 """
@@ -352,6 +419,14 @@ def main():
             print(
                 f"Neo4j 노드 {sum(map(len, nodes.values()))}개, 관계 {sum(map(len, edges.values()))}개"
             )
+            print(f"자동 색인 사례 {kept}개 보존, 연결 {restored}/{expected}개 복원")
+            if restored != expected:
+                # 연결 대상이 새 시드에서 사라졌다. 해당 사례는 Spring에서 NEO4J를 다시 반영해야 한다.
+                print(
+                    "경고: 자동 색인 사례의 일부 연결을 복원하지 못했다. "
+                    "deploy/ec2/README.md의 재적재 절차를 따른다.",
+                    file=sys.stderr,
+                )
     except (KeyError, ValueError, httpx.HTTPError, psycopg.Error) as exc:
         # DSN·외부 응답 본문·승인 원문이 오류 로그에 들어가지 않게 한다.
         detail = str(exc) if type(exc) is ValueError else type(exc).__name__

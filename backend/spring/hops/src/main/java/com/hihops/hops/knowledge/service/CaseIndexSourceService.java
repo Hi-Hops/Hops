@@ -39,15 +39,16 @@ public class CaseIndexSourceService {
         var version = versions.findCaseVersion(caseId.toString(), caseVersion)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND));
         return new CaseIndexSource(CaseApprovalWriter.CONTRACT_VERSION, caseId.toString(), caseVersion,
-                version.getId().toString(), resolved.getTitle(), resolved.getApplicability(), version.getContent(),
-                version.getContentDigest());
+                resolved.getCaseNumber(), version.getId().toString(), resolved.getTitle(), resolved.getApplicability(),
+                version.getContent(), version.getContentDigest());
     }
 
     /**
      * 색인 원본. contentDigest는 승인 때 저장한 사례 스냅샷 digest({approvedCase, caseId, caseVersion})다.
      *
+     * @param caseNumber        그래프 사례 노드의 정렬 키(Neo4jRelationReader가 case_number로 정렬한다)
      * @param documentVersionId 검색 조각이 FK로 가리킬 knowledge_document_version.id
      */
-    public record CaseIndexSource(String contractVersion, String caseId, int caseVersion, String documentVersionId,
-            String title, String applicability, String content, String contentDigest) {}
+    public record CaseIndexSource(String contractVersion, String caseId, int caseVersion, String caseNumber,
+            String documentVersionId, String title, String applicability, String content, String contentDigest) {}
 }

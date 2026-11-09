@@ -136,6 +136,7 @@ def case_source(version_id: str, content: str = "사례 본문") -> CaseIndexSou
         contractVersion="hops-system-1",
         caseId=CASE_ID,
         caseVersion=1,
+        caseNumber="RC-0001",
         documentVersionId=version_id,
         title="제목",
         applicability="조건",

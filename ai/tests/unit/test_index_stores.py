@@ -16,6 +16,7 @@ def source() -> CaseIndexSource:
         contractVersion="hops-system-1",
         caseId=CASE_ID,
         caseVersion=1,
+        caseNumber="RC-0001",
         documentVersionId=DOC_VERSION,
         title="제목",
         applicability="조건",
@@ -82,9 +83,12 @@ async def test_the_case_node_and_its_links_are_written_with_the_document_version
         # 계약의 SYSTEM_STAFF는 업무 DB 값 STAFF로 저장한다(Spring 관계 조회가 읽는 값)
         "level": "STAFF",
         "documentVersionId": DOC_VERSION,
+        "caseNumber": "RC-0001",
     }
     # 이전 버전의 연결을 지우고 다시 만든다. 같은 대상은 한 번만 연결한다.
     assert "DELETE old" in node["statement"]
+    # Spring 관계 조회가 사례를 case_number로 정렬하므로 시드 사례와 같은 속성을 둔다
+    assert "c.case_number = $caseNumber" in node["statement"]
     relations = {
         statement["statement"].split("MERGE (c)-[r:")[1].split("]")[0]: statement["parameters"][
             "ids"

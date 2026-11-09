@@ -79,6 +79,7 @@ class CaseIndexSource(WireModel):
     contractVersion: Literal["hops-system-1"]
     caseId: WireUuid
     caseVersion: Version
+    caseNumber: StrictStr
     documentVersionId: WireUuid
     title: StrictStr
     applicability: StrictStr | None

@@ -69,7 +69,8 @@ Spring이 사례 승인 뒤 `POST /internal/v2/index-jobs`로 VECTOR·NEO4J 반�
 2. **업무 DB 권한:** 업무 DB `hops`의 `knowledge_chunk` 소유자(Spring Flyway 계정)로 [`ai/db/04_search_chunk_privileges.sql`](../../ai/db/04_search_chunk_privileges.sql)을 실행한다. `hops_ai_app`에 조각 DML과 문서 버전 `id`의 REFERENCES만 준다.
 3. **AI env 파일:** `HOPS_AI_SEARCH_DSN`(`hops_ai_app`으로 `hops` DB 접속, RDS는 `sslmode=verify-full&sslrootcert=/etc/hops/rds-global-bundle.pem`), `HOPS_AI_NEO4J_URL`(`http://hops-neo4j:7474`), `HOPS_AI_NEO4J_PASSWORD`를 넣는다. 사용자·DB가 `neo4j`가 아니면 `HOPS_AI_NEO4J_USERNAME`, `HOPS_AI_NEO4J_DATABASE`도 맞춘다. 임베딩은 AI의 `OPENAI_API_KEY`로 `text-embedding-3-small`을 부른다. Spring 주소·`SPRING_SERVICE_TOKEN`은 기존 값을 쓴다.
 4. **점검:** AI 컨테이너에서 `python -m hops_ai.persistence.check_runtime_db --business-dbname hops`를 실행해 `ai_index_job`·조각 권한 항목을 확인한다.
-5. **검증:** 담당자로 사례를 승인하면 사례 화면의 Vector·Neo4j가 `반영 완료`가 된다. 이미 승인돼 `반영 대기`인 사례는 담당자의 `현재 반영 상태 확인`이 같은 요청을 다시 전달해 반영한다. `hops_knowledge.knowledge_chunk`의 해당 문서 버전 조각 1건과 Neo4j `ApprovedCase` 노드·연결을 확인한다.
+5. **시드 재적재와의 순서:** `scripts/knowledge/load_search_demo.py --isolated-demo`는 `HopsP0` 그래프를 지우고 다시 만든다. 자동 색인한 사례 노드와 연결은 같은 트랜잭션에서 되살리며 `자동 색인 사례 N개 보존, 연결 a/b개 복원`을 출력한다. 연결 대상(증상·확인 항목)이 새 시드에서 빠지면 그 연결은 복원되지 않고 경고가 나온다. Spring의 수동 재반영은 `FAILED`에서만 열려 이미 `SUCCEEDED`인 사례를 다시 반영할 방법이 없으므로, 시드 적재는 자동 색인을 켜기 전에 끝내고 이후 적재에서는 경고가 없는지 확인한다.
+6. **검증:** 담당자로 사례를 승인하면 사례 화면의 Vector·Neo4j가 `반영 완료`가 된다. 이미 승인돼 `반영 대기`인 사례는 담당자의 `현재 반영 상태 확인`이 같은 요청을 다시 전달해 반영한다. `hops_knowledge.knowledge_chunk`의 해당 문서 버전 조각 1건과 Neo4j `ApprovedCase` 노드·연결을 확인한다.
 
 ## AWS 일회성 준비
 

@@ -34,9 +34,12 @@ class CaseIndexSourceApiTest extends CaseDraftFixture {
                 SELECT v.id, v.content, v.content_digest FROM knowledge_document_version v
                 JOIN knowledge_document d ON d.id = v.knowledge_document_id
                 WHERE d.document_type = 'CASE' AND v.source_metadata ->> 'caseId' = ?""", caseId.toString());
+        String caseNumber = jdbc.queryForObject("SELECT case_number FROM resolved_case WHERE id = ?", String.class,
+                caseId);
         assertThat(body.path("contractVersion").asString()).isEqualTo("hops-system-1");
         assertThat(body.path("caseId").asString()).isEqualTo(caseId.toString());
         assertThat(body.path("caseVersion").asInt()).isEqualTo(1);
+        assertThat(body.path("caseNumber").asString()).isEqualTo(caseNumber).isNotBlank();
         assertThat(body.path("documentVersionId").asString()).isEqualTo(stored.get("id").toString());
         assertThat(body.path("content").asString()).isEqualTo(stored.get("content"));
         assertThat(body.path("contentDigest").asString()).isEqualTo(stored.get("content_digest"));
