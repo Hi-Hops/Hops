@@ -106,7 +106,7 @@ Authorization: Bearer {accessToken}
 Last-Event-ID: {lastEventId}
 ```
 
-`targetType`은 `INQUIRY`, `DEPARTMENT_TICKETS`, `TICKET`이다. Spring은 현재 인증 주체가 target에 접근할 수 있는지 연결 시점에 검사한다. 임의 채널명·클라이언트 userId를 신뢰하지 않는다. 화면을 떠나면 해당 연결을 닫고, 재연결·부서 변경 때 권한을 다시 확인한다.
+`targetType`은 `INQUIRY`, `DEPARTMENT_TICKETS`, `TICKET`, `SYSTEM_TICKETS`, `CASE`다. 시스템 단위 대상(`SYSTEM_TICKETS`, `CASE`)의 허용 범위는 [12.4](#124-sse와-복구)를 따른다. Spring은 현재 인증 주체가 target에 접근할 수 있는지 연결 시점에 검사한다. 임의 채널명·클라이언트 userId를 신뢰하지 않는다. 화면을 떠나면 해당 연결을 닫고, 재연결·부서 변경 때 권한을 다시 확인한다.
 
 응답은 UTF-8 `text/event-stream`이며 각 업무 이벤트는 `id`, `event`, `data`를 가진다. `data`는 이벤트 타입 JSON 객체다. 서버는 프록시·브라우저 idle timeout보다 짧은 주기로 comment heartbeat를 보낸다. heartbeat는 업무 이벤트가 아니며 상태를 바꾸지 않는다.
 
