@@ -8,6 +8,7 @@
   여기 둔 HTTP 제한은 마지막 안전망이다.
 """
 
+from collections.abc import Mapping
 from dataclasses import asdict
 
 import httpx
@@ -20,6 +21,7 @@ from hops_ai.harness.errors import (
     TransientError,
 )
 from hops_ai.services.llm.client import LLMRequest, LLMResponse, LLMUsage
+from hops_ai.services.llm.routing import model_for, validate_role_models
 
 _BASE_URL = "https://api.openai.com/v1/"
 _HTTP_TIMEOUT = httpx.Timeout(120.0, connect=10.0)
@@ -46,23 +48,29 @@ class OpenAIClient:
         api_key: str | None = None,
         model: str | None = None,
         *,
+        role_models: Mapping[str, str] | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         """키와 모델이 없으면 호출 때 ComponentNotReady를 낸다.
 
-        transport는 테스트에서만 주입한다.
+        Args:
+            model: 기본 모델. 배분이 없는 프롬프트 계열은 이 모델을 쓴다.
+            role_models: 프롬프트 계열 → 모델(routing.PROMPT_FAMILIES). 모르는 계열은 거부한다.
+            transport: 테스트에서만 주입한다.
         """
         self._api_key = api_key
         self._model = model
+        self._role_models = validate_role_models(role_models or {})
         self._transport = transport
 
     async def generate[T: BaseModel](self, request: LLMRequest[T]) -> LLMResponse[T]:
         if not self._api_key or not self._model:
             raise ComponentNotReady("OpenAI client")
+        model, effort = model_for(request.prompt_version, self._model, self._role_models)
         payload = {
-            "model": self._model,
+            "model": model,
             "input": [asdict(message) for message in request.messages],
-            "reasoning": {"effort": "none"},
+            "reasoning": {"effort": effort},
             "text": {
                 "format": {
                     "type": "json_schema",
