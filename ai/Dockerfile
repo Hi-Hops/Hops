@@ -20,7 +20,8 @@ ENV PATH="/app/.venv/bin:$PATH" \
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin hops
 WORKDIR /app
 COPY --from=build --chown=hops:hops /app/.venv/ ./.venv/
+COPY --chown=hops:hops logging.json ./logging.json
 USER hops
 
 EXPOSE 8000
-CMD ["uvicorn", "--factory", "hops_ai.main:create_app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "--factory", "hops_ai.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--log-config", "/app/logging.json"]

@@ -122,8 +122,10 @@ Python 3.13과 uv를 사용한다. 다음 명령은 `ai/`에서 실행한다.
 
 ```bash
 uv sync --locked
-uv run uvicorn --factory hops_ai.main:create_app --host 127.0.0.1 --port 8000
+uv run uvicorn --factory hops_ai.main:create_app --host 127.0.0.1 --port 8000 --log-config logging.json
 ```
+
+컨테이너와 이 명령은 `logging.json`으로 `hops_ai` INFO 로그를 표준 오류에 출력한다. Uvicorn 접근 로그는 표준 출력에 유지한다. 로그에는 문의 원문과 인증 정보를 넣지 않는다.
 
 ```bash
 curl http://127.0.0.1:8000/healthz
