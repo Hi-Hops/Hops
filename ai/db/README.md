@@ -17,7 +17,7 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 - 다른 역할 권한 상속
 - 업무 DB 테이블과 `hops_knowledge` 접근
 
-업무 DB에 접속하는 것 자체는 PostgreSQL 기본값(`PUBLIC` CONNECT) 그대로 둔다. 검색 연동(#142) 때 `hops_knowledge`만 허용해야 하므로, 접속을 막는 대신 테이블·스키마 권한이 없는지 확인한다.
+01·02·03은 업무 DB의 접속 권한을 바꾸지 않는다. `PUBLIC` CONNECT를 거둔 환경에서 승인 사례 색인을 켜려면 DB 소유자가 `hops_ai_app`에 CONNECT를 별도로 부여해야 한다. 접속 허용과 테이블·스키마 권한은 별개이며, 업무 원본의 읽기·쓰기 권한은 주지 않는다.
 
 ## 파일과 실행 순서
 
@@ -29,7 +29,8 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 | 4 | `ai/migrations/001`, `002`, `003` | `hops_ai_migrator` | `hops_ai_runtime` |
 | 5 | [03_app_privileges.sql](03_app_privileges.sql) | `hops_ai_migrator` | `hops_ai_runtime` |
 | 6 | 점검 명령 | `hops_ai_app` | `hops_ai_runtime` |
-| 7 | [04_search_chunk_privileges.sql](04_search_chunk_privileges.sql) (승인 사례 색인을 켤 때) | 업무 DB의 `knowledge_chunk` 소유자(Spring Flyway 계정) | `hops` |
+| 7 | `GRANT CONNECT ON DATABASE hops TO hops_ai_app;` (승인 사례 색인을 켤 때) | 업무 DB 소유자(RDS 마스터) | `hops` |
+| 8 | [04_search_chunk_privileges.sql](04_search_chunk_privileges.sql) (승인 사례 색인을 켤 때) | 업무 DB의 `knowledge_chunk` 소유자(Spring Flyway 계정) | `hops` |
 
 - 3번은 예전 안내대로 `hops` 소유의 `hops_ai_runtime`이 이미 있을 때만 실행한다. 행 데이터와 인덱스는 그대로 두고 소유자만 `hops_ai_migrator`로 옮긴다. PostgreSQL 15 이전에 만든 DB처럼 `public` 스키마 소유자가 관리자로 남아 있으면 스키마 소유권도 옮겨, 03이 기존 `public` CREATE 권한을 거둘 수 있게 한다.
 - 이미 테이블이 있으면 4번은 건너뛴다. 001만 적용된 DB는 실행기를 모두 멈춘 뒤 002를 한 번 적용한다.
@@ -156,6 +157,14 @@ RDS 마스터 계정은 슈퍼유저가 아니다. PostgreSQL 16부터는 역할
 [ERD](../../docs/ERD.md)의 결정대로 AI 계정에는 `hops_knowledge.knowledge_chunk`의 조각 DML과 FK 검사용 `knowledge_document_version(id)` REFERENCES만 준다([04](04_search_chunk_privileges.sql)). 업무 원본은 읽지도 쓰지도 않는다. 사례 본문·문서 버전 ID는 Spring 내부 API(`GET /internal/v2/cases/{caseId}/index-source`)로 받는다. 이 권한은 업무 DB의 테이블 소유자가 부여해야 하므로 리뷰한 뒤 적용한다.
 
 AI는 `HOPS_AI_SEARCH_DSN`(같은 `hops_ai_app` 계정으로 업무 DB `hops`에 접속)으로 조각을 쓴다. 점검 명령의 업무 DB 항목은 04를 적용한 상태를 기준으로 한다: 조각 DML 허용, 그 밖의 조각 권한·문서 버전 읽기·다른 업무 테이블 권한 없음.
+
+04를 실행하기 전에 **업무 DB 소유자(RDS 마스터)**로 `hops`에 접속해 다음을 별도로 실행한다. Spring Flyway 계정이 테이블 소유자여도 DB 권한을 부여할 수 있다고 가정하지 않는다.
+
+```sql
+GRANT CONNECT ON DATABASE hops TO hops_ai_app;
+```
+
+그다음 **테이블 소유자(Spring Flyway 계정)**로 04를 실행한다. CONNECT와 04는 재실행할 수 있으며, `PUBLIC` 접속 권한이나 업무 원본 접근 권한을 넓히지 않는다. 접속 권한 누락은 조각 권한만으로 해결되지 않으므로 `HOPS_AI_SEARCH_DSN`으로 실제 접속되는지도 확인한다.
 
 ## 검증 기록
 
