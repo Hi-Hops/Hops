@@ -25,6 +25,7 @@ import com.hihops.hops.inquiry.dto.MessagePageResponse;
 import com.hihops.hops.inquiry.dto.MessageProblemLinkCommand;
 import com.hihops.hops.inquiry.dto.MessageReviseCommand;
 import com.hihops.hops.inquiry.dto.MessageSendCommand;
+import com.hihops.hops.inquiry.dto.SystemConfirmCommand;
 import com.hihops.hops.inquiry.service.InquiryCommandService;
 import com.hihops.hops.inquiry.service.InquiryQueryService;
 import com.hihops.hops.inquiry.service.MessageCommandService;
@@ -97,6 +98,15 @@ public class InquiryController {
             @Valid @RequestBody MessageProblemLinkCommand command) {
         IdempotentRequest request = IdempotentRequest.of(jwt, http, idempotencyKey, command.requestId(), command);
         return messageCommandService.linkProblems(request, inquiryId, messageId, command).toResponseEntity();
+    }
+
+    @PostMapping("/{inquiryId}/problems/{problemId}/system-confirmations")
+    public ResponseEntity<CommandReceipt> confirmSystem(@AuthenticationPrincipal Jwt jwt, HttpServletRequest http,
+            @PathVariable UUID inquiryId, @PathVariable UUID problemId,
+            @RequestHeader(value = IdempotentRequest.HEADER, required = false) @Nullable String idempotencyKey,
+            @Valid @RequestBody SystemConfirmCommand command) {
+        IdempotentRequest request = IdempotentRequest.of(jwt, http, idempotencyKey, command.requestId(), command);
+        return messageCommandService.confirmSystem(request, inquiryId, problemId, command).toResponseEntity();
     }
 
     @GetMapping("/{inquiryId}/messages")

@@ -168,6 +168,16 @@ public class InquiryProblem extends BaseEntity {
         agentRun = run;
     }
 
+    /**
+     * 문의자가 보고 시스템을 골라 시스템 확인 대기가 끝났다. 분석을 다시 기다리는 상태로 두고 질문 수는 그대로다.
+     * 분석 전에 질문 중이던 문제(CLARIFYING)는 상태를 바꾸지 않는다.
+     */
+    public void resumeAfterSystemSelection() {
+        if (problemStatus == ProblemStatus.SYSTEM_PENDING) {
+            problemStatus = ProblemStatus.CLARIFYING;
+        }
+    }
+
     public void requestGuideConfirmation(AgentRun run, Instant at) {
         problemStatus = ProblemStatus.GUIDED;
         confirmRequestedAt = at;
