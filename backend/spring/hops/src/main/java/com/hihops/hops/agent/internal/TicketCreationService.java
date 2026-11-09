@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.agent.domain.AgentRun;
@@ -89,6 +90,29 @@ public class TicketCreationService {
         var next = receipt(runId, ref);
         attempt(ctx, next, original);
         return result(ctx, next);
+    }
+
+    /**
+     * 문의자의 티켓 생성 재시도 (WI-02). 저장해 둔 AI 요청으로 같은 작업을 다시 만든다.
+     *
+     * <p>AI의 재시도와 달리 실행이 이미 끝났어도 가능하고 AI 재시도 횟수를 쓰지 않는다. 대상이 NOT_CREATED이고 문의 버전이
+     * 같은지는 호출자가 문의 행 잠금 아래에서 확인한 뒤 부른다. 책임자가 여전히 없으면 작업은 NOT_CREATED로 남는다.
+     *
+     * @throws BusinessException WORK_ITEM_NOT_RETRYABLE 저장된 요청이 없을 때
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void retryByRequester(UUID problemId, Inquiry inquiry) {
+        var saved = jdbc.query("""
+                SELECT run_id,problem_ref,problem_id,request_body::text,attempt FROM agent_ticket_request
+                WHERE problem_id=? ORDER BY created_at DESC, run_id LIMIT 1
+                """, (rs, n) -> new Saved(rs.getObject(1, UUID.class),
+                        new Receipt(rs.getString(2), rs.getObject(3, UUID.class), rs.getString(4), rs.getInt(5))), problemId)
+                .stream().findFirst().orElseThrow(() -> new BusinessException(ErrorCode.WORK_ITEM_NOT_RETRYABLE));
+        AgentRun run = runs.findById(saved.runId()).orElseThrow(() -> new BusinessException(ErrorCode.WORK_ITEM_NOT_RETRYABLE));
+        var ctx = new Context(run, inquiry, mapper.readValue(run.getInputSnapshot(), AiRunRequest.class));
+        var original = mapper.readValue(saved.receipt().body(), TicketCreationCommand.class);
+        validator.validate(original, ctx.input(), inquiry.getRequester());
+        attempt(ctx, saved.receipt(), original);
     }
 
     private Context context(UUID runId) {
@@ -264,4 +288,5 @@ public class TicketCreationService {
     private static void conflict() { throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_REUSED); }
     private record Context(AgentRun run, Inquiry inquiry, AiRunRequest input) { }
     private record Receipt(String ref, UUID problemId, String body, int attempt) { }
+    private record Saved(UUID runId, Receipt receipt) { }
 }

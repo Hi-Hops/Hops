@@ -46,6 +46,8 @@ public enum ErrorCode {
     CASE_VERSION_CONFLICT(HttpStatus.CONFLICT, "사례가 변경되었습니다. 최신 내용을 확인해 주세요.", false),
     // 원 기록의 문의자 해결 확인 등 승인 전제를 채우지 못함. 확인이 끝난 뒤 새 requestId로 다시 승인한다 (WIRE_CONTRACT 12.3)
     APPROVAL_PRECONDITION_FAILED(HttpStatus.CONFLICT, "문의자의 해결 확인이 끝난 뒤에 승인할 수 있습니다.", false),
+    // NOT_CREATED가 아닌 티켓 생성 작업의 재시도(저장 여부 미확인·진행 중·삭제된 티켓 행·끝난 문의 등). 작업 결과를 다시 조회하는 것만 가능하다 (WIRE_CONTRACT 12.3)
+    WORK_ITEM_NOT_RETRYABLE(HttpStatus.CONFLICT, "지금은 티켓 생성을 다시 시도할 수 없습니다. 최신 상태를 확인해 주세요.", false),
     // FAILED가 아닌 저장소의 재시도. 확인이나 대기가 맞는 조작이다 (WIRE_CONTRACT 12.3)
     INDEX_NOT_RETRYABLE(HttpStatus.CONFLICT, "실패한 반영만 다시 실행할 수 있습니다.", false),
     RESOLUTION_REVISION_CONFLICT(HttpStatus.CONFLICT, "이미 응답했거나 확인 요청이 변경되었습니다.", false),
