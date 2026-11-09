@@ -155,6 +155,21 @@ class SystemConfirmationControllerTest {
     }
 
     @Test
+    void 시스템을_골라도_AI_입력의_요약과_요청서_본문은_그대로_보낸다() throws Exception {
+        String firstRun = succeedFirstRun();
+        UUID problem = waitingSystemProblem(firstRun, 2);
+
+        confirm(memberId, problem, UUID.randomUUID(), 1, systemId).andExpect(status().isOk());
+
+        JsonNode inputProblem = currentInput().path("problems").get(0);
+        assertThat(inputProblem.path("summary").asString()).isEqualTo("화면이 열리지 않음");
+        assertThat(inputProblem.path("standardRequest").path("summary").asString()).isEqualTo("화면이 열리지 않음");
+        assertThat(inputProblem.path("standardRequest").path("details").path("actualBehavior").asString()).isEqualTo("화면 오류");
+        assertThat(inputProblem.path("reportedSystemId").asString()).isEqualTo(systemId.toString());
+        assertThat(inputProblem.path("reportedSystemCorrectionMessageId").asString()).isEqualTo(firstMessageId());
+    }
+
+    @Test
     void 선택한_시스템은_문의_상세에_보고_시스템과_분석_중으로_보인다() throws Exception {
         String firstRun = succeedFirstRun();
         UUID problem = waitingSystemProblem(firstRun, 2);
@@ -171,8 +186,8 @@ class SystemConfirmationControllerTest {
                 .andExpect(jsonPath("$.problems[0].state").value("ANALYZING"))
                 .andExpect(jsonPath("$.problems[0].reportedSystemId").value(systemId.toString()))
                 .andExpect(jsonPath("$.problems[0].questionCount").value(2))
-                // 처음 고른 시스템을 "정정"했다고 보이면 안 된다
-                .andExpect(jsonPath("$.problems[0].summary").value("선택한 보고 시스템은 전자결재입니다."));
+                // 비어 있던 값을 채운 것이라 문제 요약은 그대로다
+                .andExpect(jsonPath("$.problems[0].summary").value("화면이 열리지 않음"));
     }
 
     @Test
@@ -341,15 +356,37 @@ class SystemConfirmationControllerTest {
     }
 
     @Test
-    void 연결된_원문이_없는_문제는_409이고_입력_버전도_되돌린다() throws Exception {
+    void 연결된_원문이_없으면_가장_나중_사용자_메시지에_선택을_남긴다() throws Exception {
         String firstRun = succeedFirstRun();
         UUID problem = insertProblem(1, "SYSTEM_PENDING", 0, null, firstRun);
         insertStandardRequest(problem, firstRun, "화면 오류", null);
 
+        confirm(memberId, problem, UUID.randomUUID(), 1, systemId).andExpect(status().isOk());
+
+        assertThat(payloadOf(firstMessageId()).path("reportedSystemCorrection").path("problemId").asString()).isEqualTo(problem.toString());
+        assertThat(currentInput().path("problems").get(0).path("reportedSystemCorrectionMessageId").asString()).isEqualTo(firstMessageId());
+    }
+
+    @Test
+    void 쓸_수_있는_사용자_메시지가_하나도_없으면_409이고_입력_버전도_되돌린다() throws Exception {
+        String firstRun = succeedFirstRun();
+        UUID problem = insertProblem(1, "SYSTEM_PENDING", 0, null, firstRun);
+        insertStandardRequest(problem, firstRun, "화면 오류", null);
+        UUID other = insertProblem(2, "CLARIFYING", 1, null, firstRun);
+        insertStandardRequest(other, firstRun, "다른 문제", systemId);
+        // 유일한 사용자 메시지가 다른 문제의 정정 기록을 이미 갖고 있다
+        jdbc.update("UPDATE message SET payload = jsonb_set(payload, '{reportedSystemCorrection}', CAST(? AS jsonb)) WHERE id = ?::uuid",
+                "{\"problemId\": \"" + other + "\", \"previousSystemId\": \"" + loginSystemId + "\", \"systemId\": \"" + systemId
+                        + "\", \"systemName\": \"전자결재\", \"sourceMessageId\": \"" + firstMessageId() + "\", \"sourceRevision\": 1, "
+                        + "\"inquiryVersion\": 1}", firstMessageId());
+
         confirm(memberId, problem, UUID.randomUUID(), 1, systemId)
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INVALID_STATE"));
 
-        assertUntouched(firstRun, problem, "SYSTEM_PENDING");
+        assertThat(jdbc.queryForObject("SELECT version FROM inquiry WHERE id = ?::uuid", Integer.class, inquiryId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM agent_run WHERE inquiry_id = ?::uuid")).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT problem_status FROM inquiry_problem WHERE id = ?", String.class, problem))
+                .isEqualTo("SYSTEM_PENDING");
     }
 
     @Test

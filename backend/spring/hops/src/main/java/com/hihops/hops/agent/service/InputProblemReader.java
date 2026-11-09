@@ -124,7 +124,8 @@ public class InputProblemReader {
         if (request == null) {
             throw new IllegalStateException("적용된 표준 요청서가 없는 문제다: " + problem.getId());
         }
-        if (correction != null && correction.inquiryVersion() > request.getInquiryVersion()) {
+        boolean corrected = correction != null && correction.inquiryVersion() > request.getInquiryVersion();
+        if (corrected && !correction.isSelection()) {
             // 이전 범위의 기능·분석·지식은 이력으로 보존하고 새 범위에서 다시 분석한다.
             // 문제당 질문 횟수와 질문 이력은 유지한다.
             String summary = correction.summary();
@@ -137,13 +138,15 @@ public class InputProblemReader {
         StandardRequestResponse body = standardRequestReader.read(request, inquiry.getRequester());
         return new InputProblem(problem.getId(), request.getSummary(), request.getIntent().name(),
                 request.getWorkType().name(),
-                request.getReportedSystem() == null ? null : request.getReportedSystem().getId(),
+                // 문의자가 시스템을 고른 경우(selection)는 범위가 바뀐 게 아니라 빈 값을 채운 것이라 요약·본문은 그대로 둔다
+                corrected ? correction.systemId()
+                        : request.getReportedSystem() == null ? null : request.getReportedSystem().getId(),
                 request.getReportedFeature() == null ? null : request.getReportedFeature().getId(),
                 stateOf(problem, ticket, targeted), problem.getClarifyCount(), askedFields,
                 new StandardRequestBody(body.summary(), body.confirmedFacts(), body.assumptions(), body.unknowns(),
                         body.responsibleSystemCandidateId(), body.responsibilityEvidenceIds(), body.details(),
                         body.knowledge()),
-                null);
+                null, corrected ? correction.sourceMessageId() : null);
     }
 
     private static Optional<ExistingWorkItem> workItemOf(InquiryProblem problem, Optional<Ticket> ticket) {

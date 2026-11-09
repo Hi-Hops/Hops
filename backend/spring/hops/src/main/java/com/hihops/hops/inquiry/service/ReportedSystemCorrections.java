@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
@@ -28,10 +29,12 @@ import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 import com.hihops.hops.ticket.repository.TicketRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /** 명시적인 보고 시스템 정정의 원문과 보완 대상을 검증하고, 승인된 정정을 원문 메시지에 기록한다. */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReportedSystemCorrections {
@@ -53,8 +56,13 @@ public class ReportedSystemCorrections {
     public record Applied(UUID problemId, UUID previousSystemId, UUID systemId, String systemName,
             UUID sourceMessageId, int sourceRevision, int inquiryVersion) {
         public String summary() {
-            // 이전 시스템이 없으면 정정이 아니라 문의자가 처음 고른 것이다 (system-confirmations)
-            return (previousSystemId == null ? "선택한" : "정정한") + " 보고 시스템은 " + systemName + "입니다.";
+            return "정정한 보고 시스템은 " + systemName + "입니다.";
+        }
+
+        /** 이전 시스템이 없으면 정정이 아니라 문의자가 비어 있던 값을 처음 채운 것이다 (system-confirmations). 범위는 바뀌지 않는다. */
+        @JsonIgnore
+        public boolean isSelection() {
+            return previousSystemId == null;
         }
     }
 
@@ -119,30 +127,40 @@ public class ReportedSystemCorrections {
      * 올린 뒤 호출한다. 정정과 같은 기록(reportedSystemCorrection, 이전 시스템 없음)을 문제에 연결된 원문 한 건에 남기고 그 원문을 돌려준다.
      *
      * <p>고를 수 없으면 INVALID_STATE다: 문제가 이 문의의 것이 아니거나, 질문 중·시스템 대기가 아니거나, 티켓·티켓 생성 작업이 있거나,
-     * 보고 시스템이 이미 정해졌거나(요청서 또는 정정), 기록을 남길 원문(문제에 연결된 USER 메시지)이 없을 때. 정정 기록은 원문 하나에
-     * 문제 하나만 둘 수 있어 다른 문제의 기록이 있는 원문은 쓰지 않는다.
+     * 보고 시스템이 이미 정해졌거나(요청서 또는 정정), 기록을 남길 사용자 메시지가 없을 때. 정정 기록은 원문 하나에
+     * 문제 하나만 둘 수 있어 다른 문제의 기록이 있는 원문은 쓰지 않는다. 연결된 원문이 없으면 가장 나중 사용자 메시지에 남긴다.
      */
     Message confirm(Inquiry inquiry, InquiryProblem problem, SupportedSystemResponse system) {
         if (problem.isDeleted() || !problem.getInquiry().getId().equals(inquiry.getId()) || !canCorrect(problem)
                 || tickets.findByInquiryProblem_Id(problem.getId()).isPresent()) {
             throw invalid();
         }
-        var request = requests.findAppliedNewestFirst(List.of(problem.getId())).stream().findFirst().orElseThrow(ReportedSystemCorrections::invalid);
+        var request = requests.findAppliedNewestFirst(List.of(problem.getId()))
+                .stream().findFirst().orElseThrow(ReportedSystemCorrections::invalid);
         var existing = latest(inquiry.getId()).get(problem.getId());
         boolean corrected = existing != null && existing.inquiryVersion() > request.getInquiryVersion();
         if (corrected || request.getReportedSystem() != null) {
             throw invalid();
         }
-        Message source = null;
+        // 문제에 연결된 가장 나중 사용자 메시지를 먼저 쓴다. 연결된 메시지가 없으면(분석이 사실을 인용하지 않고 보류한 경우 등)
+        // 가장 나중 사용자 메시지를 쓴다. 대기 중인 문제에서 사용자가 빠져나갈 길이 없어지면 안 된다.
+        // 기록은 원문 하나에 문제 하나만 둘 수 있어 다른 문제의 기록이 있는 메시지는 어느 경우에도 쓰지 않는다.
+        Message linked = null;
+        Message latestUser = null;
         for (var message : messages.findAllCompletedInOrder(inquiry.getId())) {
             var payload = mapper.readValue(message.getPayload(), MessagePayload.class);
-            if (message.getSenderType() != SenderType.USER || payload.isPendingTarget()
-                    || !payload.problemIds(message.getRevision()).contains(problem.getId())) continue;
+            if (message.getSenderType() != SenderType.USER || payload.isPendingTarget()) continue;
             var recorded = mapper.readTree(message.getPayload()).path(KEY);
             if (recorded.isObject() && !problem.getId().toString().equals(recorded.path("problemId").asString())) continue;
-            source = message; // 가장 나중 원문
+            latestUser = message;
+            if (payload.problemIds(message.getRevision()).contains(problem.getId())) linked = message;
         }
+        Message source = linked != null ? linked : latestUser;
         if (source == null) throw invalid();
+        if (linked == null) {
+            log.warn("시스템 선택을 문제에 연결된 원문 없이 가장 나중 사용자 메시지에 남깁니다: inquiryId={}, problemId={}, messageId={}",
+                    inquiry.getId(), problem.getId(), source.getId());
+        }
 
         var applied = new Applied(problem.getId(), null, system.id(), system.name(), source.getId(), source.getRevision(),
                 inquiry.getVersion());
