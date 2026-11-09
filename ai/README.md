@@ -125,7 +125,7 @@ uv sync --locked
 uv run uvicorn --factory hops_ai.main:create_app --host 127.0.0.1 --port 8000 --log-config logging.json
 ```
 
-컨테이너와 이 명령은 `logging.json`으로 `hops_ai` INFO 로그를 표준 오류에 출력한다. Uvicorn 접근 로그는 표준 출력에 유지한다. 로그에는 문의 원문과 인증 정보를 넣지 않는다.
+컨테이너와 이 명령은 `logging.json`으로 `hops_ai` INFO 로그를 표준 오류에 출력한다. Uvicorn 접근 로그는 표준 출력에 유지한다. INFO를 포함한 모든 로그에는 문의 원문·비밀값·인증 정보를 넣지 않는다. 예상하지 못한 색인 오류와 종료 시 중단 상태 기록 실패는 ERROR 수준으로 작업 ID·예외 종류만 남기며, 예외 원문과 스택은 기록하지 않는다.
 
 ```bash
 curl http://127.0.0.1:8000/healthz

@@ -134,7 +134,7 @@ class IndexJobService:
             try:
                 await self._interrupt(job_id, attempt)
             except Exception as error:
-                logger.warning(
+                logger.error(
                     "중단한 색인 작업을 기록하지 못했다 jobId=%s error=%s",
                     job_id,
                     type(error).__name__,
@@ -191,7 +191,7 @@ class IndexJobService:
             raise
         except Exception as error:
             # 원격 오류에는 원문이나 인증 정보가 포함될 수 있어 예외 종류만 기록한다.
-            logger.warning(
+            logger.error(
                 "사례 색인 중 예상하지 못한 오류 jobId=%s store=%s error=%s",
                 request.jobId,
                 request.store,

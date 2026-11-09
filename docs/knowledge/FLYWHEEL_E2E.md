@@ -38,7 +38,7 @@ export HOPS_E2E_DB_DSN='postgresql://<읽기 전용 계정>@localhost:5432/hops'
 export HOPS_E2E_PASSWORD='<시드 계정 로그인 비밀값, seed 파일 상단 주석>'
 ```
 
-A13에는 `HOPS_E2E_NEO4J_URL`, `HOPS_E2E_NEO4J_USERNAME`, `HOPS_E2E_NEO4J_PASSWORD`와 선택 사항 `HOPS_E2E_NEO4J_DATABASE`(기본 `neo4j`)를 설정한다. Neo4j 계정은 읽기 전용으로 준비하고 비밀번호는 기록하지 않는다. 설정 누락·연결 오류는 `BLOCKED`, 조회가 성공했으나 노드·관계·승인 버전이 맞지 않으면 `FAIL`이다. 그래프 조회만으로 Spring 관계 조회나 직원·담당자 권한 검증을 통과한 것으로 보지 않는다.
+A13에는 `HOPS_E2E_NEO4J_URL`, `HOPS_E2E_NEO4J_USERNAME`, `HOPS_E2E_NEO4J_PASSWORD`와 선택 사항 `HOPS_E2E_NEO4J_DATABASE`(기본 `neo4j`)를 설정한다. `HOPS_E2E_NEO4J_USERNAME`에는 대상 DB의 읽기 전용 권한만 가진 평가 계정을 지정하고 비밀번호는 기록하지 않는다. `/tx/commit`은 쓰기 쿼리도 실행할 수 있는 엔드포인트다. 이 도구는 고정된 `MATCH`·`RETURN` 조회만 보내며, 접속 계정의 권한도 별도로 제한해야 한다. 설정 누락·연결 오류는 `BLOCKED`, 조회가 성공했으나 노드·관계·승인 버전이 맞지 않으면 `FAIL`이다. 그래프 조회만으로 Spring 관계 조회나 직원·담당자 권한 검증을 통과한 것으로 보지 않는다.
 
 `HOPS_E2E_DB_DSN`은 질문이 요청한 필드와 상담 근거처럼 공개 API가 주지 않는 값을 읽는 데만 쓴다. 드라이버는 이 연결을 읽기 전용 세션으로 열며 업무 데이터를 바꾸지 않는다.
 
