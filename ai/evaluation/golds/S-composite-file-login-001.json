@@ -1,0 +1,86 @@
+{
+  "scenarioId": "S-composite-file-login-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-file-open-download@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-file-open-denied@1"
+      ]
+    },
+    {
+      "problemKey": "p2",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING",
+        "COMMON_LOGIN"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-login-sso-use@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-login-sso-loop@1"
+      ]
+    }
+  ],
+  "behaviorProperties": [
+    "B4",
+    "B5"
+  ]
+}

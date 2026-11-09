@@ -38,7 +38,7 @@ def request(prompt_version: str) -> LLMRequest:
         ("curator-draft-v4", "curator-draft"),
         ("supervisor.decision.v10", "supervisor.decision"),
         ("knowledge.guide-excerpt.v1", "knowledge.guide-excerpt"),
-        ("inquiry-extraction-v9", "inquiry-extraction"),
+        ("inquiry-extraction-v10", "inquiry-extraction"),
     ],
 )
 def test_the_family_is_the_prompt_version_without_its_number(version, family) -> None:

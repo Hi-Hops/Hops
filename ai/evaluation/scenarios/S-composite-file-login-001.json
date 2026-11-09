@@ -1,0 +1,20 @@
+{
+  "scenarioId": "S-composite-file-login-001",
+  "caseFamily": "composite-file-login",
+  "split": "DEV",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에서 동료가 공유한 파일을 열 수 없고, 로그인해도 자꾸 로그인 화면으로 되돌아와요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "taskOrScreen": "동료가 보낸 공유 링크로 들어가 파일을 열려고 했어요.",
+    "expectedBehavior": "로그인하면 공유 폴더가 바로 열리고 파일 내용도 보여야 해요.",
+    "actualBehavior": "파일은 접근할 수 없다고 나오고, 로그인 화면이 계속 다시 나와요.",
+    "occurredAt": "어제 오후부터요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

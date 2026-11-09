@@ -23,7 +23,7 @@
 | `curator/` | Curator(사례 초안·관계 판단) 평가. 별도 시나리오(`curator_scenarios/`)·정답(`curator_golds/`)으로 사례 한 건의 문의 전체 과정을 `CASE_DRAFT`로 재생한다. 안전 성질 C1~C5 검사기, 행동 성질 CB1~CB4, Spring 입력 대역(`request.py`), 후보 노드 카탈로그(코퍼스 선언), 재생기, 반복 실행·보고(`pilot.py`), 기록 재판정(`recheck.py`), 형식 검사(`validate.py`) |
 | `flywheel/` | 지식 선순환 검증 묶음(문의 A·B·C)의 입력·정답·사례 A 처리 기록 카드와 형식·누수 검사기(`python -m evaluation.flywheel.validate`). 사례 A는 시드가 아니다. `e2e.py`는 실행 중인 로컬 스택에 공개 API로 선순환을 끝까지 돌리는 드라이버다([실행 절차](../../docs/knowledge/FLYWHEEL_E2E.md), `--run`은 실제 모델을 부른다) |
 | `baselines/` | 정리 전 구조의 실제 모델 기준선(개발용 12개 × 1회)의 원본 보고서와 해석. 비교의 출발점이며 일반 성능이 아니다 |
-| `scenarios/`, `golds/` | 시나리오 20개(`DEV` 12·`TEST` 8)와 평가 정답, 파일 이름은 `scenarioId`. 정답은 런타임이 읽지 못하는 이 위치에만 둔다 |
+| `scenarios/`, `golds/` | 시나리오 21개(`DEV` 13·`TEST` 8)와 평가 정답, 파일 이름은 `scenarioId`. 정답은 런타임이 읽지 못하는 이 위치에만 둔다 |
 
 ## Curator 평가
 

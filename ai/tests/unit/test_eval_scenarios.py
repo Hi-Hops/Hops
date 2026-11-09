@@ -42,7 +42,7 @@ def gold_of(name: str) -> dict[str, Any]:
 
 
 def test_catalog_tables_are_parsed() -> None:
-    assert len(CATALOG) == 20
+    assert len(CATALOG) == 21
     assert len(DOCUMENTS) == 16
     assert {kind for kind in DOCUMENTS.values()} == {"EMPLOYEE", "SYSTEM_STAFF"}
 
@@ -60,7 +60,7 @@ def test_split_and_family_follow_the_catalog() -> None:
         assert scenario.case_family == row["caseFamily"]
         assert scenario.split == row["split"], row["caseFamily"]
     splits = [row["split"] for row in CATALOG]
-    assert (splits.count("DEV"), splits.count("TEST")) == (12, 8)
+    assert (splits.count("DEV"), splits.count("TEST")) == (13, 8)
 
 
 def test_catalog_evidence_documents_appear_in_the_gold() -> None:
@@ -81,7 +81,7 @@ def test_catalog_evidence_documents_appear_in_the_gold() -> None:
 def test_every_scenario_and_gold_passes_validation() -> None:
     results = validate_files(SCENARIO_DIR, GOLD_DIR, DOCUMENTS)
 
-    assert len(results) == 20
+    assert len(results) == 21
     assert {name: errors for name, errors in results.items() if errors} == {}
 
 
