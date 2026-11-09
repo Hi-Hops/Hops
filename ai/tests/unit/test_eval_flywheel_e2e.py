@@ -298,7 +298,7 @@ def test_before_approval_the_draft_must_not_appear_in_evidence() -> None:
     _, clean = _evaluate("B", approved=False, profile=True, found=False)
     _, leaked = _evaluate("B", approved=False, profile=True, found=True)
 
-    assert clean["X.3"] == PASS
+    assert clean["X.3"] == FAIL
     assert leaked["X.3"] == FAIL
 
 
@@ -311,12 +311,12 @@ def test_default_profile_must_hide_the_staff_case_after_approval() -> None:
     assert leaked["X.3"] == FAIL
 
 
-def test_internal_profile_requires_b_to_cite_the_case_as_evidence() -> None:
+def test_internal_profile_is_not_allowed_for_employee_inquiries() -> None:
     profile, cited = _evaluate("B", approved=True, profile=True, found=True)
     _, missing = _evaluate("B", approved=True, profile=True, found=False)
 
     assert profile == "INTERNAL_JUDGEMENT"
-    assert cited["X.3"] == PASS
+    assert cited["X.3"] == FAIL
     assert missing["X.3"] == FAIL
 
 
@@ -328,10 +328,10 @@ def test_absence_without_any_stored_evidence_is_not_a_pass(approved: bool) -> No
     assert statuses["X.3"] == BLOCKED
 
 
-def test_internal_profile_citation_is_blocked_not_failed_when_nothing_was_searched() -> None:
+def test_internal_profile_is_rejected_even_when_nothing_was_searched() -> None:
     _, statuses = _evaluate("B", approved=True, profile=True, found=False, evidence_total=0)
 
-    assert statuses["X.3"] == BLOCKED
+    assert statuses["X.3"] == FAIL
 
 
 def test_unknown_profile_is_not_judged() -> None:
@@ -594,3 +594,99 @@ def test_mentions_query_finds_json_escaped_and_plain_values_in_postgres() -> Non
     assert by_title["related_knowledge"] and by_document["related_knowledge"]
     assert by_message["employee_message"]
     assert not any(wildcard.values()) and not any(nothing.values())
+
+
+def test_graph_check_compares_approved_version_document_and_exact_links(monkeypatch) -> None:
+    case = {
+        "id": CASE_ID,
+        "version_no": 2,
+        "case_status": "APPROVED",
+        "access_level": "STAFF",
+        "relation_candidates": json.dumps(
+            [
+                {"relation": "ADDRESSES", "targetId": "s"},
+                {"relation": "USES_CHECK", "targetId": "c"},
+            ]
+        ),
+    }
+    document = {
+        "document_version_id": "v2",
+        "document_status": "APPROVED",
+        "version_status": "APPROVED",
+    }
+    props = {
+        "version_no": 2,
+        "source_document_version_id": "v2",
+        "review_status": "APPROVED",
+        "access_level": "STAFF",
+    }
+    edges = [
+        {
+            "kind": kind,
+            "target": target,
+            "labels": [label],
+            "review": "APPROVED",
+            "access": "STAFF",
+            "document": "v2",
+        }
+        for kind, target, label in [("ADDRESSES", "s", "Symptom"), ("USES_CHECK", "c", "CheckItem")]
+    ]
+    graph = {"nodes": [[props, edges]]}
+    monkeypatch.setattr(e2e, "read_case", lambda _: graph)
+    rec = Recorder()
+    e2e.check_graph(rec, case, document, 2)
+    assert rec.steps[-1].status == PASS
+    edges[0]["target"] = "wrong"
+    e2e.check_graph(rec, case, document, 2)
+    assert rec.steps[-1].status == FAIL
+    edges[0]["target"] = "s"
+    props["version_no"] = 1
+    e2e.check_graph(rec, case, document, 2)
+    assert rec.steps[-1].status == FAIL
+    graph["nodes"] = []
+    e2e.check_graph(rec, case, document, 2)
+    assert rec.steps[-1].status == FAIL
+
+
+def test_graph_check_reports_missing_configuration_as_blocked(monkeypatch) -> None:
+    case = {
+        "id": CASE_ID,
+        "version_no": 1,
+        "access_level": "STAFF",
+        "relation_candidates": '[{"relation":"ADDRESSES","targetId":"s"}]',
+    }
+    document = {
+        "document_version_id": "v",
+        "document_status": "APPROVED",
+        "version_status": "APPROVED",
+    }
+    monkeypatch.delenv("HOPS_E2E_NEO4J_URL", raising=False)
+    rec = Recorder()
+    e2e.check_graph(rec, case, document, 1)
+    assert rec.steps[-1].status == BLOCKED
+
+
+def test_neo4j_reader_uses_parameterized_read(monkeypatch) -> None:
+    from evaluation.flywheel import e2e_neo4j
+
+    monkeypatch.setenv("HOPS_E2E_NEO4J_URL", "http://graph")
+    monkeypatch.setenv("HOPS_E2E_NEO4J_USERNAME", "reader")
+    monkeypatch.setenv("HOPS_E2E_NEO4J_PASSWORD", "fixture-secret")
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        seen.append(payload)
+        return httpx.Response(200, json={"results": [{"data": []}], "errors": []})
+
+    original_client = httpx.Client
+    monkeypatch.setattr(
+        e2e_neo4j.httpx,
+        "Client",
+        lambda **kwargs: original_client(transport=httpx.MockTransport(handler), **kwargs),
+    )
+    assert e2e_neo4j.read_case(CASE_ID) == {"nodes": []}
+    statement = seen[0]["statements"][0]
+    assert statement["parameters"] == {"caseId": CASE_ID}
+    assert CASE_ID not in statement["statement"]
+    assert "DELETE" not in statement["statement"].upper()

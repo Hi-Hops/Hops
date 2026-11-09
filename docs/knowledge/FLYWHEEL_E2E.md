@@ -1,6 +1,6 @@
 # 지식 선순환 E2E 실행 절차
 
-문의 A가 담당자 처리와 해결 확인을 거쳐 사례 A로 승인되고, 표현이 다른 후속 문의 B에서 그 사례가 근거로 쓰이는 흐름을 **로컬에서 한 번 끝까지** 재현하는 방법이다. 문의 A·B·C와 정답은 [정본 8.1절](VIRTUAL_COMPANY.md#81-선순환-검증-묶음-문의-abc)과 [데이터 형식](DATA_FORMAT.md#지식-선순환-검증-묶음)에 있다.
+문의 A가 담당자 처리와 해결 확인을 거쳐 사례 A로 승인되고, 표현이 다른 후속 문의 B·C에서 직원 상담의 사례 비노출을 검증하는 흐름을 **로컬에서 한 번 끝까지** 재현하는 방법이다. 문의 A·B·C와 정답은 [정본 8.1절](VIRTUAL_COMPANY.md#81-선순환-검증-묶음-문의-abc)과 [데이터 형식](DATA_FORMAT.md#지식-선순환-검증-묶음)에 있다.
 
 이 시험의 통과는 **한 시나리오가 한 번 이어졌다는 뜻**이다. 일반 성능, 서비스 통합 검증 완료, 운영 동작의 근거가 아니다. 기록에는 실제 모델과 Fake를 구분해 쓰고 섞어 보고하지 않는다.
 
@@ -15,7 +15,8 @@
 | A8 | 문의자가 해결됨으로 확인 | 공개 API |
 | B0·C0 | **승인 전** 후속 문의에서 초안이 근거에 나오지 않음 | DB 읽기 |
 | A9~A12 | 담당자가 사례를 승인하고 검색 문서로 공개됨, 색인 확인 요청 | 공개 API, DB 읽기 |
-| A13 | 승인 사례의 관계가 관계 조회 테이블에 반영됨 | DB 읽기 |
+| A13 | 승인 사례의 버전·문서 버전·관계가 Neo4j에 반영됨 | Neo4j 읽기 전용 조회 |
+| A13.1 | Spring 관계 조회 결과에 사례가 반영됨 | 이 드라이버에서는 미검증 (`BLOCKED`) |
 | B1·C1 | **승인 후** 후속 문의: B는 프로필별 기대대로 사례 A를 근거로 인용, C는 사례 A를 원인으로 확정하지 않음, 직원에게 보이는 메시지에 사례 A 문장이 없음 | DB 읽기, 공개 API |
 
 승인 전후 비교는 같은 입력·같은 지식·같은 모델 설정에서 사례 승인만 다르다. 이 비교는 **지식 추가의 효과만** 보여 주며 Neo4j나 검색 방식의 효과가 아니다.
@@ -26,7 +27,7 @@
 
 ## 준비
 
-1. **스택**: PostgreSQL(pgvector), Redis, Spring, AI. 이 저장소의 Compose(`docker compose up --build -d`, 루트 [README](../../README.md))를 쓰거나, 각 서비스를 직접 실행한다. 새 시드(직원 8명, 부서 5개, 문서 16건, 시드 사례 6건, 관계 데이터)가 들어간 DB여야 한다. 이전 시드가 적재된 DB는 **초기화한 뒤** 다시 적재한다([정본 10절](VIRTUAL_COMPANY.md#10-미정과-후속-반영)).
+1. **스택**: PostgreSQL(pgvector), Redis, Spring, AI. 이 저장소의 Compose(`docker compose up --build -d`, 루트 [README](../../README.md))를 쓰거나, 각 서비스를 직접 실행한다. 새 시드(직원 8명, 부서 5개, 문서 16건, 시드 사례 6건, 관계 데이터)가 들어간 DB여야 한다. 별도의 테스트 DB를 준비하고 기존 데이터가 있는 공유 DB는 초기화하지 않는다([정본 10절](VIRTUAL_COMPANY.md#10-미정과-후속-반영)).
 2. **AI 설정**: `HOPS_AI_MODE=real`, `HOPS_AI_KNOWLEDGE_SOURCE=spring`, `HOPS_AI_INTERNAL_API_ENABLED=true`, `OPENAI_API_KEY`. AI→Spring 내부 API용 `SPRING_SERVICE_TOKEN`은 Spring과 AI에 같은 값을 둔다([AI 실행 안내](../../ai/README.md)). 충분성 판정은 `HOPS_AI_KNOWLEDGE_ASSESSMENT`(기본 꺼짐)로 켜고 끈다.
 3. **Compose 전달 범위**: 현재 `compose.services.yaml`은 `HOPS_AI_KNOWLEDGE_ASSESSMENT`, `HOPS_AI_GUIDE_EXCERPT`와 Spring의 내부 판단 옵션을 컨테이너에 전달하지 않는다. 이 값을 바꿔 시험하려면 서비스를 직접 실행하거나 Compose 설정을 따로 보완한다(이 문서의 범위 밖, [#240](https://github.com/Hi-Hops/Hops/issues/240)). 서비스 하나만 다시 빌드할 때는 `docker compose up --build -d --no-deps <서비스>`처럼 `--no-deps`를 붙인다. 붙이지 않으면 `depends_on` 때문에 `backend`가 함께 시작되어 직접 띄운 서버와 8080 포트가 겹칠 수 있다.
 4. **드라이버 환경변수**(비밀값은 문서와 기록에 남기지 않는다):
@@ -36,6 +37,8 @@ export HOPS_E2E_BASE_URL=http://127.0.0.1:8080        # 기본값
 export HOPS_E2E_DB_DSN='postgresql://<읽기 전용 계정>@localhost:5432/hops'
 export HOPS_E2E_PASSWORD='<시드 계정 로그인 비밀값, seed 파일 상단 주석>'
 ```
+
+A13에는 `HOPS_E2E_NEO4J_URL`, `HOPS_E2E_NEO4J_USERNAME`, `HOPS_E2E_NEO4J_PASSWORD`와 선택 사항 `HOPS_E2E_NEO4J_DATABASE`(기본 `neo4j`)를 설정한다. `HOPS_E2E_NEO4J_USERNAME`에는 대상 DB의 읽기 전용 권한만 가진 평가 계정을 지정하고 비밀번호는 기록하지 않는다. `/tx/commit`은 쓰기 쿼리도 실행할 수 있는 엔드포인트다. 이 도구는 고정된 `MATCH`·`RETURN` 조회만 보내며, 접속 계정의 권한도 별도로 제한해야 한다. 설정 누락·연결 오류는 `BLOCKED`, 조회가 성공했으나 노드·관계·승인 버전이 맞지 않으면 `FAIL`이다. 그래프 조회만으로 Spring 관계 조회나 직원·담당자 권한 검증을 통과한 것으로 보지 않는다.
 
 `HOPS_E2E_DB_DSN`은 질문이 요청한 필드와 상담 근거처럼 공개 API가 주지 않는 값을 읽는 데만 쓴다. 드라이버는 이 연결을 읽기 전용 세션으로 열며 업무 데이터를 바꾸지 않는다.
 
@@ -61,14 +64,14 @@ uv run python -m evaluation.flywheel.e2e --run \
 
 ## 공개 프로필
 
-사례는 담당자 전용(`STAFF`)이고 직원 상담은 직원 공개 자료만 읽는다. 그래서 **기본 설정에서는 B가 사례 A를 근거로 쓰지 못하는 것이 맞다**(`DEFAULT`). B에서 인용되는지는 Spring의 내부 판단 경계 옵션(`hops.agent.run.internal-judgement.enabled`, 기본 꺼짐)을 켠 `INTERNAL_JUDGEMENT`에서만 볼 수 있다. 이 옵션은 SECURITY.md 개정과 보안 리뷰 전에는 켜지 않으며, 켜려면 보안 리뷰 기록을 `review-reference`에 적어야 서버가 시작한다. 켠 결과는 로컬 시험의 관찰이고 운영 동작의 근거가 아니다. 드라이버는 상담 실행 입력에 `retrievalScopes`가 있는지로 프로필을 읽어 기록하고, 프로필에 맞는 기대를 적용한다.
+사례는 담당자 전용(`STAFF`)이고 직원 상담은 직원 공개 자료만 읽는다. **직원 상담에서 내부 판단 옵션을 켜지 않는다.** 드라이버는 상담 입력에서 내부 판단 범위를 감지하면 해당 검사를 실패로 기록한다. 담당자의 사례 확인은 별도 담당자 화면과 추천 검색에서 검증한다. 아래 과거 실행 기록의 내부 판단 관련 설명은 당시 관찰과 계획이다.
 
 ## 알려진 공백
 
-- **A13 관계 반영**: 승인된 사례의 연결(`ADDRESSES`·`USES_CHECK`)은 사례의 `relation_candidates`와 색인 요청에만 남고, 관계 조회 테이블(`relation_case_symptom`·`relation_case_check`)에 쓰는 코드는 시드 밖에 없다. 그래서 이 단계는 `BLOCKED`로 기록되는 것이 현재 기대다. 구현은 이 시험의 범위 밖이며 [#239](https://github.com/Hi-Hops/Hops/issues/239)로 분리했다.
+- **A13 관계 조회**: Neo4j에 저장된 노드·연결은 확인하지만, Spring 관계 조회 API의 실제 반환 결과는 별도 `A13.1 BLOCKED`로 기록한다. 저장 성공만으로 접근 권한과 검색 결과를 보장하지 않는다.
 - **확인 항목 질문**: 판정을 켠 실제 실행에서도 AI가 확인 항목을 묻지 않고 양식 필드만 물었다. 하네스 측정과 다른 관찰이며 원인은 조사하지 않았다([#241](https://github.com/Hi-Hops/Hops/issues/241)).
-- **검색 방식**: 1차 검색은 토큰 일치 SQL이라 동의어와 어미 변화를 찾지 못한다. B가 사례 A를 찾지 못하면 결함이라기보다 이 한계일 수 있다. 결과를 본 뒤 B의 문장이나 검색 규칙을 맞춰 바꾸지 않는다.
-- **사례 공개 규칙**: 승인 직후 검색 공개는 `hops.knowledge.case-visibility=APPROVED_SNAPSHOT`(1차 SQL 검색 제안)에 따른다. Spring·사례 담당자 리뷰 전까지는 제안이다. 색인 상태는 `PENDING`으로 남는 것이 정상이다.
+- **검색 방식**: 런타임 검색은 pgvector와 Neo4j를 사용하고 SQL은 오프라인 비교 기준이다. 추천 결과는 입력과 데이터 상태에 영향을 받으므로 결과를 본 뒤 B의 문장이나 검색 규칙을 맞춰 바꾸지 않는다.
+- **사례 공개 규칙**: 담당자 추천은 승인된 현재 버전과 Vector·Neo4j 양쪽 색인 성공을 확인한다. 색인 대기·실패는 성공과 구분한다.
 
 ## 실행하지 않은 것
 

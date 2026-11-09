@@ -5,6 +5,8 @@
 교체). 모델은 Fake이지만 두 번째 응답을 첫 번째와 일부러 다르게 줘서 그 상황을 재현한다.
 """
 
+import pytest
+
 from hops_ai.agents.inquiry.extraction import (
     ExtractedProblem,
     InquiryExtraction,
@@ -277,3 +279,118 @@ async def test_unknown_answer_is_kept_for_a_field_empty_in_the_servers_standard_
     asked = {name for question in result.questions for name in question.requestedFields}
     assert "expectedBehavior" not in asked
     assert "기대한 동작" in result.problems[0].unknowns
+
+
+@pytest.mark.parametrize(
+    "value_quote, unknown_quote",
+    [
+        ("모르겠어요", "모르겠어요"),
+        ("모르겠어요", "원하는 결과는 모르겠어요"),
+        ("원하는 결과는 모르겠어요", "모르겠어요"),
+    ],
+)
+async def test_unknown_answer_is_not_recorded_as_a_known_fact(
+    value_quote: str, unknown_quote: str
+) -> None:
+    from hops_ai.agents.inquiry import ExtractionInquiryAgent
+    from hops_ai.supervisor.execution import RoleRequest
+    from tests.supervisor_fixtures import reserve
+    from tests.unit.test_composite_inquiry import problem
+    from tests.unit.test_knowledge_empty_handoff import empty_search
+    from tests.unit.test_per_problem_handoff import _request_with_text, _with_problems
+
+    request = _request_with_text(
+        "전자결재 도장 이미지 등록 방법을 알려주세요. 원하는 결과는 모르겠어요"
+    )
+    # 이전 제안은 expectedBehavior가 비어 있다. Knowledge가 근거를 찾지 못한 뒤의 재분석이다.
+    previous = problem("new:1", "도장 이미지 등록 방법 문의", taskOrScreen="도장 이미지 등록")
+    state = _with_problems(request, previous, roleResults=empty_search())
+    extraction = InquiryExtraction(
+        problems=[
+            ExtractedProblem(
+                summary="도장 이미지 등록 방법 문의",
+                intent="HOW_TO",
+                systemCode="ELECTRONIC_APPROVAL",
+                taskOrScreen=QuotedValue(messageId=MESSAGE, quote="도장 이미지 등록"),
+                currentWorkflow=None,
+                expectedBehavior=QuotedValue(messageId=MESSAGE, quote=value_quote),
+                actualBehavior=None,
+                occurredAt=None,
+                requestedAccess=None,
+                businessPurpose=None,
+                desiredChange=None,
+                unknownFields=[unknown_expected_claim(unknown_quote)],
+                keywords=[],
+                featureCandidates=[],
+            )
+        ]
+    )
+    llm = FakeLLMClient(extraction)
+
+    result = await ExtractionInquiryAgent(guide_first=True).run(
+        RoleRequest("inv-i", reserve(state, AgentRole.INQUIRY, "inv-i")),
+        services_for(request, llm),
+    )
+
+    # 모른다고 한 항목은 다시 묻지 않고 미확인으로 보존한다.
+    assert result.questions == []
+    assert "기대한 동작" in result.problems[0].unknowns
+
+    assert result.problems[0].details.expectedBehavior is None
+    assert not any("모르겠어요" in fact.text for fact in result.problems[0].facts)
+
+
+def test_unknown_claim_does_not_discard_other_information_in_same_message() -> None:
+    from hops_ai.agents.inquiry.extraction import ground
+
+    request = request_with_text()
+    message = request.messages[0]
+    item = extraction(taskOrScreen=FIRST_QUOTE).problems[0]
+    item = item.model_copy(
+        update={"unknownFields": [unknown_expected_claim("없는 구절 모르겠어요")]}
+    )
+    assert ground(item, {message.id: message})["taskOrScreen"] == (message.id, FIRST_QUOTE)
+
+
+def test_unknown_claim_does_not_discard_a_different_known_field() -> None:
+    from hops_ai.agents.inquiry.extraction import ground
+
+    fields = request_with_text().model_dump(mode="json")
+    fields["messages"][0]["content"] = "결재선을 바꾸려는데 원하는 결과는 모르겠어요"
+    request = AiRunRequest.model_validate(fields)
+    item = extraction(taskOrScreen="결재선을 바꾸려는데").problems[0]
+    item = item.model_copy(update={"unknownFields": [unknown_expected_claim("모르겠어요")]})
+    assert ground(item, {MESSAGE: request.messages[0]})["taskOrScreen"][1] == "결재선을 바꾸려는데"
+
+
+def test_invalid_unknown_claim_does_not_override_valid_quote_in_same_field() -> None:
+    from hops_ai.agents.inquiry.extraction import ground
+
+    fields = request_with_text().model_dump(mode="json")
+    fields["messages"][0]["content"] = "결재선을 바꾸고 싶어요"
+    request = AiRunRequest.model_validate(fields)
+    item = extraction(expectedBehavior="결재선을 바꾸고 싶어요").problems[0]
+    item = item.model_copy(
+        update={"unknownFields": [unknown_expected_claim("없는 내용은 모르겠어요")]}
+    )
+    assert (
+        ground(item, {MESSAGE: request.messages[0]})["expectedBehavior"][1]
+        == "결재선을 바꾸고 싶어요"
+    )
+
+
+def test_unknown_claim_preserves_a_separate_known_quote_in_same_field() -> None:
+    from hops_ai.agents.inquiry.extraction import ground
+
+    fields = request_with_text().model_dump(mode="json")
+    fields["messages"][0]["content"] = "목록에 문서가 보여야 해요. 다른 기대 동작은 모르겠어요"
+    request = AiRunRequest.model_validate(fields)
+    item = extraction(expectedBehavior="목록에 문서가 보여야 해요").problems[0]
+    item = item.model_copy(
+        update={"unknownFields": [unknown_expected_claim("다른 기대 동작은 모르겠어요")]}
+    )
+
+    assert ground(item, {MESSAGE: request.messages[0]})["expectedBehavior"] == (
+        MESSAGE,
+        "목록에 문서가 보여야 해요",
+    )

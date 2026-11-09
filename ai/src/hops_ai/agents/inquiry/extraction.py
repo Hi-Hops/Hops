@@ -217,6 +217,17 @@ def ground(
         quote = value.quote.strip()
         if message is None or message.sender != "USER" or not quote or quote not in message.content:
             continue
+        # 같은 항목의 모름 구절을 모델이 값으로도 반환해도 사실로 저장하지 않는다.
+        if any(
+            claim.field == name
+            and claim.messageId == message.id
+            and claim.quote.strip()
+            and claim.quote.strip() in message.content
+            and UNKNOWN_EXPRESSION.search(claim.quote)
+            and (quote in claim.quote.strip() or claim.quote.strip() in quote)
+            for claim in problem.unknownFields
+        ):
+            continue
         grounded[name] = (message.id, quote)
     return grounded
 
