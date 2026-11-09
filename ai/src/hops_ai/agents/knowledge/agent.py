@@ -317,14 +317,28 @@ class SearchKnowledgeAgent:
         except (OutputRejected, TransientError):
             return None
         services.runtime.ensure_active()
+        offered = check_item_ids(relations)
+        claimed = set(response.parsed.answeredCheckItems)
+        if claimed:
+            # 모델이 이미 답했다고 본 항목. 질문을 건너뛴 근거를 추적할 수 있게 남긴다.
+            # 이번 관계 조회에 없는 ID는 인정하지 않는다(개수만 남긴다).
+            logger.info(
+                "판정 답한 확인 항목 runId=%s problemRef=%s answered=%s ignored=%d",
+                services.runtime.run_id,
+                target.problemRef,
+                sorted(claimed & offered),
+                len(claimed - offered),
+            )
         try:
-            assessment = limit_check_items(to_assessment(target.problemRef, response.parsed))
+            assessment = limit_check_items(
+                to_assessment(target.problemRef, response.parsed, offered=offered)
+            )
             validate_assessment(
                 assessment,
                 intent=target.intent,
                 search_state="FOUND",
                 evidence=[hit.evidence for hit in hits],
-                allowed_check_items=check_item_ids(relations),
+                allowed_check_items=offered,
             )
         except (ValidationError, OutputRejected):
             return None

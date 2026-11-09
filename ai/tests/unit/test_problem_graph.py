@@ -72,7 +72,7 @@ async def test_an_answerable_how_to_ends_with_the_guide_and_no_selection_call() 
 
     assert result.status == "SUCCEEDED"
     assert result.guide is not None and result.questions == [] and result.ticketProposals == []
-    assert prompt_versions(llm) == ["inquiry-extraction-v9", "knowledge.assessment.v4"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v9", "knowledge.assessment.v5"]
 
 
 async def test_reported_system_correction_searches_before_asking_in_the_new_scope() -> None:
@@ -216,7 +216,7 @@ async def test_the_model_picks_between_the_legal_actions_at_each_fork() -> None:
     assert prompt_versions(llm) == [
         "inquiry-extraction-v9",
         "supervisor.selection.v1",
-        "knowledge.assessment.v4",
+        "knowledge.assessment.v5",
         "supervisor.selection.v1",
     ]
     schema = llm.requests[1].response_schema["properties"]["decisions"]["properties"]

@@ -8,9 +8,11 @@
 import json
 
 from hops_ai.agents.inquiry.asking import check_item_questions, form_question_plan, question_plan
+from hops_ai.agents.inquiry.forms import SYSTEM
 from hops_ai.agents.knowledge.assessment import (
     MAX_REPLY_CHARS,
     MAX_USER_REPLIES,
+    MAX_USER_STATEMENTS,
     asked_checks,
     build_user_payload,
 )
@@ -306,6 +308,44 @@ def test_the_payload_has_no_asked_checks_before_any_question_was_asked() -> None
 
     assert "askedChecks" not in payload and "userReplies" not in payload
     assert [item["id"] for item in payload["checkItems"]] == list(APPROVED)
+    # 첫 문의는 질문 전에 사용자가 스스로 한 말로 판정에 실린다
+    assert payload["userStatements"] == ["전자결재 문서 조회 방법을 알려주세요"]
+
+
+def test_what_the_user_said_before_any_check_question_reaches_the_judgment() -> None:
+    # EC2 재현: 첫 문의의 "상신한 문서"가 요약·양식에 남지 않아 판정이 상신 여부를 다시 물었다.
+    # 확인 항목이 아닌 질문(시스템 등)에 대한 답도 사용자가 스스로 한 말이다.
+    request = conversation(
+        request_with([SYSTEM], question_count=1),
+        ("AI", "어느 시스템에 대한 문의인가요?"),
+        ("USER", "전자결재예요. 방금 상신한 문서가 문서함 전체 문서에 안 나와요."),
+    )
+    state = judged(base_state(request))
+
+    context = asked_checks(state, PROBLEM, state["relations"][PROBLEM])
+    payload = payload_of(state, context)
+
+    assert payload["userStatements"] == [
+        "전자결재 문서 조회 방법을 알려주세요",
+        "전자결재예요. 방금 상신한 문서가 문서함 전체 문서에 안 나와요.",
+    ]
+    assert "askedChecks" not in payload and "userReplies" not in payload
+
+
+def test_statements_keep_the_first_inquiry_and_the_latest_messages() -> None:
+    long_message = "나" * (MAX_REPLY_CHARS + 50)
+    request = conversation(
+        request_with(),
+        *[("USER", f"말 {number}") for number in range(MAX_USER_STATEMENTS + 2)],
+        ("USER", long_message),
+    )
+    state = judged(base_state(request))
+
+    statements = asked_checks(state, PROBLEM, state["relations"][PROBLEM]).statements
+
+    assert len(statements) == MAX_USER_STATEMENTS
+    assert statements[0] == "전자결재 문서 조회 방법을 알려주세요"
+    assert statements[-1] == "나" * MAX_REPLY_CHARS
 
 
 def test_asked_checks_and_the_replies_after_the_first_question_reach_the_judgment() -> None:
@@ -321,6 +361,8 @@ def test_asked_checks_and_the_replies_after_the_first_question_reach_the_judgmen
 
     assert payload["askedChecks"] == [ASK_PERIOD]
     assert payload["userReplies"] == ["최근 3개월로 두고 조회했어요"]
+    # 질문 전의 첫 문의는 답과 겹치지 않게 따로 실린다
+    assert payload["userStatements"] == ["전자결재 문서 조회 방법을 알려주세요"]
     # 이미 물은 항목은 다시 지목할 후보에서 빠진다
     assert "check-period" not in [item["id"] for item in payload["checkItems"]]
 
@@ -350,6 +392,8 @@ def test_replies_are_scoped_to_the_problem_that_was_asked_about() -> None:
     context = asked_checks(state, PROBLEM, state["relations"][PROBLEM])
 
     assert context.replies == ("이 문제의 답", "대상을 고르지 않은 답")
+    # 다른 문제에 연결된 말은 질문 전이라도 이 문제의 진술이 아니다
+    assert context.statements == ("전자결재 문서 조회 방법을 알려주세요", "첫 문의 외 다른 말")
 
 
 def test_replies_fall_back_to_the_first_ai_message_when_no_message_is_linked() -> None:
@@ -393,5 +437,50 @@ def test_an_asked_item_outside_this_lookup_is_not_shown() -> None:
 def test_prompt_rules_keep_user_replies_out_of_the_evidence() -> None:
     from hops_ai.agents.knowledge.assessment import PROMPT_VERSION, SYSTEM_PROMPT
 
-    assert PROMPT_VERSION == "knowledge.assessment.v4"
+    assert PROMPT_VERSION == "knowledge.assessment.v5"
     assert "userReplies" in SYSTEM_PROMPT and "evidence가 아니다" in SYSTEM_PROMPT
+    assert "userStatements" in SYSTEM_PROMPT
+
+
+def test_prompt_rules_skip_check_items_the_user_already_answered() -> None:
+    from hops_ai.agents.knowledge.assessment import SYSTEM_PROMPT, AssessmentDraft
+
+    assert "answeredCheckItems" in SYSTEM_PROMPT and "이미 했다고 말했으면" in SYSTEM_PROMPT
+    # 예시는 특정 업무 시나리오의 말이 아니라 일반 규칙으로 쓴다(재현에 쓴 전자결재 용어 금지)
+    assert not [word for word in ("상신", "기안", "결재", "문서함") if word in SYSTEM_PROMPT]
+    # 모델이 답한 항목을 먼저 판단하도록 출력 순서에서 missingInformation보다 앞에 둔다
+    order = list(AssessmentDraft.model_json_schema()["properties"])
+    assert order.index("answeredCheckItems") < order.index("missingInformation")
+
+
+def test_a_check_item_the_model_marks_answered_is_never_asked() -> None:
+    # 실모델 비교에서 프롬프트 지시만으로는 이미 답한 상신 여부를 다시 지목했다. 모델이 답했다고
+    # 표시한 항목은 함께 지목했더라도 코드가 질문 후보에서 뺀다.
+    from hops_ai.agents.knowledge.assessment import AssessmentDraft, DraftMissing, to_assessment
+
+    draft = AssessmentDraft(
+        verdict="PARTIAL",
+        supportingEvidenceIds=[EVIDENCE],
+        answeredCheckItems=["check-state"],
+        missingInformation=[
+            DraftMissing(kind="CHECK_ITEM", ref="check-state"),
+            DraftMissing(kind="CHECK_ITEM", ref="check-period"),
+            DraftMissing(kind="FIELD", ref="occurredAt"),
+        ],
+        candidateCauses=[],
+        nextChecks=[],
+        rationale="내부용",
+    )
+
+    missing = to_assessment(PROBLEM, draft).missingInformation
+
+    assert [(item.kind, item.ref) for item in missing] == [
+        ("CHECK_ITEM", "check-period"),
+        ("FIELD", "occurredAt"),
+    ]
+    # 이번 관계 조회가 보여 주지 않은 ID를 답했다고 해도 인정하지 않는다
+    unoffered = to_assessment(PROBLEM, draft, offered=frozenset({"check-period"}))
+    assert [item.ref for item in unoffered.missingInformation][:2] == [
+        "check-state",
+        "check-period",
+    ]
