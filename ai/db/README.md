@@ -9,7 +9,7 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 | 계정 | 용도 | 권한 |
 |---|---|---|
 | `hops_ai_migrator` | `hops_ai_runtime` DB와 테이블 소유자. 마이그레이션·권한 부여에만 사용 | DB·스키마 소유. 관리자 속성 없음 |
-| `hops_ai_app` | AI 서버 실행(`HOPS_AI_RUNTIME_DSN`) | `hops_ai_runtime` CONNECT, `public` USAGE, `ai_run_ledger`의 SELECT·INSERT·UPDATE |
+| `hops_ai_app` | AI 서버 실행(`HOPS_AI_RUNTIME_DSN`) | `hops_ai_runtime` CONNECT, `public` USAGE, `ai_run_ledger`·`ai_index_job`의 SELECT·INSERT·UPDATE |
 
 `hops_ai_app`은 다음을 할 수 없다.
 - `ai_run_ledger` DELETE·TRUNCATE
@@ -26,9 +26,10 @@ AI 서버의 RunLedger는 Spring 업무 DB(`hops`)와 같은 PostgreSQL 인스�
 | 1 | [01_roles_and_database.sql](01_roles_and_database.sql) | 관리자(로컬 `hops`, RDS 마스터) | `hops` |
 | 2 | 각 계정 비밀번호 설정(`\password`) | 관리자 | `hops` |
 | 3 | [02_adopt_existing_tables.sql](02_adopt_existing_tables.sql) | 관리자 | `hops_ai_runtime` |
-| 4 | `ai/migrations/001`, `002` | `hops_ai_migrator` | `hops_ai_runtime` |
+| 4 | `ai/migrations/001`, `002`, `003` | `hops_ai_migrator` | `hops_ai_runtime` |
 | 5 | [03_app_privileges.sql](03_app_privileges.sql) | `hops_ai_migrator` | `hops_ai_runtime` |
 | 6 | 점검 명령 | `hops_ai_app` | `hops_ai_runtime` |
+| 7 | [04_search_chunk_privileges.sql](04_search_chunk_privileges.sql) (승인 사례 색인을 켤 때) | 업무 DB의 `knowledge_chunk` 소유자(Spring Flyway 계정) | `hops` |
 
 - 3번은 예전 안내대로 `hops` 소유의 `hops_ai_runtime`이 이미 있을 때만 실행한다. 행 데이터와 인덱스는 그대로 두고 소유자만 `hops_ai_migrator`로 옮긴다. PostgreSQL 15 이전에 만든 DB처럼 `public` 스키마 소유자가 관리자로 남아 있으면 스키마 소유권도 옮겨, 03이 기존 `public` CREATE 권한을 거둘 수 있게 한다.
 - 이미 테이블이 있으면 4번은 건너뛴다. 001만 적용된 DB는 실행기를 모두 멈춘 뒤 002를 한 번 적용한다.
@@ -150,9 +151,11 @@ RDS 마스터 계정은 슈퍼유저가 아니다. PostgreSQL 16부터는 역할
 | `--business-dbname hops` | 같은 계정으로 업무 DB의 테이블·열·시퀀스 권한과 스키마 생성 권한이 없고 `hops_knowledge` 권한도 없는지. 접속 자체가 거부되면 통과 |
 | `--write-check` | 점검용 run 한 건을 접수·시작·완료하고 새 세션에서 조회한다. 이 행은 남으며 24시간 뒤 일반 만료로 상세가 지워진다 |
 
-## 검색 연동(#142) 때
+## 승인 사례 색인(#244 P1)
 
-[ERD](../../docs/ERD.md)의 결정대로 AI 계정에는 `hops_knowledge` 스키마의 조각 DML과 FK 검사용 REFERENCES만 준다. 업무 원본 쓰기 권한은 주지 않는다. 이 권한은 업무 DB의 Flyway 소유자가 부여해야 하므로 Spring 마이그레이션 또는 별도 SQL로 리뷰한 뒤 적용한다. 적용 후 점검 명령의 `hops_knowledge 스키마 권한 없음` 기대값을 새 권한 기준으로 바꾼다.
+[ERD](../../docs/ERD.md)의 결정대로 AI 계정에는 `hops_knowledge.knowledge_chunk`의 조각 DML과 FK 검사용 `knowledge_document_version(id)` REFERENCES만 준다([04](04_search_chunk_privileges.sql)). 업무 원본은 읽지도 쓰지도 않는다. 사례 본문·문서 버전 ID는 Spring 내부 API(`GET /internal/v2/cases/{caseId}/index-source`)로 받는다. 이 권한은 업무 DB의 테이블 소유자가 부여해야 하므로 리뷰한 뒤 적용한다.
+
+AI는 `HOPS_AI_SEARCH_DSN`(같은 `hops_ai_app` 계정으로 업무 DB `hops`에 접속)으로 조각을 쓴다. 점검 명령의 업무 DB 항목은 04를 적용한 상태를 기준으로 한다: 조각 DML 허용, 그 밖의 조각 권한·문서 버전 읽기·다른 업무 테이블 권한 없음.
 
 ## 검증 기록
 

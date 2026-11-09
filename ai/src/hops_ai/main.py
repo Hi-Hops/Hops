@@ -9,9 +9,14 @@ from fastapi import FastAPI
 from hops_ai.api.auth import ServiceAuthMiddleware
 from hops_ai.api.errors import install_error_handlers
 from hops_ai.api.routes import health, runs
+from hops_ai.api.routes import index_jobs as index_job_routes
 from hops_ai.harness.budget import Clock
 from hops_ai.harness.errors import ComponentNotReady
+from hops_ai.persistence.index_jobs import IndexJobStore
 from hops_ai.persistence.run_ledger import RunLedger
+from hops_ai.services.indexing.clients import OpenAIEmbeddings, SpringCaseSource
+from hops_ai.services.indexing.jobs import IndexJobService
+from hops_ai.services.indexing.stores import GraphStore, VectorStore
 from hops_ai.services.llm.openai import OpenAIClient
 from hops_ai.services.retrieval.factory import knowledge_source_for, relation_source_for
 from hops_ai.services.runs.admission import RunAdmissionService
@@ -30,6 +35,7 @@ def create_app(
     ledger: RunLedger | None = None,
     pipeline: RunPipeline | None = None,
     clock: Clock | None = None,
+    index_jobs: IndexJobService | None = None,
 ) -> FastAPI:
     resolved = settings or Settings()
     tracing = RunTracing()
@@ -71,6 +77,13 @@ def create_app(
         if resolved.runtime_dsn is None:
             raise ComponentNotReady("AI runtime DB")
         resolved_ledger = RunLedger(resolved.runtime_dsn.get_secret_value())
+    if (
+        index_jobs is None
+        and resolved.internal_api_enabled
+        and resolved.runtime_dsn is not None
+        and resolved.index_jobs_configured
+    ):
+        index_jobs = _index_job_service(resolved)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -100,9 +113,13 @@ def create_app(
                 expiry_interval=resolved.ledger_expiry_interval_seconds,
             )
             maintenance.start()
+            app.state.index_jobs = index_jobs
             try:
                 yield
             finally:
+                app.state.index_jobs = None
+                if index_jobs is not None:
+                    await index_jobs.shutdown()
                 # 종료가 시작되면 먼저 준비 상태를 내리고 주기 작업을 멈춘다.
                 app.state.run_executor = None
                 await maintenance.stop()
@@ -121,4 +138,29 @@ def create_app(
         app.add_middleware(ServiceAuthMiddleware, token=resolved.ai_service_token)
         install_error_handlers(app)
         app.include_router(runs.router)
+        app.include_router(index_job_routes.router)
     return app
+
+
+def _index_job_service(settings: Settings) -> IndexJobService:
+    """승인 사례 색인 작업 조립. 설정 확인(index_jobs_configured)을 통과한 뒤에만 부른다."""
+    assert settings.runtime_dsn and settings.search_dsn and settings.neo4j_url
+    assert settings.neo4j_password and settings.openai_api_key
+    assert settings.spring_base_url and settings.spring_service_token
+    embeddings = OpenAIEmbeddings(settings.openai_api_key.get_secret_value())
+    return IndexJobService(
+        IndexJobStore(settings.runtime_dsn.get_secret_value()),
+        SpringCaseSource(
+            settings.spring_base_url, settings.spring_service_token.get_secret_value()
+        ),
+        {
+            "VECTOR": VectorStore(settings.search_dsn.get_secret_value(), embeddings),
+            "NEO4J": GraphStore(
+                settings.neo4j_url,
+                settings.neo4j_username,
+                settings.neo4j_password.get_secret_value(),
+                settings.neo4j_database,
+            ),
+        },
+        wait_seconds=settings.index_wait_seconds,
+    )

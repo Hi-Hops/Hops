@@ -67,6 +67,16 @@ class Settings(BaseSettings):
     guide_excerpt: bool = True
     # Spring 지식 검색·관계 조회 요청 한 번의 제한 시간. 남은 실행 기한보다 길게 기다리지 않는다.
     knowledge_http_timeout_seconds: float = Field(default=5, gt=0, le=30)
+    # 승인 사례 색인(contracts/agents I1). 다섯 값이 모두 있고 내부 API·RunLedger가 켜져 있을 때만
+    # 색인 작업을 받는다. 검색 DB 계정은 hops_knowledge 조각 DML과 FK 검사 권한만 가진다
+    # (ai/db/README.md).
+    search_dsn: SecretStr | None = None
+    neo4j_url: str | None = None
+    neo4j_username: str = "neo4j"
+    neo4j_password: SecretStr | None = None
+    neo4j_database: str = "neo4j"
+    # 접수 요청 안에서 반영을 기다리는 최대 시간. 넘기면 RUNNING으로 응답하고 반영은 계속한다.
+    index_wait_seconds: float = Field(default=20, gt=0, le=60)
     langfuse_public_key: SecretStr | None = Field(
         default=None, validation_alias="LANGFUSE_PUBLIC_KEY"
     )
@@ -91,6 +101,18 @@ class Settings(BaseSettings):
     # RunLedger 주기 작업 간격. 중단된 다른 인스턴스의 run 복구와 보존 기간이 지난 결과 상세 만료.
     ledger_recovery_interval_seconds: float = Field(default=60, gt=0)
     ledger_expiry_interval_seconds: float = Field(default=3600, gt=0)
+
+    @property
+    def index_jobs_configured(self) -> bool:
+        """색인 작업에 필요한 외부 연결이 모두 설정됐는지(검색 DB·Neo4j·임베딩 키·Spring)."""
+        return bool(
+            self.search_dsn
+            and self.neo4j_url
+            and self.neo4j_password
+            and self.openai_api_key
+            and self.spring_base_url
+            and self.spring_service_token
+        )
 
     @field_validator("spring_base_url", "spring_service_token", mode="before")
     @classmethod

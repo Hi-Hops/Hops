@@ -59,7 +59,17 @@ EC2의 Spring 컨테이너는 Flyway를 실행하지 않는다(`SPRING_FLYWAY_EN
 2. Neo4j는 Spring이 사용하는 `hops-internal` 네트워크에 연결한다. Spring env 파일에 `HOPS_SEARCH_NEO4J_URL`, `HOPS_NEO4J_PASSWORD`, `HOPS_SEARCH_EMBEDDING_API_KEY`를 주입한다. 기본 Neo4j 사용자와 데이터베이스는 `neo4j`이며 다른 값을 쓰는 경우 `HOPS_NEO4J_USERNAME`, `HOPS_SEARCH_NEO4J_DATABASE`도 맞춘다. 임베딩 키는 `text-embedding-3-small`을 호출할 수 있어야 한다.
 3. AI를 real·spring·내부 API·판정 모드로 실행한다. 기본 모델 호출 상한은 양쪽 8회다. 조정할 때 AI의 `HOPS_AI_MAX_LLM_CALLS`와 Spring의 `HOPS_AGENT_RUN_LIMITS_MAXMODELCALLS`, `HOPS_AGENT_RUN_LIMITS_MAXOUTPUTTOKENS`를 함께 확인한다. Spring 출력 한도는 실행당 총량이다.
 4. env 파일을 적용해 컨테이너를 다시 만든 뒤 Spring에서 임베딩과 Neo4j 조회를 확인하고 AI `/readyz` 및 실제 판정 옵션을 확인한다. V27과 컨테이너 생존 확인만으로는 검색이 준비됐는지 알 수 없다. pgvector의 현재 모델 청크와 Neo4j의 가상 카탈로그 데이터가 존재하는지 확인하고 브라우저에서 승인 가이드·승인 질문·답변 재반영을 실행한다.
-5. 사례 공개 기준은 `INDEXED`다. 같은 승인 버전의 두 색인 상태가 모두 성공이어야 사례 검색 및 그래프 이웃에 나타난다. 새 승인 사례 자동 색인은 P1에서 연결한다.
+5. 사례 공개 기준은 `INDEXED`다. 같은 승인 버전의 두 색인 상태가 모두 성공이어야 사례 검색 및 그래프 이웃에 나타난다. 새 승인 사례 자동 색인은 아래 절차로 켠다.
+
+## 승인 사례 자동 색인을 켜는 환경 (#244 P1)
+
+Spring이 사례 승인 뒤 `POST /internal/v2/index-jobs`로 VECTOR·NEO4J 반영을 요청하면 AI가 pgvector 조각과 Neo4j 사례 노드·연결을 넣는다. AI는 업무 원본을 읽지 않고 사례 본문을 Spring 내부 API로 받는다. 아래 1~3이 끝나기 전에는 AI가 `503 INDEX_UNAVAILABLE`로 응답하고 사례는 `PENDING`에 머문다(승인 자체는 유지된다).
+
+1. **AI 마이그레이션 `003_index_jobs.sql`:** `hops_ai_migrator`로 `hops_ai_runtime`에 적용하고 [`ai/db/03_app_privileges.sql`](../../ai/db/03_app_privileges.sql)을 다시 실행한다. 확인 뒤 위 마이그레이션 경계 절차대로 `ai-migrations.tree`를 갱신한다. 갱신 전에는 이 커밋의 자동 배포가 마이그레이션 변경으로 멈춘다.
+2. **업무 DB 권한:** 업무 DB `hops`의 `knowledge_chunk` 소유자(Spring Flyway 계정)로 [`ai/db/04_search_chunk_privileges.sql`](../../ai/db/04_search_chunk_privileges.sql)을 실행한다. `hops_ai_app`에 조각 DML과 문서 버전 `id`의 REFERENCES만 준다.
+3. **AI env 파일:** `HOPS_AI_SEARCH_DSN`(`hops_ai_app`으로 `hops` DB 접속, RDS는 `sslmode=verify-full&sslrootcert=/etc/hops/rds-global-bundle.pem`), `HOPS_AI_NEO4J_URL`(`http://hops-neo4j:7474`), `HOPS_AI_NEO4J_PASSWORD`를 넣는다. 사용자·DB가 `neo4j`가 아니면 `HOPS_AI_NEO4J_USERNAME`, `HOPS_AI_NEO4J_DATABASE`도 맞춘다. 임베딩은 AI의 `OPENAI_API_KEY`로 `text-embedding-3-small`을 부른다. Spring 주소·`SPRING_SERVICE_TOKEN`은 기존 값을 쓴다.
+4. **점검:** AI 컨테이너에서 `python -m hops_ai.persistence.check_runtime_db --business-dbname hops`를 실행해 `ai_index_job`·조각 권한 항목을 확인한다.
+5. **검증:** 담당자로 사례를 승인하면 사례 화면의 Vector·Neo4j가 `반영 완료`가 된다. 이미 승인돼 `반영 대기`인 사례는 담당자의 `현재 반영 상태 확인`이 같은 요청을 다시 전달해 반영한다. `hops_knowledge.knowledge_chunk`의 해당 문서 버전 조각 1건과 Neo4j `ApprovedCase` 노드·연결을 확인한다.
 
 ## AWS 일회성 준비
 

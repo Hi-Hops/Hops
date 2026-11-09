@@ -4,10 +4,10 @@
 
 HOPS_AI_RUNTIME_DSN(앱이 실제로 쓰는 연결 문자열)으로 접속해 다음을 확인한다.
 
-- 런타임 DB: 관리자 속성이 없고 ai_run_ledger에 SELECT·INSERT·UPDATE만 있으며,
+- 런타임 DB: 관리자 속성이 없고 ai_run_ledger·ai_index_job에 SELECT·INSERT·UPDATE만 있으며,
   삭제·테이블 생성·임시 테이블이 거부되고 RunLedger가 쓰는 세션 잠금을 잡을 수 있다.
-- 업무 DB(선택): 같은 계정으로 접속했을 때 업무 테이블과 hops_knowledge에 아무 권한이 없다.
-  검색 연동 전까지는 접속 자체가 거부돼도 통과로 본다.
+- 업무 DB(선택): 같은 계정으로 접속했을 때 승인 사례 색인 조각(hops_knowledge.knowledge_chunk)의
+  DML과 문서 버전 id의 REFERENCES 외에는 업무 테이블 권한이 없다. 접속 자체가 거부되면 통과로 본다.
 
 기본 점검은 데이터를 바꾸지 않는다. 거부돼야 할 변경은 트랜잭션 안에서 시도하고 되돌린다.
 --write-check를 주면 점검용 run 한 건을 접수·완료한다.
@@ -27,6 +27,9 @@ from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 RUNTIME_DB = "hops_ai_runtime"
 LEDGER_TABLE = "public.ai_run_ledger"
+INDEX_JOB_TABLE = "public.ai_index_job"
+# 앱 계정이 SELECT·INSERT·UPDATE만 가지는 런타임 테이블
+RUNTIME_TABLES = (LEDGER_TABLE, INDEX_JOB_TABLE)
 REQUIRED = ("SELECT", "INSERT", "UPDATE")
 FORBIDDEN = ("DELETE", "TRUNCATE", "REFERENCES", "TRIGGER")
 # 업무 DB에서는 테이블·시퀀스에 줄 수 있는 모든 권한이 없어야 한다.
@@ -37,6 +40,8 @@ COLUMN_PRIVILEGES = ("SELECT", "INSERT", "UPDATE", "REFERENCES")
 # PostgreSQL 17에서 추가된 테이블 권한(VACUUM·ANALYZE 등 유지 작업).
 MAINTAIN_SINCE = 170000
 SYSTEM_SCHEMAS = ("pg_catalog", "information_schema", "pg_toast")
+# 승인 사례 색인이 쓰는 업무 DB 대상(ai/db/04_search_chunk_privileges.sql). 권한은 따로 점검한다.
+SEARCH_RELATIONS = ("hops_knowledge.knowledge_chunk", "public.knowledge_document_version")
 
 
 @dataclass(frozen=True)
@@ -70,19 +75,24 @@ async def check_runtime(conninfo: str) -> list[Check]:
         names = ", ".join(name for (name,) in memberships)
         checks.append(Check("다른 역할 권한을 물려받지 않음", not memberships, names))
 
-        for privilege in (*REQUIRED, *FORBIDDEN, *_newer_privileges(conn)):
-            expected = privilege in REQUIRED
-            # 거부돼야 하는 권한은 일부 열에만 부여된 경우도 찾는다.
-            function = (
-                "has_any_column_privilege"
-                if not expected and privilege in COLUMN_PRIVILEGES
-                else "has_table_privilege"
-            )
-            granted = await _scalar(
-                conn, f"SELECT {function}(current_user, %s, %s)", (LEDGER_TABLE, privilege)
-            )
-            label = f"ai_run_ledger {privilege} {'허용' if expected else '거부'}"
-            checks.append(Check(label, granted == expected))
+        for table in RUNTIME_TABLES:
+            short = table.removeprefix("public.")
+            if not await _scalar(conn, "SELECT to_regclass(%s) IS NOT NULL", (table,)):
+                checks.append(Check(f"{short} 테이블 있음", False, "ai/migrations 적용 필요"))
+                continue
+            for privilege in (*REQUIRED, *FORBIDDEN, *_newer_privileges(conn)):
+                expected = privilege in REQUIRED
+                # 거부돼야 하는 권한은 일부 열에만 부여된 경우도 찾는다.
+                function = (
+                    "has_any_column_privilege"
+                    if not expected and privilege in COLUMN_PRIVILEGES
+                    else "has_table_privilege"
+                )
+                granted = await _scalar(
+                    conn, f"SELECT {function}(current_user, %s, %s)", (table, privilege)
+                )
+                label = f"{short} {privilege} {'허용' if expected else '거부'}"
+                checks.append(Check(label, granted == expected))
         for privilege in ("CREATE", "TEMPORARY"):
             granted = await _scalar(
                 conn,
@@ -95,9 +105,11 @@ async def check_runtime(conninfo: str) -> list[Check]:
         # 앱 계정은 public만 사용한다. 다른 스키마의 USAGE도 함수 등 객체 접근 경로가 된다.
         usable = await _usable_schemas(conn, allowed=["public"])
         checks.append(Check("public 외 스키마 사용 거부", not usable, _names(usable)))
-        # 원장 외 테이블·열·시퀀스에는 어떤 권한도 없어야 한다.
-        others = await _privileged_relations(conn, exclude=[LEDGER_TABLE])
-        checks.append(Check("원장 외 테이블·열·시퀀스 권한 없음", not others, _names(others)))
+        # 원장·색인 작업 외 테이블·열·시퀀스에는 어떤 권한도 없어야 한다.
+        others = await _privileged_relations(conn, exclude=list(RUNTIME_TABLES))
+        checks.append(
+            Check("원장·색인 작업 외 테이블·열·시퀀스 권한 없음", not others, _names(others))
+        )
 
         checks.append(
             await _denied(
@@ -153,18 +165,38 @@ async def check_business(conninfo: str, dbname: str) -> list[Check]:
             return [Check(f"업무 DB {dbname} 접속 거부", True, "검색 연동 시 CONNECT 별도 부여")]
         return [Check(f"업무 DB {dbname} 접속", False, type(exc).__name__)]
     async with conn:
-        tables = await _privileged_relations(conn, exclude=[])
+        # 승인 사례 색인(ai/db/04_search_chunk_privileges.sql)이 주는 두 대상만 허용한다.
+        tables = await _privileged_relations(conn, exclude=list(SEARCH_RELATIONS))
         schemas = await _creatable_schemas(conn)
-        knowledge = await _scalar(
+        chunk = await _scalar(
             conn,
-            """SELECT has_schema_privilege(current_user, 'hops_knowledge', 'USAGE')
-               WHERE EXISTS (SELECT FROM pg_namespace WHERE nspname = 'hops_knowledge')""",
+            """SELECT has_table_privilege(current_user, 'hops_knowledge.knowledge_chunk',
+                                          'SELECT,INSERT,UPDATE,DELETE')
+               WHERE to_regclass('hops_knowledge.knowledge_chunk') IS NOT NULL""",
+        )
+        chunk_extra = await _scalar(
+            conn,
+            """SELECT has_table_privilege(current_user, 'hops_knowledge.knowledge_chunk',
+                                          'TRUNCATE,REFERENCES,TRIGGER')
+               WHERE to_regclass('hops_knowledge.knowledge_chunk') IS NOT NULL""",
+        )
+        # 문서 버전은 FK 검사용 id 열 REFERENCES만. 본문·메타데이터를 읽지 못해야 한다.
+        version_read = await _scalar(
+            conn,
+            """SELECT has_any_column_privilege(current_user, 'public.knowledge_document_version',
+                                               'SELECT,INSERT,UPDATE')
+                      OR has_table_privilege(current_user, 'public.knowledge_document_version',
+                                             'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER')
+               WHERE to_regclass('public.knowledge_document_version') IS NOT NULL""",
         )
     return [
-        Check(f"업무 DB {dbname} 테이블·열·시퀀스 권한 없음", not tables, _names(tables)),
+        Check(
+            f"업무 DB {dbname} 색인 조각 외 테이블·열·시퀀스 권한 없음", not tables, _names(tables)
+        ),
         Check(f"업무 DB {dbname} 스키마 생성 거부", not schemas, _names(schemas)),
-        # 검색 연동(#142) 전에는 hops_knowledge 권한도 없어야 한다. 연동 시 이 기대값을 바꾼다.
-        Check("hops_knowledge 스키마 권한 없음", not knowledge),
+        Check("hops_knowledge.knowledge_chunk 조각 DML 권한", bool(chunk)),
+        Check("hops_knowledge.knowledge_chunk 그 밖의 권한 없음", not chunk_extra),
+        Check("knowledge_document_version 읽기·쓰기 권한 없음", not version_read),
     ]
 
 

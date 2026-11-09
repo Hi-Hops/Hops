@@ -288,6 +288,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | ApprovedCaseBody | workRecordId:Uuid, resolutionRequestId:Uuid, approvedBy:Uuid, approvedAt:time, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string 또는 null, accessScope:EMPLOYEE / SYSTEM_STAFF, origin:SYNTHETIC / DEMO_VERIFIED / OPERATIONAL, confirmationOrigin:SYNTHETIC_PRESET / HOPS_USER, sourceMessageIds:Uuid[], entityLinks:EntityLink[], systemId:Uuid, confirmedCause:string 또는 null, problemStatement:string, caseType:RESOLUTION / IMPLEMENTATION |
 | IndexApplyRequest | contractVersion:hops-system-1, jobId:Uuid, caseId:Uuid, caseVersion:int, store:VECTOR / NEO4J, attempt:int, contentDigest:string, approvedCase:ApprovedCaseBody |
 | IndexApplySnapshot | contractVersion:hops-system-1, jobId:Uuid, caseId:Uuid, caseVersion:int, store:VECTOR / NEO4J, attempt:int, state:PENDING / RUNNING / SUCCEEDED / FAILED / UNKNOWN, contentDigest:string, error:AiError 또는 null, updatedAt:time |
+| CaseIndexSource | contractVersion:hops-system-1, caseId:Uuid, caseVersion:int, documentVersionId:Uuid, title:string, applicability:string 또는 null, content:string, contentDigest:string |
 | ResolutionContext | requestId:Uuid, source:GUIDE / WORK_RECORD, sourceId:Uuid, sourceVersion:int, state:PENDING / RESOLVED / UNRESOLVED |
 
 - INQUIRY_ANALYSIS의 answerMessageId는 UUID·workRecord=null이며 accessContext.purpose는 EMPLOYEE_HELP 또는 SYSTEM_WORK다. CASE_DRAFT는 answerMessageId=null·WorkRecordContext 필수·purpose=CASE_DRAFT다.
@@ -379,6 +380,7 @@ askedFields는 그 문제의 질문 묶음 requestedFields를 물은 순서대�
 |---|---|---|
 | Spring→AI POST /internal/v2/index-jobs | IndexApplyRequest → 202 IndexApplySnapshot | 승인 commit 뒤 현재 버전의 jobId/attempt로 호출. 동일 키·같은 digest는 기존 결과, 다른 내용409 |
 | Spring→AI GET /internal/v2/index-jobs/{jobId}?attempt={n} | 없음 → 200 IndexApplySnapshot | job/attempt/승인 버전/store/digest 대조. 404·timeout은 실패 확정이 아님 |
+| AI→Spring GET /internal/v2/cases/{caseId}/index-source?caseVersion={n} | 없음 → 200 CaseIndexSource | 승인된 현재 버전이고 반영이 끝나지 않은 저장소가 있을 때만. 그 밖은 404. AI는 contentDigest를 요청 approvedCase의 사례 digest와 대조한 뒤에만 반영 |
 | AI→Spring POST /internal/v2/knowledge/authorizations | KnowledgeAuthorizationRequest → 200 KnowledgeAuthorizationResponse | 조회 성격. 현재 run·policyRevision·사용자 범위 검증. 무권한 후보는 allowedRefs에서 제외 |
 
 모든 내부 API는 고정된 Spring/AI origin·서비스 Bearer만 사용한다. 브라우저에 노출하지 않으며 모델이 임의 URL·토큰·runId를 구성하지 못한다. 401은 서비스 인증, 403은 현재 접근/정책 문맥 무효, 409는 동일 작업 내용/버전 충돌, 422는 필드/조건 오류, 429는 한도, 503은 저장소/서비스 불가다. 원격 malformed/다른 job 결과는 UPSTREAM_PROTOCOL_ERROR로 차단한다.

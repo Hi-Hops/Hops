@@ -288,7 +288,7 @@ def test_duplicate_authorization_headers_are_rejected(client, ledger) -> None:
 
 
 @pytest.mark.parametrize(
-    "path", ["/internal", "/internal/v2/index-jobs", "/internal/v3/anything", "/internal/mock/v1"]
+    "path", ["/internal", "/internal/v2/unknown", "/internal/v3/anything", "/internal/mock/v1"]
 )
 def test_every_internal_path_requires_service_auth(client, path) -> None:
     # 아직 없는 내부 경로도 인증 전에는 존재 여부를 드러내지 않는다.
@@ -296,6 +296,14 @@ def test_every_internal_path_requires_service_auth(client, path) -> None:
     assert response.status_code == 401
     assert response.json()["code"] == "AUTH_CONTEXT_INVALID"
     assert client.post(path, json={}, headers=auth()).status_code == 404
+
+
+def test_index_jobs_require_auth_and_are_unavailable_without_index_settings(client) -> None:
+    # 색인 연결(검색 DB·Neo4j·임베딩 키·Spring)이 없으면 접수하지 않는다.
+    assert client.post("/internal/v2/index-jobs", json={}).status_code == 401
+    response = client.post("/internal/v2/index-jobs", json={}, headers=auth())
+    assert response.status_code == 503
+    assert response.json()["code"] == "INDEX_UNAVAILABLE"
 
 
 def test_internal_prefix_match_is_segment_based(client) -> None:
