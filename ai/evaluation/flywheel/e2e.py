@@ -30,6 +30,7 @@ from typing import Any
 from evaluation.curator.candidates import CHECK_ITEM, SYMPTOM, node_id
 from evaluation.flywheel.bundle import Bundle, RoleEntry, load_bundle
 from evaluation.flywheel.e2e_api import Api, ApiError, wait_until
+from evaluation.flywheel.e2e_neo4j import GraphUnavailable, read_case
 from evaluation.flywheel.e2e_observer import Observer
 from evaluation.harness.user_sim import reply_to
 
@@ -309,14 +310,19 @@ def evaluate_followup(
     mentions = observer.mentions(outcome.inquiry_id, case_needles(case))
     in_evidence = mentions["related_knowledge"] or mentions["run_result"]
     evidence_total = observer.evidence_count(outcome.inquiry_id)
-    if not approved:
+    if profile == "INTERNAL_JUDGEMENT":
+        expected = None
+    elif not approved:
         expected = "ABSENT"
     elif profile is None:
         expected = None
     else:
         expected = gold["caseA"][profile]["caseEvidence"]
     status, detail = INFO, f"프로필 {profile}, 근거에 나옴={in_evidence}"
-    if expected == "ABSENT":
+    if profile == "INTERNAL_JUDGEMENT":
+        status = FAIL
+        detail += ", 직원 상담에서 내부 판단 범위가 감지되어 현재 검증 정책에 맞지 않는다"
+    elif expected == "ABSENT":
         status = FAIL if in_evidence else PASS
     elif expected == "CITED_AS_EVIDENCE":
         status = PASS if in_evidence else FAIL
@@ -438,7 +444,7 @@ def run_flywheel(ctx: Context) -> dict[str, Any]:
     except ApiError as error:
         rec.add("A9", "담당자가 사례 A를 승인", FAIL, str(error))
         return {"transcripts": transcripts, "profile": None}
-    document = observer.case_document(draft["id"])
+    document = observer.case_document(draft["id"], version)
     approved_doc = bool(document) and document["document_status"] == "APPROVED"
     rec.add("A10", "승인 사례가 검색 문서로 저장됨", PASS if approved_doc else FAIL, str(document))
     approved_case = {**draft, "document_id": (document or {}).get("document_id")}
@@ -465,14 +471,37 @@ def run_flywheel(ctx: Context) -> dict[str, Any]:
         PASS if publication.get("visibleToSearch") else FAIL,
         f"규칙 {publication.get('searchRule')}, 상태 {publication.get('state')}",
     )
-    rows = observer.relation_case_rows(draft["id"])
-    reflected = rows["symptoms"] > 0 and rows["checks"] > 0
+    current_case = observer.case_for_ticket(ticket_id)
+    graph_indexes = [
+        item
+        for item in detail.get("indexes", [])
+        if item.get("store") == "NEO4J" and item.get("caseVersion") == version
+    ]
+    if len(graph_indexes) != 1 or graph_indexes[0].get("state") in (
+        "PENDING",
+        "RUNNING",
+        "UNKNOWN",
+    ):
+        rec.add(
+            "A13",
+            "승인 사례 버전과 Neo4j 노드·관계가 일치함",
+            BLOCKED,
+            "현재 승인 버전의 Neo4j 색인 완료를 확인하지 못했다",
+        )
+    elif graph_indexes[0].get("state") != "SUCCEEDED":
+        rec.add(
+            "A13",
+            "승인 사례 버전과 Neo4j 노드·관계가 일치함",
+            FAIL,
+            "Neo4j 색인이 실패했거나 알 수 없는 상태다",
+        )
+    else:
+        check_graph(rec, current_case, document, version)
     rec.add(
-        "A13",
-        "승인 사례의 관계가 관계 조회 테이블에 반영됨",
-        PASS if reflected else BLOCKED,
-        "" if reflected else "반영하는 코드가 없어 행이 0건이다(알려진 공백, 별도 이슈로 분리)",
-        rows=rows,
+        "A13.1",
+        "Spring 관계 조회 결과 확인",
+        BLOCKED,
+        "그래프 저장 확인과 별도이며 이 드라이버는 담당자 관계 조회를 실행하지 않는다",
     )
     for role, prefix in (("B", "B1"), ("C", "C1")):
         outcome = drive_inquiry(ctx, bundle.roles[role])
@@ -482,6 +511,60 @@ def run_flywheel(ctx: Context) -> dict[str, Any]:
         )
     detected = {value for value in profiles.values() if value}
     return {"transcripts": transcripts, "profile": sorted(detected), "caseId": draft["id"]}
+
+
+def check_graph(
+    rec: Recorder, case: dict[str, Any] | None, document: dict[str, Any] | None, version: int
+) -> None:
+    """승인 스냅샷과 Neo4j의 노드·정확한 관계 대상을 비교한다."""
+    title = "승인 사례 버전과 Neo4j 노드·관계가 일치함"
+    if not case or not document or case["version_no"] != version:
+        rec.add("A13", title, BLOCKED, "승인 사례 또는 해당 문서 버전을 확인하지 못했다")
+        return
+    try:
+        links = json.loads(case["relation_candidates"] or "[]")
+        expected = {(link["relation"], link["targetId"]) for link in links}
+        if not expected:
+            rec.add("A13", title, BLOCKED, "승인 사례의 관계 대상이 없다")
+            return
+        graph = read_case(case["id"])
+        nodes = graph["nodes"]
+        if len(nodes) != 1:
+            rec.add("A13", title, FAIL, f"사례 노드 {len(nodes)}건")
+            return
+        props, edges = nodes[0]
+        document_id = document["document_version_id"]
+        actual = {(edge["kind"], edge["target"]) for edge in edges if edge["kind"]}
+        labels = {"APPLIES_TO": "System", "ADDRESSES": "Symptom", "USES_CHECK": "CheckItem"}
+        valid = (
+            case["case_status"] == "APPROVED"
+            and props.get("version_no") == version
+            and props.get("source_document_version_id") == document_id
+            and props.get("review_status") == "APPROVED"
+            and props.get("access_level") == case["access_level"]
+            and document["document_status"] == "APPROVED"
+            and document["version_status"] == "APPROVED"
+            and actual == expected
+            and len(edges) == len(expected)
+            and all(
+                edge["kind"] in labels
+                and labels[edge["kind"]] in edge["labels"]
+                and edge["review"] == "APPROVED"
+                and edge["access"] == case["access_level"]
+                and edge["document"] == document_id
+                for edge in edges
+            )
+        )
+        rec.add(
+            "A13",
+            title,
+            PASS if valid else FAIL,
+            "" if valid else "사례·문서 버전 또는 관계 대상·권한이 다르다",
+        )
+    except GraphUnavailable as error:
+        rec.add("A13", title, BLOCKED, str(error))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        rec.add("A13", title, BLOCKED, "승인 사례 또는 그래프 응답 형식을 확인하지 못했다")
 
 
 # 점검과 실행
