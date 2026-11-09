@@ -395,7 +395,7 @@ IndexApplyRequest는 contractVersion/jobId/caseId/caseVersion/store/attempt/cont
 
 digest는 `{caseId,caseVersion,store,approvedCase}` 객체를 키 오름차순·UTF-8·공백 없는 JSON·Unicode 원문·배열 순서 유지로 직렬화한 SHA-256 소문자 hex다. Java/Python의 기본 key 순서나 Unicode escape 설정에 의존하지 않는다. 숫자는 양의 정수 버전만 사용한다. AI는 받는 시점에 digest를 재계산해 불일치 시409로 거부한다.
 
-VECTOR는 caseId/caseVersion 청크를 upsert하고 NEO4J는 승인된 기존 노드/관계만 같은 버전 키로 upsert한다. 결과는 jobId/caseId/caseVersion/store/attempt/contentDigest/state/error/updatedAt다. 성공은 원격 저장 검증 후 SUCCEEDED, 실패는 FAILED, 확인 불가는 UNKNOWN이다. Spring은 현재 승인 버전·최신 attempt·digest가 모두 맞는 성공만 기록한다. 이전 attempt의 늦은 성공이 새 반영 상태를 덮지 못한다.
+VECTOR는 caseId/caseVersion 청크를 upsert하고 NEO4J는 승인된 기존 노드/관계만 같은 버전 키로 upsert한다. 결과는 jobId/caseId/caseVersion/store/attempt/contentDigest/state/error/updatedAt다. 성공은 원격 저장 검증 후 SUCCEEDED, 실패는 FAILED, 확인 불가는 UNKNOWN이다. 반영은 저장소별 upsert라 다시 해도 결과가 같으므로, AI는 실행이 사라진 작업(종료 때 취소했거나, 실행하는 프로세스가 없는데 오래 끝나지 않은 작업)과 예상하지 못한 오류를 UNKNOWN이 아니라 `INDEX_UNAVAILABLE`·retryable=true의 FAILED로 둔다. 담당자는 이 작업을 수동 재시도할 수 있다. Spring은 현재 승인 버전·최신 attempt·digest가 모두 맞는 성공만 기록한다. 이전 attempt의 늦은 성공이 새 반영 상태를 덮지 못한다.
 
 Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되지 않으면 UNKNOWN으로 유지한다. FAILED의 다음 attempt는 현재 담당자의 수동 명령으로만 만든다. UNKNOWN을 실패로 간주해 새 attempt를 만들지 않는다. 성공한 저장소는 유지하며 두 성공 전 Spring의 공개 gate는 PRIVATE다.
 

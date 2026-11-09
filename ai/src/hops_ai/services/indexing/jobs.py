@@ -7,8 +7,10 @@
   RUNNING으로 응답하고 반영은 계속한다.
 - 실행: Spring에서 색인 원본을 읽고 그 digest가 요청의 승인 본문으로 계산한 사례 digest와 같을 때만
   저장소에 반영한다. 반영 뒤 원격 저장소를 다시 읽어 확인해야 SUCCEEDED다.
-- 조회: 오래 끝나지 않은 작업(재시작 등으로 실행이 사라진 경우)은 UNKNOWN이다. 실패나 성공으로
-  확정하지 않는다.
+- 중단: 반영은 저장소별 upsert이고 원본은 매번 Spring에서 다시 읽으므로 다시 해도 결과가 같다.
+  그래서 실행이 사라진 작업(이 프로세스가 실행하지 않는데 오래 끝나지 않은 작업, 종료 때 취소한
+  작업)과 예상하지 못한 오류는 재시도할 수 있는 FAILED로 둔다. UNKNOWN으로 두면 Spring은
+  같은 작업을 다시 보내지 않고 수동 재시도도 FAILED에서만 열려 사례가 반영 대기에 남는다.
 """
 
 import asyncio
@@ -69,7 +71,8 @@ class IndexJobService:
         self._stores = stores
         self._wait_seconds = wait_seconds
         self._stale_after = stale_after
-        self._running: set[asyncio.Task[None]] = set()
+        # 이 프로세스가 실행 중인 작업. 오래 걸려도 아직 실행 중이면 중단으로 보지 않는다.
+        self._running: dict[asyncio.Task[None], tuple[str, int]] = {}
 
     async def accept(self, body: Any) -> IndexApplySnapshot:
         try:
@@ -96,8 +99,8 @@ class IndexJobService:
             raise IndexRequestConflict("같은 작업·attempt에 다른 요청이 왔다") from None
         if acceptance.created:
             task = asyncio.create_task(self._run(request, body["approvedCase"]))
-            self._running.add(task)
-            task.add_done_callback(self._running.discard)
+            self._running[task] = (request.jobId, request.attempt)
+            task.add_done_callback(lambda done: self._running.pop(done, None))
             try:
                 await asyncio.wait_for(asyncio.shield(task), self._wait_seconds)
             except TimeoutError:
@@ -109,21 +112,41 @@ class IndexJobService:
         job = await self._jobs.get(job_id, attempt)
         if job is None:
             return None
-        if job.state in ("PENDING", "RUNNING") and self._is_stale(job):
-            moved = await self._jobs.transition(
-                job_id, attempt, "UNKNOWN", from_states=("PENDING", "RUNNING")
-            )
+        if (
+            job.state in ("PENDING", "RUNNING")
+            and (job_id, attempt) not in self._running.values()
+            and self._is_stale(job)
+        ):
+            moved = await self._interrupt(job_id, attempt)
             job = moved or await self._jobs.get(job_id, attempt) or job
         return self._snapshot(job)
 
     async def shutdown(self) -> None:
-        """진행 중인 반영을 멈춘다. 남은 작업은 조회 때 UNKNOWN이 된다."""
-        for task in list(self._running):
+        """진행 중인 반영을 멈추고 그 작업을 재시도할 수 있는 FAILED로 둔다.
+
+        여기서 기록하지 못한 작업(DB 오류, 강제 종료)은 조회 때 오래된 작업으로 같은 FAILED가 된다.
+        """
+        cancelled = dict(self._running)
+        for task in cancelled:
             task.cancel()
-        await asyncio.gather(*self._running, return_exceptions=True)
+        await asyncio.gather(*cancelled, return_exceptions=True)
+        for job_id, attempt in cancelled.values():
+            try:
+                await self._interrupt(job_id, attempt)
+            except Exception:
+                logger.warning("중단한 색인 작업을 기록하지 못했다 jobId=%s", job_id, exc_info=True)
 
     def _is_stale(self, job: IndexJob) -> bool:
         return datetime.now(UTC) - job.updated_at > self._stale_after
+
+    async def _interrupt(self, job_id: str, attempt: int) -> IndexJob | None:
+        return await self._jobs.transition(
+            job_id,
+            attempt,
+            "FAILED",
+            _retryable("색인 반영이 중단됐다. 다시 시도할 수 있다"),
+            from_states=("PENDING", "RUNNING"),
+        )
 
     async def _run(self, request: IndexApplyRequest, approved_case: Mapping[str, Any]) -> None:
         started = await self._jobs.transition(
@@ -163,12 +186,16 @@ class IndexJobService:
         except asyncio.CancelledError:
             raise
         except Exception:
-            # 알 수 없는 오류는 반영 여부를 확정할 수 없다. 원인 상세는 로그에만 남긴다.
+            # 반영 여부는 모르지만 다시 해도 결과가 같다. 원인 상세는 로그에만 남긴다.
             logger.exception(
                 "사례 색인 중 예상하지 못한 오류 jobId=%s store=%s", request.jobId, request.store
             )
             await self._jobs.transition(
-                request.jobId, request.attempt, "UNKNOWN", from_states=("RUNNING",)
+                request.jobId,
+                request.attempt,
+                "FAILED",
+                _retryable("색인 반영 중 오류가 났다. 다시 시도할 수 있다"),
+                from_states=("RUNNING",),
             )
             return
         logger.info(
@@ -198,3 +225,9 @@ class IndexJobService:
             updatedAt=job.updated_at.strftime("%Y-%m-%dT%H:%M:%S.")
             + f"{job.updated_at.microsecond // 1000:03d}Z",
         )
+
+
+def _retryable(message: str) -> dict[str, Any]:
+    return AiError(code="INDEX_UNAVAILABLE", message=message, retryable=True).model_dump(
+        mode="json"
+    )

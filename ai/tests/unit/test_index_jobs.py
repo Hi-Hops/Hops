@@ -248,16 +248,67 @@ async def test_a_slow_index_answers_running_and_finishes_later() -> None:
     assert store.applied == [DOC_VERSION]
 
 
-async def test_a_job_left_running_too_long_reads_as_unknown_not_failed() -> None:
+async def test_a_job_nobody_is_running_any_more_fails_as_retryable() -> None:
+    # 재시작 등으로 실행이 사라진 작업. 반영은 upsert라 다시 해도 같으므로 수동 재시도를 열어 둔다.
     jobs = MemoryJobs()
-    svc, _, _ = service(jobs=jobs, store=Store(delay=10), wait=0.01)
-    await svc.accept(request())
+    svc, _, _ = service(jobs=jobs)
+    await jobs.accept(
+        job_id=JOB_ID,
+        attempt=1,
+        case_id=CASE_ID,
+        case_version=1,
+        store="VECTOR",
+        content_digest=request()["contentDigest"],
+        request_digest="d" * 64,
+    )
+    await jobs.transition(JOB_ID, 1, "RUNNING", from_states=("PENDING",))
     jobs.age(minutes=10)
 
     snapshot = await svc.get(JOB_ID, 1)
 
-    assert snapshot is not None and snapshot.state == "UNKNOWN" and snapshot.error is None
+    assert snapshot is not None and snapshot.state == "FAILED"
+    assert snapshot.error is not None
+    assert (snapshot.error.code, snapshot.error.retryable) == ("INDEX_UNAVAILABLE", True)
+
+
+async def test_a_long_job_still_running_here_is_not_judged_stale() -> None:
+    jobs = MemoryJobs()
+    svc, _, store = service(jobs=jobs, store=Store(delay=0.2), wait=0.01)
+    await svc.accept(request())
+    jobs.age(minutes=10)
+
+    during = await svc.get(JOB_ID, 1)
+    await asyncio.sleep(0.3)
+    later = await svc.get(JOB_ID, 1)
+
+    assert during is not None and during.state == "RUNNING"
+    assert later is not None and later.state == "SUCCEEDED"
+    assert store.applied == [DOC_VERSION]
+
+
+async def test_an_unexpected_error_fails_as_retryable() -> None:
+    class Broken(Store):
+        async def apply(self, request, source) -> None:
+            raise RuntimeError("예상하지 못한 오류")
+
+    svc, _, _ = service(store=Broken())
+
+    snapshot = await svc.accept(request())
+
+    assert snapshot.state == "FAILED"
+    assert snapshot.error is not None
+    assert (snapshot.error.code, snapshot.error.retryable) == ("INDEX_UNAVAILABLE", True)
+
+
+async def test_shutdown_fails_the_jobs_it_cancels_as_retryable() -> None:
+    svc, _, _ = service(store=Store(delay=10), wait=0.01)
+    await svc.accept(request())
+
     await svc.shutdown()
+
+    snapshot = await svc.get(JOB_ID, 1)
+    assert snapshot is not None and snapshot.state == "FAILED"
+    assert snapshot.error is not None and snapshot.error.retryable is True
 
 
 async def test_an_unknown_job_reads_as_none() -> None:
