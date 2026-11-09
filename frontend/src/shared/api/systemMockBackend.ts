@@ -4,6 +4,7 @@ import { isRecord, isUuid } from './wire';
 import { mockError, MockHttpError } from './mockError';
 import { systems, users } from './systemMockData';
 import { SystemMockWorkflow } from './systemMockWorkflow';
+import { SystemMockImages } from './systemMockImages';
 import { mockExamples } from './systemMockExamples';
 import type * as D from './types/hopsSystem1';
 import type { SubscriptionTarget } from './types';
@@ -51,6 +52,7 @@ export class SystemMockBackend {
   private inquiries = new Map<string, Workspace>();
   private details = new Map<string, D.TicketDetail>();
   private journal = new Map<string, Journal>();
+  private images = new SystemMockImages();
   private listeners = new Set<() => void>();
   private lost = false;
   private delay = 180;
@@ -97,6 +99,7 @@ export class SystemMockBackend {
     this.sessions.clear();
     this.refresh = null;
     this.inquiries.clear();
+    this.images.reset();
     this.details.clear();
     this.journal.clear();
     this.people = clone(users);
@@ -541,6 +544,8 @@ export class SystemMockBackend {
               workspace.result.resultRevision++;
             } else this.storeTicket(workspace, problem);
           }
+          if (workspace.messages.some((message) => (message.attachments?.length ?? 0) > 0))
+            answer = `시연 환경에서는 첨부 이미지를 분석하지 않아요. ${answer}`;
           this.message(workspace, answer, 'AI', null, run.answerMessageId).problemIds = [
             ...problemIds,
           ];
@@ -626,6 +631,10 @@ export class SystemMockBackend {
     const user = this.currentUser(token);
     if (route === '/auth/me') return user;
     if (route === '/systems') return clone(systems);
+    if (parts[0] === 'inquiries' && parts[2] === 'image-attachments' && method !== 'GET')
+      mockError(404, 'NOT_FOUND', '시연에서 지원하지 않는 이미지 작업이에요.');
+    if (method === 'GET' && parts[0] === 'image-attachments' && parts[1] && parts.length === 2)
+      return this.images.metadata(user.id, parts[1]);
     if (parts[0] === 'operations') {
       const entry = [...this.journal.values()].find(
         (j) =>
@@ -664,17 +673,31 @@ export class SystemMockBackend {
         ? this.workflow.post(user, parts, body)
         : null;
       if (workflowResource) resource = workflowResource;
-      else if (route === '/inquiries') {
+      else if (route === '/image-attachments') {
+        resource = {
+          type: 'IMAGE_ATTACHMENT',
+          id: this.images.upload(user.id, body.mediaType, body.dataBase64),
+        };
+      } else if (route === '/inquiries') {
         if (typeof body.content !== 'string' || contentError(body.content))
           mockError(400, 'INVALID_INPUT', '문의 내용을 확인해 주세요.');
         if (body.reportedSystemId !== null && !systems.some((s) => s.id === body.reportedSystemId))
           mockError(400, 'INVALID_INPUT', '지원 시스템을 선택해 주세요.');
+        const imageIds = this.images.validate(user.id, body.attachmentIds, 0);
         const workspace = this.createWorkspace(
           user,
           body.content,
           body.reportedSystemId as string | null,
           body.requestId,
         );
+        const firstMessage = workspace.messages[0];
+        if (!firstMessage) throw new Error('문의 메시지를 확인하지 못했어요.');
+        if (imageIds.length)
+          firstMessage.attachments = this.images.bind(
+            imageIds,
+            workspace.result.id,
+            firstMessage.id,
+          );
         this.analyze(workspace, body.requestId);
         resource = { type: 'INQUIRY', id: workspace.result.id };
       } else if (parts[0] === 'inquiries' && parts[1]) {
@@ -739,7 +762,17 @@ export class SystemMockBackend {
               !body.problemIds.every((id) => workspace.result.problems.some((p) => p.id === id))
             )
               mockError(400, 'INVALID_INPUT', '보완 대상을 확인해 주세요.');
+            const imageIds = this.images.validate(
+              user.id,
+              body.attachmentIds,
+              workspace.messages.reduce(
+                (count, item) => count + (item.attachments?.length ?? 0),
+                0,
+              ),
+            );
             const message = this.message(workspace, body.content, 'USER', body.requestId);
+            if (imageIds.length)
+              message.attachments = this.images.bind(imageIds, workspace.result.id, message.id);
             if (body.problemIds.length) message.problemIds = body.problemIds as string[];
             if (
               !body.problemIds.length &&
@@ -847,6 +880,11 @@ export class SystemMockBackend {
     }
     if (parts[0] === 'inquiries' && parts[1]) {
       const workspace = this.workspace(user, parts[1]);
+      if (parts[2] === 'image-attachments') {
+        if (parts[3] && parts[4] === 'content' && parts.length === 5)
+          return this.images.content(user.id, workspace.result.id, parts[3]);
+        mockError(404, 'NOT_FOUND', '시연에서 지원하지 않는 이미지 조회예요.');
+      }
       if (parts[2] !== 'messages') return clone(workspace.result);
       const before = url.searchParams.has('beforeSequenceNo')
         ? number('beforeSequenceNo', 0)

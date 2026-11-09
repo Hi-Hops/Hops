@@ -166,7 +166,10 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                           position={position}
                         />
                         {import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' &&
-                          message.sender === 'USER' && (
+                          message.sender === 'USER' &&
+                          (import.meta.env.VITE_DATA_MODE?.trim() === 'mock' ? (
+                            <p>시연에서는 이미지 공개 및 분석 대상을 설정할 수 없어요.</p>
+                          ) : (
                             <>
                               <ImageProblemLinkEditor
                                 inquiry={inquiry}
@@ -181,7 +184,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                                 disabled={!chat.ready || closed}
                               />
                             </>
-                          )}
+                          ))}
                       </div>
                     ))}
                     {import.meta.env.VITE_CHAT_IMAGE_ATTACHMENTS === 'true' &&

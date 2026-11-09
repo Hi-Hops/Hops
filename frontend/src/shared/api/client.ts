@@ -238,11 +238,6 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
     // HTTP JSON 역직렬화 경계. 신규 DTO는 기능 API에서 검증한다.
     return body as T;
   }
-  if (options.responseType === 'png')
-    throw new ApiError(
-      0,
-      localError('IMAGE_UNAVAILABLE', '현재 연결에서는 이미지를 불러올 수 없어요.'),
-    );
   if (options.signal?.aborted) throw new DOMException('요청 취소', 'AbortError');
   await new Promise<void>((resolve) => setTimeout(resolve, 40));
   if (options.signal?.aborted) throw new DOMException('요청 취소', 'AbortError');
@@ -255,6 +250,11 @@ async function performRequest<T>(path: string, options: RequestOptions): Promise
       token,
       options.idempotencyKey,
     );
+    if (
+      options.responseType === 'png' &&
+      (!(result instanceof Blob) || result.type !== 'image/png')
+    )
+      throw new ApiError(0, localError('INVALID_RESPONSE', '이미지 응답을 확인하지 못했어요.'));
     if (options.idempotencyKey && systemMockBackend.takeLostResponse())
       throw new ApiError(0, localError('NETWORK_ERROR', '저장 응답을 확인하지 못했어요.'));
     return result as T;

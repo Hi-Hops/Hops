@@ -155,6 +155,28 @@ it('이미지 기능이 켜진 경우에만 관찰 확인을 표시한다', () =
   expect(screen.getByRole('region', { name: '이미지 관찰 확인' })).toHaveTextContent('오류 화면');
 });
 
+it('F003-CONTRACT Mock 이력에서는 구현되지 않은 이미지 공개와 분석 선택을 제공하지 않는다', () => {
+  const state = chatState(1, false, []);
+  vi.stubEnv('VITE_CHAT_IMAGE_ATTACHMENTS', 'true');
+  vi.stubEnv('VITE_DATA_MODE', 'mock');
+  vi.mocked(useSystemChat).mockReturnValue({
+    ...state,
+    items: [
+      {
+        ...answer,
+        sender: 'USER',
+        attachments: [{ id: crypto.randomUUID(), mediaType: 'image/png', byteSize: 10 }],
+      },
+    ],
+  });
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(
+    screen.getByText('시연에서는 이미지 공개 및 분석 대상을 설정할 수 없어요.'),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '공개 문제 선택' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '분석 문제 선택' })).not.toBeInTheDocument();
+});
+
 it('F005-CONTRACT-03 분석이 시작·종료돼도 닫은 접수 결과의 모달은 다시 열지 않는다', async () => {
   vi.mocked(useSystemChat).mockReturnValue(chatState(1, false));
   const view = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
