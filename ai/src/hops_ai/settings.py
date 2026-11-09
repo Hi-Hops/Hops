@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # real 모드에서 Supervisor와 역할이 쓰는 OpenAI 모델.
     # 비용 최소화를 기준으로 정하고 실측 후 검토한다.
     supervisor_model: str = "gpt-6-luna"
+    # 프롬프트 계열별 모델(JSON, 예: {"knowledge.assessment": "gpt-6.1-terra"}). 비어 있으면 모든
+    # 호출이 supervisor_model을 쓴다. 계열 이름은 services.llm.routing.PROMPT_FAMILIES다.
+    role_models: dict[str, str] = Field(default_factory=dict)
     ticket_tools_enabled: bool = True
     spring_base_url: str | None = None
     spring_service_token: SecretStr | None = Field(
@@ -113,6 +116,13 @@ class Settings(BaseSettings):
             and self.spring_base_url
             and self.spring_service_token
         )
+
+    @field_validator("role_models")
+    @classmethod
+    def _known_prompt_families(cls, value: dict[str, str]) -> dict[str, str]:
+        from hops_ai.services.llm.routing import validate_role_models
+
+        return validate_role_models(value)
 
     @field_validator("spring_base_url", "spring_service_token", mode="before")
     @classmethod

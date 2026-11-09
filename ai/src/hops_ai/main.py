@@ -63,7 +63,7 @@ def create_app(
                 capture_content=resolved.langfuse_capture_content,
             )
         pipeline = SupervisorPipeline(
-            OpenAIClient(key, resolved.supervisor_model),
+            OpenAIClient(key, resolved.supervisor_model, role_models=resolved.role_models),
             knowledge_source=knowledge_source_for(resolved),
             relation_source=relation_source_for(resolved),
             tracing=tracing,
