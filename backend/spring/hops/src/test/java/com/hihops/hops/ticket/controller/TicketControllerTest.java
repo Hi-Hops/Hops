@@ -2,6 +2,8 @@ package com.hihops.hops.ticket.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,6 +24,8 @@ import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.hihops.hops.knowledge.service.QueryEmbedding;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +68,23 @@ class TicketControllerTest {
         mvc.perform(as(STAFF, "/case-generations/" + generation)).andExpect(status().isServiceUnavailable());
     }
 
+    @Test void 추천은_현재_담당자만_조회하며_검색_실패는_빈_결과로_숨기지_않는다() throws Exception {
+        String path = "/tickets/" + TICKET + "/recommended-cases";
+        mvc.perform(as(REQUESTER, path)).andExpect(status().isForbidden());
+        mvc.perform(as(OTHER, path)).andExpect(status().isForbidden());
+        mvc.perform(as(ADMIN, path)).andExpect(status().isForbidden());
+        verifyNoInteractions(embedding);
+        when(embedding.embed("문서 오류")).thenThrow(new TransientDataAccessResourceException("test"));
+        mvc.perform(as(STAFF, path)).andExpect(status().isServiceUnavailable());
+    }
+
+    @Test void 담당자는_추천_가능한_사례가_없으면_빈_목록을_받는다() throws Exception {
+        String vector = "[" + String.join(",", java.util.Collections.nCopies(1536, "0.1")) + "]";
+        when(embedding.embed("문서 오류")).thenReturn(vector);
+        mvc.perform(as(STAFF, "/tickets/" + TICKET + "/recommended-cases"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+    }
+
     private static final UUID DEPARTMENT = UUID.fromString("71000000-0000-7000-8000-000000000001");
     private static final UUID STAFF = UUID.fromString("71000000-0000-7000-8000-000000000002");
     private static final UUID OTHER = UUID.fromString("71000000-0000-7000-8000-000000000003");
@@ -79,6 +100,8 @@ class TicketControllerTest {
     private static final UUID PROBLEM = UUID.fromString("71000000-0000-7000-8000-000000000013");
     private static final UUID MESSAGE = UUID.fromString("71000000-0000-7000-8000-000000000014");
 
+    @MockitoBean
+    private QueryEmbedding embedding;
     @Autowired
     private MockMvc mvc;
     @Autowired

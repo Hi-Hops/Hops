@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.hihops.hops.knowledge.domain.KnowledgeDocumentVersion;
+import com.hihops.hops.knowledge.domain.ReadRule;
 import com.hihops.hops.knowledge.repository.HybridKnowledgeRepository;
 import com.hihops.hops.knowledge.repository.HybridKnowledgeRepository.RankedChunk;
 import com.hihops.hops.knowledge.repository.KnowledgeDocumentVersionRepository;
@@ -33,18 +34,28 @@ public class HybridKnowledgeSearch {
     private final KnowledgeEvidenceAssembler assembler;
 
     public List<Hit> search(String input, Query query) {
-        return search(input, query, Mode.HYBRID);
+        return search(input, query, Mode.HYBRID, false);
+    }
+
+    /** 담당자 추천은 설정과 관계없이 양쪽 색인이 완료된 사례만 반환한다. */
+    public List<Hit> searchIndexedCases(String input, Query query) {
+        return search(input, query, Mode.HYBRID, true);
     }
 
     enum Mode { KEYWORD, VECTOR, HYBRID }
 
     // 같은 후보·권한과 SQL을 고정 질의 비교에서도 사용한다.
     List<Hit> search(String input, Query query, Mode mode) {
+        return search(input, query, mode, false);
+    }
+
+    private List<Hit> search(String input, Query query, Mode mode, boolean requireIndexed) {
         String normalized = Normalizer.normalize(input, Normalizer.Form.NFC);
         List<String> codes = CODE.matcher(normalized.toLowerCase(Locale.ROOT)).results()
                 .map(match -> match.group()).distinct().limit(KnowledgeQueryTokens.MAX_TOKENS).toList();
         String vector = mode == Mode.KEYWORD ? null : embedding.embed(normalized);
-        var rule = visibility.rule(query.internalRead());
+        var rule = requireIndexed
+                ? ReadRule.user(true) : visibility.rule(query.internalRead());
         var candidates = repository.rank(query, query.tokens(), codes, vector, rule.requireIndexedCase(),
                 mode.name().toLowerCase(Locale.ROOT), MIN_SIMILARITY);
         if (candidates.isEmpty()) {

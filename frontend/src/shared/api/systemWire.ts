@@ -374,3 +374,9 @@ export const readResolution = (v: unknown) => checked(v, resolution) as D.Resolu
 export const readGeneration = (v: unknown) => checked(v, generation) as D.CaseGeneration;
 export const readCases = (v: unknown) => checked(v, page(caseSummary)) as D.Page<D.CaseSummary>;
 export const readCase = (v: unknown) => checked(v, caseDetail) as D.CaseDetail;
+
+export const readRecommendedCases = (v: unknown) =>
+  checked(
+    v,
+    list((item) => knowledge(item) && isRecord(item) && item.kind === 'CASE'),
+  ) as D.KnowledgeEvidence[];

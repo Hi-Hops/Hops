@@ -14,6 +14,7 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { RouteModal } from '@/shared/ui/RouteModal';
 import {
   getManagementTicket,
+  getRecommendedCases,
   getRelatedMessages,
   getSystemTicket,
   systemTicketKeys,
@@ -80,6 +81,14 @@ function RequestReference({ ticket }: RequestContentProps) {
 }
 function RequestContent({ ticket }: RequestContentProps) {
   const actor = useSession((s) => s.user?.id);
+  const recommendations = useQuery({
+    queryKey: ['hops-system-1', 'recommended-cases', actor, ticket.id],
+    queryFn: ({ signal }) => getRecommendedCases(ticket.id, signal),
+    enabled: Boolean(actor),
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
   const request = ticket.standardRequest;
   const cases = request.knowledge.filter((item) => item.kind === 'CASE');
   const documents = request.knowledge.filter((item) => item.kind !== 'CASE');
@@ -223,7 +232,27 @@ function RequestContent({ ticket }: RequestContentProps) {
         )}
       </section>
       <section className={styles.requestCard}>
-        <h3>관련 과거 해결 사례</h3>
+        <h3>추천 해결 사례</h3>
+        <p>문의 제목을 기준으로 찾은 후보예요. 처리 전에 증상과 적용 조건을 확인해 주세요.</p>
+        {recommendations.isError ? (
+          <ErrorState
+            title="추천 사례를 불러오지 못했어요"
+            onRetry={() => {
+              void recommendations.refetch();
+            }}
+          />
+        ) : recommendations.isFetching || recommendations.isPending ? (
+          <LoadingState label="추천 사례를 찾고 있어요" />
+        ) : recommendations.data.length ? (
+          recommendations.data.map((item) => (
+            <KnowledgeItem key={item.id} item={item} ticket={ticket} />
+          ))
+        ) : (
+          <p>추천할 사례가 없어요.</p>
+        )}
+      </section>
+      <section className={styles.requestCard}>
+        <h3>문의에 저장된 과거 해결 사례</h3>
         {cases.length ? (
           <>
             {cases.map((item) => (
