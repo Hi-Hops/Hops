@@ -70,6 +70,12 @@ public class RealtimeService {
             connection.close();
             return emitter;
         }
+        // 연결 확인을 가장 먼저 보낸다. 등록·heartbeat 예약 뒤에 보내면 즉시 실행되는 heartbeat나
+        // 업무 이벤트가 먼저 나갈 수 있다(첫 프레임을 :connected로 기대하는 테스트가 간헐 실패했다).
+        connection.send(SseEmitter.event().comment("connected"));
+        if (connection.closed) {
+            return emitter;
+        }
         connections.put(connection.id, connection);
         try {
             connection.heartbeat = scheduler.scheduleWithFixedDelay(connection::heartbeat, properties.heartbeat());
@@ -77,11 +83,6 @@ public class RealtimeService {
         } catch (org.springframework.core.task.TaskRejectedException exception) {
             connection.close();
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
-        }
-        if (connection.closed) {
-            connection.remove();
-        } else {
-            connection.send(SseEmitter.event().comment("connected"));
         }
         return emitter;
     }

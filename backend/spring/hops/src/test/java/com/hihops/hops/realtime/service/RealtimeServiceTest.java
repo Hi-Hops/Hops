@@ -259,6 +259,21 @@ class RealtimeServiceTest {
     }
 
     @Test
+    void 예약한_heartbeat가_바로_실행돼도_첫_프레임은_연결_확인이다() throws Exception {
+        // 스케줄러는 첫 heartbeat를 지연 없이 실행할 수 있다. 예약 중에 실행해 그 경쟁을 확정적으로 만든다.
+        when(scheduler.scheduleWithFixedDelay(any(Runnable.class), any(Duration.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return mock(ScheduledFuture.class);
+        });
+
+        MvcResult result = connect(null);
+
+        String wire = result.getResponse().getContentAsString();
+        assertThat(wire).startsWith(":connected\n\n");
+        assertThat(wire).contains(":heartbeat");
+    }
+
+    @Test
     void heartbeat에서도_현재_권한을_확인하고_회수되면_종료한다() throws Exception {
         MvcResult result = connect(null);
         ArgumentCaptor<Runnable> heartbeat = ArgumentCaptor.forClass(Runnable.class);
