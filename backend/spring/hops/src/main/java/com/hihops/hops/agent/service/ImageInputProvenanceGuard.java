@@ -29,37 +29,41 @@ class ImageInputProvenanceGuard {
     }
 
     void requireRetrySafe(JsonNode snapshot, UUID inquiryId) {
+        if (!isRetrySafe(snapshot, inquiryId)) throw unavailable();
+    }
+
+    boolean isRetrySafe(JsonNode snapshot, UUID inquiryId) {
         JsonNode input = snapshot.path("messages");
-        if (!input.isArray()) throw unavailable();
+        if (!input.isArray()) return false;
         var aiIds = new HashSet<UUID>();
         boolean hasImages = false;
         for (JsonNode message : input) {
-            if (!message.isObject()) throw unavailable();
+            if (!message.isObject()) return false;
             JsonNode images = message.path("imageAttachments");
             if (!images.isMissingNode()) {
-                if (!images.isArray()) throw unavailable();
+                if (!images.isArray()) return false;
                 hasImages |= !images.isEmpty();
             }
             String sender = message.path("sender").asString("");
             if ("AI".equals(sender)) {
                 try {
-                    if (!aiIds.add(UUID.fromString(message.path("id").asString("")))) throw unavailable();
+                    if (!aiIds.add(UUID.fromString(message.path("id").asString("")))) return false;
                 } catch (IllegalArgumentException exception) {
-                    throw unavailable();
+                    return false;
                 }
             } else if (!"USER".equals(sender)) {
-                throw unavailable();
+                return false;
             }
         }
         // 이미지가 있으면 기존 이미지 실행 차단이 이 실행 전체에 적용된다.
-        if (hasImages || aiIds.isEmpty()) return;
+        if (hasImages || aiIds.isEmpty()) return true;
         var found = new ArrayList<Message>();
         messages.findAllById(aiIds).forEach(found::add);
         if (found.size() != aiIds.size() || found.stream().anyMatch(message -> message.isDeleted()
                 || message.getSenderType() != SenderType.AI || !message.getInquiry().getId().equals(inquiryId))) {
-            throw unavailable();
+            return false;
         }
-        requireTextSafe(found);
+        return projector.restricted(found).isEmpty();
     }
 
     private static BusinessException unavailable() {

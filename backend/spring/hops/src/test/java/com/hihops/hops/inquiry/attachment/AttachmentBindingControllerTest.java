@@ -183,6 +183,8 @@ class AttachmentBindingControllerTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ticket WHERE inquiry_id=?", Integer.class, inquiry)).isZero();
         runImageAnalysis(owner, inquiry, first, UUID.randomUUID(), 2, 1).andExpect(status().isConflict());
         jdbc.update("UPDATE agent_run SET run_status='FAILED',error_code='MODEL_UNAVAILABLE',started_at=now(),completed_at=now() WHERE id=?", newRun);
+        mvc.perform(get("/api/v2/runs/{id}", newRun).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.error.retryable").value(true));
         UUID retryKey = UUID.randomUUID();
         String retry = mvc.perform(post("/api/v2/runs/{id}/retries", newRun)
                 .with(jwt().jwt(token -> token.subject(owner.toString()))).header("Idempotency-Key", retryKey)
@@ -685,6 +687,18 @@ class AttachmentBindingControllerTest {
                 + "VALUES (?,?,?,'INQUIRY_ANALYSIS','FAILED',1,?::jsonb,'test','test','test','MODEL_UNAVAILABLE',now(),now())",
                 failed, inquiry, trigger, snapshot);
         jdbc.update("UPDATE inquiry SET current_run_id=? WHERE id=?", failed, inquiry);
+        mvc.perform(get("/api/v2/runs/{id}", failed).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.error.code").value("MODEL_UNAVAILABLE"))
+                .andExpect(jsonPath("$.error.retryable").value(false));
+        mvc.perform(get("/api/v2/inquiries/{id}", inquiry).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.currentRun.error.retryable").value(false));
+        mvc.perform(get("/api/v2/runs/{id}", failed).with(jwt().jwt(token -> token.subject(other.toString()))))
+                .andExpect(status().isNotFound());
+        jdbc.update("UPDATE agent_run SET run_status='TIMED_OUT',error_code=NULL WHERE id=?", failed);
+        mvc.perform(get("/api/v2/runs/{id}", failed).with(jwt().jwt(token -> token.subject(owner.toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.error.code").value("DEADLINE_EXCEEDED"))
+                .andExpect(jsonPath("$.error.retryable").value(false));
+        jdbc.update("UPDATE agent_run SET run_status='FAILED',error_code='MODEL_UNAVAILABLE' WHERE id=?", failed);
         UUID retryKey = UUID.randomUUID();
         mvc.perform(post("/api/v2/runs/{id}/retries", failed).with(jwt().jwt(token -> token.subject(owner.toString())))
                 .header("Idempotency-Key", retryKey).contentType(MediaType.APPLICATION_JSON)

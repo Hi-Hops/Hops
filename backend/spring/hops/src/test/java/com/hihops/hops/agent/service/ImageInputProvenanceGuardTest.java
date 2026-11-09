@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.TransientDataAccessResourceException;
 
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
@@ -56,6 +57,14 @@ class ImageInputProvenanceGuardTest {
         when(messages.findAllById(any())).thenReturn(List.of(), List.of(otherInquiryAnswer));
         assertUnavailable(() -> guard.requireRetrySafe(snapshot, inquiryId));
         assertUnavailable(() -> guard.requireRetrySafe(snapshot, inquiryId));
+    }
+
+    @Test
+    void 출처_조회_DB_장애는_재시도_불가로_숨기지_않는다() {
+        var snapshot = mapper.readTree("{\"messages\":[{\"sender\":\"AI\",\"id\":\"" + answerId + "\"}]}");
+        when(messages.findAllById(any())).thenThrow(new TransientDataAccessResourceException("test"));
+        assertThatThrownBy(() -> guard.isRetrySafe(snapshot, inquiryId))
+                .isInstanceOf(TransientDataAccessResourceException.class);
     }
 
     @Test

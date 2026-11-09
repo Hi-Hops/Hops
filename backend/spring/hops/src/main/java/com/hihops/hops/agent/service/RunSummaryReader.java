@@ -35,6 +35,7 @@ public class RunSummaryReader {
 
     private final JsonMapper jsonMapper;
     private final IdempotencyService idempotencyService;
+    private final ImageInputProvenanceGuard imageProvenance;
 
     /**
      * @throws IllegalStateException 상담 실행이 아니거나 입력에 answerMessageId가 없을 때. 저장 규칙이 깨진 것이라 빈 값으로 숨기지 않는다
@@ -53,13 +54,17 @@ public class RunSummaryReader {
             default -> run.getRunStatus().name();
         };
         ErrorCode error = errorOf(run);
+        boolean allowRetry = run.getInputVersion() == run.getInquiry().getVersion();
+        if (allowRetry && error != null && error.retryable()) {
+            allowRetry = imageProvenance.isRetrySafe(input, run.getInquiry().getId());
+        }
         return new RunSummaryResponse(run.getId(), run.getInquiry().getId(), run.getInputVersion(),
                 UUID.fromString(answerMessageId.asString()), status,
                 error == null ? null : ErrorResponse.of(error, requestIdOf(run, input).toString(),
-                        run.getInputVersion() == run.getInquiry().getVersion()));
+                        allowRetry));
     }
 
-    /** 수동 재분석(RunRetryCommand)을 받을 수 있는 실패인지. 공개 오류의 retryable과 같은 기준이다. */
+    /** 실패 코드 자체의 재시도 가능 여부. 공개 응답과 실제 명령은 현재 버전·출처를 추가 검사한다. */
     public boolean isRetryable(AgentRun run) {
         ErrorCode error = errorOf(run);
         return error != null && error.retryable();
