@@ -259,6 +259,42 @@ class RealtimeServiceTest {
     }
 
     @Test
+    void 예약한_heartbeat가_바로_실행돼도_첫_프레임은_연결_확인이다() throws Exception {
+        // 스케줄러는 첫 heartbeat를 지연 없이 실행할 수 있다. 예약 중에 실행해 그 경쟁을 확정적으로 만든다.
+        when(scheduler.scheduleWithFixedDelay(any(Runnable.class), any(Duration.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return mock(ScheduledFuture.class);
+        });
+
+        MvcResult result = connect(null);
+
+        String wire = result.getResponse().getContentAsString();
+        assertThat(wire).startsWith(":connected\n\n");
+        assertThat(wire).contains(":heartbeat");
+    }
+
+    @Test
+    void 예약_도중_권한이_회수돼_닫히면_예약한_작업을_모두_취소한다() throws Exception {
+        // 연결 때는 허용하고, 예약 중 바로 실행된 heartbeat의 재검사에서 거부한다. 이때 close()는
+        // 아직 대입되지 않은 예약을 취소하지 못하므로 예약 뒤에 다시 정리해야 한다.
+        org.mockito.Mockito.doNothing().doThrow(new BusinessException(ErrorCode.ACCESS_DENIED))
+                .when(authorization).check(any(), any());
+        ScheduledFuture<?> heartbeat = mock(ScheduledFuture.class);
+        ScheduledFuture<?> expiration = mock(ScheduledFuture.class);
+        when(scheduler.scheduleWithFixedDelay(any(Runnable.class), any(Duration.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return heartbeat;
+        });
+        when(scheduler.schedule(any(Runnable.class), any(Instant.class))).thenAnswer(invocation -> expiration);
+
+        MvcResult result = connect(null);
+
+        verify(heartbeat).cancel(false);
+        verify(expiration).cancel(false);
+        assertThat(result.getResponse().getContentAsString()).doesNotContain(":heartbeat");
+    }
+
+    @Test
     void heartbeat에서도_현재_권한을_확인하고_회수되면_종료한다() throws Exception {
         MvcResult result = connect(null);
         ArgumentCaptor<Runnable> heartbeat = ArgumentCaptor.forClass(Runnable.class);
