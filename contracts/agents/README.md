@@ -288,6 +288,7 @@ SUCCEEDED INQUIRY_ANALYSIS는 answer가 있고 caseProposal=null이다. SUCCEEDE
 | ApprovedCaseBody | workRecordId:Uuid, resolutionRequestId:Uuid, approvedBy:Uuid, approvedAt:time, title:string, action:string, verification:string, applicability:string, limitations:string[], appliesToSystemVersion:string 또는 null, accessScope:EMPLOYEE / SYSTEM_STAFF, origin:SYNTHETIC / DEMO_VERIFIED / OPERATIONAL, confirmationOrigin:SYNTHETIC_PRESET / HOPS_USER, sourceMessageIds:Uuid[], entityLinks:EntityLink[], systemId:Uuid, confirmedCause:string 또는 null, problemStatement:string, caseType:RESOLUTION / IMPLEMENTATION |
 | IndexApplyRequest | contractVersion:hops-system-1, jobId:Uuid, caseId:Uuid, caseVersion:int, store:VECTOR / NEO4J, attempt:int, contentDigest:string, approvedCase:ApprovedCaseBody |
 | IndexApplySnapshot | contractVersion:hops-system-1, jobId:Uuid, caseId:Uuid, caseVersion:int, store:VECTOR / NEO4J, attempt:int, state:PENDING / RUNNING / SUCCEEDED / FAILED / UNKNOWN, contentDigest:string, error:AiError 또는 null, updatedAt:time |
+| CaseIndexSource | contractVersion:hops-system-1, caseId:Uuid, caseVersion:int, caseNumber:string, documentVersionId:Uuid, title:string, applicability:string 또는 null, content:string, contentDigest:string |
 | ResolutionContext | requestId:Uuid, source:GUIDE / WORK_RECORD, sourceId:Uuid, sourceVersion:int, state:PENDING / RESOLVED / UNRESOLVED |
 
 - INQUIRY_ANALYSIS의 answerMessageId는 UUID·workRecord=null이며 accessContext.purpose는 EMPLOYEE_HELP 또는 SYSTEM_WORK다. CASE_DRAFT는 answerMessageId=null·WorkRecordContext 필수·purpose=CASE_DRAFT다.
@@ -379,6 +380,7 @@ askedFields는 그 문제의 질문 묶음 requestedFields를 물은 순서대�
 |---|---|---|
 | Spring→AI POST /internal/v2/index-jobs | IndexApplyRequest → 202 IndexApplySnapshot | 승인 commit 뒤 현재 버전의 jobId/attempt로 호출. 동일 키·같은 digest는 기존 결과, 다른 내용409 |
 | Spring→AI GET /internal/v2/index-jobs/{jobId}?attempt={n} | 없음 → 200 IndexApplySnapshot | job/attempt/승인 버전/store/digest 대조. 404·timeout은 실패 확정이 아님 |
+| AI→Spring GET /internal/v2/cases/{caseId}/index-source?caseVersion={n} | 없음 → 200 CaseIndexSource | 승인된 현재 버전이고 반영이 끝나지 않은 저장소가 있을 때만. 그 밖은 404. AI는 contentDigest를 요청 approvedCase의 사례 digest와 대조한 뒤에만 반영 |
 | AI→Spring POST /internal/v2/knowledge/authorizations | KnowledgeAuthorizationRequest → 200 KnowledgeAuthorizationResponse | 조회 성격. 현재 run·policyRevision·사용자 범위 검증. 무권한 후보는 allowedRefs에서 제외 |
 
 모든 내부 API는 고정된 Spring/AI origin·서비스 Bearer만 사용한다. 브라우저에 노출하지 않으며 모델이 임의 URL·토큰·runId를 구성하지 못한다. 401은 서비스 인증, 403은 현재 접근/정책 문맥 무효, 409는 동일 작업 내용/버전 충돌, 422는 필드/조건 오류, 429는 한도, 503은 저장소/서비스 불가다. 원격 malformed/다른 job 결과는 UPSTREAM_PROTOCOL_ERROR로 차단한다.
@@ -393,7 +395,7 @@ IndexApplyRequest는 contractVersion/jobId/caseId/caseVersion/store/attempt/cont
 
 digest는 `{caseId,caseVersion,store,approvedCase}` 객체를 키 오름차순·UTF-8·공백 없는 JSON·Unicode 원문·배열 순서 유지로 직렬화한 SHA-256 소문자 hex다. Java/Python의 기본 key 순서나 Unicode escape 설정에 의존하지 않는다. 숫자는 양의 정수 버전만 사용한다. AI는 받는 시점에 digest를 재계산해 불일치 시409로 거부한다.
 
-VECTOR는 caseId/caseVersion 청크를 upsert하고 NEO4J는 승인된 기존 노드/관계만 같은 버전 키로 upsert한다. 결과는 jobId/caseId/caseVersion/store/attempt/contentDigest/state/error/updatedAt다. 성공은 원격 저장 검증 후 SUCCEEDED, 실패는 FAILED, 확인 불가는 UNKNOWN이다. Spring은 현재 승인 버전·최신 attempt·digest가 모두 맞는 성공만 기록한다. 이전 attempt의 늦은 성공이 새 반영 상태를 덮지 못한다.
+VECTOR는 caseId/caseVersion 청크를 upsert하고 NEO4J는 승인된 기존 노드/관계만 같은 버전 키로 upsert한다. 결과는 jobId/caseId/caseVersion/store/attempt/contentDigest/state/error/updatedAt다. 성공은 원격 저장 검증 후 SUCCEEDED, 실패는 FAILED, 확인 불가는 UNKNOWN이다. 반영은 저장소별 upsert라 다시 해도 결과가 같으므로, AI는 실행이 사라진 작업(종료 때 취소했거나, 실행하는 프로세스가 없는데 오래 끝나지 않은 작업)과 예상하지 못한 오류를 UNKNOWN이 아니라 `INDEX_UNAVAILABLE`·retryable=true의 FAILED로 둔다. 담당자는 이 작업을 수동 재시도할 수 있다. Spring은 현재 승인 버전·최신 attempt·digest가 모두 맞는 성공만 기록한다. 이전 attempt의 늦은 성공이 새 반영 상태를 덮지 못한다.
 
 Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되지 않으면 UNKNOWN으로 유지한다. FAILED의 다음 attempt는 현재 담당자의 수동 명령으로만 만든다. UNKNOWN을 실패로 간주해 새 attempt를 만들지 않는다. 성공한 저장소는 유지하며 두 성공 전 Spring의 공개 gate는 PRIVATE다.
 

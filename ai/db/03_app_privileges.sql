@@ -58,6 +58,8 @@ END $$;
 GRANT USAGE ON SCHEMA public TO hops_ai_app;
 -- RunLedger는 접수(INSERT), 상태·결과 갱신과 만료(UPDATE), 조회·복구(SELECT)만 한다. 삭제하지 않는다.
 GRANT SELECT, INSERT, UPDATE ON public.ai_run_ledger TO hops_ai_app;
+-- 색인 작업은 접수(INSERT), 상태 갱신(UPDATE), 조회(SELECT)만 한다. 삭제하지 않는다.
+GRANT SELECT, INSERT, UPDATE ON public.ai_index_job TO hops_ai_app;
 COMMIT;
 
 SELECT grantee, table_name, string_agg(privilege_type, ', ' ORDER BY privilege_type) AS privileges
