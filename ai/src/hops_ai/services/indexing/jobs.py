@@ -133,8 +133,12 @@ class IndexJobService:
         for job_id, attempt in cancelled.values():
             try:
                 await self._interrupt(job_id, attempt)
-            except Exception:
-                logger.warning("중단한 색인 작업을 기록하지 못했다 jobId=%s", job_id, exc_info=True)
+            except Exception as error:
+                logger.warning(
+                    "중단한 색인 작업을 기록하지 못했다 jobId=%s error=%s",
+                    job_id,
+                    type(error).__name__,
+                )
 
     def _is_stale(self, job: IndexJob) -> bool:
         return datetime.now(UTC) - job.updated_at > self._stale_after
@@ -185,10 +189,13 @@ class IndexJobService:
             return
         except asyncio.CancelledError:
             raise
-        except Exception:
-            # 반영 여부는 모르지만 다시 해도 결과가 같다. 원인 상세는 로그에만 남긴다.
-            logger.exception(
-                "사례 색인 중 예상하지 못한 오류 jobId=%s store=%s", request.jobId, request.store
+        except Exception as error:
+            # 원격 오류에는 원문이나 인증 정보가 포함될 수 있어 예외 종류만 기록한다.
+            logger.warning(
+                "사례 색인 중 예상하지 못한 오류 jobId=%s store=%s error=%s",
+                request.jobId,
+                request.store,
+                type(error).__name__,
             )
             await self._jobs.transition(
                 request.jobId,

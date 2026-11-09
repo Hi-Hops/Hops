@@ -287,10 +287,10 @@ async def test_a_long_job_still_running_here_is_not_judged_stale() -> None:
     assert store.applied == [DOC_VERSION]
 
 
-async def test_an_unexpected_error_fails_as_retryable() -> None:
+async def test_an_unexpected_error_fails_as_retryable(caplog: pytest.LogCaptureFixture) -> None:
     class Broken(Store):
         async def apply(self, request, source) -> None:
-            raise RuntimeError("예상하지 못한 오류")
+            raise RuntimeError("가상의 민감한 원문")
 
     svc, _, _ = service(store=Broken())
 
@@ -299,6 +299,9 @@ async def test_an_unexpected_error_fails_as_retryable() -> None:
     assert snapshot.state == "FAILED"
     assert snapshot.error is not None
     assert (snapshot.error.code, snapshot.error.retryable) == ("INDEX_UNAVAILABLE", True)
+    assert "RuntimeError" in caplog.text
+    assert "가상의 민감한 원문" not in caplog.text
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 async def test_shutdown_fails_the_jobs_it_cancels_as_retryable() -> None:
