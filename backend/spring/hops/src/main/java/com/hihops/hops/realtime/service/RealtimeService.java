@@ -84,6 +84,11 @@ public class RealtimeService {
             connection.close();
             throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
         }
+        // 예약 도중 첫 heartbeat나 만료가 바로 실행돼 이미 닫혔으면, 그때는 아직 대입 전이라 취소하지
+        // 못한 예약을 지금 취소한다. remove()는 여러 번 불려도 안전하다.
+        if (connection.closed) {
+            connection.remove();
+        }
         return emitter;
     }
 
