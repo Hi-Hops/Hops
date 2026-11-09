@@ -103,6 +103,7 @@ def sufficient_with_the_first_evidence(request) -> AssessmentDraft:
     return AssessmentDraft(
         verdict="SUFFICIENT",
         supportingEvidenceIds=[first],
+        answeredCheckItems=[],
         missingInformation=[],
         candidateCauses=[],
         nextChecks=[],
@@ -116,6 +117,7 @@ def insufficient_pointing_at_check_items(request) -> AssessmentDraft:
     return AssessmentDraft(
         verdict="INSUFFICIENT",
         supportingEvidenceIds=[],
+        answeredCheckItems=[],
         missingInformation=[DraftMissing(kind="CHECK_ITEM", ref=item["id"]) for item in items],
         candidateCauses=[],
         nextChecks=[],
@@ -204,6 +206,7 @@ async def test_a_user_who_cannot_answer_is_not_asked_the_same_fields_again() -> 
         lambda request: AssessmentDraft(
             verdict="INSUFFICIENT",
             supportingEvidenceIds=[],
+            answeredCheckItems=[],
             missingInformation=[],
             candidateCauses=[],
             nextChecks=[],
