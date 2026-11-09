@@ -19,6 +19,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +39,8 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.json.JsonMapper;
 import software.amazon.awssdk.services.s3.S3Client;
 import com.hihops.hops.agent.service.AgentDispatchProperties;
+import com.hihops.hops.global.exception.BusinessException;
+import com.hihops.hops.global.exception.ErrorCode;
 
 @SpringBootTest(properties = {"hops.image-attachments.message-link-enabled=true",
         "hops.image-attachments.enabled=true", "hops.image-attachments.bucket=test-private",
@@ -49,6 +52,8 @@ class AttachmentBindingControllerTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired JsonMapper mapper;
     @Autowired ImageAnalysisTargets analysisTargets;
+    @Autowired ImageAttachmentExpiryService expiry;
+    @Autowired AttachmentBindingService binding;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
     @MockitoBean S3Client s3Client;
     @MockitoBean S3AttachmentStore store;
@@ -870,6 +875,119 @@ class AttachmentBindingControllerTest {
         });
         mvc.perform(get("/internal/v2/runs/" + run + "/image-attachments/" + id + "?inquiryVersion=1")
                 .header("Authorization", "Bearer " + "A".repeat(43))).andExpect(status().isConflict());
+    }
+
+    @Test
+    void 만료된_미결합_이미지만_정리_대상으로_확정하고_롤백_후_재시도한다() throws Exception {
+        UUID expired = attachment(owner, "READY", true);
+        UUID ready = attachment(owner, "READY", false);
+        UUID pending = attachment(owner, "PENDING", false);
+        UUID bound = attachment(owner, "READY", false);
+        createWithImage(bound);
+
+        new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(tx -> {
+            assertThat(expiry.expireBatch()).isEqualTo(1);
+            tx.setRollbackOnly();
+        });
+        assertThat(state(expired)).isEqualTo("READY");
+        assertThat(expiry.expireBatch()).isEqualTo(1);
+        assertThat(expiry.expireBatch()).isZero();
+        assertThat(state(expired)).isEqualTo("EXPIRED");
+        assertThat(state(ready)).isEqualTo("READY");
+        assertThat(state(pending)).isEqualTo("PENDING");
+        assertThat(state(bound)).isEqualTo("BOUND");
+        assertThat(jdbc.queryForObject("SELECT expires_at IS NULL FROM image_attachment WHERE id=?", Boolean.class, expired)).isTrue();
+        org.mockito.Mockito.verifyNoInteractions(store);
+    }
+
+    @Test
+    void 메시지_결합이_먼저_잠근_이미지는_만료_정리가_건너뛴다() throws Exception {
+        UUID image = attachment(owner, "READY", false);
+        UUID request = UUID.randomUUID();
+        String receipt = create(owner, request, createBody(request, null)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(receipt).path("resource").path("id").asString());
+        UUID message = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id=? AND sender_type='USER'", UUID.class, inquiry);
+        jdbc.update("UPDATE image_attachment SET expires_at=clock_timestamp()+interval '3 seconds' WHERE id=?", image);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            var task = pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactions)
+                    .executeWithoutResult(tx -> {
+                        binding.bind(owner, message, List.of(image));
+                        locked.countDown();
+                        try {
+                            if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("결합 거래 대기 시간 초과");
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(e);
+                        }
+                    }));
+            try {
+                assertThat(locked.await(5, TimeUnit.SECONDS)).isTrue();
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(8);
+                while (!Boolean.TRUE.equals(jdbc.queryForObject(
+                        "SELECT expires_at <= clock_timestamp() FROM image_attachment WHERE id=?", Boolean.class, image))
+                        && System.nanoTime() < deadline) Thread.sleep(50);
+                assertThat(jdbc.queryForObject("SELECT expires_at <= clock_timestamp() FROM image_attachment WHERE id=?",
+                        Boolean.class, image)).isTrue();
+                assertThat(expiry.expireBatch()).isZero();
+            } finally {
+                release.countDown();
+            }
+            task.get(10, TimeUnit.SECONDS);
+        }
+        assertThat(expiry.expireBatch()).isZero();
+        assertThat(state(image)).isEqualTo("BOUND");
+        assertThat(jdbc.queryForObject("SELECT message_id FROM image_attachment WHERE id=?", UUID.class, image)).isEqualTo(message);
+        org.mockito.Mockito.verifyNoInteractions(store);
+    }
+
+    @Test
+    void 정리가_먼저_잠근_이미지는_커밋_후_메시지에_결합되지_않는다() throws Exception {
+        UUID image = attachment(owner, "READY", true);
+        UUID request = UUID.randomUUID();
+        String receipt = create(owner, request, createBody(request, null)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        UUID inquiry = UUID.fromString(mapper.readTree(receipt).path("resource").path("id").asString());
+        UUID message = jdbc.queryForObject("SELECT id FROM message WHERE inquiry_id=? AND sender_type='USER'", UUID.class, inquiry);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var cleanup = pool.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactions)
+                    .executeWithoutResult(tx -> {
+                        assertThat(expiry.expireBatch()).isEqualTo(1);
+                        locked.countDown();
+                        try {
+                            if (!release.await(10, TimeUnit.SECONDS)) throw new IllegalStateException("정리 거래 대기 시간 초과");
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(e);
+                        }
+                    }));
+            try {
+                assertThat(locked.await(5, TimeUnit.SECONDS)).isTrue();
+                CountDownLatch bindingStarted = new CountDownLatch(1);
+                var bind = pool.submit(() -> {
+                    bindingStarted.countDown();
+                    try {
+                        new org.springframework.transaction.support.TransactionTemplate(transactions)
+                                .executeWithoutResult(tx -> binding.bind(owner, message, List.of(image)));
+                        return null;
+                    } catch (BusinessException e) {
+                        return e.errorCode();
+                    }
+                });
+                assertThat(bindingStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                release.countDown();
+                assertThat(bind.get(10, TimeUnit.SECONDS)).isEqualTo(ErrorCode.INVALID_STATE);
+                cleanup.get(10, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+        }
+        assertThat(state(image)).isEqualTo("EXPIRED");
+        org.mockito.Mockito.verifyNoInteractions(store);
     }
 
     private UUID attachment(UUID actor, String state, boolean expired) {
