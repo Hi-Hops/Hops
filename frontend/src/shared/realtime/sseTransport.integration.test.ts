@@ -63,9 +63,68 @@ afterEach(async () => {
     });
   });
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe('F002 fetch SSE 실제 HTTP 대역', () => {
+  it('숨긴 탭의 연결을 해제하고 돌아올 때 REST와 권한을 확인한 뒤 표시한다', async () => {
+    const page = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+    vi.stubGlobal('document', page);
+    const finishSync: (() => void)[] = [];
+    const sync = vi.fn(() => Promise.resolve());
+    const states = vi.fn();
+    transport.onSync(sync);
+    transport.connect(token);
+    transport.subscribe(target, states);
+    await vi.waitFor(() => {
+      expect(transport.getState()).toBe('connected');
+    });
+    page.visibilityState = 'hidden';
+    page.dispatchEvent(new Event('visibilitychange'));
+    await vi.waitFor(() => {
+      expect(peers[0]?.destroyed).toBe(true);
+    });
+    expect(transport.getState()).toBe('connecting');
+    const another = { type: 'CASE' as const, id: crypto.randomUUID() };
+    transport.subscribe(another);
+    expect(requests).toHaveLength(1);
+    sync.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSync.push(resolve);
+        }),
+    );
+    page.visibilityState = 'visible';
+    page.dispatchEvent(new Event('visibilitychange'));
+    await vi.waitFor(() => {
+      expect(requests).toHaveLength(3);
+      expect(finishSync).toHaveLength(2);
+    });
+    expect(transport.getState()).toBe('connecting');
+    // 각 대상의 복구 Promise를 모두 해제한다.
+    finishSync.forEach((finish) => {
+      finish();
+    });
+    await vi.waitFor(() => {
+      expect(transport.getState()).toBe('connected');
+    });
+    expect(states).toHaveBeenCalledWith('connected');
+  });
+
+  it('숨긴 채 열린 탭은 연결을 점유하지 않고 로그아웃 뒤에는 다시 연결하지 않는다', async () => {
+    const page = Object.assign(new EventTarget(), { visibilityState: 'hidden' });
+    vi.stubGlobal('document', page);
+    transport.connect(token);
+    transport.subscribe(target);
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    expect(requests).toHaveLength(0);
+    transport.disconnect();
+    page.visibilityState = 'visible';
+    page.dispatchEvent(new Event('visibilitychange'));
+    expect(transport.getState()).toBe('idle');
+    expect(requests).toHaveLength(0);
+  });
+
   it('F002-TARGET-04 REST 실패 중에도 이벤트를 수신하며 재연결·조회 성공 후 connected가 된다', async () => {
     const sync = vi.fn<() => Promise<void>>().mockRejectedValue(new Error('조회 API 준비 중'));
     const received = vi.fn();

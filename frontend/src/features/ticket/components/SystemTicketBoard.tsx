@@ -60,6 +60,7 @@ export function SystemTicketBoard() {
   const location = useLocation();
   const admin = location.pathname.startsWith('/admin/');
   const base = admin ? '/admin/tickets' : '/tickets';
+  const coveredByDetail = location.pathname !== base;
   const allowed = Boolean(
     user && (admin ? user.roles.includes('BIZ_ADMIN') : user.primarySystemIds.length),
   );
@@ -80,7 +81,7 @@ export function SystemTicketBoard() {
     queryKey: systemTicketKeys.list(user?.id ?? '', queryParams.toString()),
     queryFn: ({ signal }) => getSystemTickets(queryParams.toString(), signal),
     enabled: allowed,
-    refetchInterval: 5000,
+    refetchInterval: coveredByDetail ? false : 5000,
   });
   const systemIds =
     catalog.data
@@ -88,7 +89,7 @@ export function SystemTicketBoard() {
       .map((s) => s.id)
       .join(',') ?? '';
   useEffect(() => {
-    if (!allowed || !systemIds) return;
+    if (!allowed || !systemIds || coveredByDetail) return;
     const off = systemIds.split(',').map((id) =>
       realtime.subscribe({ type: 'SYSTEM_TICKETS', id }, (state) => {
         if (state === 'denied') setDenied(true);
@@ -100,7 +101,7 @@ export function SystemTicketBoard() {
         unsubscribe();
       });
     };
-  }, [allowed, systemIds]);
+  }, [allowed, systemIds, coveredByDetail]);
   function change(name: string, value: string) {
     const next = new URLSearchParams(search);
     next.delete('tab');
