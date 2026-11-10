@@ -299,6 +299,29 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--chat-gutter-end) var(--space-6) var(--chat-gutter-start);
 }
+.resolvedFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+.remainingAnswers {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-inline: var(--space-1);
+  font-size: var(--font-size-label);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.remainingAnswers strong {
+  color: var(--color-text);
+}
 .runError {
   width: min(var(--answer-width), 100%);
   padding: var(--space-4);

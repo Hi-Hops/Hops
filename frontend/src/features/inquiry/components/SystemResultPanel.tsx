@@ -245,8 +245,12 @@ function bannerFor(result: InquiryResult) {
   if (c.tickets && failure)
     return { text: `! 티켓 ${String(c.tickets)}건을 만들었고, ${failure}`, tone: 'attention' };
   if (failure) return { text: `! 티켓 ${failure}`, tone: c.notCreated ? 'danger' : 'attention' };
-  if (c.tickets && c.resolved === c.tickets)
-    return { text: '티켓이 모두 해결됐어요', tone: 'success' };
+  if (result.status === 'RESOLVED') return { text: '문의가 해결됐어요', tone: 'success' };
+  if (c.resolvedProblems)
+    return {
+      text: `문제 ${c.resolvedProblems}/${result.problems.length}건 해결`,
+      tone: 'neutral',
+    };
   const ticket = result.problems.find((p) => p.ticket)?.ticket;
   if (c.tickets === 1 && ticket)
     return {

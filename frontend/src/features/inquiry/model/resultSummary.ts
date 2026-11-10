@@ -2,6 +2,9 @@ import type { InquiryResult, Problem } from '@/shared/api/types/hopsSystem1';
 
 export const isCreationFailed = (p: Problem) =>
   Boolean(p.creationResult && !p.ticket && p.creationResult.outcome !== 'STORED');
+export const isResolvedProblem = (p: Problem) =>
+  p.state === 'RESOLVED' || p.ticket?.state === 'RESOLVED';
+
 export const needsAnswer = (p: Problem) => ['WAITING_USER', 'WAITING_SYSTEM'].includes(p.state);
 
 export const needsAction = (p: Problem) =>
@@ -34,7 +37,7 @@ export function resultCounts(inquiry: InquiryResult) {
   const tickets = inquiry.problems.filter((p) => p.ticket);
   return {
     tickets: tickets.length,
-    resolved: tickets.filter((p) => p.ticket?.state === 'RESOLVED').length,
+    resolvedProblems: inquiry.problems.filter(isResolvedProblem).length,
     notCreated: inquiry.problems.filter(
       (p) => isCreationFailed(p) && p.creationResult?.outcome === 'NOT_CREATED',
     ).length,
@@ -48,7 +51,8 @@ export function resultCounts(inquiry: InquiryResult) {
 export function resultMetaParts(inquiry: InquiryResult) {
   const c = resultCounts(inquiry);
   const parts: string[] = [];
-  if (c.tickets) parts.push(`티켓 ${c.resolved}/${c.tickets}건 해결`);
+  if (c.resolvedProblems && inquiry.problems.length > 1)
+    parts.push(`문제 ${c.resolvedProblems}/${inquiry.problems.length}건 해결`);
   if (c.notCreated) parts.push(`저장 실패 ${c.notCreated}`);
   if (c.checking) parts.push(`접수 확인 중 ${c.checking}`);
   if (c.asking) parts.push(`응답 필요 ${c.asking}건`);

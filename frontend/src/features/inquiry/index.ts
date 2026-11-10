@@ -9,4 +9,9 @@ export {
 } from './components/SystemResultPanel';
 export { ResolutionControls } from './components/ResolutionControls';
 export { useResultNotice } from './hooks/useResultNotice';
-export { inquiryTitle, problemActionLabel, resultMetaParts } from './model/resultSummary';
+export {
+  inquiryTitle,
+  isResolvedProblem,
+  problemActionLabel,
+  resultMetaParts,
+} from './model/resultSummary';

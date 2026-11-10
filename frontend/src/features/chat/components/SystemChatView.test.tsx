@@ -83,10 +83,15 @@ const inquiry = (resultRevision: number, problems = [problem]): InquiryResult =>
   createdAt: '2026-11-01T00:00:00Z',
   updatedAt: '2026-11-01T00:00:00Z',
 });
-function chatState(resultRevision: number, active: boolean, problems = [problem]) {
+function chatState(
+  resultRevision: number,
+  active: boolean,
+  problems = [problem],
+  status = 'IN_PROGRESS',
+) {
   return {
     inquiry: {
-      data: inquiry(resultRevision, problems),
+      data: { ...inquiry(resultRevision, problems), status },
       isPending: false,
       isError: false,
       error: null,
@@ -311,7 +316,7 @@ it('Hops 바로 아래에서 완료 기록을 중복 없이 펼쳐 볼 수 있�
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
 
-it('안내가 담긴 답변에 해결 확인을 붙이고 처리 현황에는 상태만 표시한다', () => {
+it('문제 해결 뒤 남은 질문이 있으면 입력을 유지하고 문의가 종료되면 새 문의를 안내한다', () => {
   const guided: Problem = {
     ...problem,
     state: 'WAITING_CONFIRMATION',
@@ -335,13 +340,43 @@ it('안내가 담긴 답변에 해결 확인을 붙이고 처리 현황에는 �
     },
   };
   vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [guided]));
-  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  const view = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
 
   const response = within(screen.getByRole('article', { name: 'Hops 답변' }));
   expect(response.getByRole('button', { name: '해결됐어요' })).toBeVisible();
   const rail = within(screen.getByRole('complementary', { name: '처리 현황' }));
   expect(rail.getByText('해결 확인 필요')).toBeVisible();
   expect(rail.queryByRole('button', { name: '해결됐어요' })).not.toBeInTheDocument();
+
+  const request = guided.activeResolutionRequest;
+  if (!request) throw new Error('해결 확인 요청 필요');
+  const solved = {
+    ...guided,
+    state: 'RESOLVED',
+    activeResolutionRequest: { ...request, state: 'RESOLVED', requestRevision: 2 },
+  };
+  const waiting = {
+    ...guided,
+    id: crypto.randomUUID(),
+    summary: '일괄 선택 기능 추가 요청',
+    state: 'WAITING_USER',
+    guide: null,
+    activeResolutionRequest: null,
+  };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(2, false, [solved, waiting]));
+  view.rerender(<SystemChatView inquiryId={inquiryId} />);
+  const result = screen.getByRole('region', { name: '문제 해결 결과' });
+  expect(within(result).getByText('문제가 해결됐어요')).toBeVisible();
+  expect(within(result).queryByText('안내 다시 보기')).not.toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: '메시지 입력' })).toBeEnabled();
+  expect(screen.getByText('답변이 필요한 문제 1건')).toBeVisible();
+  expect(screen.queryByText('이 문의는 종료됐어요')).not.toBeInTheDocument();
+
+  vi.mocked(useSystemChat).mockReturnValue(chatState(3, false, [solved], 'RESOLVED'));
+  view.rerender(<SystemChatView inquiryId={inquiryId} />);
+  expect(screen.queryByRole('textbox', { name: '메시지 입력' })).not.toBeInTheDocument();
+  expect(screen.getByText('이 문의는 종료됐어요')).toBeVisible();
+  expect(screen.getByRole('link', { name: '새 문의 시작하기' })).toHaveAttribute('href', '/');
 });
 
 it('범위 밖 항목은 남은 IT 문의의 제목과 처리 현황에 포함하지 않는다', () => {

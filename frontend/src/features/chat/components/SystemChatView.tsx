@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { Link } from 'react-router';
 import { useSession } from '@/features/auth';
 import { ConnectionIndicator } from '@/features/realtime';
 import {
@@ -8,16 +9,19 @@ import {
   systemStatus,
   editableInquiryStatus,
   inquiryTitle,
+  isResolvedProblem,
   resultMetaParts,
   useResultNotice,
 } from '@/features/inquiry';
 import { ApiError } from '@/shared/api/client';
+import { paths } from '@/shared/config/paths';
 import { displayChatTime, isToday } from '@/shared/lib/date';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
 import { MarkdownText } from '@/shared/ui/MarkdownText';
 import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import controls from '@/shared/ui/Controls.module.css';
 import { useSystemChat } from '../hooks/useSystemChat';
 import { retryRunCommand } from '../api/systemChatApi';
 import { useChatScroll } from '../hooks/useChatScroll';
@@ -83,7 +87,11 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
       />
     );
   if (!inquiry) return null;
-  const closed = ['RESOLVED', 'CLOSED'].includes(inquiry.status);
+  const resolved = inquiry.status === 'RESOLVED';
+  const closed = resolved || inquiry.status === 'CLOSED';
+  const pendingAnswers = inquiry.problems.filter((problem) => problem.state === 'WAITING_USER');
+  const showRemainingAnswers =
+    pendingAnswers.length > 0 && inquiry.problems.some(isResolvedProblem);
   const title =
     !inquiry.problems.length && storedInquiry.problems.length
       ? '지원 범위 안내'
@@ -111,11 +119,12 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
   const visibleMessageIds = new Set(chat.items.filter((m) => m.sender === 'AI').map((m) => m.id));
   const guideAnswerId = ({ problem, request }: (typeof resolutions)[number]) =>
     request.source === 'GUIDE' ? problem.guide?.messageId : undefined;
-  const renderResolution = ({ problem, request }: (typeof resolutions)[number]) => (
+  const renderResolution = (item: (typeof resolutions)[number]) => (
     <ResolutionControls
-      key={request.id}
-      request={request}
-      problemTitle={inquiry.problems.length > 1 ? problem.summary : undefined}
+      key={item.request.id}
+      request={item.request}
+      problemTitle={inquiry.problems.length > 1 ? item.problem.summary : undefined}
+      guideInChat={visibleMessageIds.has(guideAnswerId(item) ?? '')}
     />
   );
   return (
@@ -257,8 +266,27 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
             </Button>
           )}
           <ProblemStatusBar inquiry={inquiry} analyzing={chat.active} />
+          {resolved && (
+            <div className={styles.dock}>
+              <footer className={styles.resolvedFooter}>
+                <strong>이 문의는 종료됐어요</strong>
+                <Link to={paths.home} className={`${controls.button} ${controls.secondary}`}>
+                  새 문의 시작하기
+                </Link>
+              </footer>
+            </div>
+          )}
           {!closed && (
             <div className={styles.dock}>
+              {showRemainingAnswers && (
+                <div className={styles.remainingAnswers}>
+                  <strong>답변이 필요한 문제 {pendingAnswers.length}건</strong>
+                  <span>
+                    {pendingAnswers[0]?.summary}
+                    {pendingAnswers.length > 1 && ` 외 ${pendingAnswers.length - 1}건`}
+                  </span>
+                </div>
+              )}
               <PendingTargets inquiry={inquiry} />
               <SystemMessageComposer
                 inquiry={inquiry}
