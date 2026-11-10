@@ -137,6 +137,7 @@ it('F005-CONTRACT-03 분석이 시작·종료돼도 닫은 접수 결과의 모�
   const view = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
   await userEvent.click(await screen.findByRole('button', { name: '닫기' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(screen.getByText(`${system.name} 담당자에게 접수했어요`)).toBeVisible();
 
   vi.mocked(useSystemChat).mockReturnValue(chatState(1, true));
   view.rerender(<SystemChatView inquiryId={inquiryId} />);
@@ -264,11 +265,14 @@ it('F003-DETAIL-11 처리 현황은 대화와 분리되고 문의자가 처리�
 
   // 패널이 들어가지 않는 좁은 화면의 요약 줄은 같은 내용을 모달로 연다.
   await userEvent.click(
-    within(conversation).getByRole('button', { name: /처리 현황 · 문제 2건.*질문 1\/5/u }),
+    within(conversation).getByRole('button', {
+      name: /처리 현황 · 문제 2건.*Hops 질문에 답해 주세요/u,
+    }),
   );
   const dialog = await screen.findByRole('dialog', { name: '처리 현황' });
   expect(within(dialog).getByText('TK-TEST')).toBeVisible();
-  expect(within(dialog).getByText('질문 1/5')).toBeVisible();
+  expect(within(dialog).getByText('답변 필요')).toBeVisible();
+  expect(within(dialog).queryByText('질문 1/5')).not.toBeInTheDocument();
 });
 
 it('F003-DETAIL-11 문제가 나뉘기 전에는 처리 현황에 빈 상태를 안내하고 요약 줄을 표시하지 않는다', () => {
@@ -282,14 +286,83 @@ it('F003-DETAIL-11 문제가 나뉘기 전에는 처리 현황에 빈 상태를 
   expect(screen.queryByRole('button', { name: /처리 현황/u })).not.toBeInTheDocument();
 });
 
-it('분석이 끝나 답변이 저장돼도 진행 단계는 해당 답변 위에 완료 기록으로 남는다', () => {
+it('Hops 바로 아래에서 완료 기록을 중복 없이 펼쳐 볼 수 있다', async () => {
   vi.mocked(useSystemChat).mockReturnValue({
     ...chatState(1, false, []),
-    trails: { [answer.id]: [{ stepNo: 1, text: '가상 문의 내용을 확인했어요' }] },
+    trails: {
+      [answer.id]: [
+        { stepNo: 1, text: '승인된 가이드와 해결 사례를 찾고 있어요' },
+        { stepNo: 2, text: '승인된 가이드와 해결 사례를 찾고 있어요' },
+      ],
+    },
   });
   render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
   const article = screen.getByRole('article', { name: 'Hops 답변' });
+  const disclosure = within(article).getByText('확인 과정 보기');
+  expect(disclosure.closest('details')).not.toHaveAttribute('open');
+  await userEvent.click(disclosure);
   const steps = within(article).getByRole('list', { name: '완료된 진행 단계' });
-  expect(within(steps).getByText('가상 문의 내용을 확인했어요')).toBeVisible();
+  expect(within(steps).getAllByRole('listitem')).toHaveLength(1);
+  expect(steps).toHaveTextContent('승인된 가이드와 해결 사례를 찾고 있어요');
+  expect(
+    disclosure.compareDocumentPosition(within(article).getByText(answer.content)) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
+});
+
+it('안내가 담긴 답변에 해결 확인을 붙이고 처리 현황에는 상태만 표시한다', () => {
+  const guided: Problem = {
+    ...problem,
+    state: 'WAITING_CONFIRMATION',
+    creationResult: null,
+    ticket: null,
+    guide: { messageId: answer.id, evidence: [] },
+    activeResolutionRequest: {
+      id: crypto.randomUUID(),
+      inquiryId,
+      problemId,
+      ticketId: null,
+      source: 'GUIDE',
+      sourceId: answer.id,
+      sourceVersion: 1,
+      requestRevision: 1,
+      state: 'PENDING',
+      resultSummary: answer.content,
+      confirmationOrigin: 'HOPS_USER',
+      createdAt: answer.createdAt,
+      respondedAt: null,
+    },
+  };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [guided]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+
+  const response = within(screen.getByRole('article', { name: 'Hops 답변' }));
+  expect(response.getByRole('button', { name: '해결됐어요' })).toBeVisible();
+  const rail = within(screen.getByRole('complementary', { name: '처리 현황' }));
+  expect(rail.getByText('해결 확인 필요')).toBeVisible();
+  expect(rail.queryByRole('button', { name: '해결됐어요' })).not.toBeInTheDocument();
+});
+
+it('범위 밖 항목은 남은 IT 문의의 제목과 처리 현황에 포함하지 않는다', () => {
+  const outside: Problem = {
+    ...problem,
+    id: crypto.randomUUID(),
+    state: 'OUT_OF_SCOPE',
+    summary: '오늘 날씨',
+    ticket: null,
+    creationResult: null,
+  };
+  const waiting: Problem = {
+    ...problem,
+    state: 'WAITING_USER',
+    ticket: null,
+    creationResult: null,
+  };
+  vi.mocked(useSystemChat).mockReturnValue(chatState(1, false, [outside, waiting]));
+  render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  expect(screen.getByRole('heading', { name: waiting.summary, level: 1 })).toBeVisible();
+  const rail = within(screen.getByRole('complementary', { name: '처리 현황' }));
+  expect(rail.queryByText(outside.summary)).not.toBeInTheDocument();
+  expect(rail.getByText('문제 1건')).toBeVisible();
 });

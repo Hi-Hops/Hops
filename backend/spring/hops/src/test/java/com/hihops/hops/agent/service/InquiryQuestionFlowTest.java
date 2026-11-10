@@ -421,6 +421,46 @@ class InquiryQuestionFlowTest {
     }
 
     @Test
+    void 단독_범위_밖_대화는_원문에_남지만_다음_분석_입력에_포함하지_않는다() throws Exception {
+        String outside = "오늘 날씨는 어떤가요?";
+        String notice = "지원 범위 밖의 문의입니다. 지원 시스템에 관한 문의를 이용해 주세요.";
+        UUID inquiryId = createInquiry(outside);
+        UUID runId = runOf(inquiryId);
+        when(client.snapshot(runId.toString())).thenReturn(snapshot(runId, inquiryId, 1, notice,
+                List.of(proposal("new:outside", "OUT_OF_SCOPE", "OUT_OF_SCOPE", null, userMessageOf(inquiryId))), List.of()));
+        dispatcher.deliver(runId);
+
+        String supported = "전자결재 문서함에서 상신한 문서가 안 보여요";
+        JsonNode input = secondRunInput(inquiryId, supported);
+
+        assertThat(input.path("problems").isEmpty()).isTrue();
+        assertThat(input.path("messages").findValuesAsString("content")).containsExactly(supported);
+        assertThat(jdbc.queryForList("SELECT content FROM message WHERE inquiry_id=? ORDER BY sequence_no",
+                String.class, inquiryId)).containsExactly(outside, notice, supported);
+    }
+
+    @Test
+    void 혼합_문의에서_지원_문제의_출처와_질문은_다음_분석에_유지한다() throws Exception {
+        String mixed = "오늘 날씨는 어떤가요? 그리고 전자결재 문서가 안 보여요.";
+        String notice = "지원 범위 밖의 문의입니다. 지원 시스템에 관한 문의를 이용해 주세요.";
+        UUID inquiryId = createInquiry(mixed);
+        UUID runId = runOf(inquiryId);
+        UUID sourceId = userMessageOf(inquiryId);
+        String answer = "문제 1\n" + notice + "\n\n문제 2\n" + QUESTION;
+        when(client.snapshot(runId.toString())).thenReturn(snapshot(runId, inquiryId, 1, answer,
+                List.of(proposal("new:outside", "OUT_OF_SCOPE", "OUT_OF_SCOPE", null, sourceId),
+                        proposal("new:it", "OBSERVED_SYMPTOM", "INVESTIGATION", systemId, sourceId)),
+                List.of(question("new:it", "screen", QUESTION, "taskOrScreen"))));
+        dispatcher.deliver(runId);
+
+        JsonNode input = secondRunInput(inquiryId, "전자결재 문서함 목록에서 발생했어요");
+        assertThat(input.path("problems").findValuesAsString("state")).containsExactly("ANALYZING");
+        assertThat(input.path("messages").findValuesAsString("content"))
+                .containsExactly(mixed, "문제 2\n" + QUESTION, "전자결재 문서함 목록에서 발생했어요");
+        assertThat(input.path("messages").get(0).path("problemIds").size()).isEqualTo(1);
+    }
+
+    @Test
     void 질문도_없고_시스템도_정해진_제안은_저장하지_않고_미적용으로_남긴다() throws Exception {
         UUID inquiryId = createInquiry("결재 문서가 안 열려요");
         UUID runId = runOf(inquiryId);

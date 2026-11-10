@@ -31,7 +31,8 @@ class AnalysisInputFactoryAccessTest {
     private AnalysisInputFactory factory(boolean internalJudgement) {
         var properties = new AnalysisRunProperties(Duration.ofSeconds(60), new ExecutionLimits(8, 60000, 12000, 10, 2),
                 "pending", "pending", "hops-system-1", new InternalJudgement(internalJudgement, internalJudgement ? "TEST-REVIEW" : ""));
-        return new AnalysisInputFactory(properties, mapper);
+        return new AnalysisInputFactory(properties, mapper,
+                mock(com.hihops.hops.inquiry.repository.InquiryProblemRepository.class));
     }
 
     private AccessContext access(boolean internalJudgement) {

@@ -374,7 +374,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     expect(screen.getByRole('textbox', { name: '문의 내용' })).toHaveValue('');
     expect((await systemGet('/inquiries', readInquiries)).items).toHaveLength(3);
   });
-  it('F002-CONTRACT-08 조각 없이 완료된 실행도 최종 답변과 질문 5회 기준을 표시한다', async () => {
+  it('F002-CONTRACT-08 조각 없이 완료된 실행도 최종 답변과 필요한 행동을 표시한다', async () => {
     await login(TEST_LOGINS.requester);
     const id = await create('전자결재 문의', systems[0].id);
     renderWithProviders(<SystemChatView inquiryId={id} />, `/inquiries/${id}/chat`);
@@ -385,7 +385,8 @@ describe('hops-system-1 시스템 단위 전환', () => {
         { timeout: 4000 },
       ),
     ).toBeVisible();
-    expect(screen.getByText('질문 1/5')).toBeVisible();
+    expect(screen.getByText('답변 필요')).toBeVisible();
+    expect(screen.queryByText('질문 1/5')).not.toBeInTheDocument();
   });
   it('F005-CONTRACT-01 잘못된 성공 응답·구 프로필 DTO는 신규 계약에서 거부한다', () => {
     expect(() => readUser({ ...users[0], primarySystemIds: undefined })).toThrow();

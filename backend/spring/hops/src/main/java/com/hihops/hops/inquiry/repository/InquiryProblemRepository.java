@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import com.hihops.hops.inquiry.domain.InquiryProblem;
+import com.hihops.hops.inquiry.domain.ProblemStatus;
 
 /** inquiry_problem 테이블 저장·조회. 기본 save·findById는 JpaRepository가 제공한다. */
 public interface InquiryProblemRepository extends JpaRepository<InquiryProblem, UUID> {
@@ -50,6 +51,8 @@ public interface InquiryProblemRepository extends JpaRepository<InquiryProblem, 
 
     /** 문의의 삭제되지 않은 문제, 문제 번호 순. AI 입력의 problems를 만든다. */
     List<InquiryProblem> findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(UUID inquiryId);
+
+    List<InquiryProblem> findByInquiry_IdAndProblemStatusAndDeletedAtIsNull(UUID inquiryId, ProblemStatus status);
 
     /** 삭제되지 않은 문제를 삭제되지 않은 본인 문의 조건과 함께 한 번에 찾는다 (작업 조회). */
     @Query("""

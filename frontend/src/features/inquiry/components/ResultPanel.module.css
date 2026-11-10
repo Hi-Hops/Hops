@@ -93,9 +93,8 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
 }
-.count {
-  color: var(--color-attention);
-  font-weight: var(--font-weight-semibold);
+.rowState {
+  justify-self: start;
 }
 .note {
   color: var(--color-text-muted);
@@ -159,6 +158,11 @@
 }
 .problem label {
   flex-basis: 100%;
+  font-weight: var(--font-weight-semibold);
+}
+.problem select {
+  min-width: 0;
+  width: 100%;
 }
 .systemSelect select,
 .problem select {
@@ -185,17 +189,24 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-success-border);
-  background: var(--color-success-bg);
+  border: 1px solid var(--color-progress-border);
+  background: var(--color-progress-bg);
   font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
 }
-.confirmation > strong {
+.confirmation[data-state='RESOLVED'] {
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
+}
+.confirmation[data-state='RESOLVED'] > strong {
   color: var(--color-success);
+}
+.resultSummary {
+  white-space: pre-wrap;
 }
 .confirmActions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: var(--space-2);
 }
 .confirmActions button {

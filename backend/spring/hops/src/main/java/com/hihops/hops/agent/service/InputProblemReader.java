@@ -20,6 +20,7 @@ import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.InquiryProblem;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.ProblemStateView;
+import com.hihops.hops.inquiry.domain.ProblemStatus;
 import com.hihops.hops.inquiry.domain.StandardRequest;
 import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.inquiry.repository.MessageRepository;
@@ -44,7 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
  * 요청서 본문은 티켓 화면과 같은 {@link TicketStandardRequestReader}로 읽고, 공개 범위는 문의자 기준으로 거른다.
  *
  * <p>상태 변환 (DATA 11.2): CLARIFYING은 이번 메시지가 고른 대상 문제면 ANALYZING(답을 받았다), 아니면 WAITING_USER(아직 답을 기다린다)다.
- * 대상을 고르지 않은 메시지([])는 어느 문제의 답인지 분석이 정하므로 모두 WAITING_USER로 둔다. SYSTEM_PENDING→WAITING_SYSTEM, GUIDED→WAITING_CONFIRMATION, RESOLVED_WITHOUT_TICKET→RESOLVED, OUT_OF_SCOPE는 그대로,
+ * 대상을 고르지 않은 메시지([])는 어느 문제의 답인지 분석이 정하므로 모두 WAITING_USER로 둔다. SYSTEM_PENDING→WAITING_SYSTEM, GUIDED→WAITING_CONFIRMATION, RESOLVED_WITHOUT_TICKET→RESOLVED, OUT_OF_SCOPE는 입력에서 제외한다.
  * 티켓 생성이 진행·미확인·실패면 TICKET_PENDING, 티켓이 있으면 티켓 상태로 IN_SERVICE·WAITING_CONFIRMATION·RESOLVED다.
  *
  * <p>티켓 생성 작업(creation_outcome이 있는 문제)은 ExistingWorkItem으로 함께 보낸다. 상태의 TICKET_PENDING은 DATA 11.2대로
@@ -78,7 +79,8 @@ public class InputProblemReader {
      */
     public ProblemInputs read(Inquiry inquiry, Collection<UUID> targetProblemIds) {
         List<InquiryProblem> problems = inquiryProblemRepository.findByInquiry_IdAndDeletedAtIsNullOrderByProblemNo(
-                inquiry.getId());
+                inquiry.getId()).stream().filter(problem -> problem.getProblemStatus() != ProblemStatus.OUT_OF_SCOPE)
+                .toList();
         if (problems.isEmpty()) {
             return ProblemInputs.NONE;
         }

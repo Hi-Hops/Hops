@@ -82,7 +82,10 @@ export function useSystemChat(id: string) {
           // 공개 진행 요약을 단계 번호별로 쌓아 체크 목록으로 보여준다.
           const previous = t[answerId]?.runId === runId ? t[answerId].steps : [];
           const steps = previous.filter((step) => step.stepNo !== event.payload.stepNo);
-          steps.push({ stepNo: event.payload.stepNo, text: event.payload.displaySummary });
+          steps.push({
+            stepNo: event.payload.stepNo,
+            text: event.payload.displaySummary,
+          });
           return { ...t, [answerId]: { runId, steps: steps.sort((a, b) => a.stepNo - b.stepNo) } };
         });
     });

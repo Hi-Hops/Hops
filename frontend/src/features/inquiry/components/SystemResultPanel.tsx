@@ -7,7 +7,6 @@ import type { InquiryResult, Problem } from '@/shared/api/types/hopsSystem1';
 import { Button } from '@/shared/ui/Button';
 import { MarkdownText } from '@/shared/ui/MarkdownText';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
-import { ResolutionControls } from './ResolutionControls';
 import { SystemCommandButton } from './SystemCommandButton';
 import { TicketResultNotice } from './TicketResultNotice';
 import {
@@ -17,12 +16,7 @@ import {
   linkProblemsCommand,
   retryCreationCommand,
 } from '../api/systemInquiryApi';
-import {
-  QUESTION_LIMIT,
-  actionFirst,
-  isCreationFailed,
-  resultCounts,
-} from '../model/resultSummary';
+import { actionFirst, isCreationFailed, resultCounts } from '../model/resultSummary';
 import { editableInquiryStatus, systemStatus, ticketStateLabel } from '../model/systemStatus';
 import styles from './ResultPanel.module.css';
 
@@ -121,7 +115,6 @@ type RowView = {
   note?: string;
 };
 function rowView(inquiry: InquiryResult, problem: Problem): RowView {
-  const questions = `질문 ${problem.questionCount}/${QUESTION_LIMIT}`;
   if (problem.ticket)
     return {
       tone: 'plain',
@@ -137,7 +130,10 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
           책임 {problem.ticket.responsibleSystem.name}
         </span>
       ),
-      note: `보고 시스템 ${problem.ticket.reportedSystem.name} · 담당자 ${problem.ticket.assignee.name} · ${ticketStateLabel(problem.ticket.state)}`,
+      note:
+        problem.ticket.reportedSystem.id === problem.ticket.responsibleSystem.id
+          ? `담당자 ${problem.ticket.assignee.name}`
+          : `보고 시스템 ${problem.ticket.reportedSystem.name} · 담당자 ${problem.ticket.assignee.name}`,
     };
   if (isCreationFailed(problem)) {
     const outcome = problem.creationResult?.outcome;
@@ -158,10 +154,9 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
   if (problem.state === 'WAITING_USER')
     return {
       tone: 'attention',
-      lead: '추가 확인',
+      lead: '답변 필요',
       leadTone: 'attention',
       title: problem.summary,
-      aside: <span className={styles.count}>{questions}</span>,
     };
   if (problem.state === 'WAITING_SYSTEM')
     return {
@@ -169,8 +164,7 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
       lead: '시스템 확인',
       leadTone: 'attention',
       title: problem.summary,
-      aside: <span className={styles.count}>{questions}</span>,
-      note: '질문으로 시스템을 확인하지 못했어요. 처리 현황에서 지원 시스템을 선택해 주세요.',
+      note: '처리 현황에서 지원 시스템을 선택해 주세요.',
     };
   if (problem.state === 'OUT_OF_SCOPE')
     return {
@@ -185,7 +179,13 @@ function rowView(inquiry: InquiryResult, problem: Problem): RowView {
     lead: problem.guide ? '안내' : '확인 중',
     leadTone: 'muted',
     title: problem.summary,
-    aside: <StatusBadge {...systemStatus(problem.state)} />,
+    aside: (
+      <StatusBadge
+        {...(problem.activeResolutionRequest?.state === 'PENDING'
+          ? { label: '해결 확인 필요', tone: 'attention' }
+          : systemStatus(problem.state))}
+      />
+    ),
   };
 }
 function ProblemRow({ inquiry, problem }: { inquiry: InquiryResult; problem: Problem }) {
@@ -219,8 +219,17 @@ function ProblemRow({ inquiry, problem }: { inquiry: InquiryResult; problem: Pro
           </small>
         </div>
       ))}
-      {problem.activeResolutionRequest && (
-        <ResolutionControls request={problem.activeResolutionRequest} />
+      {problem.ticket && (
+        <div className={styles.rowState}>
+          <StatusBadge
+            {...(problem.activeResolutionRequest?.state === 'PENDING'
+              ? { label: '해결 확인 필요', tone: 'attention' }
+              : {
+                  label: ticketStateLabel(problem.ticket.state),
+                  tone: systemStatus(problem.ticket.state).tone,
+                })}
+          />
+        </div>
       )}
     </li>
   );
@@ -238,7 +247,13 @@ function bannerFor(result: InquiryResult) {
   if (failure) return { text: `! 티켓 ${failure}`, tone: c.notCreated ? 'danger' : 'attention' };
   if (c.tickets && c.resolved === c.tickets)
     return { text: '티켓이 모두 해결됐어요', tone: 'success' };
-  if (c.tickets) return { text: '티켓을 만들고 담당 시스템에 배정했어요', tone: 'success' };
+  const ticket = result.problems.find((p) => p.ticket)?.ticket;
+  if (c.tickets === 1 && ticket)
+    return {
+      text: `${ticket.responsibleSystem.name} 담당자에게 접수했어요`,
+      tone: 'success',
+    };
+  if (c.tickets) return { text: `티켓 ${c.tickets}건을 담당자에게 접수했어요`, tone: 'success' };
   return { text: `문제 ${String(result.problems.length)}건`, tone: 'neutral' };
 }
 const NEW_PROBLEM_TARGET = 'new';
@@ -249,7 +264,7 @@ function PendingTarget({ inquiry, messageId }: { inquiry: InquiryResult; message
   const mixedSelection = newProblem && selected.length > 1;
   return (
     <section className={styles.problem}>
-      <label htmlFor={`target-${messageId}`}>답변을 연결할 기존 문제 또는 새 문제</label>
+      <label htmlFor={`target-${messageId}`}>이 답변을 어느 문제에 연결할까요?</label>
       <select
         multiple
         id={`target-${messageId}`}
@@ -284,6 +299,12 @@ function PendingTarget({ inquiry, messageId }: { inquiry: InquiryResult; message
     </section>
   );
 }
+export function PendingTargets({ inquiry }: { inquiry: InquiryResult }) {
+  return inquiry.pendingTargetMessageIds.map((id) => (
+    <PendingTarget key={id} inquiry={inquiry} messageId={id} />
+  ));
+}
+
 // 보고 시스템 선택은 문제별 카드가 아니라 처리 현황 맨 위에 모아서 보여준다.
 export function SystemConfirmations({ inquiry }: { inquiry: InquiryResult }) {
   const targets = inquiry.problems.filter(needsSystem);
@@ -316,9 +337,6 @@ export function SystemResultPanel({
           <ProblemRow key={problem.id} inquiry={result} problem={problem} />
         ))}
       </ul>
-      {result.pendingTargetMessageIds.map((id) => (
-        <PendingTarget key={id} inquiry={result} messageId={id} />
-      ))}
       {noticeOpen && onNoticeClose && (
         <TicketResultNotice result={result} banner={banner} onClose={onNoticeClose} />
       )}

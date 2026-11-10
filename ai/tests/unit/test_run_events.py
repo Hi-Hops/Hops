@@ -96,8 +96,8 @@ def test_slow_subscriber_is_bounded_and_other_run_is_isolated():
     hub = RunEventHub()
     events = RunEvents(req.runId, hub)
     with hub.subscribe(req.runId) as slow, hub.subscribe("other") as other:
-        for _ in range(65):
-            events.progress("SUPERVISOR")
+        for step in range(65):
+            events.progress("SUPERVISOR", f"진행 {step}")
         assert slow.qsize() == 1
         assert slow.get_nowait() is None
         assert other.empty()
@@ -113,7 +113,9 @@ def test_result_closes_progress_and_reserves_one_final_seq():
         events.progress("TICKET")
         assert final.seq == 2
         assert queue.qsize() == 1  # 저장 전에는 최종 이벤트를 publish하지 않는다
-        assert queue.get_nowait().payload.displaySummary == "관련 지식을 확인하고 있어요"
+        assert (
+            queue.get_nowait().payload.displaySummary == "승인된 가이드와 해결 사례를 찾고 있어요"
+        )
 
 
 async def test_failed_final_store_does_not_publish_success():
