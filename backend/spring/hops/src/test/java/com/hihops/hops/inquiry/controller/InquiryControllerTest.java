@@ -79,7 +79,7 @@ class InquiryControllerTest {
                 .andExpect(jsonPath("$.size").value(20))
                 .andExpect(jsonPath("$.totalElements").value(2))
                 .andExpect(jsonPath("$.items[0].inquiryNumber").value("Q-9002"))
-                .andExpect(jsonPath("$.items[0].title").value("문의 Q-9002"))
+                .andExpect(jsonPath("$.items[0].title").value("새 문의"))
                 .andExpect(jsonPath("$.items[0].status").value("IN_PROGRESS"))
                 .andExpect(jsonPath("$.items[0].problemCount").value(0))
                 .andExpect(jsonPath("$.items[0].createdAt").isString())
@@ -91,6 +91,39 @@ class InquiryControllerTest {
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.size").value(1))
                 .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void 상태로_본인_문의만_거른_뒤_페이지를_나눈다() throws Exception {
+        jdbcTemplate.update("UPDATE inquiry SET inquiry_status='RESOLVED' WHERE id IN (?, ?, ?)",
+                OLD_INQUIRY_ID, DELETED_INQUIRY_ID, OTHER_INQUIRY_ID);
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries").param("status", "RESOLVED").param("size", "1")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id").value(contains(OLD_INQUIRY_ID.toString())))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        mockMvc.perform(asMember(get("/api/v2/inquiries").param("status", "CLOSED")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.totalElements").value(0));
+        mockMvc.perform(asMember(get("/api/v2/inquiries").param("status", "UNKNOWN")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("status"));
+    }
+
+    @Test
+    void 대표_제목은_첫_지원_문제에서_가져오고_범위_밖_문제는_세지_않는다() throws Exception {
+        jdbcTemplate.update("UPDATE inquiry SET title='안녕' WHERE id=?", NEW_INQUIRY_ID);
+        insertProblem(NEW_INQUIRY_ID, 1, "OUT_OF_SCOPE", false);
+        UUID supported = insertProblem(NEW_INQUIRY_ID, 2, "CLARIFYING", false);
+        jdbcTemplate.update("UPDATE inquiry_problem SET title='전자결재 문서함 조회' WHERE id=?", supported);
+        insertProblem(NEW_INQUIRY_ID, 3, "SYSTEM_PENDING", false);
+        insertProblem(OLD_INQUIRY_ID, 1, "OUT_OF_SCOPE", false);
+
+        mockMvc.perform(asMember(get("/api/v2/inquiries")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].title").value("전자결재 문서함 조회 외 1건"))
+                .andExpect(jsonPath("$.items[1].title").value("지원 범위 안내"));
     }
 
     @Test

@@ -24,11 +24,9 @@ export function problemActionLabel(inquiry: InquiryResult) {
   return '해결 확인이 필요해요';
 }
 
-export function inquiryTitle(inquiry: InquiryResult, firstMessage?: string) {
-  const [first, ...rest] = inquiry.problems;
-  // 문제 분리 전에는 첫 사용자 메시지의 첫 줄을 제목으로 쓴다.
-  const line = firstMessage?.trim().split('\n')[0];
-  if (!first) return line?.length ? line : '새 문의';
+export function inquiryTitle(inquiry: InquiryResult) {
+  const [first, ...rest] = inquiry.problems.filter((problem) => problem.state !== 'OUT_OF_SCOPE');
+  if (!first) return inquiry.problems.length ? '지원 범위 안내' : '새 문의';
   return rest.length ? `${first.summary} 외 ${rest.length}건` : first.summary;
 }
 

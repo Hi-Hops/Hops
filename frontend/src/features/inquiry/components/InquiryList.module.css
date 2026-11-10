@@ -72,53 +72,163 @@
   color: var(--color-primary-strong);
 }
 .list {
+  container-type: inline-size;
+  min-width: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  overflow: auto;
+  border-radius: var(--radius-xl);
 }
-.list table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 550px;
-}
-.list th {
-  text-align: left;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-  background: var(--color-sunken);
-  padding: var(--space-3) var(--space-5);
-}
-.list td {
-  padding: var(--space-5);
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
   border-bottom: 1px solid var(--color-border);
 }
-.list td:first-child {
-  font-weight: var(--font-weight-semibold);
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }
-.list td:last-child {
+.filter {
+  min-height: var(--control-height-sm);
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-label);
+}
+.filter[aria-pressed='true'] {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-soft);
   color: var(--color-primary-strong);
-  white-space: nowrap;
 }
 .count {
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+.count strong {
+  color: var(--color-text);
+}
+.tableWrap {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table thead th {
+  background: var(--color-nav);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+}
+.table th,
+.table td {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.table tbody tr:hover,
+.table tbody tr:focus-within {
+  background: var(--color-nav);
+}
+.subject {
+  min-width: 0;
+}
+.subjectLink {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+}
+.subjectLink:hover {
+  color: var(--color-primary-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.state,
+.created,
+.confirmation {
+  width: 1%;
+  white-space: nowrap;
+}
+.created,
+.dash {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
+}
+.confirmationLink {
+  color: var(--color-primary-strong);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.more,
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
   padding: var(--space-4) var(--space-5);
 }
+.more {
+  border-top: 1px solid var(--color-border);
+}
+.more p {
+  color: var(--color-danger);
+}
 .empty {
-  padding: var(--space-8);
+  padding-block: var(--space-8);
   text-align: center;
-  display: grid;
-  gap: var(--space-3);
 }
 .empty h2 {
   font-size: var(--font-size-lg);
 }
-.empty p {
-  color: var(--color-text-muted);
-}
 .empty a {
   color: var(--color-primary-strong);
+}
+@container (max-width: 37rem) {
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .table tbody {
+    display: block;
+  }
+  .table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .table tbody tr:last-child,
+  .table tbody td {
+    border-bottom: 0;
+  }
+  .table tbody td {
+    width: auto;
+    padding: 0;
+  }
+  .subject,
+  .confirmation {
+    grid-column: 1 / -1;
+  }
+  .confirmation[data-empty] {
+    display: none;
+  }
 }

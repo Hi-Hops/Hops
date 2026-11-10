@@ -3,13 +3,17 @@ import type { SystemCommand } from '@/shared/api/systemCommands';
 import { readInquiries, readSystems, readCreation } from '@/shared/api/systemWire';
 import type {
   SystemConfirmCommand,
+  InquiryStatus,
   MessageProblemLinkCommand,
   CreationRetryCommand,
   ResolutionResponse,
 } from '@/shared/api/types/hopsSystem1';
 
-export const getSystemInquiries = (page: number, signal?: AbortSignal) =>
-  systemGet(`/inquiries?page=${String(page)}&size=20`, readInquiries, signal);
+export function getSystemInquiries(page: number, signal?: AbortSignal, status?: InquiryStatus) {
+  const params = new URLSearchParams({ page: String(page), size: '20' });
+  if (status) params.set('status', status);
+  return systemGet('/inquiries?' + params.toString(), readInquiries, signal);
+}
 export const getInquirySystems = (signal?: AbortSignal) =>
   systemGet('/systems', readSystems, signal);
 export const getCreationResult = (workItemId: string, signal?: AbortSignal) =>

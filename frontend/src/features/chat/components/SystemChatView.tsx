@@ -92,10 +92,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
   const pendingAnswers = inquiry.problems.filter((problem) => problem.state === 'WAITING_USER');
   const showRemainingAnswers =
     pendingAnswers.length > 0 && inquiry.problems.some(isResolvedProblem);
-  const title =
-    !inquiry.problems.length && storedInquiry.problems.length
-      ? '지원 범위 안내'
-      : inquiryTitle(inquiry, chat.items.find((m) => m.sender === 'USER')?.content);
+  const title = inquiryTitle(storedInquiry);
   // 연결 상태 점은 가장 최근 Hops 라벨 하나에만 둔다. 분석 중에는 진행 표시의 라벨에 둔다.
   const lastAiId = chat.items.filter((m) => m.sender === 'AI').at(-1)?.id;
   const meta = [

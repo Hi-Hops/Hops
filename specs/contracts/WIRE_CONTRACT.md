@@ -307,7 +307,7 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 | GET /auth/me | 없음 | CurrentUser | 로그인 |
 | GET /systems | 없음 | SupportedSystem[] | 로그인 |
 | GET /systems/{systemId}/primary | 없음 | PrimaryAssignment | 현재 담당자 또는 관리자 |
-| GET /inquiries | page,size | Page<InquirySummary> | 본인 |
+| GET /inquiries | page,size,status(선택, InquiryStatus) | Page<InquirySummary> | 본인 |
 | POST /inquiries | InquiryCreateCommand | CommandReceipt · INQUIRY | 로그인 |
 | GET /inquiries/{inquiryId} | 없음 | InquiryResult | 본인 |
 | GET /inquiries/{inquiryId}/messages | size,beforeSequenceNo | MessagePage | 본인 |

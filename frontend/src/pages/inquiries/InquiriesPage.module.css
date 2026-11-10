@@ -1,4 +1,6 @@
 .page {
+  width: min(100%, 1200px);
+  margin-inline: auto;
   padding: var(--space-7);
 }
 .page header {
@@ -22,4 +24,10 @@
   color: var(--color-on-ink);
   white-space: nowrap;
   font-weight: var(--font-weight-semibold);
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: var(--space-4);
+  }
 }

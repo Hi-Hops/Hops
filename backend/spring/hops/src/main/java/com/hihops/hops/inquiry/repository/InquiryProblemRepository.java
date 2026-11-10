@@ -35,6 +35,8 @@ public interface InquiryProblemRepository extends JpaRepository<InquiryProblem, 
             SELECT new com.hihops.hops.inquiry.repository.InquiryProblemCounts(
                 p.inquiry.id,
                 COUNT(p),
+                SUM(CASE WHEN p.problemStatus <> com.hihops.hops.inquiry.domain.ProblemStatus.OUT_OF_SCOPE
+                         THEN 1 ELSE 0 END),
                 COUNT(t),
                 SUM(CASE WHEN p.problemStatus = com.hihops.hops.inquiry.domain.ProblemStatus.GUIDED
                            OR (p.problemStatus = com.hihops.hops.inquiry.domain.ProblemStatus.TICKET_CREATED
@@ -46,6 +48,19 @@ public interface InquiryProblemRepository extends JpaRepository<InquiryProblem, 
             GROUP BY p.inquiry.id
             """)
     List<InquiryProblemCounts> countByInquiryIds(Collection<UUID> inquiryIds);
+
+    /** 본인 문의 목록에 표시할 첫 지원 대상 문제를 문의별로 한 건만 읽는다. */
+    @Query("""
+            SELECT p FROM InquiryProblem p
+            WHERE p.inquiry.id IN :inquiryIds AND p.deletedAt IS NULL
+              AND p.problemStatus <> com.hihops.hops.inquiry.domain.ProblemStatus.OUT_OF_SCOPE
+              AND p.problemNo = (
+                  SELECT MIN(candidate.problemNo) FROM InquiryProblem candidate
+                  WHERE candidate.inquiry = p.inquiry AND candidate.deletedAt IS NULL
+                    AND candidate.problemStatus <> com.hihops.hops.inquiry.domain.ProblemStatus.OUT_OF_SCOPE
+              )
+            """)
+    List<InquiryProblem> findRepresentativeProblems(Collection<UUID> inquiryIds);
 
     boolean existsByInquiry_IdAndDeletedAtIsNull(UUID inquiryId);
 

@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.hihops.hops.global.dto.PageResponse;
 import com.hihops.hops.global.idempotency.CommandReceipt;
 import com.hihops.hops.global.idempotency.IdempotentRequest;
+import com.hihops.hops.inquiry.domain.InquiryStatus;
 import com.hihops.hops.inquiry.dto.InquiryCreateCommand;
 import com.hihops.hops.inquiry.dto.InquiryResultResponse;
 import com.hihops.hops.inquiry.dto.InquirySummaryResponse;
@@ -64,8 +65,9 @@ public class InquiryController {
     @GetMapping
     public PageResponse<InquirySummaryResponse> inquiries(@AuthenticationPrincipal Jwt jwt,
             @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
-        return inquiryQueryService.findMyInquiries(actorId(jwt), page, size);
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+            @RequestParam(required = false) @Nullable InquiryStatus status) {
+        return inquiryQueryService.findMyInquiries(actorId(jwt), page, size, status);
     }
 
     @GetMapping("/{inquiryId}")
