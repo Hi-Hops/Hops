@@ -20,7 +20,7 @@ from hops_ai.rules.legal_actions import legal_actions
 from hops_ai.rules.progress import DECISION_OUTCOMES, get_problem_progress
 from hops_ai.supervisor.decisions import apply_decision
 from hops_ai.supervisor.execution import execute_role
-from hops_ai.supervisor.facts import pending_problem_refs, problem_facts
+from hops_ai.supervisor.facts import _explicit_staff_request, pending_problem_refs, problem_facts
 from hops_ai.supervisor.finalize import finalize_result
 from tests.supervisor_fixtures import (
     EVIDENCE,
@@ -69,6 +69,25 @@ QUESTION = QuestionProposal(
 
 def with_question(state):
     return {**state, "questions": {(PROBLEM, QUESTION.bundleRef): QUESTION}}
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("문서가 안 보여요. 담당자에게 확인을 요청합니다.", True),
+        ("담당자에게 검토를 부탁드립니다.", True),
+        ("담당자에게 확인을 요청합니다?", False),
+        ("담당자에게 확인을 요청하지 않습니다.", False),
+        ("담당자가 확인해 줬다고 들었어요.", False),
+    ],
+)
+def test_staff_review_request_uses_explicit_user_statement_only(text, expected):
+    state = base_state()
+    messages = list(state["input"].messages)
+    user_index = next(i for i, m in enumerate(messages) if m.sender == "USER")
+    messages[user_index] = messages[user_index].model_copy(update={"content": text})
+    state = {**state, "input": state["input"].model_copy(update={"messages": messages})}
+    assert _explicit_staff_request(state, PROBLEM) is expected
 
 
 def with_guide(state):

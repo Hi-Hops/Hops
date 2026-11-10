@@ -14,6 +14,7 @@ from hops_ai.agents.knowledge import SearchKnowledgeAgent
 from hops_ai.agents.knowledge.assessment import (
     PROMPT_VERSION,
     RESERVED_CALLS,
+    AskedChecks,
     AssessmentDraft,
     DraftCause,
     DraftMissing,
@@ -232,6 +233,32 @@ def services_with(request, *outcomes) -> tuple[SharedServices, FakeLLMClient]:
 
 
 DEFAULT_HITS = (hit(),)
+
+
+async def test_identical_authorized_evidence_reuses_assessment_but_changed_content_does_not():
+    request = how_to_request()
+    services, llm = services_with(request, draft(), draft())
+    target = running_state(request)["problems"][PROBLEM]
+    agent = SearchKnowledgeAgent(RecordingSource(DEFAULT_HITS), assess_evidence=True)
+    first = await agent._assess(target, [hit()], None, services, AskedChecks())
+    repeated = await agent._assess(target, [hit()], None, services, AskedChecks())
+    assert repeated == first and len(llm.requests) == 1
+    await agent._assess(target, [hit(content="새 승인 원문")], None, services, AskedChecks())
+    assert len(llm.requests) == 2
+
+
+async def test_assessment_cache_does_not_cross_run_or_problem_boundaries():
+    request = how_to_request()
+    target = running_state(request)["problems"][PROBLEM]
+    services, llm = services_with(request, draft(), draft())
+    agent = SearchKnowledgeAgent(RecordingSource(DEFAULT_HITS), assess_evidence=True)
+    await agent._assess(target, [hit()], None, services, AskedChecks())
+    other = target.model_copy(update={"problemRef": "new:other"})
+    await agent._assess(other, [hit()], None, services, AskedChecks())
+    assert len(llm.requests) == 2
+    fresh, fresh_llm = services_with(request, draft())
+    await agent._assess(target, [hit()], None, fresh, AskedChecks())
+    assert len(fresh_llm.requests) == 1
 
 
 async def run_knowledge(*outcomes, hits=DEFAULT_HITS, assess=True, source=None):

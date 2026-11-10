@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # 켜면 Knowledge 안내문을 승인 본문 전체가 아니라 문의에 답하는 문단만 골라 만들고, 답하는
     # 문서가 없으면 안내하지 않는다(안내 후보가 있을 때 모델 1회). 끄면 본문 전체로 안내한다.
     guide_excerpt: bool = True
+    # 필드·질문 한도는 동일하며, 끄면 검증된 양식 질문을 모델 재작성 없이 바로 보낸다.
+    generate_questions: bool = True
+    # 현상 문의의 필수 정보가 부족하면 검색 전 합법 ASK를 우선한다. opt-in으로 비교·검증한다.
+    fast_intake_questions: bool = False
     # Spring 지식 검색·관계 조회 요청 한 번의 제한 시간. 남은 실행 기한보다 길게 기다리지 않는다.
     knowledge_http_timeout_seconds: float = Field(default=5, gt=0, le=30)
     # 승인 사례 색인(contracts/agents I1). 다섯 값이 모두 있고 내부 API·RunLedger가 켜져 있을 때만

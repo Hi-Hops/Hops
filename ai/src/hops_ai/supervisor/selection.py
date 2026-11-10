@@ -109,7 +109,11 @@ def selection_context(
 
 
 async def choose_actions(
-    state: SupervisorState, services: SharedServices, options: Mapping[str, frozenset[Action]]
+    state: SupervisorState,
+    services: SharedServices,
+    options: Mapping[str, frozenset[Action]],
+    *,
+    fast_intake_questions: bool = False,
 ) -> dict[str, Action]:
     """문제마다 행동 하나를 고른다. 선택지가 비어 있는 문제가 있으면 호출 오류다.
 
@@ -121,7 +125,19 @@ async def choose_actions(
     for ref, actions in options.items():
         if not actions:
             raise OutputRejected("합법한 행동이 없는 문제가 있다")
-        if len(actions) == 1:
+        facts = problem_facts(state, ref)
+        # 현상 문의의 필수 입력이 비면 먼저 양식 질문을 한다. 아직 답할 수 없는 문맥으로
+        # 검색·평가·재검색을 반복하지 않는다. 정정 등으로 ASK가 금지된 선택지는 건드리지 않는다.
+        intake_question = (
+            fast_intake_questions
+            and "ASK" in actions
+            and state["problems"][ref].intent == "OBSERVED_SYMPTOM"
+            and facts.search_state is None
+            and not facts.required_info_secured
+        )
+        if intake_question:
+            chosen[ref] = "ASK"
+        elif len(actions) == 1:
             chosen[ref] = next(iter(actions))
         else:
             contested[ref] = actions

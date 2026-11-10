@@ -60,6 +60,30 @@ def prompt_versions(llm) -> list[str]:
     return [item.prompt_version for item in llm.requests]
 
 
+async def test_fast_intake_asks_required_fields_without_search_or_selection_calls() -> None:
+    request = first_message_request(EA_SYMPTOM)
+    llm = FakeLLMClient(InquiryExtraction(problems=[extracted()]))
+    source = RecordingSource(DEFAULT_HITS)
+    result = await judgment_supervisor(source, fast_intake_questions=True).analyze(
+        request, services_for(request, llm)
+    )
+    assert result.status == "SUCCEEDED" and len(result.questions) == 1
+    assert result.guide is None and not result.ticketProposals
+    assert prompt_versions(llm) == ["inquiry-extraction-v11"]
+
+
+async def test_fast_intake_preserves_how_to_search_instead_of_forcing_questions() -> None:
+    request = first_message_request(HOW_TO_TEXT)
+    llm = FakeLLMClient(
+        InquiryExtraction(problems=[how_to()]), draft(supportingEvidenceIds=[GUIDE.id])
+    )
+    result = await judgment_supervisor(fast_intake_questions=True).analyze(
+        request, services_for(request, llm)
+    )
+    assert result.status == "SUCCEEDED" and result.guide is not None and not result.questions
+    assert "knowledge.assessment.v5" in prompt_versions(llm)
+
+
 # --- 선택지가 하나이면 모델을 부르지 않는다 ---
 
 

@@ -70,6 +70,8 @@ def create_app(
             ticket_client=TicketHTTPClient(resolved) if resolved.ticket_tools_enabled else None,
             assess_evidence=resolved.knowledge_assessment,
             guide_excerpt=resolved.guide_excerpt,
+            generate_questions=resolved.generate_questions,
+            fast_intake_questions=resolved.fast_intake_questions,
         )
     resolved_ledger = ledger
     if resolved.internal_api_enabled and resolved_ledger is None:

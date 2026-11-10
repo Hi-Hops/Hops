@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 
+from hops_ai.contracts.roles import Assessment
 from hops_ai.harness.context import RunContext
 from hops_ai.services.llm.client import LLMClient
 from hops_ai.services.tickets import TicketSession
@@ -23,3 +24,5 @@ class SharedServices:
     tools: ToolGateway
     tracing: RunTracing = field(default_factory=RunTracing)
     ticket_tools: TicketSession | None = None
+    # 같은 실행 안에서 현재 권한 재조회가 끝난 동일 근거의 검증된 판정만 재사용한다.
+    assessment_cache: dict[str, Assessment] = field(default_factory=dict, repr=False)

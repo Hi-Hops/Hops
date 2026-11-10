@@ -31,6 +31,8 @@
 Supervisor 병합 단계가 현재 접근 범위와 다시 대조한다.
 """
 
+import hashlib
+import json
 import logging
 from dataclasses import replace
 from uuid import uuid4
@@ -231,6 +233,10 @@ class SearchKnowledgeAgent:
         existing = state["guide"]
         if call.targets and existing is not None and existing.problemRef != target.problemRef:
             return None
+        # 충분하지 않은 판정으로는 ANSWER가 합법이 아니다. 버려질 안내문을 모델로 발췌하지 않는다.
+        # 이후 검색에서 SUFFICIENT가 되면 그 검색의 승인 원문으로 정상 발췌한다.
+        if assessment is not None and assessment.verdict != "SUFFICIENT":
+            return None
         if self._excerpt_guides:
             supported = set(assessment.supportingEvidenceIds) if assessment else set()
             candidates = [hit for hit in hits if not supported or hit.evidence.id in supported]
@@ -298,6 +304,51 @@ class SearchKnowledgeAgent:
                 target.problemRef,
                 [key for key in approved_questions(relations) if key not in asked.ids],
             )
+        payload = build_user_payload(target, hits, relations, asked)
+        # 질의의 단어·검색 점수만 달라지고 승인 근거·질문·확인 사실이 같으면 새 정보가 아니다.
+        # 원문 전체·승인 참조·관계도 키에 포함하며 매 검색의 권한/digest 검증은 생략하지 않는다.
+        canonical = json.loads(payload)
+        canonical["evidence"] = sorted(canonical["evidence"], key=lambda e: e["id"])
+        key = hashlib.sha256(
+            json.dumps(
+                {
+                    "run": services.runtime.run_id,
+                    "scope": services.runtime.access_scope_ref,
+                    "problem": target.model_dump(mode="json"),
+                    "input": canonical,
+                    "hits": sorted(
+                        [
+                            {
+                                "evidence": h.evidence.model_dump(mode="json"),
+                                "reference": h.reference.model_dump(mode="json"),
+                                "content": h.content,
+                            }
+                            for h in hits
+                        ],
+                        key=lambda h: h["evidence"]["id"],
+                    ),
+                    "relations": relations.model_dump(mode="json") if relations else None,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        cached = services.assessment_cache.get(key)
+        if cached is not None:
+            services.runtime.ensure_active()
+            validate_assessment(
+                cached,
+                intent=target.intent,
+                search_state="FOUND",
+                evidence=[hit.evidence for hit in hits],
+                allowed_check_items=check_item_ids(relations),
+            )
+            logger.info(
+                "동일 근거 판정 재사용 runId=%s problemRef=%s",
+                services.runtime.run_id,
+                target.problemRef,
+            )
+            return cached.model_copy(deep=True)
         budget = services.runtime.budget
         # 평가가 실행 예산을 다 써서 이후의 필수 호출(판단·질문·티켓)을 막지 않게 한다.
         if budget.max_llm_calls - budget.llm_calls_used < 1 + RESERVED_CALLS:
@@ -307,7 +358,7 @@ class SearchKnowledgeAgent:
                 LLMRequest(
                     messages=[
                         LLMMessage("system", SYSTEM_PROMPT),
-                        LLMMessage("user", build_user_payload(target, hits, relations, asked)),
+                        LLMMessage("user", payload),
                     ],
                     response_model=AssessmentDraft,
                     max_output_tokens=MAX_OUTPUT_TOKENS,
@@ -342,6 +393,8 @@ class SearchKnowledgeAgent:
             )
         except (ValidationError, OutputRejected):
             return None
+        if len(services.assessment_cache) < 16:
+            services.assessment_cache[key] = assessment.model_copy(deep=True)
         return assessment
 
     async def _look_up_relations(

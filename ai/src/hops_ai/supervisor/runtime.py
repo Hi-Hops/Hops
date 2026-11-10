@@ -90,6 +90,7 @@ class SupervisorRuntime:
                 budget,
                 UsageRecorder(),
                 ensure_active=self._execution.ensure_active,
+                run_id=context.run_id,
             ),
             tools=BudgetedToolGateway(
                 services.tools,

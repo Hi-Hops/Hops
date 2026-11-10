@@ -40,6 +40,8 @@ class SupervisorPipeline:
         problem_actions: bool | None = None,
         relation_source: RelationSource | None = None,
         guide_excerpt: bool = False,
+        generate_questions: bool = True,
+        fast_intake_questions: bool = False,
     ) -> None:
         """llm은 원시 클라이언트다. 실행별 누적 예산 wrapper는 Supervisor가 적용한다.
 
@@ -61,7 +63,7 @@ class SupervisorPipeline:
                 execute_tickets=ticket_client is not None,
                 assess_evidence=assess_evidence,
                 defer_questions=assess_evidence,
-                generate_questions=assess_evidence,
+                generate_questions=assess_evidence and generate_questions,
                 relation_source=relation_source,
                 excerpt_guides=guide_excerpt,
             )
@@ -79,7 +81,10 @@ class SupervisorPipeline:
         if problem_actions is None:
             problem_actions = assess_evidence and agents is None and knowledge_source is not None
         self._supervisor = Supervisor(
-            registry, restrict_roles=True, problem_actions=problem_actions
+            registry,
+            restrict_roles=True,
+            problem_actions=problem_actions,
+            fast_intake_questions=fast_intake_questions,
         )
 
     def _tracing_for(self, request: AiRunRequest) -> RunTracing:
