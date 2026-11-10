@@ -265,7 +265,7 @@ describe('F009 티켓 상세 모달', () => {
     expect(view.getByRole('textbox', { name: '처리 내용' })).toBeVisible();
   });
 
-  it('F011-CONTRACT-05 해결 사례 탭에서 생성된 초안 검토 화면으로 이동한다', async () => {
+  it('F011-AC02 해결 사례 탭에서 같은 모달 안의 초안을 수정하고 승인한다', async () => {
     vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
     systemMockBackend.reset();
     await login(TEST_LOGINS.network);
@@ -275,14 +275,43 @@ describe('F009 티켓 상세 모달', () => {
     const router = renderTickets(`/tickets/${ticket.id}?tab=work`);
     const user = userEvent.setup();
     const dialog = await screen.findByRole('dialog');
-    await user.click(await within(dialog).findByRole('link', { name: '해결 사례' }));
+    const view = within(dialog);
+    expect(await view.findByText('문의자가 해결을 확인했어요.')).toBeVisible();
+    expect(view.queryByRole('region', { name: '해결 사례 초안' })).not.toBeInTheDocument();
+
+    await user.click(view.getByRole('link', { name: '해결 사례' }));
+    await user.click(await view.findByRole('button', { name: '사례 초안 확인' }));
+    const applicability = await view.findByRole('textbox', { name: '적용 조건' });
     expect(screen.getByRole('dialog')).toBe(dialog);
-    const review = await within(dialog).findByRole('link', { name: '사례 초안 확인' });
-    const casePath = review.getAttribute('href');
-    expect(casePath).toMatch(/^\/cases\//u);
-    await user.click(review);
-    expect(router.state.location.pathname).toBe(casePath);
-    expect(await screen.findByRole('link', { name: '원 티켓 보기' })).toBeVisible();
+    expect(router.state.location.pathname).toBe(`/tickets/${ticket.id}`);
+    expect(router.state.location.search).toBe('?tab=case');
+
+    const updatedCondition = '전자결재에서 동일한 첨부파일 접근 오류가 발생한 경우';
+    await user.clear(applicability);
+    await user.type(applicability, updatedCondition);
+    await user.click(view.getByRole('button', { name: '사례 검토 접기', expanded: true }));
+    expect(view.queryByRole('textbox', { name: '적용 조건' })).not.toBeInTheDocument();
+    await user.click(view.getByRole('button', { name: '사례 초안 확인', expanded: false }));
+    expect(await view.findByRole('textbox', { name: '적용 조건' })).toHaveValue(updatedCondition);
+
+    const sidebar = within(view.getByRole('complementary', { name: '티켓 정보와 사례 검토' }));
+    const approvalHeading = sidebar.getByRole('heading', { name: '승인 전 확인' });
+    expect(
+      sidebar.getByRole('heading', { name: '배정 이력' }).compareDocumentPosition(approvalHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await user.click(sidebar.getByRole('button', { name: '초안 수정 저장' }));
+    expect(await view.findByText('사례 문서 v2 · 원 문의 처리 기록 기반')).toBeVisible();
+    expect(sidebar.getByText('초안을 저장했어요')).toBeVisible();
+    await sidebar.findByText('문의자 해결 확인됨');
+    await user.click(sidebar.getByRole('checkbox'));
+    await user.click(sidebar.getByRole('button', { name: '확인한 버전 승인' }));
+    expect(await view.findByText('승인된 사례·읽기 전용')).toBeVisible();
+    expect(sidebar.getByText('사례 승인 완료')).toBeVisible();
+    expect(sidebar.getByRole('region', { name: 'Vector DB 반영 상태' })).toBeVisible();
+    expect(sidebar.getByRole('region', { name: 'Neo4j 반영 상태' })).toBeVisible();
+    expect(view.getByRole('textbox', { name: '적용 조건' })).toHaveValue(updatedCondition);
+    expect(router.state.location.pathname).toBe(`/tickets/${ticket.id}`);
   });
 
   it('F009-DETAIL-03 긴 설명을 문장별로 읽고 중복 없는 근거를 항목별로 펼친다', async () => {

@@ -347,6 +347,14 @@
   padding: var(--space-6);
   align-items: start;
 }
+.detailSide {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+.caseReviewSlot:empty {
+  display: none;
+}
 .detailMain,
 .requestSections {
   min-width: 0;

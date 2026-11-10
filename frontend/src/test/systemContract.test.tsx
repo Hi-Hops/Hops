@@ -199,7 +199,10 @@ describe('hops-system-1 시스템 단위 전환', () => {
     vi.spyOn(systemMockBackend, 'request').mockImplementation((path, method, body, token, key) =>
       path === `/api/v2/management/tickets/${id}` ? full : original(path, method, body, token, key),
     );
-    renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
+    renderWithProviders(
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
+      `/admin/tickets/${id}`,
+    );
     expect(await screen.findByRole('heading', { name: new RegExp(full.title, 'u') })).toBeVisible();
     expect(screen.queryByRole('heading', { name: '문의 요약' })).not.toBeInTheDocument();
     expect(screen.queryByText('원문 대화 보기')).not.toBeInTheDocument();
@@ -301,7 +304,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     const page = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
     const id = page.items[0]?.id ?? '';
     renderWithProviders(
-      <SystemTicketDetail id={id} onClose={vi.fn()} />,
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
       `/tickets/${id}?view=list&systemId=${systems[0].id}`,
     );
     expect(await screen.findByRole('heading', { name: '문의 요약' })).toBeVisible();
@@ -323,7 +326,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     });
     const connect = vi.spyOn(realtime, 'connect').mockImplementation(() => undefined);
     renderWithProviders(
-      <SystemTicketDetail id={id} onClose={vi.fn()} />,
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
       `/tickets/${id}?view=list&systemId=${systems[0].id}`,
     );
     expect(await screen.findByText('실시간 연결이 끊겼어요')).toBeVisible();
@@ -337,7 +340,10 @@ describe('hops-system-1 시스템 단위 전환', () => {
     const page = await systemGet('/tickets?scope=ADMIN', readTickets);
     const id = page.items[0]?.id ?? '';
     const connect = vi.spyOn(realtime, 'connect').mockImplementation(() => undefined);
-    renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
+    renderWithProviders(
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
+      `/admin/tickets/${id}`,
+    );
     expect(await screen.findByRole('heading', { name: '업무 메타데이터' })).toBeVisible();
     expect(screen.queryByRole('button', { name: '다시 연결' })).not.toBeInTheDocument();
     act(() => {

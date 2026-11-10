@@ -10,7 +10,8 @@
   align-items: center;
   margin-bottom: var(--space-6);
 }
-.pageHead h1 {
+.pageHead h1,
+.pageHead h3 {
   font-size: var(--font-size-xl);
   overflow-wrap: anywhere;
 }
@@ -135,6 +136,13 @@
   gap: var(--space-6);
   align-items: start;
 }
+.embedded .detailGrid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+.embedded .pageHead {
+  margin-bottom: var(--space-4);
+}
 .editor,
 .review,
 .review .panel,
@@ -165,7 +173,7 @@
 }
 .review dl {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--space-3);
   margin: 0;
   font-size: var(--font-size-label);
@@ -207,8 +215,81 @@
   border-radius: var(--radius-lg);
   font-size: var(--font-size-label);
 }
-.indexCard > span {
-  justify-self: start;
+.publication p {
+  margin: 0;
+  line-height: 1.5;
+}
+.indexHeader,
+.indexBadge {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+.indexHeader {
+  justify-content: space-between;
+}
+.indexHeader span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.indexCard,
+.review .panel,
+.publication {
+  padding: var(--space-4);
+}
+.indexCard {
+  gap: var(--space-2);
+}
+.indexCard[data-complete='true'],
+.publication[data-complete='true'] {
+  border-color: var(--color-success-border);
+  animation: confirm 360ms ease-out;
+}
+.publication[data-complete='true'],
+.completed {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.completed {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  animation: confirm 360ms ease-out;
+}
+.spinner {
+  width: 0.9em;
+  height: 0.9em;
+  flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+@keyframes confirm {
+  from {
+    opacity: 0.55;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .completed,
+  .indexCard[data-complete='true'],
+  .publication[data-complete='true'] {
+    animation: none;
+  }
 }
 @media (max-width: 1100px) {
   .detailGrid {

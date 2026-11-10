@@ -107,7 +107,7 @@
   display: grid;
   gap: var(--space-2);
 }
-.draftLink {
+.draftButton {
   justify-self: start;
 }
 .record {

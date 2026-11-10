@@ -1,5 +1,5 @@
 import { displayTicketNumber } from '@/shared/lib/ticketNumber';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
@@ -363,8 +363,18 @@ function RequestContent({ ticket }: RequestContentProps) {
     </div>
   );
 }
-type SystemTicketDetailProps = { id: string; onClose: () => void; returnFocusId?: string };
-export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketDetailProps) {
+type SystemTicketDetailProps = {
+  id: string;
+  onClose: () => void;
+  returnFocusId?: string;
+  renderCaseReview: (caseId: string, reviewTarget: HTMLElement) => ReactNode;
+};
+export function SystemTicketDetail({
+  id,
+  onClose,
+  returnFocusId,
+  renderCaseReview,
+}: SystemTicketDetailProps) {
   const user = useSession((s) => s.user);
   const token = useSession((s) => s.token);
   const location = useLocation();
@@ -384,6 +394,7 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
     enabled: allowed,
     refetchInterval: 5000,
   });
+  const [reviewTarget, setReviewTarget] = useState<HTMLDivElement | null>(null);
   const [correction, setCorrection] = useState<'assignment' | 'processing' | null>(null);
   const data = query.data;
   const back = new URLSearchParams(search);
@@ -517,82 +528,90 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
                       </p>
                     </section>
                   )}
-                  <CaseGenerationPanel generation={data.caseGeneration} />
                 </>
               ) : hasRequest(data) && !admin && tab === 'case' ? (
-                <CaseGenerationPanel generation={data.caseGeneration} />
+                <CaseGenerationPanel
+                  generation={data.caseGeneration}
+                  renderCaseReview={renderCaseReview}
+                  reviewTarget={reviewTarget}
+                />
               ) : (
                 <ErrorState title="지원하지 않는 상세 탭이에요" />
               )}
             </div>
-            <aside className={styles.properties}>
-              <StatusBadge {...systemStatus(data.state)} />
-              <dl>
-                {(admin || data.reportedSystem.id !== data.responsibleSystem.id) && (
-                  <>
-                    <dt>보고 시스템</dt>
-                    <dd>{data.reportedSystem.name}</dd>
-                  </>
+            <aside className={styles.detailSide} aria-label="티켓 정보와 사례 검토">
+              <section className={styles.properties}>
+                <StatusBadge {...systemStatus(data.state)} />
+                <dl>
+                  {(admin || data.reportedSystem.id !== data.responsibleSystem.id) && (
+                    <>
+                      <dt>보고 시스템</dt>
+                      <dd>{data.reportedSystem.name}</dd>
+                    </>
+                  )}
+                  <dt>
+                    {!admin && data.reportedSystem.id === data.responsibleSystem.id
+                      ? '시스템'
+                      : '책임 시스템'}
+                  </dt>
+                  <dd>{data.responsibleSystem.name}</dd>
+                  {(admin || data.assignee.id !== user?.id) && (
+                    <>
+                      <dt>배정된 담당자</dt>
+                      <dd>{data.assignee.name}</dd>
+                    </>
+                  )}
+                  {(admin || data.currentPrimary.id !== data.assignee.id) && (
+                    <>
+                      <dt>현재 주담당자</dt>
+                      <dd>{data.currentPrimary.name}</dd>
+                    </>
+                  )}
+                  <dt>처리 유형</dt>
+                  <dd>{processingLabels[data.processingType] ?? '유형 확인 필요'}</dd>
+                  <dt>생성 시각</dt>
+                  <dd>{displayDate(data.createdAt)}</dd>
+                </dl>
+                {canCorrect && (
+                  <div className={styles.detailActions}>
+                    <Button
+                      id={'correct-assignment-' + id}
+                      variant="secondary"
+                      onClick={() => {
+                        setCorrection('assignment');
+                      }}
+                    >
+                      책임 시스템 정정
+                    </Button>
+                    {!admin &&
+                      staff &&
+                      ['INVESTIGATION', 'INCIDENT'].includes(data.processingType) && (
+                        <Button
+                          id={'correct-processing-' + id}
+                          variant="secondary"
+                          onClick={() => {
+                            setCorrection('processing');
+                          }}
+                        >
+                          처리 유형 정정
+                        </Button>
+                      )}
+                  </div>
                 )}
-                <dt>
-                  {!admin && data.reportedSystem.id === data.responsibleSystem.id
-                    ? '시스템'
-                    : '책임 시스템'}
-                </dt>
-                <dd>{data.responsibleSystem.name}</dd>
-                {(admin || data.assignee.id !== user?.id) && (
-                  <>
-                    <dt>배정된 담당자</dt>
-                    <dd>{data.assignee.name}</dd>
-                  </>
-                )}
-                {(admin || data.currentPrimary.id !== data.assignee.id) && (
-                  <>
-                    <dt>현재 주담당자</dt>
-                    <dd>{data.currentPrimary.name}</dd>
-                  </>
-                )}
-                <dt>처리 유형</dt>
-                <dd>{processingLabels[data.processingType] ?? '유형 확인 필요'}</dd>
-                <dt>생성 시각</dt>
-                <dd>{displayDate(data.createdAt)}</dd>
-              </dl>
-              {canCorrect && (
-                <div className={styles.detailActions}>
-                  <Button
-                    id={'correct-assignment-' + id}
-                    variant="secondary"
-                    onClick={() => {
-                      setCorrection('assignment');
-                    }}
-                  >
-                    책임 시스템 정정
-                  </Button>
-                  {!admin &&
-                    staff &&
-                    ['INVESTIGATION', 'INCIDENT'].includes(data.processingType) && (
-                      <Button
-                        id={'correct-processing-' + id}
-                        variant="secondary"
-                        onClick={() => {
-                          setCorrection('processing');
-                        }}
-                      >
-                        처리 유형 정정
-                      </Button>
-                    )}
-                </div>
-              )}
-              <section className={styles.assignmentHistory}>
-                <h3>배정 이력</h3>
-                {data.assignmentHistory.map((entry) => (
-                  <article key={entry.id}>
-                    <strong>{entry.assignee.name}</strong>
-                    <p>{entry.reason}</p>
-                    <small>{displayDate(entry.createdAt)}</small>
-                  </article>
-                ))}
+                <section className={styles.assignmentHistory}>
+                  <h3>배정 이력</h3>
+                  {data.assignmentHistory.map((entry) => (
+                    <article key={entry.id}>
+                      <strong>{entry.assignee.name}</strong>
+                      <p>{entry.reason}</p>
+                      <small>{displayDate(entry.createdAt)}</small>
+                    </article>
+                  ))}
+                </section>
               </section>
+              {!admin && tab === 'case' && (
+                <div className={styles.caseReviewSlot} ref={setReviewTarget} />
+              )}
             </aside>
           </div>
           {correction && (
