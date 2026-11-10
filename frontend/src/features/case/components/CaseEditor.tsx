@@ -170,7 +170,7 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
         )}
         {approve.error && <p role="alert">{approve.error}</p>}
         {version.state === 'APPROVED' && (
-          <p className={styles.completed} role="status">
+          <p className={styles.approved} role="status">
             사례 승인 완료
           </p>
         )}
@@ -207,7 +207,22 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
       {version.state === 'APPROVED' && (
         <>
           <section className={styles.publication} data-complete={published} role="status">
-            <strong>{published ? '검색 공개 완료' : '검색 공개 전'}</strong>
+            <div className={styles.publicationHeading}>
+              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+                <path className={styles.publicationWait} d="M6 10h8" stroke="currentColor" />
+                <path
+                  className={styles.publicationCheck}
+                  d="m6 10 2.5 2.5L14 7"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <strong>{published ? '검색 공개 완료' : '검색 공개 전'}</strong>
+              <span>승인 v{version.caseVersion}</span>
+            </div>
             <p>
               {published
                 ? 'Vector DB와 Neo4j에 승인 버전을 반영했어요.'

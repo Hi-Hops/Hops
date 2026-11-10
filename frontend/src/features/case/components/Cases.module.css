@@ -209,26 +209,51 @@
 .publication {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-5);
   background: var(--color-progress-bg);
   border: 1px solid var(--color-progress-border);
   border-radius: var(--radius-lg);
+  color: var(--color-progress);
   font-size: var(--font-size-label);
+  transition:
+    background-color 420ms ease-out,
+    border-color 420ms ease-out,
+    color 420ms ease-out;
 }
 .publication p {
   margin: 0;
   line-height: 1.5;
 }
-.indexHeader,
-.indexBadge {
+.publicationHeading,
+.indexHeader {
   display: flex;
   gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
 }
+.publicationHeading svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.publicationHeading span {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+.publicationWait,
+.publicationCheck {
+  transition: opacity 240ms ease-out;
+}
+.publicationCheck,
+.publication[data-complete='true'] .publicationWait {
+  opacity: 0;
+}
+.publication[data-complete='true'] .publicationCheck {
+  opacity: 1;
+}
 .indexHeader {
   justify-content: space-between;
 }
+.publicationHeading span,
 .indexHeader span {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -240,23 +265,126 @@
 }
 .indexCard {
   gap: var(--space-2);
+  transition: border-color 280ms ease-out;
 }
-.indexCard[data-complete='true'],
+.indexCard[data-state='SUCCEEDED'],
 .publication[data-complete='true'] {
   border-color: var(--color-success-border);
-  animation: confirm 360ms ease-out;
+}
+.indexCard[data-state='RUNNING'] {
+  border-color: var(--color-progress-border);
+  --index-color: var(--color-progress);
+  --index-background: var(--color-progress-bg);
+}
+.indexCard[data-state='SUCCEEDED'] {
+  --index-color: var(--color-success);
+  --index-background: var(--color-success-bg);
+}
+.indexCard[data-state='FAILED'] {
+  border-color: var(--color-danger-border);
+  --index-color: var(--color-danger);
+  --index-background: var(--color-danger-bg);
+}
+.indexCard[data-state='UNKNOWN'] {
+  border-color: var(--color-attention-border);
+  --index-color: var(--color-attention);
+  --index-background: var(--color-attention-bg);
+}
+.indexTrack {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  min-height: var(--space-8);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--index-color, var(--color-text-muted));
+  background: var(--index-background, var(--color-sunken));
+  transition:
+    color 280ms ease-out,
+    background-color 280ms ease-out;
+}
+.indexIllustration {
+  width: 108px;
+  max-width: 50%;
+  height: 28px;
+}
+.indexConnector {
+  stroke-dasharray: 2 3;
+  opacity: 0.55;
+}
+.indexCard[data-state='SUCCEEDED'] .indexConnector {
+  stroke-dasharray: none;
+  opacity: 1;
+}
+.indexParticle,
+.indexFlow,
+.indexCheck {
+  opacity: 0;
+}
+.indexCheck {
+  transition: opacity 280ms ease-out;
+}
+.indexCard[data-state='SUCCEEDED'] .indexCheck {
+  opacity: 1;
+}
+.indexCard[data-state='RUNNING'] .indexParticle {
+  animation: indexTransfer 1050ms linear infinite;
+}
+.indexCard[data-state='RUNNING'] .indexParticle:nth-child(2) {
+  animation-delay: 160ms;
+}
+.indexCard[data-state='RUNNING'] .indexParticle:nth-child(3) {
+  animation-delay: 320ms;
+}
+.indexCard[data-state='RUNNING'] .indexFlow {
+  stroke-dasharray: 12 41;
+  animation: indexLink 1050ms linear infinite;
+}
+@keyframes indexTransfer {
+  0% {
+    opacity: 0.9;
+    transform: translateX(0);
+  }
+  72% {
+    opacity: 1;
+  }
+  85%,
+  100% {
+    opacity: 0;
+    transform: translateX(39px);
+  }
+}
+@keyframes indexLink {
+  0% {
+    opacity: 0.9;
+    stroke-dashoffset: 3;
+  }
+  72% {
+    opacity: 1;
+  }
+  85%,
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -42;
+  }
 }
 .publication[data-complete='true'],
-.completed {
+.completed,
+.approved {
   color: var(--color-success);
   background: var(--color-success-bg);
 }
-.completed {
+.completed,
+.approved {
   margin: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   font-size: var(--font-size-label);
   font-weight: var(--font-weight-semibold);
+}
+.completed {
   animation: confirm 360ms ease-out;
 }
 .spinner {
@@ -286,9 +414,16 @@
 @media (prefers-reduced-motion: reduce) {
   .spinner,
   .completed,
-  .indexCard[data-complete='true'],
-  .publication[data-complete='true'] {
+  .indexCard[data-state='RUNNING'] :is(.indexParticle, .indexFlow) {
     animation: none;
+  }
+  .indexCard,
+  .indexTrack,
+  .indexCheck,
+  .publication,
+  .publicationCheck,
+  .publicationWait {
+    transition: none;
   }
 }
 @media (max-width: 1100px) {

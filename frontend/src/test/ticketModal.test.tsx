@@ -314,6 +314,38 @@ describe('F009 티켓 상세 모달', () => {
     expect(router.state.location.pathname).toBe(`/tickets/${ticket.id}`);
   });
 
+  it('F011-AC03/04/05 두 저장소의 상태를 구분하고 실패한 반영이 복구된 뒤 공개를 표시한다', async () => {
+    vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
+    systemMockBackend.reset();
+    await login(TEST_LOGINS.network);
+    const tickets = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
+    const ticket = tickets.items.find((item) => item.title.includes('첨부파일 복구 · 사례 초안'));
+    if (!ticket) throw new Error('초안이 생성된 예시 티켓 필요');
+    renderTickets(`/tickets/${ticket.id}?tab=case`);
+    const user = userEvent.setup();
+    const view = within(await screen.findByRole('dialog'));
+    await user.click(await view.findByRole('button', { name: '사례 초안 확인' }));
+    const sidebar = within(view.getByRole('complementary', { name: '티켓 정보와 사례 검토' }));
+    await sidebar.findByText('문의자 해결 확인됨');
+    systemMockBackend.failNextIndex('NEO4J');
+    await user.click(sidebar.getByRole('checkbox'));
+    await user.click(sidebar.getByRole('button', { name: '확인한 버전 승인' }));
+
+    const vector = within(await sidebar.findByRole('region', { name: 'Vector DB 반영 상태' }));
+    const neo4j = within(sidebar.getByRole('region', { name: 'Neo4j 반영 상태' }));
+    expect(await vector.findByText('반영 성공', {}, { timeout: 7000 })).toBeVisible();
+    expect(await neo4j.findByText('반영 실패')).toBeVisible();
+    expect(sidebar.getByText('사례 승인 완료')).toBeVisible();
+    expect(sidebar.getByText('검색 공개 전')).toBeVisible();
+    expect(sidebar.queryByText('검색 공개 완료')).not.toBeInTheDocument();
+
+    await user.click(neo4j.getByRole('button', { name: '실패 반영 다시 실행' }));
+    expect(await neo4j.findByText('반영 성공', {}, { timeout: 7000 })).toBeVisible();
+    expect(sidebar.getByText('검색 공개 완료')).toBeVisible();
+    expect(vector.getByText('현재 시도 1')).toBeVisible();
+    expect(neo4j.getByText('현재 시도 2')).toBeVisible();
+  }, 16_000);
+
   it('F009-DETAIL-03 긴 설명을 문장별로 읽고 중복 없는 근거를 항목별로 펼친다', async () => {
     const ticket = await firstTicket();
     const detail = await systemGet(`/tickets/${ticket.id}`, readTicket);
