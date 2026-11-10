@@ -6,6 +6,8 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
+공통 공개 텍스트 가드레일(`harness/guardrails/`)은 Inquiry의 질문 반환, Knowledge의 안내 반환(발췌·본문 전체 대체 공통), Supervisor의 최종 상담 답변 확정 전에 적용한다(SEC-02·03·05). OpenAI 키 형태(`sk-` 뒤 본체 20자 이상), Bearer 자격 증명(8자 이상), JWT 형태와 PEM 개인 키를 탐지하면 본문을 수정해 반환하지 않고 기존 `OutputRejected`/`INVALID_OUTPUT` 실패 경로로 전달한다. 기존 질문 형식 오류의 고정 문구 대체는 유지하며, 공통 가드레일에서 거부된 질문·안내를 다른 본문으로 대체하지 않는다. 로그에는 규칙·단계·역할·실행 UUID·패턴 종류만 남기며 원문과 비밀값은 받지 않는다. `redact_for_log`는 알려진 패턴의 마스킹 유틸리티이며 전역 로그 필터가 아니고 자유 원문 로깅을 허가하지 않는다. 이 검사는 일반 비밀번호·개인정보·인코딩/난독화된 비밀값이나 의미상 정보 유출을 모두 탐지하지 않으며, 모델 입력 전체·근거 메타데이터·표준 요청·사례 초안 검사를 대신하지 않는다. 권한·출처·질문 한도·업무 상태 검증은 기존 코드가 담당한다. 실제 자격 증명을 쓰지 않는 연결 검사는 `uv run pytest tests/unit/test_sensitive_data.py tests/unit/test_public_text_guard.py tests/unit/test_guardrail_events.py tests/integration/test_guardrail_pipeline.py`로 실행한다. 모델·검색 대역 검사이므로 외부 서비스 E2E나 실제 모델 품질 검증은 아니다.
+
 신규 역할·State·서버 간 DTO의 구현 기준은 [공통 구현 계약](../specs/contracts/README.md)과 [에이전트 계약](../contracts/agents/README.md)에서 확인한다. wire 검증·기술 기반의 구현과 역할 실행·서비스 전체 통합 상태를 구분한다.
 
 ## 현재 실행 범위

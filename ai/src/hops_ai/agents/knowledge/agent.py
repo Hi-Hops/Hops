@@ -87,6 +87,8 @@ from hops_ai.contracts.roles import (
 from hops_ai.contracts.state import RoleRequest, RoleResponse, SupervisorState
 from hops_ai.contracts.wire import GuideProposal, ProblemProposal
 from hops_ai.harness.errors import OutputRejected, RetrievalUnavailable, TransientError
+from hops_ai.harness.guardrails.events import GuardrailStage
+from hops_ai.harness.guardrails.public_text import validate_public_text
 from hops_ai.rules.assessment import (
     approved_questions,
     check_item_ids,
@@ -181,6 +183,15 @@ class SearchKnowledgeAgent:
         assessment = await self._assess(
             target, hits, relations, services, asked_checks(state, target.problemRef, relations)
         )
+        guide = await self._guide_for(state, call, target, hits, services, assessment)
+        if guide is not None:
+            # 발췌·본문 전체 대체 모두 같은 경계에서 검사한다. 위반은 대체 경로로 우회하지 않는다.
+            validate_public_text(
+                guide.messageText,
+                stage=GuardrailStage.GUIDE,
+                role=self.role,
+                run_id=state["input"].runId,
+            )
         result = KnowledgeResult(
             invocationId=call.invocation_id,
             search=(
@@ -188,7 +199,7 @@ class SearchKnowledgeAgent:
                 if hits
                 else SearchResult(state="EMPTY", evidence=[], error=None)
             ),
-            guide=await self._guide_for(state, call, target, hits, services, assessment),
+            guide=guide,
             problemRef=target.problemRef,
             queryDigest=query.digest(),
             crowdedOut=crowded,

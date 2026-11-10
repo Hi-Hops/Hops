@@ -61,6 +61,8 @@ from hops_ai.contracts.wire import (
     RequestDetails,
 )
 from hops_ai.harness.errors import OutputRejected, TransientError
+from hops_ai.harness.guardrails.events import GuardrailStage
+from hops_ai.harness.guardrails.public_text import validate_public_text
 from hops_ai.rules.analysis import (
     allowed_feature_ids,
     normalize_keywords,
@@ -175,6 +177,12 @@ class ExtractionInquiryAgent:
             # 질문을 미루면(문제별 행동 경로) 분석은 문제와 검색 힌트만 만든다. 질문은 ASK 행동이
             # 고른 뒤에 만든다.
             if question is not None and not self._defer_questions:
+                validate_public_text(
+                    question.text,
+                    stage=GuardrailStage.QUESTION,
+                    role=self.role,
+                    run_id=request.runId,
+                )
                 questions.append(question)
             # 검색 힌트는 사실이 아니라서 인용 대조 대신 규칙으로 정리한다. 기능 후보는 코드가 정한
             # 문제의 시스템(서버 확인값 포함)을 기준으로 거른다. 모델이 시스템을 바꾸지 못한다.
@@ -221,6 +229,12 @@ class ExtractionInquiryAgent:
             text, fallback = await self._write_question(call, ref, plan, services)
             source = "MODEL" if text is not None else "FIXED_FALLBACK"
         question = question_from_plan(call.state, ref, plan, text)
+        validate_public_text(
+            question.text,
+            stage=GuardrailStage.QUESTION,
+            role=self.role,
+            run_id=call.state["input"].runId,
+        )
         return InquiryResult(
             invocationId=call.invocation_id,
             problems=[],
