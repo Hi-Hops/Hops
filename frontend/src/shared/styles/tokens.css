@@ -75,6 +75,14 @@
   --font-size-lg: 16px;
   --font-size-xl: 22px;
   --font-size-hero: 32px;
+  --chat-font-increase: 5px;
+  --font-size-chat-sm: calc(var(--font-size-sm) + var(--chat-font-increase));
+  --font-size-chat-label: calc(var(--font-size-label) + var(--chat-font-increase));
+  --font-size-chat-md: calc(var(--font-size-md) + var(--chat-font-increase));
+  --font-size-chat-body: calc(var(--font-size-body) + var(--chat-font-increase));
+  --font-size-chat-lg: calc(var(--font-size-lg) + var(--chat-font-increase));
+  --font-size-chat-xl: calc(var(--font-size-xl) + var(--chat-font-increase));
+  --font-size-chat-hero: calc(var(--font-size-hero) + var(--chat-font-increase));
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;

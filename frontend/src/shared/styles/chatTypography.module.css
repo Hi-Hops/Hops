@@ -1,0 +1,11 @@
+.enlarged {
+  --font-size-sm: var(--font-size-chat-sm);
+  --font-size-label: var(--font-size-chat-label);
+  --font-size-md: var(--font-size-chat-md);
+  --font-size-body: var(--font-size-chat-body);
+  --font-size-lg: var(--font-size-chat-lg);
+  --font-size-xl: var(--font-size-chat-xl);
+  --font-size-hero: var(--font-size-chat-hero);
+
+  font-size: var(--font-size-md);
+}
