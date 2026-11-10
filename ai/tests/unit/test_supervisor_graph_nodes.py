@@ -52,7 +52,7 @@ def test_every_role_is_a_node_of_the_graph() -> None:
     assert set(ROLE_NODES) == set(AgentRole)
 
 
-async def test_progress_events_are_sent_at_node_boundaries_with_fixed_summaries() -> None:
+async def test_progress_events_describe_actual_steps_without_repeating_supervisor() -> None:
     request = no_guide_request()
     llm = FakeLLMClient(
         decision("CALL_ROLE", AgentRole.INQUIRY),
@@ -69,17 +69,18 @@ async def test_progress_events_are_sent_at_node_boundaries_with_fixed_summaries(
         events = drain(queue)
 
     assert result.status == "SUCCEEDED", result.error
-    roles = [
+    assert [role for role, _ in events] == [
         "SUPERVISOR",
         "INQUIRY",
-        "SUPERVISOR",
         "KNOWLEDGE",
-        "SUPERVISOR",
         "TICKET",
         "SUPERVISOR",
     ]
-    assert [role for role, _ in events] == roles
-    assert all(summary == SUMMARIES[role] for role, summary in events)
+    assert events[0][1] == SUMMARIES["SUPERVISOR"]
+    assert events[1][1] == SUMMARIES["INQUIRY"]
+    assert events[2][1].endswith("가이드와 해결 사례를 찾고 있어요")
+    assert events[3][1] == SUMMARIES["TICKET"]
+    assert events[4][1] == "확인한 내용을 바탕으로 답변을 정리하고 있어요"
 
 
 async def test_cancelled_run_stops_before_any_role_node_and_ends_superseded() -> None:

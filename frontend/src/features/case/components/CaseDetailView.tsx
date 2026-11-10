@@ -10,8 +10,9 @@ import { caseKeys, getCase } from '../api/caseApi';
 import { CaseEditor } from './CaseEditor';
 import styles from './Cases.module.css';
 
-type CaseDetailViewProps = { id: string };
-export function CaseDetailView({ id }: CaseDetailViewProps) {
+type CaseDetailViewProps = { id: string; reviewTarget?: HTMLElement };
+export function CaseDetailView({ id, reviewTarget }: CaseDetailViewProps) {
+  const embedded = Boolean(reviewTarget);
   const user = useSession((s) => s.user);
   const [search] = useSearchParams();
   const allowed = Boolean(user?.primarySystemIds.length);
@@ -27,44 +28,52 @@ export function CaseDetailView({ id }: CaseDetailViewProps) {
     permitted &&
     !subscription.denied &&
     !['connecting', 'disconnected'].includes(subscription.state);
+  const Container = embedded ? 'section' : 'main';
+  const Heading = embedded ? 'h3' : 'h1';
   return (
-    <main className={styles.page}>
+    <Container className={embedded ? styles.embedded : styles.page}>
       <header className={styles.pageHead}>
         <div>
-          <h1 id="page-title" tabIndex={-1}>
+          <Heading id={embedded ? undefined : 'page-title'} tabIndex={embedded ? undefined : -1}>
             {query.isSuccess && visible ? query.data.version.title : '해결 사례 검토'}
-          </h1>
+          </Heading>
           {query.isSuccess && visible && (
             <p>
               {'사례 문서 v' + String(query.data.version.caseVersion) + ' · 원 문의 처리 기록 기반'}
             </p>
           )}
         </div>
-        <div className={styles.actions}>
-          <Link
-            className={styles.linkButton}
-            to={{ pathname: paths.cases, search: search.toString() }}
-          >
-            사례 목록
-          </Link>
-          {query.data && !query.isError && visible && (
+        {!embedded && (
+          <div className={styles.actions}>
             <Link
-              id={'case-ticket-' + query.data.version.ticketId}
               className={styles.linkButton}
-              to={paths.ticket(query.data.version.ticketId) + '?tab=work'}
-              state={{ ticketModalOrigin: 'case' }}
+              to={{ pathname: paths.cases, search: search.toString() }}
             >
-              원 티켓 보기
+              사례 목록
             </Link>
-          )}
-        </div>
+            {query.data && !query.isError && visible && (
+              <Link
+                id={'case-ticket-' + query.data.version.ticketId}
+                className={styles.linkButton}
+                to={paths.ticket(query.data.version.ticketId) + '?tab=work'}
+                state={{ ticketModalOrigin: 'case' }}
+              >
+                원 티켓 보기
+              </Link>
+            )}
+          </div>
+        )}
       </header>
       {!allowed || !permitted ? (
         <ErrorState title="이 사례를 검토할 권한이 없어요" />
       ) : query.isError && query.error instanceof ApiError && query.error.status === 404 ? (
         <ErrorState
           title="사례를 찾을 수 없어요"
-          description="사례 조회 경로 또는 대상이 없어 불러오지 못했어요. 사례 목록에서 다시 확인해 주세요."
+          description={
+            embedded
+              ? '티켓에 연결된 사례를 불러오지 못했어요.'
+              : '사례 조회 경로 또는 대상이 없어 불러오지 못했어요. 사례 목록에서 다시 확인해 주세요.'
+          }
         />
       ) : subscription.denied || (query.error instanceof ApiError && query.error.status === 403) ? (
         <ErrorState title="이 사례를 검토할 권한이 없어요" />
@@ -80,11 +89,8 @@ export function CaseDetailView({ id }: CaseDetailViewProps) {
           }}
         />
       ) : (
-        <CaseEditor
-          key={query.data.version.id + ':' + String(query.data.version.caseVersion)}
-          detail={query.data}
-        />
+        <CaseEditor key={query.data.version.id} detail={query.data} reviewTarget={reviewTarget} />
       )}
-    </main>
+    </Container>
   );
 }

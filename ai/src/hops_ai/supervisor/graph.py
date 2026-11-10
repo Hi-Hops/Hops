@@ -291,7 +291,10 @@ class Supervisor:
         action: str | None = None,
     ) -> SupervisorState:
         """역할 하나를 호출하고 병합 검증을 거친 새 State를 돌려준다. 두 경로가 함께 쓴다."""
-        state = _enter_state(runtime, state, role.value)
+        state = runtime.sync_state(state)
+        runtime.services.runtime.report_progress(
+            role.value, _role_progress(state, role, targets, action)
+        )
         with runtime.services.tracing.observe(
             role.value,
             {
@@ -324,7 +327,7 @@ class Supervisor:
 
         async def finish(data: _ProblemGraphState) -> _ProblemGraphState:
             state = runtime.sync_state(data["state"])
-            runtime.ensure_active()
+            _report_finalization(runtime, state)
             return _ProblemGraphState(state=transition_phase(state, "FINALIZING"), plan=None)
 
         def route(data: _ProblemGraphState) -> str:
@@ -414,7 +417,7 @@ class Supervisor:
     async def _finish(self, runtime: SupervisorRuntime, data: _GraphState) -> _GraphState:
         """미완료 호출이 없는지 확인하고 최종화 준비 상태로 이동한다."""
         state = runtime.sync_state(data["state"])
-        runtime.ensure_active()
+        _report_finalization(runtime, state)
         state = transition_phase(state, "FINALIZING")
         return _GraphState(state=state, decision=data["decision"], choices=data["choices"])
 
@@ -431,6 +434,33 @@ def _enter_state(runtime: SupervisorRuntime, state: SupervisorState, label: str)
     synced = runtime.sync_state(state)
     runtime.services.runtime.report_progress(label)
     return synced
+
+
+def _report_finalization(runtime: SupervisorRuntime, state: SupervisorState) -> None:
+    runtime.ensure_active()
+    if state["input"].kind == RunKind.INQUIRY_ANALYSIS:
+        runtime.services.runtime.report_progress(
+            "SUPERVISOR", "확인한 내용을 바탕으로 답변을 정리하고 있어요"
+        )
+
+
+def _role_progress(
+    state: SupervisorState, role: AgentRole, targets: tuple[str, ...], action: str | None
+) -> str | None:
+    # 화면에 모델이 만든 요약·검색어는 노출하지 않고 등록된 시스템 이름만 사용한다.
+    if role == AgentRole.INQUIRY and action == "ASK":
+        return "해결에 필요한 추가 확인 항목을 고르고 있어요"
+    if role == AgentRole.KNOWLEDGE:
+        candidates = {
+            problem.reportedSystemCandidateId
+            for ref, problem in state["problems"].items()
+            if not targets or ref in targets
+        }
+        if len(candidates) == 1:
+            system = next((item for item in state["input"].systems if item.id in candidates), None)
+            if system is not None:
+                return f"{system.name}의 승인 가이드와 해결 사례를 찾고 있어요"
+    return None
 
 
 def _route(data: _GraphState) -> str:

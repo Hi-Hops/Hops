@@ -21,6 +21,8 @@ import com.hihops.hops.global.dto.PageResponse;
 import com.hihops.hops.global.exception.BusinessException;
 import com.hihops.hops.global.exception.ErrorCode;
 import com.hihops.hops.inquiry.domain.Inquiry;
+import com.hihops.hops.inquiry.domain.InquiryStatus;
+import com.hihops.hops.inquiry.domain.InquiryProblem;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
 import com.hihops.hops.inquiry.domain.MessageRevision;
@@ -61,14 +63,21 @@ public class InquiryQueryService {
 
     /** 내 문의 목록 한 페이지. page·size 범위는 컨트롤러에서 검사한다. */
     @Transactional(readOnly = true)
-    public PageResponse<InquirySummaryResponse> findMyInquiries(UUID requesterId, int page, int size) {
-        Page<Inquiry> inquiries = inquiryRepository.findByRequester_IdAndDeletedAtIsNull(requesterId,
-                PageRequest.of(page, size, LIST_ORDER));
+    public PageResponse<InquirySummaryResponse> findMyInquiries(UUID requesterId, int page, int size,
+            @Nullable InquiryStatus status) {
+        PageRequest paging = PageRequest.of(page, size, LIST_ORDER);
+        Page<Inquiry> inquiries = status == null
+                ? inquiryRepository.findByRequester_IdAndDeletedAtIsNull(requesterId, paging)
+                : inquiryRepository.findByRequester_IdAndInquiryStatusAndDeletedAtIsNull(requesterId, status, paging);
         List<UUID> ids = inquiries.getContent().stream().map(Inquiry::getId).toList();
         Map<UUID, InquiryProblemCounts> counts = ids.isEmpty() ? Map.of()
                 : inquiryProblemRepository.countByInquiryIds(ids).stream()
                         .collect(Collectors.toMap(InquiryProblemCounts::inquiryId, Function.identity()));
-        return PageResponse.of(inquiries, inquiry -> InquirySummaryResponse.of(inquiry, counts.get(inquiry.getId())));
+        Map<UUID, String> titles = ids.isEmpty() ? Map.of()
+                : inquiryProblemRepository.findRepresentativeProblems(ids).stream()
+                        .collect(Collectors.toMap(problem -> problem.getInquiry().getId(), InquiryProblem::getTitle));
+        return PageResponse.of(inquiries, inquiry -> InquirySummaryResponse.of(inquiry, counts.get(inquiry.getId()),
+                titles.get(inquiry.getId())));
     }
 
     /** 내 문의 상세. 문제별 결과는 {@link ProblemProjector}가 모은다. */

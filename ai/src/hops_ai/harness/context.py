@@ -67,7 +67,7 @@ class RunContext:
             raise RunCancelled
         self.budget.check_deadline()
 
-    def report_progress(self, role: Role) -> None:
+    def report_progress(self, role: Role, summary: str | None = None) -> None:
         self.ensure_active()
         if self.events is not None:
-            self.events.progress(role)
+            self.events.progress(role, summary)

@@ -133,6 +133,7 @@ export type InquiryResult = {
   createdAt: string;
   updatedAt: string;
 };
+export type InquiryStatus = 'IN_PROGRESS' | 'WAITING_USER' | 'RESOLVED' | 'CLOSED';
 export type InquirySummary = {
   id: Uuid;
   inquiryNumber: string;

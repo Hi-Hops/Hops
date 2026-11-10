@@ -13,6 +13,7 @@ type RouteModalProps = {
   footer?: ReactNode;
   size?: 'wide' | 'compact' | 'narrow';
   padded?: boolean;
+  fixedHeight?: boolean;
 };
 export function RouteModal({
   title,
@@ -24,7 +25,15 @@ export function RouteModal({
   footer,
   size = 'wide',
   padded = true,
+  fixedHeight = false,
 }: RouteModalProps) {
+  const contentClassName = [
+    styles.content,
+    size !== 'wide' && styles[size],
+    fixedHeight && styles.fixedHeight,
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
     <Dialog.Root
       open
@@ -35,7 +44,7 @@ export function RouteModal({
       <Dialog.Portal>
         <Dialog.Overlay className={styles.overlay} />
         <Dialog.Content
-          className={(styles.content ?? '') + (size === 'wide' ? '' : ' ' + (styles[size] ?? ''))}
+          className={contentClassName}
           {...(description ? {} : { 'aria-describedby': undefined })}
           onCloseAutoFocus={(event) => {
             if (returnFocusId) {

@@ -65,7 +65,7 @@ it('F009-CONTRACT-01 티켓 상세 제목은 줄인 번호를 표시하고 전�
   expect(ticket.ticketNumber).toMatch(serverNumber);
   realtime.connect(useSession.getState().token ?? '');
   renderWithProviders(
-    <SystemTicketDetail id={ticket.id} onClose={vi.fn()} />,
+    <SystemTicketDetail id={ticket.id} onClose={vi.fn()} renderCaseReview={() => null} />,
     `/tickets/${ticket.id}`,
   );
   const dialog = await screen.findByRole('dialog', { name: new RegExp(`· ${ticket.title}$`, 'u') });

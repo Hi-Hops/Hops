@@ -1,21 +1,27 @@
 import { useRef } from 'react';
+import { Link } from 'react-router';
 import { useSession } from '@/features/auth';
 import { ConnectionIndicator } from '@/features/realtime';
 import {
+  PendingTargets,
+  ResolutionControls,
   SystemCommandButton,
   systemStatus,
   editableInquiryStatus,
   inquiryTitle,
+  isResolvedProblem,
   resultMetaParts,
   useResultNotice,
 } from '@/features/inquiry';
 import { ApiError } from '@/shared/api/client';
+import { paths } from '@/shared/config/paths';
 import { displayChatTime, isToday } from '@/shared/lib/date';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
 import { MarkdownText } from '@/shared/ui/MarkdownText';
 import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import controls from '@/shared/ui/Controls.module.css';
 import { useSystemChat } from '../hooks/useSystemChat';
 import { retryRunCommand } from '../api/systemChatApi';
 import { useChatScroll } from '../hooks/useChatScroll';
@@ -30,10 +36,23 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
   const chat = useSystemChat(inquiryId);
   const userName = useSession((s) => s.user?.name) ?? '나';
   const actor = useSession((s) => s.user?.id) ?? '';
-  const { noticeOpen, closeNotice } = useResultNotice(actor, chat.inquiry.data);
+  const storedInquiry = chat.inquiry.data;
+  const inquiry = storedInquiry && {
+    ...storedInquiry,
+    problems: storedInquiry.problems.filter((problem) => problem.state !== 'OUT_OF_SCOPE'),
+  };
+  const { noticeOpen, closeNotice } = useResultNotice(actor, inquiry);
+  const resolutions = (inquiry?.problems ?? []).flatMap((problem) => {
+    const request = problem.activeResolutionRequest;
+    return request ? [{ problem, request }] : [];
+  });
+  const messagesSignature = chat.items.map((m) => `${m.id}:${m.revision}`).join(',');
+  const resolutionSignature = resolutions
+    .map(({ request }) => `${request.id}:${request.requestRevision}`)
+    .join(',');
   const { log, hasNew, observe, remember, bottom, cancelPrepend } = useChatScroll(
     inquiryId,
-    chat.items.map((m) => `${m.id}:${m.revision}`).join(','),
+    messagesSignature && `${messagesSignature}|${resolutionSignature}`,
     chat.live?.text,
   );
   const loading = useRef(false);
@@ -45,7 +64,6 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
     if (result.isFetchNextPageError) cancelPrepend();
     loading.current = false;
   }
-  const inquiry = chat.inquiry.data;
   const run = chat.run;
   if (chat.inquiry.isPending) return <LoadingState />;
   const readDenied = [chat.messages.error, chat.runQuery.error].some(
@@ -69,22 +87,43 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
       />
     );
   if (!inquiry) return null;
-  const closed = ['RESOLVED', 'CLOSED'].includes(inquiry.status);
-  const title = inquiryTitle(inquiry, chat.items.find((m) => m.sender === 'USER')?.content);
+  const resolved = inquiry.status === 'RESOLVED';
+  const closed = resolved || inquiry.status === 'CLOSED';
+  const pendingAnswers = inquiry.problems.filter((problem) => problem.state === 'WAITING_USER');
+  const showRemainingAnswers =
+    pendingAnswers.length > 0 && inquiry.problems.some(isResolvedProblem);
+  const title = inquiryTitle(storedInquiry);
   // 연결 상태 점은 가장 최근 Hops 라벨 하나에만 둔다. 분석 중에는 진행 표시의 라벨에 둔다.
   const lastAiId = chat.items.filter((m) => m.sender === 'AI').at(-1)?.id;
   const meta = [
     ...resultMetaParts(inquiry),
     `${isToday(inquiry.createdAt) ? '오늘 ' : ''}${displayChatTime(inquiry.createdAt)} 시작`,
   ];
-  // 답변이 끝난 실행의 진행 단계는 사라지지 않고 해당 답변 위에 완료 기록으로 남는다.
+  // 답변이 끝난 실행의 진행 단계는 사라지지 않고 해당 답변 위에 접힌 완료 기록으로 남는다.
   const trailOf = (message: (typeof chat.items)[number]) =>
     message.sender === 'AI' && !(chat.active && message.id === run?.answerMessageId)
       ? chat.trails[message.id]
       : undefined;
   const steps = chat.trails[run?.answerMessageId ?? ''] ?? [
-    { stepNo: 0, text: '문의 내용을 확인하고 있어요' },
+    {
+      stepNo: 0,
+      text:
+        run?.status === 'QUEUED'
+          ? '분석을 시작할 준비를 하고 있어요'
+          : '문의 내용을 확인하고 있어요',
+    },
   ];
+  const visibleMessageIds = new Set(chat.items.filter((m) => m.sender === 'AI').map((m) => m.id));
+  const guideAnswerId = ({ problem, request }: (typeof resolutions)[number]) =>
+    request.source === 'GUIDE' ? problem.guide?.messageId : undefined;
+  const renderResolution = (item: (typeof resolutions)[number]) => (
+    <ResolutionControls
+      key={item.request.id}
+      request={item.request}
+      problemTitle={inquiry.problems.length > 1 ? item.problem.summary : undefined}
+      guideInChat={visibleMessageIds.has(guideAnswerId(item) ?? '')}
+    />
+  );
   return (
     <main className={styles.chat}>
       <div className={styles.workspace}>
@@ -138,9 +177,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                 >
                   <div className={styles.author}>
                     {message.sender === 'AI' && (
-                      <span className={styles.avatar} aria-hidden="true">
-                        H
-                      </span>
+                      <img src="/assets/hops-mark.svg" width="20" height="20" alt="" />
                     )}
                     <strong>{message.sender === 'USER' ? userName : 'Hops'}</strong>
                     {!chat.active && message.id === lastAiId && <ConnectionIndicator />}
@@ -154,6 +191,10 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                       <p>{message.content}</p>
                     )}
                   </div>
+                  {message.sender === 'AI' &&
+                    resolutions
+                      .filter((item) => guideAnswerId(item) === message.id)
+                      .map(renderResolution)}
                   {message.sender === 'USER' && !closed && (
                     <SystemMessageRevision
                       message={message}
@@ -167,15 +208,17 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
             {chat.active && (
               <div role="status" className={styles.aiRow}>
                 <div className={styles.author}>
-                  <span className={styles.avatar} aria-hidden="true">
-                    H
-                  </span>
+                  <img src="/assets/hops-mark.svg" width="20" height="20" alt="" />
                   <strong>Hops</strong>
                   <ConnectionIndicator />
-                  <span>{chat.run?.status === 'QUEUED' ? '분석 대기' : '분석 중'}</span>
                 </div>
                 <ProgressSteps key={chat.run?.id} steps={steps} />
-                {chat.live?.text && <p className={styles.aiBubble}>{chat.live.text}</p>}
+                {chat.live?.text && (
+                  <p className={styles.aiBubble}>
+                    {chat.live.text}
+                    <span className={styles.cursor} aria-hidden="true" />
+                  </p>
+                )}
               </div>
             )}
             {chat.active && chat.runQuery.isError && (
@@ -186,6 +229,9 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                 }}
               />
             )}
+            {resolutions
+              .filter((item) => !visibleMessageIds.has(guideAnswerId(item) ?? ''))
+              .map(renderResolution)}
             {run?.error && (
               <div className={styles.runError} role="alert">
                 <strong>{run.error.message}</strong>
@@ -213,8 +259,28 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
             </Button>
           )}
           <ProblemStatusBar inquiry={inquiry} analyzing={chat.active} />
+          {resolved && (
+            <div className={styles.dock}>
+              <footer className={styles.resolvedFooter}>
+                <strong>이 문의는 종료됐어요</strong>
+                <Link to={paths.home} className={`${controls.button} ${controls.secondary}`}>
+                  새 문의 시작하기
+                </Link>
+              </footer>
+            </div>
+          )}
           {!closed && (
             <div className={styles.dock}>
+              {showRemainingAnswers && (
+                <div className={styles.remainingAnswers}>
+                  <strong>답변이 필요한 문제 {pendingAnswers.length}건</strong>
+                  <span>
+                    {pendingAnswers[0]?.summary}
+                    {pendingAnswers.length > 1 && ` 외 ${pendingAnswers.length - 1}건`}
+                  </span>
+                </div>
+              )}
+              <PendingTargets inquiry={inquiry} />
               <SystemMessageComposer
                 inquiry={inquiry}
                 disabled={!chat.ready}

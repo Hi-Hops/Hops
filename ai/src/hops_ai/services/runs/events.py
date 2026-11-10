@@ -11,9 +11,9 @@ type Role = Literal["SUPERVISOR", "INQUIRY", "KNOWLEDGE", "TICKET", "CURATOR"]
 # 모델 출력이나 도구 원문을 공개 진행 문구로 사용하지 않는다.
 SUMMARIES: dict[Role, str] = {
     "SUPERVISOR": "문의 내용을 확인하고 있어요",
-    "INQUIRY": "문의에 필요한 정보를 정리하고 있어요",
-    "KNOWLEDGE": "관련 지식을 확인하고 있어요",
-    "TICKET": "담당자에게 전달할 요청을 정리하고 있어요",
+    "INQUIRY": "어느 시스템의 어떤 문제인지 정리하고 있어요",
+    "KNOWLEDGE": "승인된 가이드와 해결 사례를 찾고 있어요",
+    "TICKET": "담당자에게 전달할 증상과 확인 내용을 정리하고 있어요",
     "CURATOR": "해결 사례 초안을 정리하고 있어요",
 }
 
@@ -59,10 +59,14 @@ class RunEvents:
         self.hub = hub
         self.seq = 0
         self.closed = False
+        self._reported: set[tuple[Role, str]] = set()
 
-    def progress(self, role: Role) -> None:
-        if self.closed:
+    def progress(self, role: Role, summary: str | None = None) -> None:
+        text = summary or SUMMARIES[role]
+        step = (role, text)
+        if self.closed or step in self._reported:
             return
+        self._reported.add(step)
         self.seq += 1
         self.hub.publish(
             AiEvent(
@@ -70,7 +74,7 @@ class RunEvents:
                 runId=self.run_id,
                 seq=self.seq,
                 eventType="progress",
-                payload=ProgressPayload(role=role, displaySummary=SUMMARIES[role]),
+                payload=ProgressPayload(role=role, displaySummary=text),
             )
         )
 

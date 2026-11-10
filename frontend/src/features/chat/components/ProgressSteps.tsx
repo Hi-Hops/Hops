@@ -5,17 +5,31 @@ import styles from './ChatView.module.css';
 // 단계가 이 개수 이상 쌓이면 자동으로 접고 최신 단계 하나만 보여준다.
 export const COLLAPSE_AT = 3;
 
-// done이면 답변 위에 남겨 두는 완료 기록이라 모든 단계를 체크 표시로 보여준다.
 export function ProgressSteps({ steps, done = false }: { steps: ProgressStep[]; done?: boolean }) {
   const id = useId();
   const [expanded, setExpanded] = useState(false);
-  const collapsible = steps.length >= COLLAPSE_AT;
-  const shown = collapsible && !expanded ? steps.slice(-1) : steps;
-  const latest = steps[steps.length - 1];
+  const distinct = Array.from(new Map(steps.map((step) => [step.text, step])).values()).sort(
+    (a, b) => a.stepNo - b.stepNo,
+  );
+  const collapsible = distinct.length >= COLLAPSE_AT;
+  const shown = collapsible && !expanded ? distinct.slice(-1) : distinct;
+  const latest = distinct.at(-1);
+  if (done) {
+    return (
+      <details className={styles.completedSteps}>
+        <summary>확인 과정 보기</summary>
+        <ol className={styles.steps} aria-label="완료된 진행 단계">
+          {distinct.map((step) => (
+            <li key={step.stepNo}>{step.text}</li>
+          ))}
+        </ol>
+      </details>
+    );
+  }
   return (
-    <ol className={styles.steps} aria-label={done ? '완료된 진행 단계' : '진행 단계'} id={id}>
+    <ol className={styles.steps} aria-label="진행 단계" id={id}>
       {shown.map((step) => (
-        <li key={step.stepNo} data-current={(!done && step === latest) || undefined}>
+        <li key={step.stepNo} data-current={step === latest || undefined}>
           {step.text}
           {/* 목록 맨 위 단계 문장 바로 뒤에 둔다. 접혀 있으면 최신 단계, 펼치면 첫 단계다. */}
           {step === shown[0] && collapsible && (
@@ -25,7 +39,9 @@ export function ProgressSteps({ steps, done = false }: { steps: ProgressStep[]; 
               aria-expanded={expanded}
               aria-controls={id}
               aria-label={
-                expanded ? '진행 단계 접기' : `이전 진행 단계 ${String(steps.length - 1)}개 펼치기`
+                expanded
+                  ? '진행 단계 접기'
+                  : `이전 진행 단계 ${String(distinct.length - 1)}개 펼치기`
               }
               title={expanded ? '접기' : '펼치기'}
               onClick={() => {

@@ -1,8 +1,13 @@
 package com.hihops.hops.agent.service;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 
@@ -13,9 +18,13 @@ import com.hihops.hops.agent.dto.AiRunRequest.InputMessage;
 import com.hihops.hops.inquiry.domain.Inquiry;
 import com.hihops.hops.inquiry.domain.Message;
 import com.hihops.hops.inquiry.domain.MessagePayload;
+import com.hihops.hops.inquiry.domain.ProblemStatus;
+import com.hihops.hops.inquiry.domain.SenderType;
+import com.hihops.hops.inquiry.repository.InquiryProblemRepository;
 import com.hihops.hops.itsystem.dto.SupportedSystemResponse;
 
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -33,9 +42,11 @@ import tools.jackson.databind.node.ObjectNode;
 public class AnalysisInputFactory {
 
     private static final String CONTRACT_VERSION = "hops-system-1";
+    private static final String SCOPE_NOTICE = "지원 범위 밖의 문의입니다. 지원 시스템에 관한 문의를 이용해 주세요.";
 
     private final AnalysisRunProperties properties;
     private final JsonMapper jsonMapper;
+    private final InquiryProblemRepository inquiryProblems;
 
     /**
      * @param run              저장해서 ID가 정해진 대기 실행
@@ -48,9 +59,12 @@ public class AnalysisInputFactory {
     public String snapshot(AgentRun run, Inquiry inquiry, List<Message> messages, InputProblemReader.ProblemInputs problems,
             List<UUID> targetProblemIds, List<SupportedSystemResponse> systems, Instant now) {
         AccessContext access = accessOf(inquiry, systems);
+        ExcludedScope excluded = excludedScope(inquiry);
+        UUID triggerId = run.getTriggerMessage().getId();
+        List<InputMessage> history = projectHistory(messages.stream().map(this::input), triggerId, excluded);
         AiRunRequest request = new AiRunRequest(CONTRACT_VERSION, run.getId(), "INQUIRY_ANALYSIS", inquiry.getId(),
                 run.getInputVersion(), UUID.randomUUID(), List.copyOf(targetProblemIds),
-                messages.stream().map(this::input).toList(), problems.problems(), systems, access,
+                history, problems.problems(), systems, access,
                 problems.existingWorkItems(), null,
                 AiRunRequest.time(now.plus(properties.deadline())), properties.limits());
         return jsonMapper.writeValueAsString(request);
@@ -72,7 +86,80 @@ public class AnalysisInputFactory {
         request.set("limits", jsonMapper.valueToTree(properties.limits()));
         request.set("systems", jsonMapper.valueToTree(systems));
         request.set("accessContext", jsonMapper.valueToTree(accessOf(inquiry, systems)));
+        ExcludedScope excluded = excludedScope(inquiry);
+        if (!excluded.problemIds().isEmpty()) {
+            UUID triggerId = run.getTriggerMessage().getId();
+            List<InputMessage> history = projectHistory(request.path("messages").valueStream()
+                    .map(message -> jsonMapper.treeToValue(message, InputMessage.class)), triggerId, excluded);
+            request.set("messages", jsonMapper.valueToTree(history));
+            for (String field : List.of("problems", "problemIds", "existingWorkItems")) {
+                String key = "problems".equals(field) ? "id" : "problemId";
+                request.set(field, jsonMapper.valueToTree(request.path(field).valueStream()
+                        .filter(value -> !excluded.problemIds().contains(UUID.fromString(
+                                value.isString() ? value.asString() : value.path(key).asString())))
+                        .toList()));
+            }
+        }
         return jsonMapper.writeValueAsString(request);
+    }
+
+    private record ExcludedScope(Set<UUID> problemIds, Set<UUID> answers, Set<InputRevision> triggers) {
+        boolean contains(InputMessage message) {
+            return answers.contains(message.id())
+                    || triggers.contains(new InputRevision(message.id(), message.revision()))
+                    || (!message.problemIds().isEmpty() && problemIds.containsAll(message.problemIds()));
+        }
+    }
+
+    private record InputRevision(UUID id, int revision) {
+    }
+
+    private ExcludedScope excludedScope(Inquiry inquiry) {
+        var excluded = inquiryProblems.findByInquiry_IdAndProblemStatusAndDeletedAtIsNull(inquiry.getId(),
+                ProblemStatus.OUT_OF_SCOPE);
+        var problemIds = new HashSet<UUID>();
+        var answers = new HashSet<UUID>();
+        var triggers = new HashSet<InputRevision>();
+        var visitedRuns = new HashSet<UUID>();
+        for (var problem : excluded) {
+            problemIds.add(problem.getId());
+            var run = problem.getAgentRun();
+            if (!visitedRuns.add(run.getId()) || run.getResult() == null || run.getTriggerMessage() == null) continue;
+            JsonNode result = jsonMapper.readTree(run.getResult());
+            JsonNode proposals = result.path("problemProposals");
+            // 단독 범위 안내의 답변과 당시 입력 차수를 제외한다. 혼합 문의의 사용자 원문은 보존한다.
+            if (!proposals.isArray() || proposals.isEmpty() || !proposals.valueStream().allMatch(
+                    proposal -> "OUT_OF_SCOPE".equals(proposal.path("intent").asString()))) continue;
+            JsonNode input = jsonMapper.readTree(run.getInputSnapshot());
+            if (input.path("answerMessageId").isString()) {
+                answers.add(UUID.fromString(input.path("answerMessageId").asString()));
+            }
+            UUID trigger = run.getTriggerMessage().getId();
+            input.path("messages").valueStream()
+                    .filter(message -> trigger.toString().equals(message.path("id").asString()))
+                    .findFirst().ifPresent(message -> triggers.add(new InputRevision(trigger,
+                            message.path("revision").asInt())));
+        }
+        return new ExcludedScope(problemIds, answers, triggers);
+    }
+
+    private static List<InputMessage> projectHistory(Stream<InputMessage> messages, UUID triggerId,
+            ExcludedScope excluded) {
+        return messages.filter(message -> message.id().equals(triggerId) || !excluded.contains(message))
+                .map(message -> projectMessage(message, excluded.problemIds()))
+                .filter(message -> !message.content().isBlank()).toList();
+    }
+
+    private static InputMessage projectMessage(InputMessage message, Set<UUID> excluded) {
+        if (excluded.isEmpty()) return message;
+        String content = message.content();
+        if (message.sender() == SenderType.AI && content.contains(SCOPE_NOTICE)) {
+            content = Arrays.stream(content.split("\n\n", -1))
+                    .filter(part -> !SCOPE_NOTICE.equals(part.replaceFirst("^문제 [0-9]+\n", "").strip()))
+                    .collect(Collectors.joining("\n\n"));
+        }
+        return new InputMessage(message.id(), message.revision(), message.sequenceNo(), message.sender(), content,
+                message.problemIds().stream().filter(id -> !excluded.contains(id)).toList(), message.createdAt());
     }
 
     AccessContext accessOf(Inquiry inquiry, List<SupportedSystemResponse> systems) {

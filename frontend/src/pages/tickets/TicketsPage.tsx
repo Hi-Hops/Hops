@@ -1,3 +1,4 @@
+import { CaseDetailView } from '@/features/case';
 import { SystemTicketBoard, SystemTicketDetail } from '@/features/ticket';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 export function TicketsPage() {
@@ -18,6 +19,9 @@ export function TicketsPage() {
         <SystemTicketDetail
           key={ticketId}
           id={ticketId}
+          renderCaseReview={(caseId, reviewTarget) => (
+            <CaseDetailView key={caseId} id={caseId} reviewTarget={reviewTarget} />
+          )}
           returnFocusId={origin === 'case' ? 'case-ticket-' + ticketId : 'ticket-' + ticketId}
           onClose={() => {
             if (origin === 'list' || origin === 'case') {

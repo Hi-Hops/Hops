@@ -199,10 +199,13 @@ describe('hops-system-1 시스템 단위 전환', () => {
     vi.spyOn(systemMockBackend, 'request').mockImplementation((path, method, body, token, key) =>
       path === `/api/v2/management/tickets/${id}` ? full : original(path, method, body, token, key),
     );
-    renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
+    renderWithProviders(
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
+      `/admin/tickets/${id}`,
+    );
     expect(await screen.findByRole('heading', { name: new RegExp(full.title, 'u') })).toBeVisible();
-    expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: '채팅 내역' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '문의 요약' })).not.toBeInTheDocument();
+    expect(screen.queryByText('원문 대화 보기')).not.toBeInTheDocument();
   });
   it('F003-CONTRACT-04 저장 후 응답 유실을 원 키로 확인하면 문의·메시지·실행이 중복 생성되지 않는다', async () => {
     await login(TEST_LOGINS.requester);
@@ -301,16 +304,16 @@ describe('hops-system-1 시스템 단위 전환', () => {
     const page = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
     const id = page.items[0]?.id ?? '';
     renderWithProviders(
-      <SystemTicketDetail id={id} onClose={vi.fn()} />,
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
       `/tickets/${id}?view=list&systemId=${systems[0].id}`,
     );
-    expect(await screen.findByRole('heading', { name: '확인된 사실' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '문의 요약' })).toBeVisible();
     expect(screen.getByRole('button', { name: '상세 닫기' })).toBeVisible();
     act(() => {
       systemMockBackend.revokeSystem(users[1].id, systems[0].id);
     });
     expect(await screen.findByText('이 시스템 티켓을 볼 권한이 없어요')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '문의 요약' })).not.toBeInTheDocument();
   });
   it('모달인 담당 티켓 상세에서도 연결이 끊기면 상세 안에서 다시 연결한다', async () => {
     await login(TEST_LOGINS.network);
@@ -323,7 +326,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     });
     const connect = vi.spyOn(realtime, 'connect').mockImplementation(() => undefined);
     renderWithProviders(
-      <SystemTicketDetail id={id} onClose={vi.fn()} />,
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
       `/tickets/${id}?view=list&systemId=${systems[0].id}`,
     );
     expect(await screen.findByText('실시간 연결이 끊겼어요')).toBeVisible();
@@ -337,7 +340,10 @@ describe('hops-system-1 시스템 단위 전환', () => {
     const page = await systemGet('/tickets?scope=ADMIN', readTickets);
     const id = page.items[0]?.id ?? '';
     const connect = vi.spyOn(realtime, 'connect').mockImplementation(() => undefined);
-    renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
+    renderWithProviders(
+      <SystemTicketDetail id={id} onClose={vi.fn()} renderCaseReview={() => null} />,
+      `/admin/tickets/${id}`,
+    );
     expect(await screen.findByRole('heading', { name: '업무 메타데이터' })).toBeVisible();
     expect(screen.queryByRole('button', { name: '다시 연결' })).not.toBeInTheDocument();
     act(() => {
@@ -368,7 +374,7 @@ describe('hops-system-1 시스템 단위 전환', () => {
     expect(screen.getByRole('textbox', { name: '문의 내용' })).toHaveValue('');
     expect((await systemGet('/inquiries', readInquiries)).items).toHaveLength(3);
   });
-  it('F002-CONTRACT-08 조각 없이 완료된 실행도 최종 답변과 질문 5회 기준을 표시한다', async () => {
+  it('F002-CONTRACT-08 조각 없이 완료된 실행도 최종 답변과 필요한 행동을 표시한다', async () => {
     await login(TEST_LOGINS.requester);
     const id = await create('전자결재 문의', systems[0].id);
     renderWithProviders(<SystemChatView inquiryId={id} />, `/inquiries/${id}/chat`);
@@ -379,7 +385,8 @@ describe('hops-system-1 시스템 단위 전환', () => {
         { timeout: 4000 },
       ),
     ).toBeVisible();
-    expect(screen.getByText('질문 1/5')).toBeVisible();
+    expect(screen.getByText('답변 필요')).toBeVisible();
+    expect(screen.queryByText('질문 1/5')).not.toBeInTheDocument();
   });
   it('F005-CONTRACT-01 잘못된 성공 응답·구 프로필 DTO는 신규 계약에서 거부한다', () => {
     expect(() => readUser({ ...users[0], primarySystemIds: undefined })).toThrow();

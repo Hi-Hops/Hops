@@ -18,8 +18,15 @@ public record InquirySummaryResponse(UUID id, String inquiryNumber, String title
         int problemCount, int ticketCount, int pendingConfirmationCount, Instant createdAt, Instant updatedAt) {
 
     /** @param counts 문제 집계. 문제가 없는 문의는 집계 결과가 없어 null이고, 이때는 모두 0이다. */
-    public static InquirySummaryResponse of(Inquiry inquiry, @Nullable InquiryProblemCounts counts) {
-        return new InquirySummaryResponse(inquiry.getId(), inquiry.getInquiryNumber(), inquiry.getTitle(),
+    public static InquirySummaryResponse of(Inquiry inquiry, @Nullable InquiryProblemCounts counts,
+            @Nullable String representativeTitle) {
+        String title = representativeTitle;
+        if (title == null) {
+            title = counts != null && counts.supportedProblemCount() == 0 ? "지원 범위 안내" : "새 문의";
+        } else if (counts != null && counts.supportedProblemCount() > 1) {
+            title += " 외 " + (counts.supportedProblemCount() - 1) + "건";
+        }
+        return new InquirySummaryResponse(inquiry.getId(), inquiry.getInquiryNumber(), title,
                 inquiry.getInquiryStatus(),
                 counts == null ? 0 : Math.toIntExact(counts.problemCount()),
                 counts == null ? 0 : Math.toIntExact(counts.ticketCount()),

@@ -822,21 +822,32 @@ export class SystemMockBackend {
     const workflowResult = this.workflow.get(user, parts, url.searchParams);
     if (workflowResult) return clone(workflowResult.value);
     if (route === '/inquiries') {
+      const status = url.searchParams.get('status');
+      if (status && !['IN_PROGRESS', 'WAITING_USER', 'RESOLVED', 'CLOSED'].includes(status))
+        mockError(400, 'INVALID_INPUT', '문의 상태를 확인해 주세요.');
       const items: D.InquirySummary[] = [...this.inquiries.values()]
-        .filter((w) => w.ownerId === user.id)
-        .map(({ result: r, messages }) => ({
-          id: r.id,
-          inquiryNumber: r.inquiryNumber,
-          title: messages[0]?.content ?? '문의',
-          status: r.status,
-          problemCount: r.problems.length,
-          ticketCount: r.problems.filter((p) => p.ticket).length,
-          pendingConfirmationCount: r.problems.filter(
-            (p) => p.activeResolutionRequest?.state === 'PENDING',
-          ).length,
-          createdAt: r.createdAt,
-          updatedAt: r.updatedAt,
-        }))
+        .filter((w) => w.ownerId === user.id && (!status || w.result.status === status))
+        .map(({ result: r }) => {
+          const [first, ...rest] = r.problems.filter((p) => p.state !== 'OUT_OF_SCOPE');
+          const title = first
+            ? first.summary + (rest.length ? ` 외 ${rest.length}건` : '')
+            : r.problems.length
+              ? '지원 범위 안내'
+              : '새 문의';
+          return {
+            id: r.id,
+            inquiryNumber: r.inquiryNumber,
+            title,
+            status: r.status,
+            problemCount: r.problems.length,
+            ticketCount: r.problems.filter((p) => p.ticket).length,
+            pendingConfirmationCount: r.problems.filter(
+              (p) => p.activeResolutionRequest?.state === 'PENDING',
+            ).length,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+          };
+        })
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id));
       return clone({
         items: items.slice(page * size, (page + 1) * size),
