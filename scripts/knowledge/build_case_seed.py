@@ -97,9 +97,10 @@ class Chain:
         self.data = card.data
         t0 = card.occurred_at
         n = card.seed_no
-        self.inquiry_number = f"SEED-Q-{n:03d}"
-        self.ticket_number = f"SEED-T-{n:03d}"
-        self.case_number = f"SEED-C-{n:03d}"
+        prefix = card.data.get("numberPrefix", "SEED")
+        self.inquiry_number = f"{prefix}-Q-{n:03d}"
+        self.ticket_number = f"{prefix}-T-{n:03d}"
+        self.case_number = f"{prefix}-C-{n:03d}"
         self.ids = {role: card.id_for(role) for role in (
             "inquiry", "msg1", "msg2", "msg3", "msg4", "run-a", "run-b", "run-curation", "problem", "standard-request",
             "ticket", "assignment", "log-progress", "log-resolved", "event-request", "event-response",
@@ -145,7 +146,7 @@ def message_payload(chain: Chain, ordinal: int) -> dict:
         return base | {
             "requestId": chain.id(request_role), "answerRunId": None,
             "problemLinks": [{"problemId": chain.id("problem"), "revision": 1, "spans": [{"start": 0, "end": length}]}],
-            "reportedSystemId": system_id(chain.system) if ordinal == 1 else None,
+            "reportedSystemId": system_id(chain.data.get("reportedSystem", chain.system)) if ordinal == 1 else None,
             "revisionRequestIds": {}, "runRequestIds": {},
         }
     run_role = "run-a" if ordinal == 2 else "run-b"
@@ -239,6 +240,8 @@ def render_case(card: CaseCard) -> str:
     d, req, tk, case = card.data, card.data["request"], card.data["ticket"], card.data["case"]
     progress, resolved = d["workLogs"]
     sys_code, feature = d["system"], d["feature"]
+    reported = d.get("reportedSystem", sys_code)
+    reported_feature = feature_ref(sys_code, feature) if reported == sys_code else "NULL"
     sid = system_id(sys_code)
     t = c.t
     content = case_document_content(c)
@@ -283,7 +286,7 @@ VALUES ({sql_string(c.id('problem'))}, {sql_string(c.id('inquiry'))}, 1, {sql_st
     candidates = [{"systemId": sid, "evidenceIds": [c.message_id(1)]}]
     add(f"""INSERT INTO standard_request (id, inquiry_problem_id, inquiry_version, agent_run_id, intent, work_type, reported_system_id, reported_feature_id, responsible_system_id, system_candidates, summary, confirmed_facts, assumptions, missing_items, type_detail, related_knowledge, created_at)
 VALUES ({sql_string(c.id('standard-request'))}, {sql_string(c.id('problem'))}, 2, {sql_string(c.id('run-b'))}, {sql_string(req['intent'])}, {sql_string(req['workType'])},
-        {system_ref(sys_code)}, {feature_ref(sys_code, feature)}, {system_ref(sys_code)}, {sql_json(candidates)}, {sql_string(req['summary'])},
+        {system_ref(reported)}, {reported_feature}, {system_ref(sys_code)}, {sql_json(candidates)}, {sql_string(req['summary'])},
         {sql_json(evidence_statements(c))}, '[]'::jsonb, {sql_json(req.get('missing') or [])}, {sql_json(details)}, '[]'::jsonb, {sql_timestamp(t['ticket'])})""")
 
     add(f"""INSERT INTO ticket (id, ticket_number, inquiry_id, inquiry_problem_id, standard_request_id, title, detail, work_type, ticket_status, responsible_system_id, assignee_member_id, confirm_requested_at, resolved_at, version, created_at, updated_at)
@@ -334,6 +337,8 @@ VALUES ({sql_string(c.id('case'))}, {sql_string(c.case_number)}, 1, {sql_string(
         {sql_timestamp(t['approved'])}, 'PENDING', 'PENDING', {sql_timestamp(t['cur-end'])}, {sql_timestamp(t['approved'])})""")
 
     source_data = {"caseId": c.id("case"), "caseNumber": c.case_number, "cardPath": card.relative_path, "origin": "SYNTHETIC"}
+    if "pack" in d:
+        source_data |= {"caseKey": card.key, "packId": "electronic-approval-v1"}
     source_metadata = {"caseId": c.id("case"), "caseVersion": 1, "indexRequests": index_requests(c)}
     # 문서 ID는 resolved_case.id와 같다(docs/DATA.md 11.3).
     add(f"""INSERT INTO knowledge_document (id, title, document_type, it_system_id, access_level, source_data, data_split, review_status, is_synthetic, created_at, updated_at)

@@ -1,0 +1,170 @@
+[
+  {
+    "key": "guide-ea80-search",
+    "meta": {
+      "documentKey": "guide-ea80-search",
+      "kind": "GUIDE",
+      "title": "문서함 조회 조건과 기안일 확인",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "EMPLOYEE",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 문서 조회\n전자결재 문서 조회 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 목적\n\n문서함 조회 조건과 기안일 확인\n\n## 전제\n\n전자결재 로그인 및 해당 문서의 열람 권한을 확인합니다.\n\n## 절차\n\n문서함 > 전체 문서에서 기간·상태·제목 키워드를 확인합니다. 기간은 상신일이 아니라 기안일 기준이며 기본 최근 3개월, 최대 12개월입니다. 상태를 전체로 변경하고 제목 키워드를 비워 다시 조회합니다. 기안자·결재선·참조에 포함된 문서만 열람할 수 있습니다.\n\n## 확인할 수 있는 결과\n\n문서가 조회되지 않는 경우 조회 조건과 열람 관계를 확인합니다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  },
+  {
+    "key": "guide-ea80-create",
+    "meta": {
+      "documentKey": "guide-ea80-create",
+      "kind": "GUIDE",
+      "title": "임시 저장 문서의 상신과 필수 입력",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "EMPLOYEE",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 문서 작성\n전자결재 문서 작성 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 목적\n\n임시 저장 문서의 상신과 필수 입력\n\n## 전제\n\n전자결재 로그인 및 해당 문서의 열람 권한을 확인합니다.\n\n## 절차\n\n기안함 > 임시 저장에서 문서를 엽니다. 제목은 100자 이내, 본문은 필수이며 결재선은 상신 시 1명 이상 지정합니다. 임시 저장은 필수값 없이 가능하지만 상신은 입력 조건을 검사합니다. 상신 후에는 본문과 결재선을 직접 수정할 수 없습니다.\n\n## 확인할 수 있는 결과\n\n임시 저장과 상신을 구분하고 기안 입력을 확인합니다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  },
+  {
+    "key": "guide-ea80-attachments",
+    "meta": {
+      "documentKey": "guide-ea80-attachments",
+      "kind": "GUIDE",
+      "title": "첨부 형식별 열기와 내려받기",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "EMPLOYEE",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 첨부 열람\n전자결재 첨부 열람 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 목적\n\n첨부 형식별 열기와 내려받기\n\n## 전제\n\n전자결재 로그인 및 해당 문서의 열람 권한을 확인합니다.\n\n## 절차\n\n문서 상세의 첨부 파일에서 파일 형식을 확인합니다. pdf·png·jpg·txt만 미리보기를 지원하며 docx·xlsx·pptx·hwp·zip은 내려받기로 확인합니다. 파일당 20MB·문서당 10개를 지켜야 합니다. 첨부 열람에는 문서 열람 권한이 필요합니다.\n\n## 확인할 수 있는 결과\n\n지원 형식과 파일 제한을 확인한 뒤 열기 또는 내려받기를 선택합니다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  },
+  {
+    "key": "guide-ea80-status",
+    "meta": {
+      "documentKey": "guide-ea80-status",
+      "kind": "GUIDE",
+      "title": "결재선 단계 승인과 문서 최종 승인 구분",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "EMPLOYEE",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 결재 상태\n전자결재 결재 상태 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 목적\n\n결재선 단계 승인과 문서 최종 승인 구분\n\n## 전제\n\n전자결재 로그인 및 해당 문서의 열람 권한을 확인합니다.\n\n## 절차\n\n문서 상세 > 결재선 탭에서 문서 전체 상태와 결재자별 단계를 대조합니다. 상신은 아직 처리되지 않은 상태, 결재 중은 일부 단계 처리 상태, 승인은 마지막 결재자까지 승인한 상태입니다. 반려에는 사유가 표시됩니다. 회수는 첫 결재자 처리 전 기안자가 할 수 있습니다.\n\n## 확인할 수 있는 결과\n\n현재 상태를 확인하고 가능한 업무 절차를 판단합니다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  },
+  {
+    "key": "runbook-ea80-search",
+    "meta": {
+      "documentKey": "runbook-ea80-search",
+      "kind": "RUNBOOK",
+      "title": "문서 미표시 원인을 좁히는 조회 점검 순서",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "SYSTEM_STAFF",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 문서 조회\n전자결재 문서 조회 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 증상\n\n문서 미표시 원인을 좁히는 조회 점검 순서\n\n## 확인 항목\n\n1. 결과 없음·권한 거부·조회 오류를 구분한다.\n2. 기안일이 조회 기간 안인지 확인한다.\n3. 상태·제목 조건을 유지 또는 해제해 결과 변화를 비교한다.\n4. 임시 저장이면 기안함에서 확인한다.\n5. 기안자·결재선·참조 기록으로 열람 관계를 확인한다.\n\n## 가능 원인 후보\n\n조건 불일치·열람 관계·기능 제약·일시 오류를 구분한다. 후보만으로 원인을 확정하지 않는다.\n\n## 결과 해석\n\n기간·필터·임시 저장·열람 권한을 순서대로 대조하고 조건이 맞지 않으면 조사를 이어간다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  },
+  {
+    "key": "runbook-ea80-create",
+    "meta": {
+      "documentKey": "runbook-ea80-create",
+      "kind": "RUNBOOK",
+      "title": "상신 입력 검증과 임시 저장 위치 점검",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "SYSTEM_STAFF",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 문서 작성\n전자결재 문서 작성 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 증상\n\n상신 입력 검증과 임시 저장 위치 점검\n\n## 확인 항목\n\n1. 실제로 상신했는지 임시 저장했는지 구분한다.\n2. 제목·본문 누락과 제목 100자 제한을 확인한다.\n3. 결재선 1명 이상 조건을 확인한다.\n4. 저장 실패 문구라면 입력 조건 위반과 구분해 조사한다.\n\n## 가능 원인 후보\n\n조건 불일치·열람 관계·기능 제약·일시 오류를 구분한다. 후보만으로 원인을 확정하지 않는다.\n\n## 결과 해석\n\n입력 조건 보완 뒤 같은 문서가 상신 상태로 전환되는지 검증한다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  },
+  {
+    "key": "runbook-ea80-attachments",
+    "meta": {
+      "documentKey": "runbook-ea80-attachments",
+      "kind": "RUNBOOK",
+      "title": "첨부 검사 중·미리보기 제한·권한·오류 분기",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "SYSTEM_STAFF",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 첨부 열람\n전자결재 첨부 열람 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 증상\n\n첨부 검사 중·미리보기 제한·권한·오류 분기\n\n## 확인 항목\n\n1. 열기 비활성이면 형식이 pdf·png·jpg·txt인지 확인한다.\n2. 검사 중이면 업로드 시점과 최대 10분 경과를 확인한다.\n3. 첨부 파일 열람 권한이 없습니다면 문서 열람 관계를 확인한다.\n4. 첨부 파일을 열 수 없습니다면 동일 파일의 재시도와 다른 파일의 상태를 확인한다.\n\n## 가능 원인 후보\n\n조건 불일치·열람 관계·기능 제약·일시 오류를 구분한다. 후보만으로 원인을 확정하지 않는다.\n\n## 결과 해석\n\n검사 완료 후에도 실패하면 파일 형식·권한·일시 오류를 별도로 조사한다. 원인을 임의로 확정하지 않는다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  },
+  {
+    "key": "runbook-ea80-status",
+    "meta": {
+      "documentKey": "runbook-ea80-status",
+      "kind": "RUNBOOK",
+      "title": "회수·수정 제약과 결재 단계 확인 절차",
+      "systemCode": "ELECTRONIC_APPROVAL",
+      "accessScope": "SYSTEM_STAFF",
+      "version": 1,
+      "appliesToSystemVersion": null,
+      "applicability": "기능: 결재 상태\n전자결재 결재 상태 화면에서 관련 조건을 확인할 때 참고한다.",
+      "dataSplit": "RAG",
+      "origin": "SYNTHETIC",
+      "reviewStatus": "APPROVED",
+      "source": {
+        "type": "AUTHORED",
+        "reference": "docs/knowledge/VIRTUAL_COMPANY.md#51-전자결재-electronic_approval"
+      }
+    },
+    "content": "## 증상\n\n회수·수정 제약과 결재 단계 확인 절차\n\n## 확인 항목\n\n1. 문의자가 기안자인지 확인한다.\n2. 문서 상태와 첫 결재자 처리 여부를 확인한다.\n3. 첫 결재자 처리 전이면 회수 가능 여부를 확인한다.\n4. 상신 이후 본문·결재선 직접 수정은 지원하지 않는다.\n5. 단계 승인과 최종 승인·반려 사유를 구분한다.\n\n## 가능 원인 후보\n\n조건 불일치·열람 관계·기능 제약·일시 오류를 구분한다. 후보만으로 원인을 확정하지 않는다.\n\n## 결과 해석\n\n실제 결재 기록을 대조해 가능한 절차를 안내한다. 임의로 상태를 변경하거나 결재를 대신 처리하지 않는다.\n\n## 적용 조건과 한계\n\n가상 시스템 명세를 바탕으로 작성한 합성 문서입니다. 확인되지 않은 조건과 다른 시스템에는 조치를 그대로 적용하지 않습니다.\n"
+  }
+]

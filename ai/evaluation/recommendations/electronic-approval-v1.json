@@ -1,0 +1,2150 @@
+{
+  "version": 1,
+  "queries": [
+    {
+      "id": "EA-R-001",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-001",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 승인\n문서 상태: 상신\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 승인",
+        "문서 상태: 상신",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "승인",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "승인",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-002",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-002",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 전체\n문서 상태: 결재 중\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 전체",
+        "문서 상태: 결재 중",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "문서 상태": "결재 중",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "승인",
+        "문서 상태": "결재 중",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-003",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-003",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회",
+      "facts": [
+        "기능: 문서 조회"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "승인",
+        "문서 상태": "반려",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-004",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-004",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "승인",
+        "문서 상태": "회수",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-005",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-005",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 결재 중\n문서 상태: 상신\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 결재 중",
+        "문서 상태: 상신",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "결재 중",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "결재 중",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-006",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-006",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 미확인\n문서 상태: 승인\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 미확인",
+        "문서 상태: 승인",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "미확인",
+        "문서 상태": "승인",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "결재 중",
+        "문서 상태": "승인",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-007",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-007",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회",
+      "facts": [
+        "기능: 문서 조회"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "결재 중",
+        "문서 상태": "반려",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-008",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-008",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "결재 중",
+        "문서 상태": "회수",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-009",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-009",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 반려\n문서 상태: 상신\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 반려",
+        "문서 상태: 상신",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "반려",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "반려",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-010",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-010",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 미확인\n문서 상태: 결재 중\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 미확인",
+        "문서 상태: 결재 중",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "미확인",
+        "문서 상태": "결재 중",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "반려",
+        "문서 상태": "결재 중",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-011",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-011",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회",
+      "facts": [
+        "기능: 문서 조회"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "반려",
+        "문서 상태": "승인",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-012",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-012",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "반려",
+        "문서 상태": "회수",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-013",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-013",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 회수\n문서 상태: 상신\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 회수",
+        "문서 상태: 상신",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "회수",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "회수",
+        "문서 상태": "상신",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-014",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-014",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 미확인\n문서 상태: 결재 중\n기안자: 본인\n상신 여부: 완료\n조회 기간: 기안일 포함\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 미확인",
+        "문서 상태: 결재 중",
+        "기안자: 본인",
+        "상신 여부: 완료",
+        "조회 기간: 기안일 포함",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "미확인",
+        "문서 상태": "결재 중",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "회수",
+        "문서 상태": "결재 중",
+        "기안자": "본인",
+        "상신 여부": "완료",
+        "조회 기간": "기안일 포함",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "조회 상태 조건 불일치",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-015",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-015",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회",
+      "facts": [
+        "기능: 문서 조회"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "본인",
+        "열람 관계": "기안자",
+        "기안 시점": "4개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "기안일이 조회 기간 밖",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-016",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-016",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "타인",
+        "열람 관계": "결재선",
+        "기안 시점": "4개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-017",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-017",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 전체\n기안자: 본인\n열람 관계: 기안자\n기안 시점: 5개월 전\n조회 기간: 최근 3개월\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 전체",
+        "기안자: 본인",
+        "열람 관계: 기안자",
+        "기안 시점: 5개월 전",
+        "조회 기간: 최근 3개월",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "본인",
+        "열람 관계": "기안자",
+        "기안 시점": "5개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "본인",
+        "열람 관계": "기안자",
+        "기안 시점": "5개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "기안일이 조회 기간 밖",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-018",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-018",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 승인\n기안자: 타인\n열람 관계: 결재선\n기안 시점: 5개월 전\n조회 기간: 최근 3개월\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 승인",
+        "기안자: 타인",
+        "열람 관계: 결재선",
+        "기안 시점: 5개월 전",
+        "조회 기간: 최근 3개월",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "승인",
+        "기안자": "타인",
+        "열람 관계": "결재선",
+        "기안 시점": "5개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "타인",
+        "열람 관계": "결재선",
+        "기안 시점": "5개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "기안일이 조회 기간 밖",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-019",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-019",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회",
+      "facts": [
+        "기능: 문서 조회"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "본인",
+        "열람 관계": "기안자",
+        "기안 시점": "6개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "기안일이 조회 기간 밖",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-020",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-020",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "타인",
+        "열람 관계": "결재선",
+        "기안 시점": "6개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-021",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-021",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 전체\n기안자: 본인\n열람 관계: 기안자\n기안 시점: 9개월 전\n조회 기간: 최근 3개월\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 전체",
+        "기안자: 본인",
+        "열람 관계: 기안자",
+        "기안 시점: 9개월 전",
+        "조회 기간: 최근 3개월",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "본인",
+        "열람 관계": "기안자",
+        "기안 시점": "9개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "본인",
+        "열람 관계": "기안자",
+        "기안 시점": "9개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "기안일이 조회 기간 밖",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-022",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-022",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n조회 상태: 승인\n기안자: 타인\n열람 관계: 결재선\n기안 시점: 9개월 전\n조회 기간: 최근 3개월\n제목 검색어: 없음",
+      "facts": [
+        "기능: 문서 조회",
+        "조회 상태: 승인",
+        "기안자: 타인",
+        "열람 관계: 결재선",
+        "기안 시점: 9개월 전",
+        "조회 기간: 최근 3개월",
+        "제목 검색어: 없음"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "승인",
+        "기안자": "타인",
+        "열람 관계": "결재선",
+        "기안 시점": "9개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "타인",
+        "열람 관계": "결재선",
+        "기안 시점": "9개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "기안일이 조회 기간 밖",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-023",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-023",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회",
+      "facts": [
+        "기능: 문서 조회"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "본인",
+        "열람 관계": "기안자",
+        "기안 시점": "11개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": "기안일이 조회 기간 밖",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-024",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-024",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "조회 상태": "전체",
+        "기안자": "타인",
+        "열람 관계": "결재선",
+        "기안 시점": "11개월 전",
+        "조회 기간": "최근 3개월",
+        "제목 검색어": "없음"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-025",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-025",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n기안자: 타인\n열람 관계: 없음\n문서 상태: 상신\n화면 문구: 열람 권한이 없는 문서입니다",
+      "facts": [
+        "기능: 문서 조회",
+        "기안자: 타인",
+        "열람 관계: 없음",
+        "문서 상태: 상신",
+        "화면 문구: 열람 권한이 없는 문서입니다"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "상신",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "상신",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-026",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-026",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n기안자: 본인\n열람 관계: 없음\n문서 상태: 상신\n화면 문구: 열람 권한이 없는 문서입니다",
+      "facts": [
+        "기능: 문서 조회",
+        "기안자: 본인",
+        "열람 관계: 없음",
+        "문서 상태: 상신",
+        "화면 문구: 열람 권한이 없는 문서입니다"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "기안자": "본인",
+        "열람 관계": "없음",
+        "문서 상태": "상신",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "상신",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-027",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-027",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "상신",
+        "화면 문구": "첨부 파일 열람 권한이 없습니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-028",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-028",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "상신",
+        "화면 문구": "첨부 파일 열람 권한이 없습니다"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-029",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-029",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n기안자: 타인\n열람 관계: 없음\n문서 상태: 승인\n화면 문구: 열람 권한이 없는 문서입니다",
+      "facts": [
+        "기능: 문서 조회",
+        "기안자: 타인",
+        "열람 관계: 없음",
+        "문서 상태: 승인",
+        "화면 문구: 열람 권한이 없는 문서입니다"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "승인",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "승인",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-030",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-030",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n기안자: 본인\n열람 관계: 없음\n문서 상태: 승인\n화면 문구: 열람 권한이 없는 문서입니다",
+      "facts": [
+        "기능: 문서 조회",
+        "기안자: 본인",
+        "열람 관계: 없음",
+        "문서 상태: 승인",
+        "화면 문구: 열람 권한이 없는 문서입니다"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "기안자": "본인",
+        "열람 관계": "없음",
+        "문서 상태": "승인",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "승인",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-031",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-031",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "승인",
+        "화면 문구": "첨부 파일 열람 권한이 없습니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-032",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-032",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "승인",
+        "화면 문구": "첨부 파일 열람 권한이 없습니다"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-033",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-033",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n기안자: 타인\n열람 관계: 없음\n문서 상태: 반려\n화면 문구: 열람 권한이 없는 문서입니다",
+      "facts": [
+        "기능: 문서 조회",
+        "기안자: 타인",
+        "열람 관계: 없음",
+        "문서 상태: 반려",
+        "화면 문구: 열람 권한이 없는 문서입니다"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "반려",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "반려",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-034",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-034",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재에서 찾는 서류가 문서함에 나오지 않습니다.\n기능: 문서 조회\n기안자: 본인\n열람 관계: 없음\n문서 상태: 반려\n화면 문구: 열람 권한이 없는 문서입니다",
+      "facts": [
+        "기능: 문서 조회",
+        "기안자: 본인",
+        "열람 관계: 없음",
+        "문서 상태: 반려",
+        "화면 문구: 열람 권한이 없는 문서입니다"
+      ],
+      "expectedConditions": {
+        "기능": "문서 조회",
+        "기안자": "본인",
+        "열람 관계": "없음",
+        "문서 상태": "반려",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "originalConditions": {
+        "기능": "문서 조회",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "반려",
+        "화면 문구": "열람 권한이 없는 문서입니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-035",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-035",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "반려",
+        "화면 문구": "첨부 파일 열람 권한이 없습니다"
+      },
+      "expectedCaseFamily": "문서 열람 권한 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-036",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-036",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "기안자": "타인",
+        "열람 관계": "없음",
+        "문서 상태": "반려",
+        "화면 문구": "첨부 파일 열람 권한이 없습니다"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-037",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-037",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성\n상신 여부: 미완료\n누락 항목: 제목\n문서 상태: 임시 저장",
+      "facts": [
+        "기능: 문서 작성",
+        "상신 여부: 미완료",
+        "누락 항목: 제목",
+        "문서 상태: 임시 저장"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "제목",
+        "문서 상태": "임시 저장"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "제목",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "상신 필수 항목 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-038",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-038",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성\n상신 여부: 미완료\n누락 항목: 본문\n문서 상태: 미확인",
+      "facts": [
+        "기능: 문서 작성",
+        "상신 여부: 미완료",
+        "누락 항목: 본문",
+        "문서 상태: 미확인"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "본문",
+        "문서 상태": "미확인"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "본문",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "상신 필수 항목 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-039",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-039",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성",
+      "facts": [
+        "기능: 문서 작성"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "결재선",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "상신 필수 항목 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-040",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-040",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "제목·본문",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-041",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-041",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성\n상신 여부: 미완료\n누락 항목: 제목·결재선\n문서 상태: 임시 저장",
+      "facts": [
+        "기능: 문서 작성",
+        "상신 여부: 미완료",
+        "누락 항목: 제목·결재선",
+        "문서 상태: 임시 저장"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "제목·결재선",
+        "문서 상태": "임시 저장"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "제목·결재선",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "상신 필수 항목 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-042",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-042",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성\n상신 여부: 미완료\n누락 항목: 본문·결재선\n문서 상태: 미확인",
+      "facts": [
+        "기능: 문서 작성",
+        "상신 여부: 미완료",
+        "누락 항목: 본문·결재선",
+        "문서 상태: 미확인"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "본문·결재선",
+        "문서 상태": "미확인"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "본문·결재선",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "상신 필수 항목 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-043",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-043",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성",
+      "facts": [
+        "기능: 문서 작성"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "상신 여부": "미완료",
+        "누락 항목": "제목·본문·결재선",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "상신 필수 항목 누락",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-044",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-044",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "제목 길이": "101자",
+        "상신 여부": "미완료"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-045",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-045",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성\n제목 길이: 110자\n상신 여부: 미완료",
+      "facts": [
+        "기능: 문서 작성",
+        "제목 길이: 110자",
+        "상신 여부: 미완료"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성",
+        "제목 길이": "110자",
+        "상신 여부": "미완료"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "제목 길이": "110자",
+        "상신 여부": "미완료"
+      },
+      "expectedCaseFamily": "기안 제목 길이 초과",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-046",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-046",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 미확인\n제목 길이: 120자\n상신 여부: 미완료",
+      "facts": [
+        "기능: 미확인",
+        "제목 길이: 120자",
+        "상신 여부: 미완료"
+      ],
+      "expectedConditions": {
+        "기능": "미확인",
+        "제목 길이": "120자",
+        "상신 여부": "미완료"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "제목 길이": "120자",
+        "상신 여부": "미완료"
+      },
+      "expectedCaseFamily": "기안 제목 길이 초과",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-047",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-047",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "작성한 결재 건을 제출하려는데 진행할 수 없습니다.\n기능: 문서 작성",
+      "facts": [
+        "기능: 문서 작성"
+      ],
+      "expectedConditions": {
+        "기능": "문서 작성"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "제목 길이": "150자",
+        "상신 여부": "미완료"
+      },
+      "expectedCaseFamily": "기안 제목 길이 초과",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-048",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-048",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "문서 작성",
+        "제목 길이": "200자",
+        "상신 여부": "미완료"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-049",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-049",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태\n문서 상태: 임시 저장\n기안자: 본인",
+      "facts": [
+        "기능: 결재 상태",
+        "문서 상태: 임시 저장",
+        "기안자: 본인"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "임시 저장",
+        "기안자": "본인"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "임시 저장",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-050",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-050",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태\n문서 상태: 상신\n기안자: 타인",
+      "facts": [
+        "기능: 결재 상태",
+        "문서 상태: 상신",
+        "기안자: 타인"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "상신",
+        "기안자": "타인"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "상신",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-051",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-051",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태",
+      "facts": [
+        "기능: 결재 상태"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "결재 중",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-052",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-052",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "승인",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-053",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-053",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태\n문서 상태: 반려\n기안자: 본인",
+      "facts": [
+        "기능: 결재 상태",
+        "문서 상태: 반려",
+        "기안자: 본인"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "반려",
+        "기안자": "본인"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "반려",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-054",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-054",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태\n문서 상태: 회수\n기안자: 타인",
+      "facts": [
+        "기능: 결재 상태",
+        "문서 상태: 회수",
+        "기안자: 타인"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "회수",
+        "기안자": "타인"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "회수",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-055",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-055",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태",
+      "facts": [
+        "기능: 결재 상태"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "상신",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-056",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-056",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "결재 중",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-057",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-057",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태\n문서 상태: 상신\n기안자: 본인",
+      "facts": [
+        "기능: 결재 상태",
+        "문서 상태: 상신",
+        "기안자: 본인"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "상신",
+        "기안자": "본인"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "상신",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-058",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-058",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "문서 결재가 어디까지 진행됐는지 다음에 무엇을 할 수 있는지 헷갈려요.\n기능: 결재 상태\n문서 상태: 결재 중\n기안자: 타인",
+      "facts": [
+        "기능: 결재 상태",
+        "문서 상태: 결재 중",
+        "기안자: 타인"
+      ],
+      "expectedConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "결재 중",
+        "기안자": "타인"
+      },
+      "originalConditions": {
+        "기능": "결재 상태",
+        "문서 상태": "결재 중",
+        "기안자": "본인"
+      },
+      "expectedCaseFamily": "결재 상태·업무 제약 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-059",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-059",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 크기": "21MB",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "첨부 업로드 제한",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-060",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-060",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 크기": "30MB",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-061",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-061",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n파일 크기: 50MB\n문서 상태: 임시 저장",
+      "facts": [
+        "기능: 첨부 열람",
+        "파일 크기: 50MB",
+        "문서 상태: 임시 저장"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "파일 크기": "50MB",
+        "문서 상태": "임시 저장"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 크기": "50MB",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "첨부 업로드 제한",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-062",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-062",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n첨부 개수: 11개\n문서 상태: 미확인",
+      "facts": [
+        "기능: 첨부 열람",
+        "첨부 개수: 11개",
+        "문서 상태: 미확인"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "첨부 개수": "11개",
+        "문서 상태": "미확인"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "첨부 개수": "11개",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "첨부 업로드 제한",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-063",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-063",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "첨부 개수": "12개",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "첨부 업로드 제한",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-064",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-064",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "exe",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-065",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-065",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n파일 형식: bat\n문서 상태: 임시 저장",
+      "facts": [
+        "기능: 첨부 열람",
+        "파일 형식: bat",
+        "문서 상태: 임시 저장"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "bat",
+        "문서 상태": "임시 저장"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "bat",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "첨부 업로드 제한",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-066",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-066",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n파일 형식: 미확인\n문서 상태: 임시 저장",
+      "facts": [
+        "기능: 첨부 열람",
+        "파일 형식: 미확인",
+        "문서 상태: 임시 저장"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "미확인",
+        "문서 상태": "임시 저장"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "sh",
+        "문서 상태": "임시 저장"
+      },
+      "expectedCaseFamily": "첨부 업로드 제한",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-067",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-067",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "docx",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "열기 비활성"
+      },
+      "expectedCaseFamily": "미리보기 미지원 형식",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-068",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-068",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "xlsx",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "열기 비활성"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-069",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-069",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n파일 형식: pptx\n첨부 상태: 검사 완료\n화면 문구: 열기 비활성",
+      "facts": [
+        "기능: 첨부 열람",
+        "파일 형식: pptx",
+        "첨부 상태: 검사 완료",
+        "화면 문구: 열기 비활성"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "pptx",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "열기 비활성"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "pptx",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "열기 비활성"
+      },
+      "expectedCaseFamily": "미리보기 미지원 형식",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-070",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-070",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n파일 형식: 미확인\n첨부 상태: 검사 완료\n화면 문구: 열기 비활성",
+      "facts": [
+        "기능: 첨부 열람",
+        "파일 형식: 미확인",
+        "첨부 상태: 검사 완료",
+        "화면 문구: 열기 비활성"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "미확인",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "열기 비활성"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "hwp",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "열기 비활성"
+      },
+      "expectedCaseFamily": "미리보기 미지원 형식",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-071",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-071",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "zip",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "열기 비활성"
+      },
+      "expectedCaseFamily": "미리보기 미지원 형식",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-072",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-072",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "pdf",
+        "첨부 상태": "검사 중",
+        "업로드 경과": "10분 이내"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-073",
+      "split": "DEV",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-073",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n파일 형식: png\n첨부 상태: 검사 중\n업로드 경과: 10분 이내",
+      "facts": [
+        "기능: 첨부 열람",
+        "파일 형식: png",
+        "첨부 상태: 검사 중",
+        "업로드 경과: 10분 이내"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "png",
+        "첨부 상태": "검사 중",
+        "업로드 경과": "10분 이내"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "png",
+        "첨부 상태": "검사 중",
+        "업로드 경과": "10분 이내"
+      },
+      "expectedCaseFamily": "첨부 검사 진행 중",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-074",
+      "split": "DEV",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-074",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람\n파일 형식: 미확인\n첨부 상태: 검사 중\n업로드 경과: 10분 이내",
+      "facts": [
+        "기능: 첨부 열람",
+        "파일 형식: 미확인",
+        "첨부 상태: 검사 중",
+        "업로드 경과: 10분 이내"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "미확인",
+        "첨부 상태": "검사 중",
+        "업로드 경과": "10분 이내"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "jpg",
+        "첨부 상태": "검사 중",
+        "업로드 경과": "10분 이내"
+      },
+      "expectedCaseFamily": "첨부 검사 진행 중",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-075",
+      "split": "DEV",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-075",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "결재 문서의 붙임 자료를 확인하거나 추가하려는데 막힙니다.\n기능: 첨부 열람",
+      "facts": [
+        "기능: 첨부 열람"
+      ],
+      "expectedConditions": {
+        "기능": "첨부 열람"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "txt",
+        "첨부 상태": "검사 중",
+        "업로드 경과": "10분 이내"
+      },
+      "expectedCaseFamily": "첨부 검사 진행 중",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-076",
+      "split": "DEV",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-076",
+      "system": "ELECTRONIC_APPROVAL",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "첨부 열람",
+        "파일 형식": "pdf",
+        "첨부 상태": "검사 완료",
+        "화면 문구": "첨부 파일을 열 수 없습니다"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-077",
+      "split": "TEST",
+      "mode": "POSITIVE",
+      "sourceCaseKey": "case-assist-ea-077",
+      "system": "COMMON_LOGIN",
+      "query": "업무 포털에서 결재 화면으로 들어가려는데 인증이 유지되지 않아요.\n기능: 공통 로그인\n세션 상태: 쿠키 차단",
+      "facts": [
+        "기능: 공통 로그인",
+        "세션 상태: 쿠키 차단"
+      ],
+      "expectedConditions": {
+        "기능": "공통 로그인",
+        "세션 상태": "쿠키 차단"
+      },
+      "originalConditions": {
+        "기능": "공통 로그인",
+        "세션 상태": "쿠키 차단"
+      },
+      "expectedCaseFamily": "공통 로그인·세션 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-078",
+      "split": "TEST",
+      "mode": "CONTRAST",
+      "sourceCaseKey": "case-assist-ea-078",
+      "system": "COMMON_LOGIN",
+      "query": "업무 포털에서 결재 화면으로 들어가려는데 인증이 유지되지 않아요.\n기능: 공통 로그인\n세션 상태: 미확인",
+      "facts": [
+        "기능: 공통 로그인",
+        "세션 상태: 미확인"
+      ],
+      "expectedConditions": {
+        "기능": "공통 로그인",
+        "세션 상태": "미확인"
+      },
+      "originalConditions": {
+        "기능": "공통 로그인",
+        "세션 상태": "30분 비활동 만료"
+      },
+      "expectedCaseFamily": "공통 로그인·세션 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-079",
+      "split": "TEST",
+      "mode": "INCOMPLETE",
+      "sourceCaseKey": "case-assist-ea-079",
+      "system": "COMMON_LOGIN",
+      "query": "업무 포털에서 결재 화면으로 들어가려는데 인증이 유지되지 않아요.\n기능: 공통 로그인",
+      "facts": [
+        "기능: 공통 로그인"
+      ],
+      "expectedConditions": {
+        "기능": "공통 로그인"
+      },
+      "originalConditions": {
+        "기능": "공통 로그인",
+        "세션 상태": "8시간 만료"
+      },
+      "expectedCaseFamily": "공통 로그인·세션 확인",
+      "goldOnly": true
+    },
+    {
+      "id": "EA-R-080",
+      "split": "TEST",
+      "mode": "NO_CASE",
+      "sourceCaseKey": "case-assist-ea-080",
+      "system": "COMMON_LOGIN",
+      "query": "전자결재 음성 결재와 자동 번역을 요청합니다\n기능: 미지원 기능\n미지원 조건: 지원하지 않음",
+      "facts": [
+        "기능: 미지원 기능",
+        "미지원 조건: 지원하지 않음"
+      ],
+      "expectedConditions": {
+        "기능": "미지원 기능",
+        "미지원 조건": "지원하지 않음"
+      },
+      "originalConditions": {
+        "기능": "공통 로그인",
+        "세션 상태": "5회 실패 잠금"
+      },
+      "expectedCaseFamily": null,
+      "goldOnly": true
+    }
+  ]
+}
