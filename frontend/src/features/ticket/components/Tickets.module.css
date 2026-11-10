@@ -376,19 +376,25 @@
   margin-bottom: var(--space-2);
 }
 .requestCard .requestLead {
+  max-inline-size: 68ch;
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   line-height: 1.5;
+  word-break: keep-all;
 }
 .overviewFacts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(144px, 100%), 1fr));
-  gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   margin: var(--space-3) 0 0;
 }
 .overviewFacts > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
   min-width: 0;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--color-sunken);
 }
@@ -397,7 +403,31 @@
   font-size: var(--font-size-sm);
 }
 .overviewFacts dd {
-  margin: var(--space-1) 0 0;
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+.requestRows {
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-label);
+}
+.requestRows > div {
+  display: grid;
+  grid-template-columns: minmax(108px, 22%) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+.requestRows dt {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+.requestRows dd,
+.factGroups li {
+  max-inline-size: 68ch;
+  margin: 0;
+  line-height: 1.6;
+  word-break: keep-all;
   overflow-wrap: anywhere;
 }
 .openQuestions {
@@ -420,6 +450,32 @@
   margin: 0;
   padding-inline-start: var(--space-5);
   overflow-wrap: anywhere;
+}
+.requestRows .requestSentences {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+}
+.factGroups {
+  display: grid;
+  gap: var(--space-2);
+}
+.factGroups > details {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.factGroups summary small {
+  margin-inline-start: var(--space-2);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-regular);
+}
+.factGroups ul {
+  display: grid;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
 }
 .requestEvidence {
   margin-top: var(--space-4);
@@ -582,21 +638,9 @@
   padding: var(--space-3);
   border-top: 1px solid var(--color-border);
 }
-.facts > div {
-  display: contents;
-}
-.facts {
-  display: grid;
-  grid-template-columns: 100px minmax(0, 1fr);
-  gap: var(--space-2) var(--space-4);
-  margin: 0;
-  font-size: var(--font-size-label);
-}
-.facts dt,
 .properties dt {
   color: var(--color-text-muted);
 }
-.facts dd,
 .properties dd {
   margin: 0;
   overflow-wrap: anywhere;
@@ -675,7 +719,7 @@
   .tabs {
     padding: var(--space-3);
   }
-  .facts {
+  .requestRows > div {
     grid-template-columns: 1fr;
   }
 }

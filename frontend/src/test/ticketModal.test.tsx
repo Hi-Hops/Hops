@@ -265,6 +265,66 @@ describe('F009 티켓 상세 모달', () => {
     expect(view.getByRole('textbox', { name: '처리 내용' })).toBeVisible();
   });
 
+  it('F011-CONTRACT-05 해결 사례 탭에서 생성된 초안 검토 화면으로 이동한다', async () => {
+    vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
+    systemMockBackend.reset();
+    await login(TEST_LOGINS.network);
+    const tickets = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
+    const ticket = tickets.items.find((item) => item.title.includes('첨부파일 복구 · 사례 초안'));
+    if (!ticket) throw new Error('초안이 생성된 예시 티켓 필요');
+    const router = renderTickets(`/tickets/${ticket.id}?tab=work`);
+    const user = userEvent.setup();
+    const dialog = await screen.findByRole('dialog');
+    await user.click(await within(dialog).findByRole('link', { name: '해결 사례' }));
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    const review = await within(dialog).findByRole('link', { name: '사례 초안 확인' });
+    const casePath = review.getAttribute('href');
+    expect(casePath).toMatch(/^\/cases\//u);
+    await user.click(review);
+    expect(router.state.location.pathname).toBe(casePath);
+    expect(await screen.findByRole('link', { name: '원 티켓 보기' })).toBeVisible();
+  });
+
+  it('F009-DETAIL-03 긴 설명을 문장별로 읽고 중복 없는 근거를 항목별로 펼친다', async () => {
+    const ticket = await firstTicket();
+    const detail = await systemGet(`/tickets/${ticket.id}`, readTicket);
+    const first = '조회 기간은 최근 3개월이고 지난주에 상신했습니다.';
+    const second = '상태 필터는 승인으로 선택했고 제목 키워드는 비워 두었습니다.';
+    detail.standardRequest.details.taskOrScreen = '문서함 목록';
+    detail.standardRequest.details.currentWorkflow = `${first} ${second}`;
+    detail.standardRequest.confirmedFacts = [
+      '하려던 업무·화면: 문서함 목록',
+      `현재 진행 방식: ${first} ${second}`,
+      '현재 진행 방식: 지난주에 직접 기안했어요.',
+      '현재 진행 방식: 지난주에  직접 기안했어요.',
+      '현재 진행 방식: 제출 후 다시 조회했어요.',
+      '첨부 오류 안내는 따로 없었어요.',
+    ].map((text) => ({ text, sourceMessageIds: [], knowledgeEvidenceIds: [] }));
+    const original = systemMockBackend.request.bind(systemMockBackend);
+    vi.spyOn(systemMockBackend, 'request').mockImplementation((path, method, body, token, key) =>
+      path === `/api/v2/tickets/${ticket.id}` ? detail : original(path, method, body, token, key),
+    );
+
+    renderTickets(`/tickets/${ticket.id}`);
+    const user = userEvent.setup();
+    const view = within(await screen.findByRole('dialog'));
+    expect(await view.findByText(first, { selector: 'li' })).toBeVisible();
+    expect(view.getByText(second, { selector: 'li' })).toBeVisible();
+    await user.click(view.getByText('근거·상세 보기'));
+    const group = view.getByText('진행 방식·조건', { selector: 'summary' });
+    const disclosure = group.closest('details');
+    if (!disclosure) throw new Error('근거 묶음 필요');
+    const evidence = within(disclosure);
+    expect(evidence.getByText('2건')).toBeVisible();
+    expect(evidence.getByText('지난주에 직접 기안했어요.')).not.toBeVisible();
+    await user.click(group);
+    expect(evidence.getByText('지난주에 직접 기안했어요.')).toBeVisible();
+    expect(evidence.getByText('제출 후 다시 조회했어요.')).toBeVisible();
+    expect(view.queryByText(/하려던 업무·화면: 문서함 목록/u)).not.toBeInTheDocument();
+    await user.click(view.getByText('기타 확인 내용', { selector: 'summary' }));
+    expect(view.getByText('첨부 오류 안내는 따로 없었어요.')).toBeVisible();
+  });
+
   it('F007-CONTRACT-01 관리자 직접 진입에서는 처리 입력 대신 제한 상세 모달을 표시한다', async () => {
     await login(TEST_LOGINS.admin);
     const page = await systemGet('/tickets?scope=ADMIN', readTickets);

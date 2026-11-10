@@ -27,6 +27,7 @@ import type {
   TicketManagementDetail,
 } from '@/shared/api/types/hopsSystem1';
 import { processingLabels, mutableTicket, workKinds } from '../model/workflow';
+import { requestOverview, requestSentences } from '../model/requestOverview';
 import { WorkRecordEditor } from './WorkRecordEditor';
 import { TicketCorrection } from './TicketCorrection';
 import { CaseGenerationPanel } from './CaseGenerationPanel';
@@ -113,47 +114,47 @@ function RequestReference({ ticket }: RequestContentProps) {
     </details>
   );
 }
-const detailFields = [
-  ['taskOrScreen', '업무·화면'],
-  ['occurredAt', '발생 시점'],
-  ['requestedAccess', '요청 권한'],
-  ['businessPurpose', '업무 목적'],
-  ['desiredChange', '원하는 변경'],
-  ['currentWorkflow', '현재 업무 흐름'],
-  ['expectedBehavior', '기대한 동작'],
-  ['actualBehavior', '실제 현상'],
-] as const;
+function RequestValue({ value }: { value: string }) {
+  const lines = requestSentences(value);
+  if (lines.length <= 1) return value;
+  return (
+    <ul className={styles.requestSentences}>
+      {lines.map((line, index) => (
+        <li key={String(index) + line}>{line}</li>
+      ))}
+    </ul>
+  );
+}
 
 function RequestOverview({ ticket }: RequestContentProps) {
   const request = ticket.standardRequest;
-  const fields = detailFields.flatMap(([key, label]) => {
-    const value = request.details[key]?.trim();
-    return value ? [{ key, label, value }] : [];
-  });
-  const overview = fields
-    .filter(
-      ({ key, value }) =>
-        key !== 'expectedBehavior' && key !== 'actualBehavior' && value !== request.summary.trim(),
-    )
-    .slice(0, 3);
-  const otherFields = fields.filter((field) => !overview.includes(field));
+  const { compactFields, narrativeFields, additionalFields, factGroups } = requestOverview(request);
   const criteria = request.details.acceptanceCriteria;
   const hasEvidence =
-    otherFields.length ||
-    criteria.length ||
-    request.confirmedFacts.length ||
-    request.assumptions.length;
+    additionalFields.length || criteria.length || factGroups.length || request.assumptions.length;
 
   return (
     <section className={styles.requestCard}>
       <h3>문의 요약</h3>
       <p className={styles.requestLead}>{request.summary}</p>
-      {!!overview.length && (
+      {!!compactFields.length && (
         <dl className={styles.overviewFacts}>
-          {overview.map(({ key, label, value }) => (
+          {compactFields.map(({ key, label, value }) => (
             <div key={key}>
               <dt>{label}</dt>
               <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {!!narrativeFields.length && (
+        <dl className={styles.requestRows}>
+          {narrativeFields.map(({ key, label, value }) => (
+            <div key={key}>
+              <dt>{label}</dt>
+              <dd>
+                <RequestValue value={value} />
+              </dd>
             </div>
           ))}
         </dl>
@@ -171,24 +172,35 @@ function RequestOverview({ ticket }: RequestContentProps) {
       {!!hasEvidence && (
         <details className={styles.requestEvidence}>
           <summary>근거·상세 보기</summary>
-          {!!otherFields.length && (
-            <dl className={styles.facts}>
-              {otherFields.map(({ key, label, value }) => (
+          {!!additionalFields.length && (
+            <dl className={styles.requestRows}>
+              {additionalFields.map(({ key, label, value }) => (
                 <div key={key}>
                   <dt>{label}</dt>
-                  <dd>{value}</dd>
+                  <dd>
+                    <RequestValue value={value} />
+                  </dd>
                 </div>
               ))}
             </dl>
           )}
-          {!!request.confirmedFacts.length && (
+          {!!factGroups.length && (
             <>
-              <h4>확인된 사실</h4>
-              <ul>
-                {request.confirmedFacts.map((fact, i) => (
-                  <li key={String(i) + fact.text}>{fact.text}</li>
+              <h4>대화에서 확인한 내용</h4>
+              <div className={styles.factGroups}>
+                {factGroups.map(({ label, facts }) => (
+                  <details key={label}>
+                    <summary>
+                      {label} <small>{facts.length}건</small>
+                    </summary>
+                    <ul>
+                      {facts.map((fact) => (
+                        <li key={fact}>{fact}</li>
+                      ))}
+                    </ul>
+                  </details>
                 ))}
-              </ul>
+              </div>
             </>
           )}
           {!!request.assumptions.length && (
@@ -602,6 +614,7 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
       onClose={onClose}
       returnFocusId={returnFocusId ?? 'ticket-' + id}
       padded={false}
+      fixedHeight
       footer={null}
     >
       {/* 모달이 바깥의 전역 안내를 막는다. 보드 구독이 끊겨도 상세 안에서 알리고 다시 연결한다. */}

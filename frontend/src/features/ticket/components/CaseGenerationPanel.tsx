@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
 import { useSystemCommand } from '@/shared/api/useSystemCommand';
 import { Button } from '@/shared/ui/Button';
+import controls from '@/shared/ui/Controls.module.css';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { paths } from '@/shared/config/paths';
 import type { CaseGeneration } from '@/shared/api/types/hopsSystem1';
@@ -38,7 +39,12 @@ export function CaseGenerationPanel({ generation }: CaseGenerationPanelProps) {
       {!data ? (
         <p>아직 초안이 없어요.</p>
       ) : data.state === 'SUCCEEDED' && data.caseId ? (
-        <Link to={paths.case(data.caseId)}>사례 초안 확인</Link>
+        <Link
+          className={`${controls.button} ${controls.primary} ${styles.draftLink}`}
+          to={paths.case(data.caseId)}
+        >
+          사례 초안 확인
+        </Link>
       ) : data.state === 'FAILED' ? (
         <>
           <p role="alert">{data.error?.message ?? '초안 생성에 실패했어요.'}</p>
