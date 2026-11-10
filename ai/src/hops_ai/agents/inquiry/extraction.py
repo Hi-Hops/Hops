@@ -17,7 +17,7 @@ from hops_ai.agents.inquiry.forms import FIELD_PROMPTS
 from hops_ai.contracts.types import ContractModel
 from hops_ai.contracts.wire import AiRunRequest, InputMessage, Intent
 
-PROMPT_VERSION = "inquiry-extraction-v10"
+PROMPT_VERSION = "inquiry-extraction-v11"
 # 사용자가 직접 모른다고 말한 구절로 인정하는 표현. 인식하지 못하면 필수 질문이 유지되는
 # 쪽(안전한 쪽)으로 실패하므로 표현을 넓히는 것은 평가 데이터가 생긴 뒤에 한다.
 UNKNOWN_EXPRESSION = re.compile(
@@ -94,6 +94,10 @@ SYSTEM_PROMPT = """\
 8. summary는 그 문제 하나만 한 문장으로 요약하되 원문에 없는 사실을 더하지 않는다.
    문제를 나눴다면 각 summary에 다른 문제의 내용을 넣지 않는다. 한 문제의 summary에 다른
    문제를 함께 적지 말고, 그 문제의 필드(taskOrScreen 등)와 같은 범위만 요약한다.
+   조회 상태·검색 필터는 문서의 실제 결재 상태와 별개다. 사용자가 "조회 상태는 승인"이라고
+   말했으면 "조회 상태를 승인으로 설정했을 때"로 표현한다. 이를 "승인된 문서"나
+   "승인 상태인 문서"로 바꾸지 않는다. 문서가 승인 완료됐다는 별도 원문이 없으면
+   실제 문서 상태를 추정하지 않는다. 조회 기간에 기안일이 포함된다는 확인도 보존한다.
 9. keywords는 그 문제의 지식을 검색할 때 쓸 핵심어 3~5개다. 사용자 메시지에 실제로 있는 단어를
    그대로 쓴다. 공백 없는 한 단어를 우선하고 조사·어미는 뗀다(예: 원문 "첨부파일이"는 "첨부파일").
    동의어나 원문에 없는 말을 만들지 않는다. 2~20자이며 근거가 부족하면 적게 쓰고 없으면 빈 목록이다.
