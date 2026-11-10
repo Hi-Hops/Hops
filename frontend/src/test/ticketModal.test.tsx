@@ -8,7 +8,7 @@ import { CasesPage } from '@/pages/cases/CasesPage';
 import { TicketsPage } from '@/pages/tickets/TicketsPage';
 import { systemGet } from '@/shared/api/systemCommands';
 import { systemMockBackend } from '@/shared/api/systemMockBackend';
-import { readCases, readTickets } from '@/shared/api/systemWire';
+import { readCases, readTicket, readTickets } from '@/shared/api/systemWire';
 import { realtime } from '@/shared/realtime';
 import { TEST_LOGINS } from './mockCredentials';
 
@@ -54,6 +54,18 @@ function renderTickets(path: string) {
 }
 
 describe('F009 티켓 상세 모달', () => {
+  it.each(['board', 'list'])(
+    'F009-DETAIL-02 담당 업무 %s에서 본인 이름과 중복 시스템 표시를 생략한다',
+    async (view) => {
+      const ticket = await firstTicket();
+      renderTickets(`/tickets?view=${view}`);
+      const row = await screen.findByRole('link', { name: new RegExp(ticket.title, 'u') });
+      expect(row).not.toHaveTextContent(ticket.assignee.name);
+      expect(row).not.toHaveTextContent(`보고 ${ticket.reportedSystem.name}`);
+      expect(screen.queryByRole('columnheader', { name: '배정 담당자' })).not.toBeInTheDocument();
+    },
+  );
+
   it('F009-DETAIL-10 탭 이력을 쌓지 않고 진입 전 목록으로 복귀하며 특수문자 제목과 입력을 보존한다', async () => {
     vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
     systemMockBackend.reset();
@@ -71,7 +83,7 @@ describe('F009 티켓 상세 모달', () => {
     await user.type(within(dialog).getByRole('textbox', { name: '처리 내용' }), '작성 중인 조치');
     await user.click(within(dialog).getByRole('link', { name: '해결 사례' }));
     await user.click(within(dialog).getByRole('link', { name: '요청 내역' }));
-    expect(await within(dialog).findByRole('heading', { name: '표준 요청' })).toBeVisible();
+    expect(await within(dialog).findByRole('heading', { name: '문의 요약' })).toBeVisible();
     await user.click(within(dialog).getByRole('link', { name: '문의 처리 기록' }));
     expect(within(dialog).getByRole('textbox', { name: '처리 내용' })).toHaveValue(
       '작성 중인 조치',
@@ -190,34 +202,54 @@ describe('F009 티켓 상세 모달', () => {
     expect(saved.closest('article')).not.toHaveTextContent('정상 열람 확인');
   });
 
-  it('F009-DETAIL-03 요청 내역은 확인된 사실과 채팅 내역을 먼저 보여주고 표준 요청은 접어 둔다', async () => {
+  it('F009-DETAIL-03 문의 요약과 추천 적용 조건을 먼저 보여주고 원문은 열 때 조회한다', async () => {
     vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
     systemMockBackend.reset();
     await login(TEST_LOGINS.network);
     const tickets = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
     const ticket = tickets.items.find((item) => item.title.includes('세션 오류 조사'));
     if (!ticket) throw new Error('대화가 있는 예시 티켓 필요');
+    const detail = await systemGet(`/tickets/${ticket.id}`, readTicket);
+    const recommended = detail.standardRequest.knowledge.find((item) => item.kind === 'CASE');
+    if (!recommended) throw new Error('추천 사례 대역 필요');
+    const original = systemMockBackend.request.bind(systemMockBackend);
+    const request = vi
+      .spyOn(systemMockBackend, 'request')
+      .mockImplementation((path, method, body, token, key) =>
+        path === `/api/v2/tickets/${ticket.id}/recommended-cases`
+          ? [recommended]
+          : original(path, method, body, token, key),
+      );
     renderTickets(`/tickets/${ticket.id}`);
     const user = userEvent.setup();
     const view = within(await screen.findByRole('dialog'));
-    expect(await view.findByRole('heading', { name: '확인된 사실' })).toBeVisible();
-    const fold = view.getByText('표준 요청').closest('details');
-    expect(fold).not.toHaveAttribute('open');
-    await user.click(view.getByText('표준 요청'));
-    expect(fold).toHaveAttribute('open');
+    expect(await view.findByRole('heading', { name: '문의 요약' })).toBeVisible();
+    expect(view.getByText(detail.standardRequest.summary, { selector: 'p' })).toBeVisible();
+    expect(view.getByText('근거·상세 보기').closest('details')).not.toHaveAttribute('open');
 
+    const cases = view.getByRole('heading', { name: '추천 해결 사례' }).closest('section');
+    if (!cases) throw new Error('추천 영역 필요');
+    const condition = await within(cases).findByText(recommended.applicability);
+    const card = condition.closest('details');
+    if (!card) throw new Error('추천 카드 필요');
+    const recommendation = within(card);
+    expect(condition).toBeVisible();
+    expect(card).not.toHaveAttribute('open');
+    expect(recommendation.getByText(recommended.excerpt)).not.toBeVisible();
+    await user.click(recommendation.getByText(recommended.title));
+    expect(recommendation.getByText(recommended.excerpt)).toBeVisible();
+
+    expect(view.queryByText('문의자')).not.toBeInTheDocument();
+    expect(request.mock.calls.some(([path]) => path.includes('/related-messages'))).toBe(false);
+    await user.click(view.getByText('원문 대화 보기'));
     const chat = (await view.findByText('문의자')).closest('article');
     expect(chat).toHaveAttribute('data-sender', 'USER');
     expect(view.getByText('Hops').closest('article')).toHaveAttribute('data-sender', 'AI');
 
-    const history = view
-      .getByRole('heading', { name: '문의에 저장된 과거 해결 사례' })
-      .closest('section');
-    if (!history) throw new Error('사례 영역 필요');
-    expect(within(history).getByText(/첨부파일 표시 오류 복구/u)).toBeVisible();
-    const documents = within(history).getByText('참고 문서 1건').closest('details');
-    expect(documents).not.toHaveAttribute('open');
-    expect(documents).toHaveTextContent('장애 점검 안내');
+    const materials = view.getByText('상담에 사용한 자료 2건');
+    expect(materials.closest('details')).not.toHaveAttribute('open');
+    await user.click(materials);
+    expect(view.getByText(/장애 점검 안내/u)).toBeVisible();
   });
 
   it('F009-DETAIL-03 처리 기록 탭에서 요청 내용을 펼쳐 볼 수 있다', async () => {
@@ -227,9 +259,9 @@ describe('F009 티켓 상세 모달', () => {
     const dialog = await screen.findByRole('dialog');
     const view = within(dialog);
     const summary = await view.findByText('요청 내역 참고');
-    expect(view.queryByRole('heading', { name: '표준 요청' })).not.toBeInTheDocument();
+    expect(view.queryByRole('heading', { name: '문의 요약' })).not.toBeInTheDocument();
     await user.click(summary);
-    expect(await view.findByRole('heading', { name: '표준 요청' })).toBeVisible();
+    expect(await view.findByRole('heading', { name: '문의 요약' })).toBeVisible();
     expect(view.getByRole('textbox', { name: '처리 내용' })).toBeVisible();
   });
 

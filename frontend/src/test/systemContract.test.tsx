@@ -201,8 +201,8 @@ describe('hops-system-1 시스템 단위 전환', () => {
     );
     renderWithProviders(<SystemTicketDetail id={id} onClose={vi.fn()} />, `/admin/tickets/${id}`);
     expect(await screen.findByRole('heading', { name: new RegExp(full.title, 'u') })).toBeVisible();
-    expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: '채팅 내역' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '문의 요약' })).not.toBeInTheDocument();
+    expect(screen.queryByText('원문 대화 보기')).not.toBeInTheDocument();
   });
   it('F003-CONTRACT-04 저장 후 응답 유실을 원 키로 확인하면 문의·메시지·실행이 중복 생성되지 않는다', async () => {
     await login(TEST_LOGINS.requester);
@@ -304,13 +304,13 @@ describe('hops-system-1 시스템 단위 전환', () => {
       <SystemTicketDetail id={id} onClose={vi.fn()} />,
       `/tickets/${id}?view=list&systemId=${systems[0].id}`,
     );
-    expect(await screen.findByRole('heading', { name: '확인된 사실' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '문의 요약' })).toBeVisible();
     expect(screen.getByRole('button', { name: '상세 닫기' })).toBeVisible();
     act(() => {
       systemMockBackend.revokeSystem(users[1].id, systems[0].id);
     });
     expect(await screen.findByText('이 시스템 티켓을 볼 권한이 없어요')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: '확인된 사실' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '문의 요약' })).not.toBeInTheDocument();
   });
   it('모달인 담당 티켓 상세에서도 연결이 끊기면 상세 안에서 다시 연결한다', async () => {
     await login(TEST_LOGINS.network);

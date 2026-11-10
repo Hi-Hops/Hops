@@ -218,6 +218,11 @@
 .columnFoot {
   margin-top: var(--space-1);
 }
+.cardBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
 .systemChip {
   display: inline-flex;
   align-self: flex-start;
@@ -348,6 +353,9 @@
   display: grid;
   gap: var(--space-5);
 }
+.requestSections {
+  gap: var(--space-4);
+}
 .requestCard,
 .properties {
   padding: var(--space-5);
@@ -361,7 +369,63 @@
   font-size: var(--font-size-md);
   margin: 0 0 var(--space-4);
 }
-/* 표준 요청은 필요할 때만 펼쳐 확인된 사실과 채팅 내역을 먼저 읽게 한다. */
+.requestSections > .requestCard {
+  padding: var(--space-4);
+}
+.requestSections > .requestCard > h3 {
+  margin-bottom: var(--space-2);
+}
+.requestCard .requestLead {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.5;
+}
+.overviewFacts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(144px, 100%), 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+}
+.overviewFacts > div {
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
+}
+.overviewFacts dt {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.overviewFacts dd {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+.openQuestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-attention-border);
+  border-radius: var(--radius-md);
+  background: var(--color-attention-bg);
+}
+.requestCard .openQuestions h4 {
+  margin: 0;
+  color: var(--color-attention);
+}
+.openQuestions ul,
+.requestEvidence ul {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  overflow-wrap: anywhere;
+}
+.requestEvidence {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+}
 .requestFold {
   padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-border);
@@ -369,19 +433,14 @@
   background: var(--color-surface);
   min-width: 0;
 }
-.requestFold summary {
+.requestFold summary,
+.requestEvidence summary {
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
-.requestFold summary h3 {
-  display: inline;
-  font-size: var(--font-size-md);
-}
-.requestFold[open] summary {
+.requestFold[open] > summary,
+.requestEvidence[open] > summary {
   margin-bottom: var(--space-4);
-}
-.requestFold h4 {
-  font-size: var(--font-size-label);
-  margin: var(--space-5) 0 var(--space-2);
 }
 .requestFold p {
   font-size: var(--font-size-md);
@@ -420,14 +479,6 @@
   border-radius: var(--radius-lg);
   background: var(--color-primary-soft);
 }
-.documents {
-  margin-top: var(--space-4);
-  font-size: var(--font-size-label);
-}
-.documents summary {
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
 .requestCard h4 {
   font-size: var(--font-size-label);
   margin: var(--space-5) 0 var(--space-2);
@@ -437,6 +488,99 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.7;
+}
+.requestCard .sectionHint {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.recommendations {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: var(--space-3) 0 0;
+  list-style: none;
+}
+.recommendation {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+.recommendation > summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  cursor: pointer;
+  list-style: none;
+  border-radius: inherit;
+}
+.recommendation > summary::-webkit-details-marker {
+  display: none;
+}
+.recommendation > summary:hover,
+.recommendation[open] > summary {
+  background: var(--color-primary-soft);
+}
+.recommendation > summary:focus-visible {
+  outline: 2px solid var(--color-primary-strong);
+  outline-offset: 2px;
+}
+.recommendationRank {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+}
+.recommendationCopy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.recommendationTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+.recommendationTitle small {
+  white-space: nowrap;
+}
+.recommendationCopy small,
+.applicability {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+.applicability strong {
+  color: var(--color-text);
+  margin-inline-end: var(--space-1);
+}
+.recommendationToggle {
+  width: 8px;
+  height: 8px;
+  margin: 6px 3px 0;
+  border: solid var(--color-text-muted);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.recommendation[open] .recommendationToggle {
+  transform: rotate(225deg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .recommendationToggle {
+    transition: transform 150ms ease;
+  }
+}
+.recommendationBody {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 .facts > div {
   display: contents;
@@ -467,7 +611,7 @@
   border-top: 1px solid var(--color-border);
   margin-top: var(--space-4);
 }
-.evidence small {
+.evidenceMeta {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }

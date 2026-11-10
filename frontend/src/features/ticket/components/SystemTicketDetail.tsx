@@ -10,6 +10,7 @@ import { displayDate } from '@/shared/lib/date';
 import { Button } from '@/shared/ui/Button';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
+import { MarkdownText } from '@/shared/ui/MarkdownText';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { RouteModal } from '@/shared/ui/RouteModal';
 import {
@@ -37,30 +38,63 @@ function hasRequest(value: TicketManagementDetail | TicketDetail): value is Tick
 }
 type RequestContentProps = { ticket: TicketDetail };
 type KnowledgeItemProps = RequestContentProps & { item: KnowledgeEvidence };
+
+function KnowledgeMetadata({ item, ticket }: KnowledgeItemProps) {
+  return (
+    <small className={styles.evidenceMeta}>
+      {item.systemId === null
+        ? '공통 정책'
+        : ticket.responsibleSystem.id === item.systemId
+          ? ticket.responsibleSystem.name
+          : '관련 시스템'}{' '}
+      · 적용 버전 {item.appliesToSystemVersion ?? '미확인'} ·{' '}
+      {item.origin === 'SYNTHETIC'
+        ? '가상 자료'
+        : item.origin === 'DEMO_VERIFIED'
+          ? '데모 검증 자료'
+          : item.origin === 'OPERATIONAL'
+            ? '운영 자료'
+            : '출처 확인 필요'}
+    </small>
+  );
+}
+
 function KnowledgeItem({ item, ticket }: KnowledgeItemProps) {
   return (
     <article className={styles.evidence}>
       <strong>
         {item.title} · 문서 v{item.documentVersion}
       </strong>
-      <p>{item.excerpt}</p>
-      <p>{item.applicability}</p>
-      <small>
-        {item.systemId === null
-          ? '공통 정책'
-          : ticket.responsibleSystem.id === item.systemId
-            ? ticket.responsibleSystem.name
-            : '관련 시스템'}{' '}
-        · 적용 버전 {item.appliesToSystemVersion ?? '미확인'} ·{' '}
-        {item.origin === 'SYNTHETIC'
-          ? '가상 자료'
-          : item.origin === 'DEMO_VERIFIED'
-            ? '데모 검증 자료'
-            : item.origin === 'OPERATIONAL'
-              ? '운영 자료'
-              : '출처 확인 필요'}
-      </small>
+      <MarkdownText text={item.excerpt} />
+      {item.applicability && <p>{item.applicability}</p>}
+      <KnowledgeMetadata item={item} ticket={ticket} />
     </article>
+  );
+}
+
+function RecommendedCase({ item, ticket, rank }: KnowledgeItemProps & { rank: number }) {
+  return (
+    <details className={styles.recommendation}>
+      <summary>
+        <span className={styles.recommendationRank} aria-hidden="true">
+          {rank}
+        </span>
+        <span className={styles.recommendationCopy}>
+          <span className={styles.recommendationTitle}>
+            <strong>{item.title}</strong>
+            <small>문서 v{item.documentVersion}</small>
+          </span>
+          <span className={styles.applicability}>
+            <strong>적용 조건</strong> {item.applicability || '사례 본문에서 확인해 주세요.'}
+          </span>
+        </span>
+        <span className={styles.recommendationToggle} aria-hidden="true" />
+      </summary>
+      <div className={styles.recommendationBody}>
+        <MarkdownText text={item.excerpt} />
+        <KnowledgeMetadata item={item} ticket={ticket} />
+      </div>
+    </details>
   );
 }
 /** 기록 중 탭을 오가지 않도록 요청 내용을 같은 탭에서 펼쳐 본다. 펼칠 때만 관련 대화를 조회한다. */
@@ -79,29 +113,119 @@ function RequestReference({ ticket }: RequestContentProps) {
     </details>
   );
 }
-function RequestContent({ ticket }: RequestContentProps) {
-  const actor = useSession((s) => s.user?.id);
-  const recommendations = useQuery({
-    queryKey: ['hops-system-1', 'recommended-cases', actor, ticket.id],
-    queryFn: ({ signal }) => getRecommendedCases(ticket.id, signal),
-    enabled: Boolean(actor),
-    retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: 0,
-  });
+const detailFields = [
+  ['taskOrScreen', '업무·화면'],
+  ['occurredAt', '발생 시점'],
+  ['requestedAccess', '요청 권한'],
+  ['businessPurpose', '업무 목적'],
+  ['desiredChange', '원하는 변경'],
+  ['currentWorkflow', '현재 업무 흐름'],
+  ['expectedBehavior', '기대한 동작'],
+  ['actualBehavior', '실제 현상'],
+] as const;
+
+function RequestOverview({ ticket }: RequestContentProps) {
   const request = ticket.standardRequest;
-  const cases = request.knowledge.filter((item) => item.kind === 'CASE');
-  const documents = request.knowledge.filter((item) => item.kind !== 'CASE');
-  const detailFields = [
-    ['taskOrScreen', '업무·화면'],
-    ['requestedAccess', '요청 권한'],
-    ['businessPurpose', '업무 목적'],
-    ['expectedBehavior', '기대한 동작'],
-    ['actualBehavior', '실제 현상'],
-    ['occurredAt', '발생 시점'],
-    ['currentWorkflow', '현재 업무 흐름'],
-    ['desiredChange', '원하는 변경'],
-  ] as const;
+  const fields = detailFields.flatMap(([key, label]) => {
+    const value = request.details[key]?.trim();
+    return value ? [{ key, label, value }] : [];
+  });
+  const overview = fields
+    .filter(
+      ({ key, value }) =>
+        key !== 'expectedBehavior' && key !== 'actualBehavior' && value !== request.summary.trim(),
+    )
+    .slice(0, 3);
+  const otherFields = fields.filter((field) => !overview.includes(field));
+  const criteria = request.details.acceptanceCriteria;
+  const hasEvidence =
+    otherFields.length ||
+    criteria.length ||
+    request.confirmedFacts.length ||
+    request.assumptions.length;
+
+  return (
+    <section className={styles.requestCard}>
+      <h3>문의 요약</h3>
+      <p className={styles.requestLead}>{request.summary}</p>
+      {!!overview.length && (
+        <dl className={styles.overviewFacts}>
+          {overview.map(({ key, label, value }) => (
+            <div key={key}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {!!request.unknowns.length && (
+        <div className={styles.openQuestions}>
+          <h4>추가 확인이 필요한 항목</h4>
+          <ul>
+            {request.unknowns.map((text) => (
+              <li key={text}>{text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {!!hasEvidence && (
+        <details className={styles.requestEvidence}>
+          <summary>근거·상세 보기</summary>
+          {!!otherFields.length && (
+            <dl className={styles.facts}>
+              {otherFields.map(({ key, label, value }) => (
+                <div key={key}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {!!request.confirmedFacts.length && (
+            <>
+              <h4>확인된 사실</h4>
+              <ul>
+                {request.confirmedFacts.map((fact, i) => (
+                  <li key={String(i) + fact.text}>{fact.text}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {!!request.assumptions.length && (
+            <>
+              <h4>추정</h4>
+              <ul>
+                {request.assumptions.map((fact, i) => (
+                  <li key={String(i) + fact.text}>{fact.text}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          {!!criteria.length && (
+            <>
+              <h4>인수 조건</h4>
+              <ul>
+                {criteria.map((item, index) => (
+                  <li key={index}>
+                    {item.text} ·{' '}
+                    {item.confirmation === 'CONFIRMED' && item.confirmedBy
+                      ? '담당자 확인'
+                      : item.confirmation === 'PROPOSED'
+                        ? '제안·사람 확인 필요'
+                        : '확인 상태 미확인'}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </details>
+      )}
+    </section>
+  );
+}
+
+function RelatedConversation({ ticket }: RequestContentProps) {
+  const actor = useSession((s) => s.user?.id);
   const query = useInfiniteQuery({
     queryKey: ['hops-system-1', 'related', actor, ticket.id],
     initialPageParam: null as string | null,
@@ -116,124 +240,73 @@ function RequestContent({ ticket }: RequestContentProps) {
     }
     return [...unique.values()];
   }, [query.data]);
+
+  if (query.isPending) return <LoadingState />;
+  if (query.isError)
+    return (
+      <ErrorState
+        title="채팅 내역을 불러오지 못했어요"
+        onRetry={() => {
+          void query.refetch();
+        }}
+      />
+    );
+  if (!messages.length) return <p>공개 가능한 대화가 없어요. 위 문의 요약을 확인해 주세요.</p>;
+
+  return (
+    <>
+      <div className={styles.chatLog}>
+        {messages.map((message) => (
+          <article className={styles.chatMessage} data-sender={message.sender} key={message.id}>
+            <div className={styles.chatMeta}>
+              <strong>{message.sender === 'USER' ? '문의자' : 'Hops'}</strong>
+              <time dateTime={message.createdAt}>{displayDate(message.createdAt)}</time>
+            </div>
+            <p className={styles.chatText}>{message.content}</p>
+            {!!message.revisions.length && (
+              <details>
+                <summary>정정 이력</summary>
+                {message.revisions.map((revision) => (
+                  <p key={revision.revisionNo}>{revision.content}</p>
+                ))}
+              </details>
+            )}
+          </article>
+        ))}
+      </div>
+      {query.hasNextPage && (
+        <Button
+          variant="secondary"
+          disabled={query.isFetchingNextPage}
+          onClick={() => {
+            void query.fetchNextPage();
+          }}
+        >
+          채팅 내역 더 보기
+        </Button>
+      )}
+    </>
+  );
+}
+
+function RequestContent({ ticket }: RequestContentProps) {
+  const actor = useSession((s) => s.user?.id);
+  const [conversationOpen, setConversationOpen] = useState(false);
+  const recommendations = useQuery({
+    queryKey: ['hops-system-1', 'recommended-cases', actor, ticket.id],
+    queryFn: ({ signal }) => getRecommendedCases(ticket.id, signal),
+    enabled: Boolean(actor),
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 0,
+  });
+  const knowledge = ticket.standardRequest.knowledge;
+
   return (
     <div className={styles.requestSections}>
-      <details className={styles.requestFold}>
-        <summary>
-          <h3>표준 요청</h3>
-        </summary>
-        <dl className={styles.facts}>
-          <dt>문의 요약</dt>
-          <dd>{request.summary}</dd>
-          <dt>처리 유형</dt>
-          <dd>{processingLabels[ticket.processingType] ?? '유형 확인 필요'}</dd>
-          <dt>보고 시스템</dt>
-          <dd>{ticket.reportedSystem.name}</dd>
-        </dl>
-        {detailFields.some(([key]) => request.details[key] !== null) && (
-          <dl className={styles.facts}>
-            {detailFields.map(([key, label]) => {
-              const value = request.details[key];
-              return value === null ? null : (
-                <div key={key}>
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
-                </div>
-              );
-            })}
-          </dl>
-        )}
-        {!!request.details.acceptanceCriteria.length && (
-          <>
-            <h4>인수 조건</h4>
-            {request.details.acceptanceCriteria.map((item, index) => (
-              <p key={index}>
-                {item.text} ·{' '}
-                {item.confirmation === 'CONFIRMED' && item.confirmedBy
-                  ? '담당자 확인'
-                  : item.confirmation === 'PROPOSED'
-                    ? '제안·사람 확인 필요'
-                    : '확인 상태 미확인'}
-              </p>
-            ))}
-          </>
-        )}
-        <h4>미확인 항목</h4>
-        {request.unknowns.length ? (
-          request.unknowns.map((text) => <p key={text}>{text}</p>)
-        ) : (
-          <p>저장된 미확인 항목이 없어요.</p>
-        )}
-        <h4>추정</h4>
-        {request.assumptions.length ? (
-          request.assumptions.map((fact, i) => <p key={String(i) + fact.text}>{fact.text}</p>)
-        ) : (
-          <p>저장된 추정이 없어요.</p>
-        )}
-      </details>
-      <section className={styles.requestCard}>
-        <h3>확인된 사실</h3>
-        {request.confirmedFacts.map((fact, i) => (
-          <p key={String(i) + fact.text}>• {fact.text}</p>
-        ))}
-        {!request.confirmedFacts.length && <p>저장된 확인 사실이 없어요.</p>}
-      </section>
-      <section className={styles.requestCard}>
-        <h3>채팅 내역</h3>
-        {query.isPending ? (
-          <LoadingState />
-        ) : query.isError ? (
-          <ErrorState
-            title="채팅 내역을 불러오지 못했어요"
-            onRetry={() => {
-              void query.refetch();
-            }}
-          />
-        ) : (
-          <>
-            <div className={styles.chatLog}>
-              {messages.map((message) => (
-                <article
-                  className={styles.chatMessage}
-                  data-sender={message.sender}
-                  key={message.id}
-                >
-                  <div className={styles.chatMeta}>
-                    <strong>{message.sender === 'USER' ? '문의자' : 'Hops'}</strong>
-                    <time dateTime={message.createdAt}>{displayDate(message.createdAt)}</time>
-                  </div>
-                  <p className={styles.chatText}>{message.content}</p>
-                  {!!message.revisions.length && (
-                    <details>
-                      <summary>정정 이력</summary>
-                      {message.revisions.map((revision) => (
-                        <p key={revision.revisionNo}>{revision.content}</p>
-                      ))}
-                    </details>
-                  )}
-                </article>
-              ))}
-            </div>
-            {!messages.length && (
-              <p>공개 가능한 채팅 내역이 없어요. 위 표준 요청을 확인해 주세요.</p>
-            )}
-            {query.hasNextPage && (
-              <Button
-                variant="secondary"
-                disabled={query.isFetchingNextPage}
-                onClick={() => {
-                  void query.fetchNextPage();
-                }}
-              >
-                채팅 내역 더 보기
-              </Button>
-            )}
-          </>
-        )}
-      </section>
+      <RequestOverview ticket={ticket} />
       <section className={styles.requestCard}>
         <h3>추천 해결 사례</h3>
-        <p>문의 제목을 기준으로 찾은 후보예요. 처리 전에 증상과 적용 조건을 확인해 주세요.</p>
         {recommendations.isError ? (
           <ErrorState
             title="추천 사례를 불러오지 못했어요"
@@ -241,36 +314,40 @@ function RequestContent({ ticket }: RequestContentProps) {
               void recommendations.refetch();
             }}
           />
-        ) : recommendations.isFetching || recommendations.isPending ? (
+        ) : recommendations.isPending ? (
           <LoadingState label="추천 사례를 찾고 있어요" />
         ) : recommendations.data.length ? (
-          recommendations.data.map((item) => (
-            <KnowledgeItem key={item.id} item={item} ticket={ticket} />
-          ))
+          <>
+            <p className={styles.sectionHint}>현재 문의와 적용 조건이 맞는지 확인해 주세요.</p>
+            <ol className={styles.recommendations}>
+              {recommendations.data.map((item, index) => (
+                <li key={item.id}>
+                  <RecommendedCase item={item} ticket={ticket} rank={index + 1} />
+                </li>
+              ))}
+            </ol>
+          </>
         ) : (
           <p>추천할 사례가 없어요.</p>
         )}
       </section>
-      <section className={styles.requestCard}>
-        <h3>문의에 저장된 과거 해결 사례</h3>
-        {cases.length ? (
-          <>
-            {cases.map((item) => (
-              <KnowledgeItem key={item.id} item={item} ticket={ticket} />
-            ))}
-          </>
-        ) : (
-          <p>관련 과거 해결 사례가 없어요.</p>
-        )}
-        {!!documents.length && (
-          <details className={styles.documents}>
-            <summary>참고 문서 {documents.length}건</summary>
-            {documents.map((item) => (
-              <KnowledgeItem key={item.id} item={item} ticket={ticket} />
-            ))}
-          </details>
-        )}
-      </section>
+      <details
+        className={styles.requestFold}
+        onToggle={(event) => {
+          setConversationOpen(event.currentTarget.open);
+        }}
+      >
+        <summary>원문 대화 보기</summary>
+        {conversationOpen && <RelatedConversation ticket={ticket} />}
+      </details>
+      {!!knowledge.length && (
+        <details className={styles.requestFold}>
+          <summary>상담에 사용한 자료 {knowledge.length}건</summary>
+          {knowledge.map((item) => (
+            <KnowledgeItem key={item.id} item={item} ticket={ticket} />
+          ))}
+        </details>
+      )}
     </div>
   );
 }
@@ -439,14 +516,30 @@ export function SystemTicketDetail({ id, onClose, returnFocusId }: SystemTicketD
             <aside className={styles.properties}>
               <StatusBadge {...systemStatus(data.state)} />
               <dl>
-                <dt>보고 시스템</dt>
-                <dd>{data.reportedSystem.name}</dd>
-                <dt>책임 시스템</dt>
+                {(admin || data.reportedSystem.id !== data.responsibleSystem.id) && (
+                  <>
+                    <dt>보고 시스템</dt>
+                    <dd>{data.reportedSystem.name}</dd>
+                  </>
+                )}
+                <dt>
+                  {!admin && data.reportedSystem.id === data.responsibleSystem.id
+                    ? '시스템'
+                    : '책임 시스템'}
+                </dt>
                 <dd>{data.responsibleSystem.name}</dd>
-                <dt>배정된 담당자</dt>
-                <dd>{data.assignee.name}</dd>
-                <dt>현재 주담당자</dt>
-                <dd>{data.currentPrimary.name}</dd>
+                {(admin || data.assignee.id !== user?.id) && (
+                  <>
+                    <dt>배정된 담당자</dt>
+                    <dd>{data.assignee.name}</dd>
+                  </>
+                )}
+                {(admin || data.currentPrimary.id !== data.assignee.id) && (
+                  <>
+                    <dt>현재 주담당자</dt>
+                    <dd>{data.currentPrimary.name}</dd>
+                  </>
+                )}
                 <dt>처리 유형</dt>
                 <dd>{processingLabels[data.processingType] ?? '유형 확인 필요'}</dd>
                 <dt>생성 시각</dt>

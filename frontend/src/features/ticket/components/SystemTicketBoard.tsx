@@ -17,8 +17,13 @@ import type { TicketSummary } from '@/shared/api/types/hopsSystem1';
 import type { TargetState } from '@/shared/realtime/types';
 import styles from './Tickets.module.css';
 
-type TicketLinkProps = { ticket: TicketSummary; base: string; search: string };
-function TicketLink({ ticket, base, search }: TicketLinkProps) {
+type TicketLinkProps = {
+  ticket: TicketSummary;
+  base: string;
+  search: string;
+  actorId?: string | undefined;
+};
+function TicketLink({ ticket, base, search, actorId }: TicketLinkProps) {
   return (
     <Link
       id={'ticket-' + ticket.id}
@@ -36,10 +41,16 @@ function TicketLink({ ticket, base, search }: TicketLinkProps) {
       </div>
       <strong>{ticket.title}</strong>
       <span className={styles.cardMeta}>
-        {displayDate(ticket.createdAt)} · 보고 {ticket.reportedSystem.name}
+        {displayDate(ticket.createdAt)}
+        {ticket.reportedSystem.id !== ticket.responsibleSystem.id &&
+          ' · 보고 ' + ticket.reportedSystem.name}
       </span>
-      <span className={styles.systemChip}>{ticket.responsibleSystem.name}</span>
-      <span className={styles.assignee}>{ticket.assignee.name}</span>
+      <div className={styles.cardBadges}>
+        <span className={styles.systemChip}>{ticket.responsibleSystem.name}</span>
+        {ticket.assignee.id !== actorId && (
+          <span className={styles.assignee}>{ticket.assignee.name}</span>
+        )}
+      </div>
     </Link>
   );
 }
@@ -99,6 +110,7 @@ export function SystemTicketBoard() {
     setSearch(next);
   }
   const items = query.data?.items ?? [];
+  const showAssignees = admin || items.some((ticket) => ticket.assignee.id !== user?.id);
   const synchronizing = systemIds
     .split(',')
     .some((id) => ['connecting', 'disconnected'].includes(connections[id] ?? 'idle'));
@@ -254,6 +266,7 @@ export function SystemTicketBoard() {
                                 ticket={ticket}
                                 base={base}
                                 search={linkSearch.toString()}
+                                actorId={user?.id}
                               />
                             </li>
                           ))}
@@ -279,7 +292,7 @@ export function SystemTicketBoard() {
                     <th>책임 시스템</th>
                     <th>처리 유형</th>
                     <th>처리 상태</th>
-                    <th>배정 담당자</th>
+                    {showAssignees && <th>배정 담당자</th>}
                     <th>상세</th>
                   </tr>
                 </thead>
@@ -297,7 +310,9 @@ export function SystemTicketBoard() {
                         >
                           <strong>{ticket.title}</strong>
                           <span className={styles.cardMeta}>
-                            {displayDate(ticket.createdAt)} · 보고 {ticket.reportedSystem.name}
+                            {displayDate(ticket.createdAt)}
+                            {(admin || ticket.reportedSystem.id !== ticket.responsibleSystem.id) &&
+                              ' · 보고 ' + ticket.reportedSystem.name}
                           </span>
                         </Link>
                       </td>
@@ -308,9 +323,15 @@ export function SystemTicketBoard() {
                       <td>
                         <StatusBadge {...systemStatus(ticket.state)} />
                       </td>
-                      <td>
-                        <span className={styles.assignee}>{ticket.assignee.name}</span>
-                      </td>
+                      {showAssignees && (
+                        <td>
+                          {!admin && ticket.assignee.id === user?.id ? (
+                            '나'
+                          ) : (
+                            <span className={styles.assignee}>{ticket.assignee.name}</span>
+                          )}
+                        </td>
+                      )}
                       <td>
                         <Link
                           className={styles.detailLink}

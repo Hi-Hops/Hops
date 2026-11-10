@@ -18,11 +18,16 @@
   font-weight: var(--font-weight-bold);
 }
 .brand > span {
-  display: block;
+  display: grid;
+  flex: none;
+  place-items: center;
   width: 28px;
   height: 28px;
-  background: var(--color-primary);
+  color: var(--color-on-ink);
+  background: var(--color-primary-strong);
   border-radius: var(--radius-md);
+  font-size: var(--font-size-label);
+  line-height: 1;
 }
 .mock {
   margin-left: auto;
