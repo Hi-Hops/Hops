@@ -375,8 +375,160 @@ export const readGeneration = (v: unknown) => checked(v, generation) as D.CaseGe
 export const readCases = (v: unknown) => checked(v, page(caseSummary)) as D.Page<D.CaseSummary>;
 export const readCase = (v: unknown) => checked(v, caseDetail) as D.CaseDetail;
 
+const finite: Check = (v) => typeof v === 'number' && Number.isFinite(v);
+const nonnegative: Check = (v) => finite(v) && Number(v) >= 0;
+const similarity: Check = (v) => finite(v) && Number(v) >= -1 && Number(v) <= 1.000001;
+const recommendationShape = obj({
+  query: str,
+  score: nonnegative,
+  scoreMethod: one('WEIGHTED_RRF'),
+  keywordRank: nullable(positive),
+  semanticRank: nullable(positive),
+  keywordScore: nullable(nonnegative),
+  semanticSimilarity: nullable(similarity),
+  matchedKeywords: list(str),
+  reasons: (v) => list(str)(v) && Array.isArray(v) && v.length > 0,
+  comparisons: list(
+    obj({
+      key: str,
+      label: str,
+      status: one('MATCHED', 'MISMATCHED', 'UNKNOWN'),
+      currentEvidence: list(str),
+      caseEvidence: str,
+    }),
+  ),
+});
+const recommendation: Check = (v) => {
+  if (!recommendationShape(v) || !isRecord(v)) return false;
+  if ((v.keywordRank === null) !== (v.keywordScore === null)) return false;
+  if ((v.semanticRank === null) !== (v.semanticSimilarity === null)) return false;
+  if (v.keywordRank === null && v.semanticRank === null) return false;
+  if (v.keywordRank === null && Array.isArray(v.matchedKeywords) && v.matchedKeywords.length)
+    return false;
+  const keyword = v.keywordRank === null ? 0 : 0.8 / (10 + Number(v.keywordRank));
+  const semantic = v.semanticRank === null ? 0 : 1 / (10 + Number(v.semanticRank));
+  return Math.abs(Number(v.score) - keyword - semantic) < 0.000001;
+};
 export const readRecommendedCases = (v: unknown) =>
   checked(
     v,
-    list((item) => knowledge(item) && isRecord(item) && item.kind === 'CASE'),
-  ) as D.KnowledgeEvidence[];
+    list(
+      (item) =>
+        knowledge(item) &&
+        isRecord(item) &&
+        item.kind === 'CASE' &&
+        (item.recommendation === undefined ||
+          item.recommendation === null ||
+          recommendation(item.recommendation)),
+    ),
+  ) as D.RecommendedCase[];
+
+const conditionComparison = obj({
+  key: str,
+  label: str,
+  status: one('MATCHED', 'MISMATCHED', 'UNKNOWN'),
+  currentEvidence: list(str),
+  caseEvidence: str,
+});
+const assessment = obj({
+  relevance: one('HIGH', 'MEDIUM', 'REFERENCE', 'CONFLICT'),
+  family: str,
+  reasons: list(str),
+  conditions: list(conditionComparison),
+  quotePairs: list(
+    obj({
+      label: str,
+      status: one('MATCHED', 'MISMATCHED', 'UNKNOWN'),
+      messageId: isUuid,
+      currentQuote: str,
+      currentStart: integer,
+      currentEnd: positive,
+      sourceQuote: str,
+      sourceStart: integer,
+      sourceEnd: positive,
+    }),
+  ),
+  sections: list(obj({ label: str, quote: str, start: integer, end: positive })),
+  nextChecks: list(str),
+  matched: integer,
+  unknown: integer,
+  mismatched: integer,
+});
+const assistanceCase: Check = (v) =>
+  obj({ evidence: knowledge, assessment })(v) &&
+  isRecord(v) &&
+  (v.sourceCase === undefined ||
+    v.sourceCase === null ||
+    obj({ caseNumber: str, ticketId: isUuid, ticketNumber: str, approvedAt: time })(v.sourceCase));
+const assistanceMaterial: Check = (v) =>
+  assistanceCase(v) &&
+  isRecord(v) &&
+  (v.groupedCases === undefined ||
+    (Array.isArray(v.groupedCases) &&
+      v.groupedCases.length <= 20 &&
+      v.groupedCases.every(
+        (member) => assistanceCase(member) && isRecord(member) && member.groupedCases === undefined,
+      )));
+export function readTicketAssistance(value: unknown): D.TicketAssistance {
+  const result = checked(
+    value,
+    obj({
+      ticketId: isUuid,
+      ticketRevision: positive,
+      standardRequestId: isUuid,
+      query: str,
+      sources: list(related),
+      materials: list(assistanceMaterial),
+    }),
+  ) as D.TicketAssistance;
+  for (const parent of result.materials) {
+    const group = parent.groupedCases ?? [];
+    if (
+      group.length > 0 &&
+      (group.length < 2 ||
+        parent.evidence.kind !== 'CASE' ||
+        !group.some((m) => m.evidence.id === parent.evidence.id) ||
+        new Set(group.map((m) => m.evidence.id)).size !== group.length ||
+        group.some(
+          (m) =>
+            m.evidence.kind !== 'CASE' ||
+            m.evidence.systemId !== parent.evidence.systemId ||
+            m.evidence.accessScope !== parent.evidence.accessScope ||
+            m.evidence.appliesToSystemVersion !== parent.evidence.appliesToSystemVersion,
+        ))
+    )
+      throw new Error('묶인 사례 범위 불일치');
+  }
+  for (const material of result.materials.flatMap((m) => [m, ...(m.groupedCases ?? [])])) {
+    const { evidence, assessment: review } = material;
+    if (evidence.recommendation && !recommendation(evidence.recommendation))
+      throw new Error('검색 근거 형식 불일치');
+    if (
+      review.matched !== review.conditions.filter((c) => c.status === 'MATCHED').length ||
+      review.unknown !== review.conditions.filter((c) => c.status === 'UNKNOWN').length ||
+      review.mismatched !== review.conditions.filter((c) => c.status === 'MISMATCHED').length ||
+      (review.mismatched > 0 && review.relevance !== 'CONFLICT')
+    )
+      throw new Error('조건 판정 불일치');
+    if (review.relevance === 'HIGH' && (review.unknown > 0 || review.matched < 2))
+      throw new Error('조건 확인 전 강한 추천');
+    for (const pair of review.quotePairs) {
+      const source = result.sources.find((s) => s.id === pair.messageId && s.sender === 'USER');
+      if (
+        source?.content.slice(pair.currentStart, pair.currentEnd) !== pair.currentQuote ||
+        pair.currentEnd > source.content.length ||
+        pair.sourceEnd > evidence.excerpt.length ||
+        !review.conditions.some((c) => c.label === pair.label && c.status === pair.status) ||
+        evidence.excerpt.slice(pair.sourceStart, pair.sourceEnd) !== pair.sourceQuote
+      )
+        throw new Error('원문 인용 구간 불일치');
+    }
+    for (const section of review.sections)
+      if (
+        section.end > evidence.excerpt.length ||
+        evidence.excerpt.slice(section.start, section.end) !== section.quote
+      )
+        throw new Error('문서 원문 구간 불일치');
+  }
+  return result;
+}

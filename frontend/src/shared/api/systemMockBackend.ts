@@ -909,6 +909,33 @@ export class SystemMockBackend {
     }
     if (parts[0] === 'tickets' && parts[1]) {
       const ticket = this.ticket(user, parts[1]);
+      if (parts[2] === 'assistance') {
+        return clone({
+          ticketId: ticket.id,
+          ticketRevision: ticket.ticketRevision,
+          standardRequestId: ticket.standardRequest.id,
+          query: ticket.title,
+          sources: [],
+          materials: this.workflow.recommendedCases(user, ticket).map((evidence) => ({
+            evidence,
+            assessment: {
+              relevance: 'REFERENCE',
+              family: evidence.title,
+              reasons: ['가상 자료입니다. 실제 검색 점수는 제공하지 않아요.'],
+              conditions: [],
+              quotePairs: [],
+              sections: [],
+              nextChecks: ['적용 조건을 직접 대조해 주세요.'],
+              matched: 0,
+              unknown: 0,
+              mismatched: 0,
+            },
+          })),
+        });
+      }
+      if (parts[2] === 'recommended-cases') {
+        return clone(this.workflow.recommendedCases(user, ticket));
+      }
       if (parts[2] === 'related-messages') {
         const all =
           this.inquiries

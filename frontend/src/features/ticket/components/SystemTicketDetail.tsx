@@ -15,7 +15,6 @@ import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { RouteModal } from '@/shared/ui/RouteModal';
 import {
   getManagementTicket,
-  getRecommendedCases,
   getRelatedMessages,
   getSystemTicket,
   systemTicketKeys,
@@ -28,6 +27,7 @@ import type {
 } from '@/shared/api/types/hopsSystem1';
 import { processingLabels, mutableTicket, workKinds } from '../model/workflow';
 import { requestOverview, requestSentences } from '../model/requestOverview';
+import { TicketAssistance } from './TicketAssistance';
 import { WorkRecordEditor } from './WorkRecordEditor';
 import { TicketCorrection } from './TicketCorrection';
 import { CaseGenerationPanel } from './CaseGenerationPanel';
@@ -73,31 +73,6 @@ function KnowledgeItem({ item, ticket }: KnowledgeItemProps) {
   );
 }
 
-function RecommendedCase({ item, ticket, rank }: KnowledgeItemProps & { rank: number }) {
-  return (
-    <details className={styles.recommendation}>
-      <summary>
-        <span className={styles.recommendationRank} aria-hidden="true">
-          {rank}
-        </span>
-        <span className={styles.recommendationCopy}>
-          <span className={styles.recommendationTitle}>
-            <strong>{item.title}</strong>
-            <small>문서 v{item.documentVersion}</small>
-          </span>
-          <span className={styles.applicability}>
-            <strong>적용 조건</strong> {item.applicability || '사례 본문에서 확인해 주세요.'}
-          </span>
-        </span>
-        <span className={styles.recommendationToggle} aria-hidden="true" />
-      </summary>
-      <div className={styles.recommendationBody}>
-        <MarkdownText text={item.excerpt} />
-        <KnowledgeMetadata item={item} ticket={ticket} />
-      </div>
-    </details>
-  );
-}
 /** 기록 중 탭을 오가지 않도록 요청 내용을 같은 탭에서 펼쳐 본다. 펼칠 때만 관련 대화를 조회한다. */
 function RequestReference({ ticket }: RequestContentProps) {
   const [open, setOpen] = useState(false);
@@ -131,7 +106,11 @@ function RequestOverview({ ticket }: RequestContentProps) {
   const { compactFields, narrativeFields, additionalFields, factGroups } = requestOverview(request);
   const criteria = request.details.acceptanceCriteria;
   const hasEvidence =
-    additionalFields.length || criteria.length || factGroups.length || request.assumptions.length;
+    narrativeFields.length ||
+    additionalFields.length ||
+    criteria.length ||
+    factGroups.length ||
+    request.assumptions.length;
 
   return (
     <section className={styles.requestCard}>
@@ -143,18 +122,6 @@ function RequestOverview({ ticket }: RequestContentProps) {
             <div key={key}>
               <dt>{label}</dt>
               <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {!!narrativeFields.length && (
-        <dl className={styles.requestRows}>
-          {narrativeFields.map(({ key, label, value }) => (
-            <div key={key}>
-              <dt>{label}</dt>
-              <dd>
-                <RequestValue value={value} />
-              </dd>
             </div>
           ))}
         </dl>
@@ -172,9 +139,9 @@ function RequestOverview({ ticket }: RequestContentProps) {
       {!!hasEvidence && (
         <details className={styles.requestEvidence}>
           <summary>근거·상세 보기</summary>
-          {!!additionalFields.length && (
+          {!!(narrativeFields.length + additionalFields.length) && (
             <dl className={styles.requestRows}>
-              {additionalFields.map(({ key, label, value }) => (
+              {[...narrativeFields, ...additionalFields].map(({ key, label, value }) => (
                 <div key={key}>
                   <dt>{label}</dt>
                   <dd>
@@ -302,47 +269,13 @@ function RelatedConversation({ ticket }: RequestContentProps) {
 }
 
 function RequestContent({ ticket }: RequestContentProps) {
-  const actor = useSession((s) => s.user?.id);
   const [conversationOpen, setConversationOpen] = useState(false);
-  const recommendations = useQuery({
-    queryKey: ['hops-system-1', 'recommended-cases', actor, ticket.id],
-    queryFn: ({ signal }) => getRecommendedCases(ticket.id, signal),
-    enabled: Boolean(actor),
-    retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: 0,
-  });
   const knowledge = ticket.standardRequest.knowledge;
 
   return (
     <div className={styles.requestSections}>
       <RequestOverview ticket={ticket} />
-      <section className={styles.requestCard}>
-        <h3>추천 해결 사례</h3>
-        {recommendations.isError ? (
-          <ErrorState
-            title="추천 사례를 불러오지 못했어요"
-            onRetry={() => {
-              void recommendations.refetch();
-            }}
-          />
-        ) : recommendations.isPending ? (
-          <LoadingState label="추천 사례를 찾고 있어요" />
-        ) : recommendations.data.length ? (
-          <>
-            <p className={styles.sectionHint}>현재 문의와 적용 조건이 맞는지 확인해 주세요.</p>
-            <ol className={styles.recommendations}>
-              {recommendations.data.map((item, index) => (
-                <li key={item.id}>
-                  <RecommendedCase item={item} ticket={ticket} rank={index + 1} />
-                </li>
-              ))}
-            </ol>
-          </>
-        ) : (
-          <p>추천할 사례가 없어요.</p>
-        )}
-      </section>
+      <TicketAssistance ticket={ticket} />
       <details
         className={styles.requestFold}
         onToggle={(event) => {
@@ -386,7 +319,6 @@ export function SystemTicketDetail({
   const allowed = Boolean(
     user && (admin ? user.roles.includes('BIZ_ADMIN') : user.primarySystemIds.length),
   );
-  const subscription = useSubscription(allowed && !admin ? { type: 'TICKET', id } : null);
   const query = useQuery({
     queryKey: systemTicketKeys.detail(user?.id ?? '', id, admin),
     queryFn: ({ signal }) =>
@@ -394,6 +326,15 @@ export function SystemTicketDetail({
     enabled: allowed,
     refetchInterval: 5000,
   });
+  const caseId = query.data && hasRequest(query.data) ? query.data.caseGeneration?.caseId : null;
+  // 사례 검토에서는 같은 CASE 구독을 내부 검토 화면과 공유한다. 화면에 필요한 연결만 유지한다.
+  const subscription = useSubscription(
+    allowed && !admin
+      ? tab === 'case' && caseId
+        ? { type: 'CASE', id: caseId }
+        : { type: 'TICKET', id }
+      : null,
+  );
   const [reviewTarget, setReviewTarget] = useState<HTMLDivElement | null>(null);
   const [correction, setCorrection] = useState<'assignment' | 'processing' | null>(null);
   const data = query.data;
@@ -539,7 +480,10 @@ export function SystemTicketDetail({
                 <ErrorState title="지원하지 않는 상세 탭이에요" />
               )}
             </div>
-            <aside className={styles.detailSide} aria-label="티켓 정보와 사례 검토">
+            <aside
+              className={`${styles.detailSide} ${tab === 'request' && !admin ? styles.requestSide : ''}`}
+              aria-label="티켓 정보와 사례 검토"
+            >
               <section className={styles.properties}>
                 <StatusBadge {...systemStatus(data.state)} />
                 <dl>
@@ -598,8 +542,8 @@ export function SystemTicketDetail({
                       )}
                   </div>
                 )}
-                <section className={styles.assignmentHistory}>
-                  <h3>배정 이력</h3>
+                <details className={styles.assignmentHistory} open>
+                  <summary>배정 이력 {data.assignmentHistory.length}건</summary>
                   {data.assignmentHistory.map((entry) => (
                     <article key={entry.id}>
                       <strong>{entry.assignee.name}</strong>
@@ -607,7 +551,7 @@ export function SystemTicketDetail({
                       <small>{displayDate(entry.createdAt)}</small>
                     </article>
                   ))}
-                </section>
+                </details>
               </section>
               {!admin && tab === 'case' && (
                 <div className={styles.caseReviewSlot} ref={setReviewTarget} />
@@ -628,6 +572,7 @@ export function SystemTicketDetail({
     );
   return (
     <RouteModal
+      size="wide"
       title={heading}
       titleHint={shownTicket?.ticketNumber}
       onClose={onClose}

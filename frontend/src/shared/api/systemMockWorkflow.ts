@@ -148,6 +148,42 @@ export class SystemMockWorkflow {
   authorizeCase(user: D.CurrentUser, id: string) {
     this.caseFor(user, id);
   }
+  recommendedCases(user: D.CurrentUser, ticket: D.TicketDetail): D.RecommendedCase[] {
+    this.context.ticket(user, ticket.id);
+    return [...this.cases.values()]
+      .filter(
+        (item) =>
+          item.version.systemId === ticket.responsibleSystem.id &&
+          item.version.state === 'APPROVED' &&
+          item.publication.state === 'SEARCHABLE' &&
+          item.publication.canSearch &&
+          ['VECTOR', 'NEO4J'].every((store) =>
+            item.indexes.some(
+              (index) =>
+                index.store === store &&
+                index.caseId === item.version.id &&
+                index.caseVersion === item.version.caseVersion &&
+                index.state === 'SUCCEEDED',
+            ),
+          ),
+      )
+      .slice(0, 5)
+      .map(({ version }) => ({
+        id: version.id,
+        documentId: version.id,
+        documentVersion: version.caseVersion,
+        kind: 'CASE',
+        title: version.title,
+        excerpt: `${version.problemStatement}\n\n${version.action}\n\n${version.verification}`,
+        systemId: version.systemId,
+        appliesToSystemVersion: version.appliesToSystemVersion,
+        applicability: version.applicability,
+        accessScope: version.accessScope,
+        origin: version.origin,
+        // 메모리 대역은 임베딩 검색을 실행하지 않는다. 실제 검색 점수·이유를 만들어 채우지 않는다.
+        recommendation: null,
+      }));
+  }
   private resolutionFor(user: D.CurrentUser, id: string) {
     const item = this.resolutions.get(id);
     if (!item) mockError(404, 'NOT_FOUND', '확인 요청을 찾을 수 없어요.');
