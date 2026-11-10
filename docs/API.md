@@ -56,6 +56,10 @@ Vector 저장·RunLedger·개발 origin·평가 게이트는 [결정 대장](../
 
 담당자의 실제 장애 확정은 POST /api/v2/tickets/{ticketId}/processing-type-corrections로 INVESTIGATION↔INCIDENT만 변경한다. 자동 AI 확정과 관리자 역할만으로의 변경은 허용하지 않으며 상태·확인 요청과 분리한다.
 
+### 완료 티켓 목록 보관
+
+완료 티켓의 `archived_at`은 업무 목록 보관 시각이다. `RESOLVED`만 보관할 수 있으며 담당자·관리자 티켓 목록과 총건수에서 제외한다. 삭제와 달리 기존 권한의 원 티켓 상세·문의 연결·승인 사례·검색 공개 조건은 유지한다. 현재 공개 보관 명령 API는 없으며 별도 로컬 데이터 정리에 사용한다.
+
 ### 담당자 티켓 추천 사례
 
 `GET /api/v2/tickets/{ticketId}/recommended-cases`는 현재 책임 시스템의 주담당자에게 티켓 제목과 유사한 승인 사례를 최대 5건 반환한다. 해당 시스템의 공개 범위와 현재 승인 버전을 확인하며 Vector와 Neo4j가 모두 성공한 사례만 포함한다. 기존 지식 근거 필드에 추천 전용 `recommendation`을 추가한 배열이다([DATA_TYPES](../specs/contracts/DATA_TYPES.md)). 검색을 수행할 수 없으면 빈 결과 대신 검색 불가 오류를 반환한다. 검색을 위해 티켓 제목을 기존 임베딩 서비스로 전달하며, 설명을 위한 추가 모델 호출이나 저장·배정 변경은 없다.

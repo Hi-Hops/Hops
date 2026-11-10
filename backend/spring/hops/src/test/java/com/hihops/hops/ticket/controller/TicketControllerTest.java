@@ -302,6 +302,21 @@ class TicketControllerTest {
         mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isNotFound());
     }
 
+    @Test void 보관한_완료티켓은_목록에서만_제외하고_출처_상세와_권한은_유지한다() throws Exception {
+        jdbc.update("UPDATE ticket SET ticket_status='RESOLVED', resolved_at=now(), archived_at=now() WHERE id=?", TICKET);
+        entities.clear();
+        mvc.perform(as(STAFF, "/tickets")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(SECOND.toString()));
+        mvc.perform(as(STAFF, "/tickets").param("state", "RESOLVED")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(as(ADMIN, "/tickets").param("scope", "ADMIN")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+        mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("RESOLVED"));
+        mvc.perform(as(REQUESTER, "/tickets/" + TICKET)).andExpect(status().isForbidden());
+    }
+
     @Test void 복합_원문과_정정_이력을_문제별_Unicode_구간으로_투영한다() throws Exception {
         messages();
         JsonNode first = body(as(STAFF, "/tickets/" + TICKET + "/related-messages").param("size", "1"));

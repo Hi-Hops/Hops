@@ -20,13 +20,15 @@ public interface TicketQueryRepository extends Repository<Ticket, UUID> {
             JOIN FETCH t.inquiry i JOIN FETCH t.inquiryProblem p
             JOIN FETCH t.standardRequest sr LEFT JOIN FETCH sr.reportedSystem
             JOIN FETCH t.responsibleSystem s JOIN FETCH t.assignee a JOIN FETCH a.department
-            WHERE t.deletedAt IS NULL AND i.deletedAt IS NULL AND p.deletedAt IS NULL
+            WHERE t.deletedAt IS NULL AND t.archivedAt IS NULL
+            AND i.deletedAt IS NULL AND p.deletedAt IS NULL
             AND s.deletedAt IS NULL AND s.id IN :systemIds
             AND (:status IS NULL OR t.ticketStatus = :status)
             ORDER BY t.updatedAt DESC, t.id DESC
             """, countQuery = """
             SELECT count(t) FROM Ticket t
-            WHERE t.deletedAt IS NULL AND t.inquiry.deletedAt IS NULL AND t.inquiryProblem.deletedAt IS NULL
+            WHERE t.deletedAt IS NULL AND t.archivedAt IS NULL
+            AND t.inquiry.deletedAt IS NULL AND t.inquiryProblem.deletedAt IS NULL
             AND t.responsibleSystem.deletedAt IS NULL AND t.responsibleSystem.id IN :systemIds
             AND (:status IS NULL OR t.ticketStatus = :status)
             """)

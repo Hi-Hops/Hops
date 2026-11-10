@@ -118,6 +118,13 @@ class KnowledgeCaseSeedTest {
                 .andExpect(jsonPath("$[0].recommendation.score").value(org.hamcrest.Matchers.closeTo(0.8 / 11, 0.000001), Double.class))
                 .andExpect(jsonPath("$[0].recommendation.reasons.length()").value(1));
         mockMvc.perform(get(path).with(auth(REQUESTER1))).andExpect(status().isForbidden());
+        // 목록 보관은 승인 사례의 검색·출처 상세 접근을 취소하지 않는다.
+        jdbc.update("UPDATE ticket SET archived_at=now() WHERE id=?", row.get("ticket_id"));
+        assertThat(hybrid.searchIndexedCases(title, query)).hasSize(1);
+        mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        mockMvc.perform(get("/api/v2/cases/" + row.get("id")).with(auth(EA_OWNER)))
+                .andExpect(status().isOk());
     }
 
     @Test
