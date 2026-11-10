@@ -109,6 +109,9 @@ Spring–AI 내부 `AiResult`의 필드와 가산 필드 호환은 [에이전트
 | 타입 | 필드·자료형 | 조건 |
 |---|---|---|
 | KnowledgeEvidence | id:Uuid, documentId:Uuid, documentVersion:int, kind:GUIDE 또는 POLICY 또는 RUNBOOK 또는 CASE, title:string, excerpt:string, systemId:Uuid?, appliesToSystemVersion:string?, applicability:string, accessScope:AccessScope, origin:KnowledgeOrigin | systemId=null은 공통 POLICY만. 직원 응답에는 허용된 EMPLOYEE 항목만. CASE는 공개 버전 재검증 |
+| RecommendedCase | KnowledgeEvidence 필드 + recommendation:CaseRecommendation? | 담당자 추천 API 전용. 구 서버의 누락/null은 근거 미제공으로 표시. 일반 지식·직원 응답에 추가하지 않음 |
+| CaseRecommendation | query:string, score:number, scoreMethod:WEIGHTED_RRF, keywordRank:int?, semanticRank:int?, keywordScore:number?, semanticSimilarity:number?, matchedKeywords:string[], reasons:string[], comparisons:CaseConditionComparison[] | 검색 시점의 실제 경로별 순위·점수. 결합식은 API 문서 참조. 점수는 확률이 아님. 경로 미포함이면 해당 rank·score는 null. 키워드 없음이면 matchedKeywords=[] |
+| CaseConditionComparison | key:string, label:string, status:MATCHED 또는 MISMATCHED 또는 UNKNOWN, currentEvidence:string[], caseEvidence:string | 권한을 통과한 확인 사실과 현재 승인 사례의 조건 원문. 추정 제외. UNKNOWN은 추가 확인이며 조건 충족을 뜻하지 않음. 자유서술·시스템 버전은 직접 대조 |
 | SearchResult | state:SearchState, evidence:KnowledgeEvidence[], error:ApiError? | EMPTY는 error=null·evidence=[]; ERROR는 error 필수. 부분 저장소 오류는 전체 ERROR로 보수 처리 |
 | CaseGeneration | id:Uuid, workRecordId:Uuid, state:GenerationState, caseId:Uuid?, error:ApiError? | SUCCEEDED에만 caseId 필수; 원 처리 기록당 한 작업 |
 | CaseSummary | id:Uuid, title:string, systemId:Uuid, latestCaseVersion:int, latestState:CaseVersionState, publishedVersions:int[], generationState:GenerationState, updatedAt:time | 담당 시스템 범위의 검토 목록. MVP의 publishedVersions는 [] 또는 현재 승인·공개 버전 하나 |
@@ -701,3 +704,15 @@ SSE `id`와 JSON `eventId`는 같은 UUID다. 문의 이벤트 외피를 사용�
 ## 서비스 내부 표현
 
 JSON 필드명과 의미는 이 문서를 따르되 DB 컬럼·내부 클래스·언어 자료형은 각 담당자가 선택한다. 메시지 revision과 문의 version은 서로 다른 값이다. 서비스 간 `AiRequest/AiResult`와 기존 내부 agent-1의 `AgentRequest/AgentResult`는 별도 계약이다. 내부 어댑터에서는 저장 메시지의 id를 messageId로, AI 발신자를 ASSISTANT로 대응하며 현재 revision/content만 전달한다. AI의 임시 ref·problemRef는 서버가 저장 UUID로 연결하고, AI 제안만으로 저장·배정·성공을 확정하지 않는다.
+
+### 담당자 지원 응답
+
+`TicketAssistance`: ticketId, ticketRevision, standardRequestId, query, sources:RelatedMessage[], materials:{evidence:KnowledgeEvidence+recommendation?, assessment}[].
+
+자료는 `sourceCase?:{caseNumber:string,ticketId:uuid,ticketNumber:string,approvedAt:UTC timestamp}|null`, `groupedCases?:{evidence:KnowledgeEvidence+recommendation?,assessment,sourceCase?}[]`를 추가로 제공한다. 그룹은 대표 포함 전체 멤버이며 단일 자료는 빈 배열, 구 서버는 누락을 허용한다. 중첩 그룹은 없으며 최대 후보 상한 20건 이내다. 멤버 각각의 인용·원문 구간·판정도 대표와 동일하게 검증한다. 그룹 멤버는 같은 시스템·적용 버전·공개 범위이며 대표를 포함하고 중복 ID가 없어야 한다. 현재 공개 검증을 통과한 멤버만 제공한다.
+
+`assessment`: relevance:HIGH|MEDIUM|REFERENCE|CONFLICT, family, reasons:string[], conditions:CaseConditionComparison[], quotePairs, sections, nextChecks:string[], matched:int, unknown:int, mismatched:int. 상태별 개수는 conditions와 같아야 하며 HIGH는 matched>=2, unknown=0, mismatched=0이다. 등급은 해결 확률이 아니다.
+
+`assistance`의 순서는 불일치 여부, 일치 조건 수, 미확인 핵심 조건 수, 전체 미확인 조건 수, 통합 검색 점수로 정한다. 핵심 미확인은 UNKNOWN 중 `기능`·`SYSTEM`을 제외한다. `family` 문자열은 동일 해결책을 증명하지 않는다. 같은 조치·충돌하지 않는 구조화 조건을 가진 사례는 대표 하나로 묶으며, `reasons`에 검색 범위·정렬 기준과 묶인 사례 수를 설명한다. 기존 `recommendation`의 검색 원점수·경로별 순위와 응답 필드는 바꾸지 않는다. 상세 중복 판정은 [API](../../docs/API.md#담당자-해결-근거-워크스페이스)를 따른다.
+
+`quotePairs`: label, status:MATCHED|MISMATCHED|UNKNOWN, messageId, currentQuote, currentStart, currentEnd, sourceQuote, sourceStart, sourceEnd. 위치는 UTF-16/end exclusive. USER 원문과 해당 material의 승인 원문을 정확히 대조한다. `sections`는 label, quote, start, end이며 동일 원문의 구간이다. 자료 본문·현재 원문·조건 판정과 맞지 않거나 범위를 벗어나면 프론트 계약 오류다.

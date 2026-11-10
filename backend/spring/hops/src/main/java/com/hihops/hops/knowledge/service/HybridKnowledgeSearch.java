@@ -8,6 +8,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Service;
 
@@ -18,6 +19,7 @@ import com.hihops.hops.knowledge.repository.HybridKnowledgeRepository.RankedChun
 import com.hihops.hops.knowledge.repository.KnowledgeDocumentVersionRepository;
 import com.hihops.hops.knowledge.service.KnowledgeSearchService.Hit;
 import com.hihops.hops.knowledge.service.KnowledgeSearchService.Query;
+import com.hihops.hops.knowledge.service.KnowledgeSearchService.RankingEvidence;
 
 import lombok.RequiredArgsConstructor;
 
@@ -42,6 +44,12 @@ public class HybridKnowledgeSearch {
         return search(input, query, Mode.HYBRID, true);
     }
 
+    /** 자료 유형별 후보를 확보하되 같은 문의의 임베딩은 한 번만 계산한다. */
+    public List<Hit> searchIndexedGroups(String input, List<Query> queries) {
+        String vector = embedding.embed(Normalizer.normalize(input, Normalizer.Form.NFC));
+        return queries.stream().flatMap(query -> search(input, query, Mode.HYBRID, true, vector).stream()).toList();
+    }
+
     enum Mode { KEYWORD, VECTOR, HYBRID }
 
     // 같은 후보·권한과 SQL을 고정 질의 비교에서도 사용한다.
@@ -50,10 +58,14 @@ public class HybridKnowledgeSearch {
     }
 
     private List<Hit> search(String input, Query query, Mode mode, boolean requireIndexed) {
+        return search(input, query, mode, requireIndexed, null);
+    }
+
+    private List<Hit> search(String input, Query query, Mode mode, boolean requireIndexed, String suppliedVector) {
         String normalized = Normalizer.normalize(input, Normalizer.Form.NFC);
         List<String> codes = CODE.matcher(normalized.toLowerCase(Locale.ROOT)).results()
                 .map(match -> match.group()).distinct().limit(KnowledgeQueryTokens.MAX_TOKENS).toList();
-        String vector = mode == Mode.KEYWORD ? null : embedding.embed(normalized);
+        String vector = mode == Mode.KEYWORD ? null : suppliedVector != null ? suppliedVector : embedding.embed(normalized);
         var rule = requireIndexed
                 ? ReadRule.user(true) : visibility.rule(query.internalRead());
         var candidates = repository.rank(query, query.tokens(), codes, vector, rule.requireIndexedCase(),
@@ -79,7 +91,13 @@ public class HybridKnowledgeSearch {
                         || !assembled.content().contains(candidate.content())) {
                     throw new KnowledgeEvidenceAssembler.IntegrityException("검색 청크가 승인 원문과 일치하지 않습니다");
                 }
-                hits.add(new Hit(assembled, candidate.score()));
+                String keywordText = candidate.keywordRank() == null ? ""
+                        : Normalizer.normalize(assembled.evidence().title() + "\n" + candidate.keywordContent(),
+                                Normalizer.Form.NFC).toLowerCase(Locale.ROOT);
+                var matched = Stream.concat(query.tokens().stream(), codes.stream()).distinct()
+                        .filter(keywordText::contains).toList();
+                hits.add(new Hit(assembled, candidate.score(), new RankingEvidence(candidate.keywordRank(),
+                        candidate.semanticRank(), candidate.keywordScore(), candidate.semanticSimilarity(), matched)));
             });
             if (hits.size() == query.topK()) {
                 break;

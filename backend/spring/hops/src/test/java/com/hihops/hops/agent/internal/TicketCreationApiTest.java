@@ -53,6 +53,7 @@ class TicketCreationApiTest {
     UUID inquiry;
     UUID run;
     UUID message;
+    UUID feature = UUID.randomUUID();
 
     @BeforeEach
     void seed() throws Exception {
@@ -62,6 +63,7 @@ class TicketCreationApiTest {
                 VALUES (?,?,?,'unused-test-hash','가상 직원',?)
                 """, id, id.toString(), id.toString(), department);
         jdbc.update("INSERT INTO it_system(id,code,name,primary_owner_member_id) VALUES (?,'COMMON_LOGIN','공통 로그인',?)", system, owner);
+        jdbc.update("INSERT INTO system_feature(id,it_system_id,code,name) VALUES (?,?,'LOGIN_SSO','로그인')", feature, system);
         UUID requestId = UUID.randomUUID();
         mvc.perform(post("/api/v2/inquiries").with(jwt().jwt(t -> t.subject(member.toString())))
                 .header("Idempotency-Key", requestId).contentType(MediaType.APPLICATION_JSON)
@@ -86,6 +88,7 @@ class TicketCreationApiTest {
             jdbc.update("DELETE FROM inquiry WHERE id=?", inquiry);
         }
         jdbc.update("DELETE FROM idempotency_key WHERE actor_member_id=?", member);
+        jdbc.update("DELETE FROM system_feature WHERE it_system_id=?", system);
         jdbc.update("DELETE FROM it_system WHERE id=?", system);
         jdbc.update("DELETE FROM member WHERE id IN (?,?)", member, owner);
         jdbc.update("DELETE FROM department WHERE id=?", department);
@@ -120,6 +123,19 @@ class TicketCreationApiTest {
     JsonNode stored(String ref) throws Exception {
         return mapper.readTree(create(body(ref)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.outcome").value("STORED")).andReturn().getResponse().getContentAsString());
+    }
+
+    @Test void 새로_확인한_기능을_이전_입력의_null_대신_표준요청에_저장한다() throws Exception {
+        var data = mapper.valueToTree(body("new:explicit-feature"));
+        var facts = List.of(Map.of("text", "하려던 업무·화면: 로그인", "sourceMessageIds", List.of(message),
+                "knowledgeEvidenceIds", List.of()));
+        ((tools.jackson.databind.node.ObjectNode)data.path("problem")).set("facts", mapper.valueToTree(facts));
+        ((tools.jackson.databind.node.ObjectNode)data.path("proposal").path("standardRequestSnapshot"))
+                .set("confirmedFacts", mapper.valueToTree(facts));
+        mvc.perform(post(path()).header("Authorization", "Bearer " + TOKEN).contentType(MediaType.APPLICATION_JSON)
+                .content(data.toString())).andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("STORED"));
+        assertThat(jdbc.queryForObject("SELECT reported_feature_id FROM standard_request WHERE agent_run_id=?", UUID.class, run))
+                .isEqualTo(feature);
     }
 
     @Test

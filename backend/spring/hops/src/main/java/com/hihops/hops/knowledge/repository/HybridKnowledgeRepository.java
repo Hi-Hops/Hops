@@ -17,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 public class HybridKnowledgeRepository {
     private final NamedParameterJdbcTemplate jdbc;
 
-    public record RankedChunk(UUID versionId, String content, String digest, String chunkDigest, double score) {}
+    public record RankedChunk(UUID versionId, String content, String digest, String chunkDigest, double score,
+            Integer keywordRank, Integer semanticRank, Double keywordScore, Double semanticSimilarity,
+            String keywordContent) {}
 
     /** 두 채널 모두 청크를 먼저 점수화하고 문서 버전당 가장 높은 청크 하나를 남긴다. */
     public List<RankedChunk> rank(Query query, List<String> tokens, List<String> codes, String vector,
@@ -95,7 +97,10 @@ public class HybridKnowledgeRepository {
                 SELECT coalesce(k.version_id, v.version_id) AS version_id, coalesce(k.content, v.content) AS content,
                        coalesce(k.content_digest, v.content_digest) AS content_digest,
                        coalesce(k.chunk_digest, v.chunk_digest) AS chunk_digest,
-                       coalesce(0.8 / (10 + k.rank), 0) + coalesce(1.0 / (10 + v.rank), 0) AS score
+                       coalesce(0.8 / (10 + k.rank), 0) + coalesce(1.0 / (10 + v.rank), 0) AS score,
+                       CAST(k.rank AS integer) AS keyword_rank, CAST(v.rank AS integer) AS semantic_rank,
+                       CAST(k.score AS double precision) AS keyword_score,
+                       v.score AS semantic_similarity, k.content AS keyword_content
                 FROM k FULL JOIN v ON k.version_id = v.version_id
                 ORDER BY score DESC, k.rank NULLS LAST, v.rank NULLS LAST
                 """.formatted(systemCondition);
@@ -115,6 +120,8 @@ public class HybridKnowledgeRepository {
                 .addValue("vector", vector, java.sql.Types.VARCHAR);
         return jdbc.query(sql, params, (rs, row) -> new RankedChunk(rs.getObject("version_id", UUID.class),
                 rs.getString("content"), rs.getString("content_digest"), rs.getString("chunk_digest"),
-                rs.getDouble("score")));
+                rs.getDouble("score"), rs.getObject("keyword_rank", Integer.class),
+                rs.getObject("semantic_rank", Integer.class), rs.getObject("keyword_score", Double.class),
+                rs.getObject("semantic_similarity", Double.class), rs.getString("keyword_content")));
     }
 }

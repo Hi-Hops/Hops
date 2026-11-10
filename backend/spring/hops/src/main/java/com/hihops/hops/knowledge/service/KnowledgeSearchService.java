@@ -46,7 +46,17 @@ public class KnowledgeSearchService {
         }
     }
 
-    public record Hit(Assembled assembled, double score) {
+    public record RankingEvidence(Integer keywordRank, Integer semanticRank, Double keywordScore,
+            Double semanticSimilarity, List<String> matchedKeywords) {
+        public RankingEvidence {
+            matchedKeywords = List.copyOf(matchedKeywords);
+        }
+    }
+
+    public record Hit(Assembled assembled, double score, RankingEvidence ranking) {
+        public Hit(Assembled assembled, double score) {
+            this(assembled, score, null);
+        }
     }
 
     /** @throws KnowledgeEvidenceAssembler.IntegrityException 저장된 digest가 원문과 다를 때. 결과 없음으로 바꾸지 않는다 */
