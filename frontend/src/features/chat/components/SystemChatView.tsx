@@ -21,6 +21,7 @@ import { LoadingState } from '@/shared/ui/LoadingState';
 import { MarkdownText } from '@/shared/ui/MarkdownText';
 import { Button } from '@/shared/ui/Button';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
+import typography from '@/shared/styles/chatTypography.module.css';
 import controls from '@/shared/ui/Controls.module.css';
 import { useSystemChat } from '../hooks/useSystemChat';
 import { retryRunCommand } from '../api/systemChatApi';
@@ -50,10 +51,17 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
   const resolutionSignature = resolutions
     .map(({ request }) => `${request.id}:${request.requestRevision}`)
     .join(',');
-  const { log, hasNew, observe, remember, bottom, cancelPrepend } = useChatScroll(
+  const activity = JSON.stringify({
+    resolutions: resolutionSignature,
+    run: chat.run,
+    active: chat.active,
+    trails: chat.trails,
+    text: chat.live?.text,
+  });
+  const { log, observe, remember, bottom, cancelPrepend } = useChatScroll(
     inquiryId,
-    messagesSignature && `${messagesSignature}|${resolutionSignature}`,
-    chat.live?.text,
+    messagesSignature,
+    activity,
   );
   const loading = useRef(false);
   async function older() {
@@ -125,7 +133,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
     />
   );
   return (
-    <main className={styles.chat}>
+    <main className={`${styles.chat} ${typography.enlarged}`}>
       <div className={styles.workspace}>
         <section className={styles.conversation} aria-label="대화">
           <header className={styles.head}>
@@ -160,9 +168,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
               <ErrorState
                 title="대화를 동기화하지 못했어요"
                 onRetry={() => {
-                  void (chat.messages.isFetchNextPageError
-                    ? chat.messages.fetchNextPage()
-                    : chat.messages.refetch());
+                  void (chat.messages.isFetchNextPageError ? older() : chat.messages.refetch());
                 }}
               />
             )}
@@ -253,11 +259,6 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
               </div>
             )}
           </div>
-          {hasNew && (
-            <Button variant="secondary" onClick={bottom}>
-              새 메시지 ↓
-            </Button>
-          )}
           <ProblemStatusBar inquiry={inquiry} analyzing={chat.active} />
           {resolved && (
             <div className={styles.dock}>

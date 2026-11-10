@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -400,4 +400,31 @@ it('범위 밖 항목은 남은 IT 문의의 제목과 처리 현황에 포함�
   const rail = within(screen.getByRole('complementary', { name: '처리 현황' }));
   expect(rail.queryByText(outside.summary)).not.toBeInTheDocument();
   expect(rail.getByText('문제 1건')).toBeVisible();
+});
+
+it('F003-DETAIL-12 새 메시지와 분석 진행·답변 조각이 표시되면 과거 위치에서도 최신으로 이동한다', () => {
+  let state = chatState(0, false, []);
+  vi.mocked(useSystemChat).mockReturnValue(state);
+  const view = render(<SystemChatView inquiryId={inquiryId} />, { wrapper: Providers });
+  const log = screen.getByLabelText('대화 내역');
+  Object.defineProperty(log, 'scrollHeight', { configurable: true, value: 1500 });
+  function update(changes: Partial<typeof state>) {
+    log.scrollTop = 200;
+    fireEvent.scroll(log);
+    state = { ...state, ...changes };
+    vi.mocked(useSystemChat).mockReturnValue(state);
+    view.rerender(<SystemChatView inquiryId={inquiryId} />);
+    expect(log.scrollTop).toBe(1500);
+  }
+  update({
+    items: [answer, { ...answer, id: crypto.randomUUID(), sender: 'USER', sequenceNo: 3 }],
+  });
+  update({ active: true, live: { runId: 'run', text: '' } });
+  update({ trails: { [answer.id]: [{ stepNo: 1, text: '가상 진행 단계' }] } });
+  update({ live: { runId: 'run', text: '가상 답변 조각' } });
+  update({
+    active: false,
+    live: null,
+    items: [answer, { ...answer, id: crypto.randomUUID(), sequenceNo: 4 }],
+  });
 });
