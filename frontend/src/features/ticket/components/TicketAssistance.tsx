@@ -470,8 +470,18 @@ export function TicketAssistance({ ticket }: { ticket: TicketDetail }) {
                         }}
                       >
                         <span className={styles.cardTop}>
-                          <span className={styles.cardRank}>
-                            {String(index + 1).padStart(2, '0')}
+                          <span className={styles.cardIdentity}>
+                            <span className={styles.cardRank}>
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
+                            {(m.groupedCases?.length ?? 0) > 1 && (
+                              <span
+                                className={styles.groupBadge}
+                                aria-label={`묶인 사례 ${m.groupedCases?.length}건`}
+                              >
+                                묶인 {m.groupedCases?.length}건
+                              </span>
+                            )}
                           </span>
                           <span>
                             {selectedId === m.evidence.id
@@ -501,11 +511,6 @@ export function TicketAssistance({ ticket }: { ticket: TicketDetail }) {
                             </span>
                           )}
                         </span>
-                        {(m.groupedCases?.length ?? 0) > 1 && (
-                          <span className={styles.cardCounts}>
-                            묶인 사례 {m.groupedCases?.length}건
-                          </span>
-                        )}
                       </button>
                     </li>
                   ))}
