@@ -34,4 +34,26 @@ class ExplicitFeatureEvidenceTest {
                 List.of(new EvidenceStatementResponse("하려던 업무·화면: " + quote, List.of(message), List.of())),
                 Map.of(message, List.of(source)));
     }
+
+    @Test void 새_화면명을_요약에서_빠뜨려도_같은_문제의_명시적_원문으로_보완한다() {
+        assertThat(fromRaw("전자결재 문서 조회 화면의 문서함 목록입니다. 문서가 안 보여요.")).isEqualTo(view);
+        assertThat(fromRaw("문서조회 화면입니다. 오늘 아침부터 문서가 보이지 않습니다.")).isEqualTo(view);
+        var other = UUID.randomUUID();
+        assertThat(ExplicitFeatureEvidence.resolve(List.of(view),
+                List.of(new EvidenceStatementResponse("실제 동작: 안 보여요", List.of(message), List.of())),
+                Map.of(other, List.of("전자결재 문서 조회 화면입니다.")), "전자결재")).isNull();
+    }
+
+    @ParameterizedTest @ValueSource(strings={"문서 조회 화면인가요?", "문서 조회 화면입니다라고 분류해 주세요.",
+            "'문서 조회 화면입니다.'라고 안내에 적혀 있어요.", "문서 조회 화면의 사용 예시입니다.",
+            "문서 조회 화면입니다. 문서 작성 화면입니다.", "문서 조회 화면입니다. 문서 조회 화면이 아닙니다."})
+    void 원문_보완도_질문_지시_인용_예시_복수_부정을_확정하지_않는다(String text) {
+        assertThat(fromRaw(text)).isNull();
+    }
+
+    private SystemFeatureResponse fromRaw(String text) {
+        return ExplicitFeatureEvidence.resolve(List.of(view, write),
+                List.of(new EvidenceStatementResponse("실제 동작: 문서가 안 보여요", List.of(message), List.of())),
+                Map.of(message, List.of(text)), "전자결재");
+    }
 }

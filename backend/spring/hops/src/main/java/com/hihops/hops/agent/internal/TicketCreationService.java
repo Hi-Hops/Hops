@@ -175,8 +175,8 @@ public class TicketCreationService {
         UUID feature = ctx.input().problems().stream().filter(it -> it.id().toString().equals(p.problemRef()))
                 .map(it -> it.reportedFeatureId()).filter(java.util.Objects::nonNull).findFirst().orElse(null);
         if (feature == null) {
-            var catalog = ctx.input().systems().stream().filter(system -> system.id().equals(p.reportedSystemCandidateId()))
-                    .flatMap(system -> system.features().stream()).toList();
+            var reported = ctx.input().systems().stream().filter(system -> system.id().equals(p.reportedSystemCandidateId())).findFirst();
+            var catalog = reported.stream().flatMap(system -> system.features().stream()).toList();
             var sources = new java.util.HashMap<UUID, List<String>>();
             for (var link : command.messageLinks()) {
                 ctx.input().messages().stream().filter(m -> m.id().equals(link.messageId())
@@ -184,7 +184,8 @@ public class TicketCreationService {
                     sources.put(m.id(), link.spans().stream().map(span -> m.content().substring(
                             m.content().offsetByCodePoints(0, span.start()), m.content().offsetByCodePoints(0, span.end()))).toList()));
             }
-            var explicit = com.hihops.hops.itsystem.service.ExplicitFeatureEvidence.resolve(catalog, p.facts(), sources);
+            var explicit = com.hihops.hops.itsystem.service.ExplicitFeatureEvidence.resolve(catalog, p.facts(), sources,
+                    reported.map(system -> system.name()).orElse(null));
             if (explicit != null) feature = explicit.id();
         }
         if (feature != null && jdbc.queryForList("SELECT id FROM system_feature WHERE id=? AND it_system_id=? AND deleted_at IS NULL FOR SHARE",

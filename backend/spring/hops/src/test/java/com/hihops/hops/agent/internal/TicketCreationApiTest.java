@@ -138,6 +138,18 @@ class TicketCreationApiTest {
                 .isEqualTo(feature);
     }
 
+    @Test void 화면_확인사실이_누락되어도_검증된_USER_구간의_명시적_화면명을_저장한다() throws Exception {
+        String text = "로그인 화면입니다. 오류가 납니다.";
+        jdbc.update("UPDATE message SET content=? WHERE id=?", text, message);
+        jdbc.update("UPDATE agent_run SET input_snapshot=jsonb_set(input_snapshot,'{messages,0,content}',to_jsonb(?::text)) WHERE id=?", text, run);
+        var command = body("new:raw-feature");
+        command.put("messageLinks", List.of(Map.of("messageId", message, "revision", 1,
+                "spans", List.of(Map.of("start", 0, "end", text.codePointCount(0, text.length()))))));
+        create(command).andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("STORED"));
+        assertThat(jdbc.queryForObject("SELECT reported_feature_id FROM standard_request WHERE agent_run_id=?", UUID.class, run))
+                .isEqualTo(feature);
+    }
+
     @Test
     void 다른_문제의_검색_범위를_첨부하면_업무를_저장하지_않는다() throws Exception {
         var command = body("new:target");

@@ -67,7 +67,8 @@ public class TicketCaseRecommendationService {
                         .map(com.hihops.hops.itsystem.dto.SystemFeatureResponse::from).toList();
                 var sourceMap = sources.stream().collect(java.util.stream.Collectors.toMap(s -> s.id(), s -> List.of(s.content()),
                         (a,b) -> java.util.stream.Stream.concat(a.stream(), b.stream()).toList()));
-                var explicit = com.hihops.hops.itsystem.service.ExplicitFeatureEvidence.resolve(catalog, request.confirmedFacts(), sourceMap);
+                var explicit = com.hihops.hops.itsystem.service.ExplicitFeatureEvidence.resolve(catalog, request.confirmedFacts(), sourceMap,
+                        ticket.getResponsibleSystem().getName());
                 if (explicit != null) feature = explicit.name();
             }
             List<Material> materials = new ArrayList<>();
