@@ -88,7 +88,7 @@ export function AppLayout() {
     <div className={styles.shell}>
       <header className={styles.header}>
         <NavLink className={styles.brand} to="/">
-          <span aria-hidden="true">H</span>
+          <img src="/assets/hops-mark.svg" width="28" height="28" alt="" />
           Hops
         </NavLink>
         {connectionMode() === 'mock' && <span className={styles.mock}>Mock 체험</span>}

@@ -14,16 +14,6 @@
   font-size: 18px;
   font-weight: var(--font-weight-bold);
 }
-.brand span {
-  display: grid;
-  place-items: center;
-  width: var(--space-7);
-  height: var(--space-7);
-  background: var(--color-primary);
-  color: var(--color-on-ink);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-lg);
-}
 .heading {
   display: grid;
   gap: var(--space-3);

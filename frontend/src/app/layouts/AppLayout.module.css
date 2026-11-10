@@ -17,17 +17,8 @@
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
 }
-.brand > span {
-  display: grid;
+.brand > img {
   flex: none;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  color: var(--color-on-ink);
-  background: var(--color-primary-strong);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-label);
-  line-height: 1;
 }
 .mock {
   margin-left: auto;

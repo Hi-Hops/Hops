@@ -30,7 +30,8 @@ export function LoginForm({
   return (
     <section className={styles.card} aria-labelledby="login-title">
       <div className={styles.brand}>
-        <span>H</span>Hops
+        <img src="/assets/hops-mark.svg" width="32" height="32" alt="" />
+        Hops
       </div>
       <div className={styles.heading}>
         <h1 id="login-title">Hops에 로그인</h1>

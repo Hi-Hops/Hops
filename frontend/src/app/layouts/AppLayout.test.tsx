@@ -48,7 +48,8 @@ describe('F003/F006 사이드바 이동', () => {
     async (role, staff, admin) => {
       await login(TEST_LOGINS[role]);
       renderLayout();
-      expect(within(screen.getByRole('link', { name: 'Hops' })).getByText('H')).toBeVisible();
+      const brand = screen.getByRole('link', { name: 'Hops' });
+      expect(within(brand).getByAltText('')).toHaveAttribute('src', '/assets/hops-mark.svg');
       const menu = within(screen.getByRole('navigation', { name: '주 메뉴' }));
       expect(menu.getByRole('link', { name: '새 문의' })).toHaveAttribute('href', '/');
       expect(menu.getByRole('link', { name: '내 문의' })).toHaveAttribute('href', '/inquiries');

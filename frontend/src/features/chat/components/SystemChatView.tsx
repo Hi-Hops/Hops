@@ -177,9 +177,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
                 >
                   <div className={styles.author}>
                     {message.sender === 'AI' && (
-                      <span className={styles.avatar} aria-hidden="true">
-                        H
-                      </span>
+                      <img src="/assets/hops-mark.svg" width="20" height="20" alt="" />
                     )}
                     <strong>{message.sender === 'USER' ? userName : 'Hops'}</strong>
                     {!chat.active && message.id === lastAiId && <ConnectionIndicator />}
@@ -210,9 +208,7 @@ export function SystemChatView({ inquiryId }: { inquiryId: string }) {
             {chat.active && (
               <div role="status" className={styles.aiRow}>
                 <div className={styles.author}>
-                  <span className={styles.avatar} aria-hidden="true">
-                    H
-                  </span>
+                  <img src="/assets/hops-mark.svg" width="20" height="20" alt="" />
                   <strong>Hops</strong>
                   <ConnectionIndicator />
                 </div>
