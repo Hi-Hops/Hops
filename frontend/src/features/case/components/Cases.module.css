@@ -459,3 +459,24 @@
     padding: var(--space-4);
   }
 }
+@container ticket-case-review (max-width: 170px) {
+  .review,
+  .review .panel,
+  .indexCard,
+  .publication,
+  .review dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .review .panel,
+  .indexCard,
+  .publication {
+    padding: var(--space-2);
+  }
+  .review button,
+  .review .panel > span,
+  .indexTrack [role='status'] > span {
+    max-inline-size: 100%;
+    white-space: normal;
+  }
+}
