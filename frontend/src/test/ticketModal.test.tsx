@@ -202,7 +202,7 @@ describe('F009 티켓 상세 모달', () => {
       await within(dialog).findByRole('textbox', { name: '처리 내용' }),
       '접근 설정을 점검했어요.',
     );
-    await user.click(within(dialog).getByRole('button', { name: '문의 처리 기록 저장' }));
+    await user.click(within(dialog).getByRole('button', { name: '진행 기록 저장' }));
     expect(
       await within(dialog).findByText('접근 설정을 점검했어요.', { selector: 'p' }),
     ).toBeVisible();
@@ -222,23 +222,36 @@ describe('F009 티켓 상세 모달', () => {
     expect(view.queryByRole('textbox', { name: /동작 확인 결과/ })).not.toBeInTheDocument();
     expect(view.queryByRole('textbox', { name: /확인된 원인/ })).not.toBeInTheDocument();
 
-    await user.selectOptions(view.getByRole('combobox', { name: '기록 유형' }), '처리 완료');
+    expect(view.getByRole('radio', { name: '진행 기록' })).toBeChecked();
+    await user.click(view.getByRole('radio', { name: '처리 완료' }));
+    expect(view.getByRole('button', { name: '저장하고 해결 확인 요청' })).toBeDisabled();
+    expect(view.queryByRole('radio', { name: '구현 완료' })).not.toBeInTheDocument();
     await user.type(view.getByRole('textbox', { name: '동작 확인 결과 (필수)' }), '정상 열람 확인');
+    await user.click(view.getByText('추가 정보'));
     await user.type(view.getByRole('textbox', { name: '확인된 원인 (선택)' }), '경로 설정 누락');
-    const preview = within(view.getByRole('region', { name: '저장 전 미리보기' }));
+    const summary = view.getByText('저장 전 미리보기');
+    const disclosure = summary.closest('details');
+    if (!disclosure) throw new Error('미리보기 접기 영역 필요');
+    expect(disclosure).not.toHaveAttribute('open');
+    await user.click(summary);
+    const preview = within(disclosure);
     expect(preview.getAllByText('저장 경로를 복구')).toHaveLength(2);
     expect(preview.getByText('정상 열람 확인')).toBeVisible();
     expect(preview.getByText('경로 설정 누락')).toBeVisible();
     expect(preview.getByText('미확인')).toBeVisible();
 
-    await user.selectOptions(view.getByRole('combobox', { name: '기록 유형' }), '진행 기록');
-    expect(view.queryByRole('region', { name: '저장 전 미리보기' })).not.toBeInTheDocument();
-    await user.click(view.getByRole('button', { name: '문의 처리 기록 저장' }));
+    await user.click(view.getByRole('radio', { name: '실패한 시도' }));
+    expect(view.getByRole('button', { name: '시도 기록 저장' })).toBeEnabled();
+    await user.click(view.getByRole('radio', { name: '진행 기록' }));
+    expect(view.queryByText('저장 전 미리보기')).not.toBeInTheDocument();
+    expect(view.getByText('저장하면 문의자에게 ‘처리 중’으로 표시돼요.')).toBeVisible();
+    await user.click(view.getByRole('button', { name: '진행 기록 저장' }));
     await waitFor(() => expect(view.getByRole('textbox', { name: '처리 내용' })).toHaveValue(''));
     const saved = await view.findByText('저장 경로를 복구', { selector: 'p' });
     expect(saved.closest('article')).toHaveTextContent('진행 기록');
     expect(saved.closest('article')).not.toHaveTextContent('경로 설정 누락');
     expect(saved.closest('article')).not.toHaveTextContent('정상 열람 확인');
+    expect((await systemGet(`/tickets/${ticket.id}`, readTicket)).state).toBe('IN_PROGRESS');
   });
 
   it('F009-CONTRACT-08 문의 요약과 자료 유형·조건 차이를 보여주고 원문은 열 때 조회한다', async () => {

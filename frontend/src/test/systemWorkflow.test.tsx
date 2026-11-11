@@ -267,7 +267,7 @@ describe('F006/F007/F009/F011 처리·해결·사례 계약', () => {
     const first = renderWithProviders(<WorkRecordEditor ticket={ticket} />);
     await user.type(screen.getByRole('textbox', { name: '처리 내용' }), '장애 점검 중');
     systemMockBackend.loseNextResponse();
-    await user.click(screen.getByRole('button', { name: '문의 처리 기록 저장' }));
+    await user.click(screen.getByRole('button', { name: '진행 기록 저장' }));
     await screen.findByRole('button', { name: '같은 요청 결과 확인' });
     first.unmount();
     renderWithProviders(<WorkRecordEditor ticket={await getSystemTicket(ticket.id)} />);
@@ -283,14 +283,14 @@ describe('F006/F007/F009/F011 처리·해결·사례 계약', () => {
     const view = renderWithProviders(<WorkRecordEditor ticket={ticket} />);
     await user.type(screen.getByRole('textbox', { name: '처리 내용' }), '새 점검 내용');
     await sendSystemCommand(work(ticket, 'PROGRESS'));
-    await user.click(screen.getByRole('button', { name: '문의 처리 기록 저장' }));
+    await user.click(screen.getByRole('button', { name: '진행 기록 저장' }));
     await screen.findByRole('alert');
     view.unmount();
     renderWithProviders(<WorkRecordEditor ticket={await getSystemTicket(ticket.id)} />);
     expect(screen.getByRole('textbox', { name: '처리 내용' })).toHaveValue('새 점검 내용');
-    expect(screen.getByRole('button', { name: '문의 처리 기록 저장' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '진행 기록 저장' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: '최신 티켓 확인 후 이어쓰기' }));
-    expect(screen.getByRole('button', { name: '문의 처리 기록 저장' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '진행 기록 저장' })).toBeEnabled();
   });
   it('F006-CONTRACT-04 문의자 확인 UI는 응답 유실 시 반대 응답 대신 원 요청만 재확인한다', async () => {
     let ticket = await firstTicket();
