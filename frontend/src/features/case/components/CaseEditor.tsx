@@ -7,12 +7,12 @@ import { useSystemCommand } from '@/shared/api/useSystemCommand';
 import { useFormDraft } from '@/shared/lib/useFormDraft';
 import { contentError } from '@/shared/lib/content';
 import { Button } from '@/shared/ui/Button';
-import { FormField } from '@/shared/ui/FormField';
 import { StatusBadge } from '@/shared/ui/StatusBadge';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import type { CaseDetail } from '@/shared/api/types/hopsSystem1';
 import { approveCaseCommand, editCaseCommand } from '../api/caseApi';
 import { searchableCase } from '../model/publication';
+import { CaseDraftFields, CaseDraftHeader } from './CaseDraftFields';
 import { CaseIndexStatus } from './CaseIndexStatus';
 import styles from './Cases.module.css';
 
@@ -40,7 +40,12 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
     appliesToSystemVersion: version.appliesToSystemVersion ?? '',
     accessScope: version.accessScope,
   };
-  const draft = useFormDraft(actor + ':case:' + version.id, version.caseVersion, savedValues);
+  const startBlank = Boolean(reviewTarget) && editable && version.caseVersion === 1;
+  const draft = useFormDraft(
+    actor + (reviewTarget ? ':ticket-case:' : ':case:') + version.id,
+    version.caseVersion,
+    startBlank ? { accessScope: 'SYSTEM_STAFF' } : savedValues,
+  );
   const source = useQuery({
     queryKey: ['hops-system-1', 'case-source', actor, version.ticketId],
     queryFn: ({ signal }) => getSystemTicket(version.ticketId, signal),
@@ -79,7 +84,35 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
       Boolean(values[key] && contentError(values[key])),
     ) ||
     !['EMPLOYEE', 'SYSTEM_STAFF'].includes(values.accessScope ?? '');
+  const hasChanges =
+    draft.dirty &&
+    Object.entries(savedValues).some(([name, value]) => (values[name] ?? '') !== value);
+  const fillable = startBlank
+    ? Object.entries(savedValues).filter(
+        ([name, value]) => name !== 'accessScope' && value && !values[name]?.trim(),
+      )
+    : [];
   const locked = !editable || save.locked || approve.locked;
+  const fillDraft =
+    locked || draft.stale || !fillable.length
+      ? undefined
+      : () => {
+          draft.changeFields(Object.fromEntries(fillable));
+        };
+  const badge = (
+    <StatusBadge
+      label={
+        version.state === 'DRAFT'
+          ? reviewTarget
+            ? '초안'
+            : 'Curator 초안·검토 필요'
+          : version.state === 'APPROVED'
+            ? '승인된 사례·읽기 전용'
+            : '사례 상태 확인 필요'
+      }
+      tone={version.state === 'DRAFT' && !reviewTarget ? 'attention' : 'neutral'}
+    />
+  );
   const published = searchableCase(detail);
   const formId = 'case-form-' + version.id;
   const review = (
@@ -121,7 +154,7 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
                 save.expired ||
                 save.remaining > 0 ||
                 approve.locked ||
-                (!save.pending && (invalid || draft.stale || !draft.dirty))
+                (!save.pending && (invalid || draft.stale || !hasChanges))
               }
             >
               {save.busy && <span className={styles.spinner} aria-hidden="true" />}
@@ -136,7 +169,7 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
               <input
                 type="checkbox"
                 checked={reviewed}
-                disabled={save.locked || approve.locked}
+                disabled={save.locked || approve.locked || invalid || hasChanges || draft.stale}
                 onChange={(e) => {
                   setReviewedVersion(e.target.checked ? version.caseVersion : null);
                 }}
@@ -149,21 +182,24 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
                 approve.expired ||
                 approve.remaining > 0 ||
                 save.locked ||
-                (!approve.pending && (!confirmed || !reviewed || draft.dirty || draft.stale))
+                (!approve.pending &&
+                  (!confirmed || !reviewed || invalid || hasChanges || draft.stale))
               }
               onClick={() => {
-                void approve.execute((requestId) =>
-                  approveCaseCommand(version.id, {
-                    requestId,
-                    expectedCaseVersion: version.caseVersion,
-                  }),
+                void approve.execute(
+                  (requestId) =>
+                    approveCaseCommand(version.id, {
+                      requestId,
+                      expectedCaseVersion: version.caseVersion,
+                    }),
+                  draft.clear,
                 );
               }}
             >
               {approve.busy && <span className={styles.spinner} aria-hidden="true" />}
               {approve.busy ? '사례 승인 중…' : (approve.label ?? '확인한 버전 승인')}
             </Button>
-            {draft.dirty && (
+            {hasChanges && !invalid && (
               <p className={styles.hint}>작성 중인 수정 내용을 먼저 저장해 주세요.</p>
             )}
           </>
@@ -242,7 +278,8 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
         className={styles.editor}
         onSubmit={(event) => {
           event.preventDefault();
-          if (!allowed || (!save.pending && (!editable || invalid || draft.stale))) return;
+          if (!allowed || (!save.pending && (!editable || invalid || draft.stale || !hasChanges)))
+            return;
           void save.execute(
             (requestId) =>
               editCaseCommand(version.id, {
@@ -266,94 +303,16 @@ export function CaseEditor({ detail, reviewTarget }: CaseEditorProps) {
           );
         }}
       >
-        <StatusBadge
-          label={
-            version.state === 'DRAFT'
-              ? 'Curator 초안·검토 필요'
-              : version.state === 'APPROVED'
-                ? '승인된 사례·읽기 전용'
-                : '사례 상태 확인 필요'
-          }
-          tone={version.state === 'DRAFT' ? 'attention' : 'neutral'}
-        />
-        <fieldset disabled={locked}>
-          <FormField id="case-title" label="사례 제목">
-            <input
-              id="case-title"
-              value={values.title ?? ''}
-              onChange={(e) => {
-                draft.change('title', e.target.value);
-              }}
-            />
-          </FormField>
-          <FormField id="case-problem" label="문제 설명">
-            <textarea
-              id="case-problem"
-              value={values.problemStatement ?? ''}
-              onChange={(e) => {
-                draft.change('problemStatement', e.target.value);
-              }}
-            />
-          </FormField>
-          <FormField id="case-action" label="조치 내용">
-            <textarea
-              id="case-action"
-              value={values.action ?? ''}
-              onChange={(e) => {
-                draft.change('action', e.target.value);
-              }}
-            />
-          </FormField>
-          <FormField id="case-verification" label="동작 확인 결과">
-            <textarea
-              id="case-verification"
-              value={values.verification ?? ''}
-              onChange={(e) => {
-                draft.change('verification', e.target.value);
-              }}
-            />
-          </FormField>
-          <FormField id="case-applicability" label="적용 조건">
-            <textarea
-              id="case-applicability"
-              value={values.applicability ?? ''}
-              onChange={(e) => {
-                draft.change('applicability', e.target.value);
-              }}
-            />
-          </FormField>
-          <FormField id="case-limitations" label="한계 (한 줄에 하나)">
-            <textarea
-              id="case-limitations"
-              value={values.limitations ?? ''}
-              onChange={(e) => {
-                draft.change('limitations', e.target.value);
-              }}
-            />
-          </FormField>
-          <FormField id="case-system-version" label="적용 시스템 버전 (선택)">
-            <input
-              id="case-system-version"
-              value={values.appliesToSystemVersion ?? ''}
-              placeholder="미확인 · 모르면 비워 두세요"
-              onChange={(e) => {
-                draft.change('appliesToSystemVersion', e.target.value);
-              }}
-            />
-          </FormField>
-          <FormField id="case-scope" label="공개 범위">
-            <select
-              id="case-scope"
-              value={values.accessScope ?? ''}
-              onChange={(e) => {
-                draft.change('accessScope', e.target.value);
-              }}
-            >
-              <option value="SYSTEM_STAFF">담당자 내부용</option>
-              <option value="EMPLOYEE">직원용</option>
-            </select>
-          </FormField>
-        </fieldset>
+        {reviewTarget ? <CaseDraftHeader badge={badge} onFill={fillDraft} /> : <div>{badge}</div>}
+        {reviewTarget && (
+          <p className={styles.hint}>사례 문서 v{version.caseVersion} · 원 문의 처리 기록 기반</p>
+        )}
+        {startBlank && !draft.dirty && (
+          <p className={styles.hint}>
+            저장된 처리 기록을 바탕으로 만든 AI 초안으로 빈 항목을 채울 수 있어요.
+          </p>
+        )}
+        <CaseDraftFields values={values} disabled={locked} onChange={draft.change} />
         <p className={styles.hint}>
           출처:{' '}
           {version.origin === 'SYNTHETIC'

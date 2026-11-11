@@ -302,7 +302,11 @@ type SystemTicketDetailProps = {
   id: string;
   onClose: () => void;
   returnFocusId?: string;
-  renderCaseReview: (caseId: string, reviewTarget: HTMLElement) => ReactNode;
+  renderCaseReview: (
+    caseId: string | null,
+    reviewTarget: HTMLElement,
+    generationStatus?: ReactNode,
+  ) => ReactNode;
 };
 export function SystemTicketDetail({
   id,

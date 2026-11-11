@@ -152,16 +152,14 @@
   background: var(--color-attention-bg);
   border-radius: var(--radius-md);
 }
-.info {
-  margin-top: var(--space-5);
-  padding: var(--space-5);
-  border-radius: var(--radius-lg);
-  background: var(--color-progress-bg);
-  font-size: var(--font-size-label);
+.caseStatus {
   display: grid;
   gap: var(--space-2);
 }
-.draftButton {
+.caseStatus > p {
+  color: var(--color-text-secondary);
+}
+.caseStatus > button {
   justify-self: start;
 }
 .record {
