@@ -48,6 +48,22 @@ def searched(verdict, *, employee=True, state="FOUND", **changes) -> ProblemFact
     return facts(search_state=state, verdict=verdict, employee_evidence=employee, **changes)
 
 
+def test_explicit_staff_review_waits_for_required_info_and_one_successful_search():
+    ready = facts(
+        requested_staff_review=True,
+        required_info_secured=True,
+        askable=True,
+        research_remaining=True,
+        new_query_available=True,
+        search_state="FOUND",
+        verdict="PARTIAL",
+    )
+    assert legal_actions(ready) == {"TICKET"}
+    assert "SEARCH" in legal_actions(replace(ready, search_state=None))
+    assert "TICKET" not in legal_actions(replace(ready, required_info_secured=False))
+    assert legal_actions(replace(ready, system_known=False)) == {"ASK"}
+
+
 # --- 실행 단위 ---
 
 

@@ -42,6 +42,18 @@ import tools.jackson.databind.ObjectMapper;
 @ActiveProfiles({"db", "test"})
 @Transactional
 class TicketControllerTest {
+    @Test void F009_CONTRACT_08_지원자료는_현재_주담당자에게만_공개하고_빈결과와_권한거부를_구분한다() throws Exception {
+        String path="/tickets/"+TICKET+"/assistance";
+        mvc.perform(as(REQUESTER,path)).andExpect(status().isForbidden());
+        mvc.perform(as(OTHER,path)).andExpect(status().isForbidden());
+        mvc.perform(as(ADMIN,path)).andExpect(status().isForbidden());
+        verifyNoInteractions(embedding);
+        String vector="["+String.join(",",java.util.Collections.nCopies(1536,"0.1"))+"]";
+        when(embedding.embed(org.mockito.ArgumentMatchers.anyString())).thenReturn(vector);
+        mvc.perform(as(STAFF,path)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.ticketId").value(TICKET.toString()))
+                .andExpect(jsonPath("$.materials.length()").value(0));
+    }
     @Test void 조회는_처리기록이나_AI실행을_생성하지_않는다() throws Exception {
         var records = jdbc.queryForObject("SELECT count(*) FROM ticket_work_log WHERE ticket_id=?", Integer.class, TICKET);
         var runs = jdbc.queryForObject("SELECT count(*) FROM agent_run WHERE inquiry_id=?", Integer.class, INQUIRY);
@@ -290,6 +302,21 @@ class TicketControllerTest {
         mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isNotFound());
     }
 
+    @Test void 보관한_완료티켓은_목록에서만_제외하고_출처_상세와_권한은_유지한다() throws Exception {
+        jdbc.update("UPDATE ticket SET ticket_status='RESOLVED', resolved_at=now(), archived_at=now() WHERE id=?", TICKET);
+        entities.clear();
+        mvc.perform(as(STAFF, "/tickets")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(SECOND.toString()));
+        mvc.perform(as(STAFF, "/tickets").param("state", "RESOLVED")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+        mvc.perform(as(ADMIN, "/tickets").param("scope", "ADMIN")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+        mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.state").value("RESOLVED"));
+        mvc.perform(as(REQUESTER, "/tickets/" + TICKET)).andExpect(status().isForbidden());
+    }
+
     @Test void 복합_원문과_정정_이력을_문제별_Unicode_구간으로_투영한다() throws Exception {
         messages();
         JsonNode first = body(as(STAFF, "/tickets/" + TICKET + "/related-messages").param("size", "1"));
@@ -513,20 +540,21 @@ class TicketControllerTest {
                 VALUES (?,'CASE-QUERY',?,?,'RESOLUTION','승인 사례','문서 오류','조치','검증','문서 조회','STAFF','SYNTHETIC','APPROVED',?,now(),'SUCCEEDED','PENDING')
                 """, caseId, workRecord, SYSTEM, STAFF);
         jdbc.update("INSERT INTO knowledge_document(id,title,document_type,it_system_id,access_level,data_split,review_status) VALUES (?,'승인 사례','CASE',?,'STAFF','RAG','APPROVED')", document, SYSTEM);
-        String approvedCase = "{\"title\":\"승인 사례\"}";
+        String approvedCase = "{\"action\":\"조치\",\"applicability\":\"문서 조회\",\"problemStatement\":\"문서 오류\",\"title\":\"승인 사례\",\"verification\":\"검증\"}";
+        String caseContent = "승인 사례\n\n문서 오류\n\n조치\n\n검증\n\n문서 조회";
         String snapshot = "{\"approvedCase\":" + approvedCase + ",\"caseId\":\"" + caseId + "\",\"caseVersion\":1}";
         String digest = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
                 .digest(snapshot.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         jdbc.update("""
                 INSERT INTO knowledge_document_version(knowledge_document_id,version_no,content,content_digest,source_metadata,review_status)
-                VALUES (?,1,'사례 본문',?,?::jsonb,'APPROVED')
-                """, document, digest, """
+                VALUES (?,1,?,?,?::jsonb,'APPROVED')
+                """, document, caseContent, digest, """
                 {"caseId":"%s","caseVersion":1,"indexRequests":{"VECTOR":{"approvedCase":%s}}}
                 """.formatted(caseId, approvedCase));
         jdbc.update("UPDATE standard_request SET related_knowledge=?::jsonb WHERE inquiry_problem_id=?", """
-                [{"id":"%s","documentId":"%s","documentVersion":1,"kind":"CASE","title":"승인 사례","excerpt":"사례 본문",
+                [{"id":"%s","documentId":"%s","documentVersion":1,"kind":"CASE","title":"승인 사례","excerpt":%s,
                 "systemId":"%s","appliesToSystemVersion":null,"applicability":"문서 조회","accessScope":"SYSTEM_STAFF","origin":"SYNTHETIC"}]
-                """.formatted(UUID.randomUUID(), caseId, SYSTEM), PROBLEM);
+                """.formatted(UUID.randomUUID(), caseId, new tools.jackson.databind.json.JsonMapper().writeValueAsString(caseContent), SYSTEM), PROBLEM);
         // 한쪽만 색인된 상태에서도 승인된 현재 버전이면 공개한다. 색인 상태는 그대로 PENDING이다.
         mvc.perform(as(STAFF, "/tickets/" + TICKET)).andExpect(status().isOk()).andExpect(jsonPath("$.standardRequest.knowledge.length()").value(1));
         jdbc.update("UPDATE resolved_case SET vector_status='PENDING', graph_status='PENDING' WHERE id=?", caseId);

@@ -13,6 +13,11 @@ import { realtime } from '@/shared/realtime';
 import { TEST_LOGINS } from './mockCredentials';
 
 beforeEach(() => {
+  // jsdom은 스크롤 배치를 구현하지 않는다. 실제 이동은 브라우저에서 확인한다.
+  Object.defineProperty(Element.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  });
   useSession.getState().logout();
   systemMockBackend.reset();
   realtime.disconnect();
@@ -54,6 +59,40 @@ function renderTickets(path: string) {
 }
 
 describe('F009 티켓 상세 모달', () => {
+  it('가려진 목록 구독을 쉬고 사례 검토는 한 대상 연결을 공유한 뒤 목록으로 복귀한다', async () => {
+    vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
+    systemMockBackend.reset();
+    await login(TEST_LOGINS.network);
+    const tickets = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
+    const ticket = tickets.items.find((item) => item.title.includes('첨부파일 복구 · 사례 초안'));
+    if (!ticket) throw new Error('초안 티켓 필요');
+    const active = new Map<string, number>();
+    const subscribe = realtime.subscribe;
+    vi.spyOn(realtime, 'subscribe').mockImplementation((target, listener) => {
+      const key = `${target.type}:${target.id}`;
+      active.set(key, (active.get(key) ?? 0) + 1);
+      const off = subscribe(target, listener);
+      return () => {
+        off();
+        const count = (active.get(key) ?? 1) - 1;
+        if (count) active.set(key, count);
+        else active.delete(key);
+      };
+    });
+    renderTickets(`/tickets/${ticket.id}?tab=case`);
+    const user = userEvent.setup();
+    const view = within(await screen.findByRole('dialog'));
+    await user.click(await view.findByRole('button', { name: '사례 초안 확인' }));
+    await view.findByRole('textbox', { name: '적용 조건' });
+    expect([...active.keys()]).toHaveLength(1);
+    expect([...active.keys()][0]).toMatch(/^CASE:/u);
+    await user.click(view.getByRole('button', { name: '상세 닫기' }));
+    await waitFor(() => {
+      expect(active.size).toBeGreaterThan(0);
+      for (const key of active.keys()) expect(key).toMatch(/^SYSTEM_TICKETS:/u);
+    });
+  });
+
   it.each(['board', 'list'])(
     'F009-DETAIL-02 담당 업무 %s에서 본인 이름과 중복 시스템 표시를 생략한다',
     async (view) => {
@@ -202,22 +241,79 @@ describe('F009 티켓 상세 모달', () => {
     expect(saved.closest('article')).not.toHaveTextContent('정상 열람 확인');
   });
 
-  it('F009-DETAIL-03 문의 요약과 추천 적용 조건을 먼저 보여주고 원문은 열 때 조회한다', async () => {
+  it('F009-CONTRACT-08 문의 요약과 자료 유형·조건 차이를 보여주고 원문은 열 때 조회한다', async () => {
     vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
     systemMockBackend.reset();
     await login(TEST_LOGINS.network);
     const tickets = await systemGet('/tickets?scope=ASSIGNED_SYSTEMS', readTickets);
     const ticket = tickets.items.find((item) => item.title.includes('세션 오류 조사'));
-    if (!ticket) throw new Error('대화가 있는 예시 티켓 필요');
+    if (!ticket) throw new Error('예시 티켓 필요');
     const detail = await systemGet(`/tickets/${ticket.id}`, readTicket);
     const recommended = detail.standardRequest.knowledge.find((item) => item.kind === 'CASE');
-    if (!recommended) throw new Error('추천 사례 대역 필요');
+    if (!recommended) throw new Error('추천 사례 필요');
+    const action = '조회 상태를 전체로 바꾸고 같은 문서를 다시 조회했습니다.';
+    const verification = '동일 문서가 목록에 표시되는 것을 확인했습니다.';
+    const bodyText = `${action}\n${verification}`;
     const original = systemMockBackend.request.bind(systemMockBackend);
     const request = vi
       .spyOn(systemMockBackend, 'request')
       .mockImplementation((path, method, body, token, key) =>
-        path === `/api/v2/tickets/${ticket.id}/recommended-cases`
-          ? [recommended]
+        path === `/api/v2/tickets/${ticket.id}/assistance`
+          ? {
+              ticketId: ticket.id,
+              ticketRevision: ticket.ticketRevision,
+              standardRequestId: detail.standardRequest.id,
+              query: ticket.title,
+              sources: [],
+              materials: [
+                {
+                  evidence: {
+                    ...recommended,
+                    excerpt: bodyText,
+                    recommendation: {
+                      query: ticket.title,
+                      score: 0.8 / 14 + 1 / 27,
+                      scoreMethod: 'WEIGHTED_RRF',
+                      keywordRank: 4,
+                      semanticRank: 17,
+                      keywordScore: 1,
+                      semanticSimilarity: 0.633,
+                      matchedKeywords: [],
+                      reasons: ['키워드·의미 검색 후보입니다.'],
+                      comparisons: [],
+                    },
+                  },
+                  assessment: {
+                    relevance: 'CONFLICT',
+                    family: '예시 조건',
+                    reasons: ['현재 문의와 조회 조건이 다릅니다.'],
+                    conditions: [
+                      {
+                        key: 'state',
+                        label: '조회 상태',
+                        status: 'MISMATCHED',
+                        currentEvidence: ['전체'],
+                        caseEvidence: '승인',
+                      },
+                    ],
+                    quotePairs: [],
+                    sections: [
+                      { label: '실제 조치', quote: action, start: 0, end: action.length },
+                      {
+                        label: '검증 결과',
+                        quote: verification,
+                        start: action.length + 1,
+                        end: bodyText.length,
+                      },
+                    ],
+                    nextChecks: ['조회 조건을 확인해 주세요.'],
+                    matched: 0,
+                    unknown: 0,
+                    mismatched: 1,
+                  },
+                },
+              ],
+            }
           : original(path, method, body, token, key),
       );
     renderTickets(`/tickets/${ticket.id}`);
@@ -225,31 +321,42 @@ describe('F009 티켓 상세 모달', () => {
     const view = within(await screen.findByRole('dialog'));
     expect(await view.findByRole('heading', { name: '문의 요약' })).toBeVisible();
     expect(view.getByText(detail.standardRequest.summary, { selector: 'p' })).toBeVisible();
-    expect(view.getByText('근거·상세 보기').closest('details')).not.toHaveAttribute('open');
-
-    const cases = view.getByRole('heading', { name: '추천 해결 사례' }).closest('section');
-    if (!cases) throw new Error('추천 영역 필요');
-    const condition = await within(cases).findByText(recommended.applicability);
-    const card = condition.closest('details');
-    if (!card) throw new Error('추천 카드 필요');
-    const recommendation = within(card);
-    expect(condition).toBeVisible();
-    expect(card).not.toHaveAttribute('open');
-    expect(recommendation.getByText(recommended.excerpt)).not.toBeVisible();
-    await user.click(recommendation.getByText(recommended.title));
-    expect(recommendation.getByText(recommended.excerpt)).toBeVisible();
-
-    expect(view.queryByText('문의자')).not.toBeInTheDocument();
+    const ranked = await view.findByRole('list', { name: '추천순 자료' });
+    expect(within(ranked).getAllByRole('button')).toHaveLength(1);
+    expect(view.queryByRole('heading', { name: '참고할 조치' })).not.toBeInTheDocument();
+    await user.click(within(ranked).getByRole('button', { name: /^1위 / }));
+    expect(view.getByText('조건 다름 · 적용 주의')).toBeVisible();
+    expect(view.getByRole('meter', { name: 'RAG 의미 유사도' })).toHaveAttribute(
+      'aria-valuenow',
+      '0.633',
+    );
+    expect(
+      within(view.getByRole('region', { name: '추천 시각화' })).getByText('0.633'),
+    ).toBeVisible();
+    expect(view.getByRole('list', { name: '조건별 일치 현황' })).toHaveTextContent('조회 상태');
+    expect(view.getByRole('heading', { name: '참고할 조치' })).toBeVisible();
+    expect(
+      within(view.getByRole('region', { name: '참고할 조치와 검증' })).getByText(action),
+    ).toBeVisible();
+    expect(view.getByText('그대로 적용하지 마세요')).toBeVisible();
+    expect(view.getByRole('complementary', { name: '티켓 정보와 사례 검토' })).toHaveTextContent(
+      '배정 이력',
+    );
+    expect(view.queryByRole('table', { name: '적용 조건 비교' })).not.toBeInTheDocument();
+    await user.click(view.getByRole('tab', { name: '매뉴얼 0' }));
+    expect(view.getByText(/현재 조건과 맞는 자료/)).toBeVisible();
+    await user.click(view.getByRole('tab', { name: '해결 사례 1' }));
+    await user.click(view.getByRole('button', { name: /^1위 / }));
+    await user.click(view.getByRole('tab', { name: '비교 근거' }));
+    expect(view.getByRole('table', { name: '적용 조건 비교' })).toBeVisible();
+    expect(
+      within(view.getByRole('table', { name: '적용 조건 비교' })).getByText('불일치', {
+        exact: true,
+      }),
+    ).toBeVisible();
     expect(request.mock.calls.some(([path]) => path.includes('/related-messages'))).toBe(false);
     await user.click(view.getByText('원문 대화 보기'));
-    const chat = (await view.findByText('문의자')).closest('article');
-    expect(chat).toHaveAttribute('data-sender', 'USER');
-    expect(view.getByText('Hops').closest('article')).toHaveAttribute('data-sender', 'AI');
-
-    const materials = view.getByText('상담에 사용한 자료 2건');
-    expect(materials.closest('details')).not.toHaveAttribute('open');
-    await user.click(materials);
-    expect(view.getByText(/장애 점검 안내/u)).toBeVisible();
+    expect(await view.findByText('문의자')).toBeVisible();
   });
 
   it('F009-DETAIL-03 처리 기록 탭에서 요청 내용을 펼쳐 볼 수 있다', async () => {
@@ -297,7 +404,7 @@ describe('F009 티켓 상세 모달', () => {
     const sidebar = within(view.getByRole('complementary', { name: '티켓 정보와 사례 검토' }));
     const approvalHeading = sidebar.getByRole('heading', { name: '승인 전 확인' });
     expect(
-      sidebar.getByRole('heading', { name: '배정 이력' }).compareDocumentPosition(approvalHeading) &
+      sidebar.getByText(/^배정 이력 \d+건$/).compareDocumentPosition(approvalHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     await user.click(sidebar.getByRole('button', { name: '초안 수정 저장' }));
@@ -369,9 +476,10 @@ describe('F009 티켓 상세 모달', () => {
     renderTickets(`/tickets/${ticket.id}`);
     const user = userEvent.setup();
     const view = within(await screen.findByRole('dialog'));
-    expect(await view.findByText(first, { selector: 'li' })).toBeVisible();
-    expect(view.getByText(second, { selector: 'li' })).toBeVisible();
+    expect(await view.findByText(first, { selector: 'li' })).not.toBeVisible();
     await user.click(view.getByText('근거·상세 보기'));
+    expect(view.getByText(first, { selector: 'li' })).toBeVisible();
+    expect(view.getByText(second, { selector: 'li' })).toBeVisible();
     const group = view.getByText('진행 방식·조건', { selector: 'summary' });
     const disclosure = group.closest('details');
     if (!disclosure) throw new Error('근거 묶음 필요');

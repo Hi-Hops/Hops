@@ -83,6 +83,7 @@ class ProblemFacts:
     required_info_secured: bool
     direct_ticket_intent: bool
     unresolved_without_other_evidence: bool
+    requested_staff_review: bool = False
 
     @property
     def can_ask(self) -> bool:
@@ -135,6 +136,14 @@ def legal_actions(facts: ProblemFacts) -> frozenset[Action]:
     # 5.3절 티켓 (c): 안내 뒤 미해결로 응답했는데 다른 근거가 없으면 담당자 검토뿐이다.
     # 같은 질문이나 재검색을 되풀이하지 않는다. 필수 정보가 비어 있어도 미확인으로 보존해 넘긴다.
     if facts.unresolved_without_other_evidence:
+        return frozenset({"TICKET"})
+
+    # 필수 정보와 첫 검색이 있고 문의자가 담당자 확인을 명시적으로 요청하면 접수를 늦추지 않는다.
+    if (
+        facts.requested_staff_review
+        and facts.required_info_secured
+        and facts.search_state in ("FOUND", "EMPTY")
+    ):
         return frozenset({"TICKET"})
 
     actions = set()

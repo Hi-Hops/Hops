@@ -9,6 +9,7 @@
 반환하는 InquiryResult는 제안일 뿐이다. 저장·배정은 Spring이 하고, 병합 검증은 Supervisor가 한다.
 """
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Literal
 
@@ -357,7 +358,7 @@ def _assemble(
     )
     problem = ProblemProposal(
         problemRef=ref,
-        summary=extracted.summary.strip() or _fallback_summary(grounded),
+        summary=_grounded_summary(extracted.summary, grounded),
         intent=intent,
         processingType=processing_type,
         reportedSystemCandidateId=system_id,
@@ -446,3 +447,33 @@ def _fallback_summary(grounded: Mapping[str, tuple[str, str]]) -> str:
     for _, quote in grounded.values():
         return quote
     return "문의 내용 확인 필요"
+
+
+def _grounded_summary(summary: str, grounded: Mapping[str, tuple[str, str]]) -> str:
+    """조회 필터를 실제 문서 상태로 바꾼 요약은 해당 문제의 검증된 인용으로 대체한다."""
+    summary = summary.strip() or _fallback_summary(grounded)
+    quotes = [quote for _, quote in grounded.values()]
+    filters = re.findall(
+        r"(?:조회\s*상태|상태\s*필터)(?:에는|에서는|가|는|:)?\s*[‘'\"“]?"
+        r"(승인|상신|결재\s*중|반려|회수|전체)",
+        "\n".join(quotes),
+    )
+    if not filters:
+        return summary
+    claims = re.finditer(
+        r"(?:승인|반려|회수|상신|결재\s*중)\s*상태(?:인|의|로)?|"
+        r"(?:승인|반려|회수|상신)된\s*(?:전자결재\s*)?문서",
+        summary,
+    )
+    if not any(
+        not re.search(r"조회|필터", summary[max(0, match.start() - 12) : match.start()])
+        for match in claims
+    ):
+        return summary
+    # 인용은 원문 대조를 이미 통과했다. 다른 문제나 AI 답변으로 상태를 보충하지 않는다.
+    parts = [grounded[name][1] for name in ("taskOrScreen", "actualBehavior") if name in grounded]
+    text = " · ".join(dict.fromkeys(parts)) or _fallback_summary(grounded)
+    states = list(dict.fromkeys(filters))
+    if len(states) == 1 and not re.search(r"조회\s*상태|상태\s*필터", text):
+        text += f" (조회 상태: {states[0]})"
+    return text

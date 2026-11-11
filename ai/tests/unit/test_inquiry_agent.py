@@ -103,6 +103,47 @@ async def run_agent(request: AiRunRequest, *problems: ExtractedProblem) -> Inqui
     return await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
 
 
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "오늘 아침부터 승인 상태인 직접 상신 문서가 보이지 않습니다.",
+        "승인된 문서가 보이지 않습니다.",
+    ],
+)
+async def test_search_filter_does_not_become_document_approval_in_summary(summary: str) -> None:
+    actual = "직접 상신한 문서가 문서함에 안 보여요"
+    workflow = "조회 상태는 승인이고, 조회 기간에는 오늘 기안일이 포함됩니다."
+    result = await run_agent(
+        first_message_request(actual + ". " + workflow),
+        extracted(
+            summary=summary,
+            actualBehavior=QuotedValue(messageId=MESSAGE, quote=actual),
+            currentWorkflow=QuotedValue(messageId=MESSAGE, quote=workflow),
+        ),
+    )
+    [problem] = result.problems
+    assert actual in problem.summary
+    assert "조회 상태: 승인" in problem.summary
+    assert "승인된 문서" not in problem.summary and "승인 상태인" not in problem.summary
+    assert any("기안일이 포함됩니다" in fact.text for fact in problem.facts)
+
+
+async def test_explicit_filter_summary_and_real_document_status_are_preserved() -> None:
+    actual = "이미 승인된 문서가 문서함에 안 보여요"
+    workflow = "조회 상태는 승인이에요."
+    summary = "조회 상태가 승인일 때 이미 승인된 문서가 목록에 보이지 않습니다."
+    result = await run_agent(
+        first_message_request(actual + ". " + workflow),
+        extracted(
+            summary=summary,
+            actualBehavior=QuotedValue(messageId=MESSAGE, quote=actual),
+            currentWorkflow=QuotedValue(messageId=MESSAGE, quote=workflow),
+        ),
+    )
+    assert "승인된 문서" in result.problems[0].summary
+    assert "조회 상태" in result.problems[0].summary
+
+
 async def test_missing_information_becomes_one_question_with_the_confirmed_fact() -> None:
     result = await run_agent(first_message_request(), extracted())
 
@@ -395,7 +436,7 @@ async def test_model_receives_messages_systems_and_the_injection_rule() -> None:
     await ExtractionInquiryAgent().run(RoleRequest("inv-1", state), services)
 
     [request] = llm.requests
-    assert request.prompt_version == "inquiry-extraction-v10"
+    assert request.prompt_version == "inquiry-extraction-v11"
     assert request.response_model is InquiryExtraction
     assert "따르지 않는다" in request.messages[0].content
     assert "전자결재" in request.messages[1].content

@@ -131,7 +131,7 @@ class CaseApprovalWriter {
     }
 
     /** 검색 조각의 원문. 사례 본문 필드를 사람이 읽는 순서로 잇는다. */
-    private static String content(ObjectNode body) {
+    static String content(JsonNode body) {
         StringBuilder text = new StringBuilder();
         for (String field : new String[] {"title", "problemStatement", "action", "verification", "applicability"}) {
             text.append(body.path(field).asString()).append("\n\n");

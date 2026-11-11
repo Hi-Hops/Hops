@@ -96,6 +96,7 @@ class Supervisor:
         *,
         restrict_roles: bool = False,
         problem_actions: bool = False,
+        fast_intake_questions: bool = False,
     ) -> None:
         """역할 목록을 복사한다. 역할의 호출 순서는 실행 중 모델이 선택한다.
 
@@ -106,6 +107,7 @@ class Supervisor:
         self._restrict_roles = restrict_roles
         # 참이면 상담 실행을 문제별 행동 경로로 돈다(판정 모드). 사례 초안은 기존 경로 그대로다.
         self._problem_actions = problem_actions
+        self._fast_intake_questions = fast_intake_questions
 
     async def analyze(self, request: AiRunRequest, services: SharedServices) -> AiResult:
         """문의 분석 또는 사례 초안 실행을 최종 AiResult로 반환한다.
@@ -375,7 +377,9 @@ class Supervisor:
         with runtime.services.tracing.observe(
             "SUPERVISOR", {"pendingProblemCount": len(pending)}
         ) as span:
-            chosen = await choose_actions(state, runtime.services, options)
+            chosen = await choose_actions(
+                state, runtime.services, options, fast_intake_questions=self._fast_intake_questions
+            )
             if span is not None:
                 span.update(output={"actions": dict(chosen)})
         return dict(chosen)

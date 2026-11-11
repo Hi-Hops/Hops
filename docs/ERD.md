@@ -282,6 +282,7 @@ JWT 사용만으로 인증 테이블을 추가하지 않는다. 로그인 세션
 |  | 담당자 ID | `assignee_member_id` | UUID | ● |  | 회원 | 배정 시점의 책임 시스템 주담당자. 나중에 주담당자가 바뀌어도 기존 티켓 담당은 그대로 남음 |
 |  | 확인 요청일시 | `confirm_requested_at` | TIMESTAMPTZ |  |  |  | 담당자가 해결·구현 기록을 남기고 문의자에게 해결 확인을 요청한 시각 |
 |  | 해결일시 | `resolved_at` | TIMESTAMPTZ |  |  |  | 문의자가 해결을 확인해 최종 완료된 시각 (확인 전이면 NULL) |
+|  | 목록 보관일시 | `archived_at` | TIMESTAMPTZ |  |  |  | RESOLVED만 허용. 업무 목록·건수에서 제외하되 원 티켓 상세·승인 사례·검색 공개 조건은 유지 |
 |  | 버전 | `version` | INT | ● | 0 |  | 두 사람이 동시에 고칠 때 늦은 쪽 변경을 거절하려고. 0~2,147,483,646만 허용(CHECK)하고 외부에는 version+1을 ticketRevision으로 보냄 |
 |  | 생성일시 | `created_at` | TIMESTAMPTZ | ● | now() |  | 언제 만들어졌는지. 목록 정렬과 기간 조회에 쓰려고 |
 |  | 수정일시 | `updated_at` | TIMESTAMPTZ | ● | now() |  | 마지막으로 언제 바뀌었는지 추적하려고 |

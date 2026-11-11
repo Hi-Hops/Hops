@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,11 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.hihops.hops.knowledge.domain.ReadRule;
+import com.hihops.hops.knowledge.domain.AccessLevel;
+import com.hihops.hops.knowledge.domain.DocumentType;
+import com.hihops.hops.knowledge.service.HybridKnowledgeSearch;
+import com.hihops.hops.knowledge.service.KnowledgeQueryTokens;
+import com.hihops.hops.knowledge.service.KnowledgeSearchService.Query;
 
 /**
  * 시드 해결 사례(R__seed_dev_knowledge_cases.sql)를 실제로 적재해 정본 7절과 같은지, 이미 병합된 조회 API가 읽을 수 있는지 확인한다.
@@ -48,6 +54,7 @@ class KnowledgeCaseSeedTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private MockMvc mockMvc;
     @Autowired private KnowledgeDocumentVersionRepository versions;
+    @Autowired private HybridKnowledgeSearch hybrid;
 
     @Test
     void 담당자_추천은_양쪽_색인이_완료된_현재_승인_사례만_반환한다() throws Exception {
@@ -76,9 +83,48 @@ class KnowledgeCaseSeedTest {
         jdbc.update("UPDATE resolved_case SET vector_status='SUCCEEDED' WHERE id=?", row.get("id"));
         mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
         jdbc.update("UPDATE resolved_case SET graph_status='SUCCEEDED' WHERE id=?", row.get("id"));
+        var query = new Query(KnowledgeQueryTokens.of(title), Set.of(AccessLevel.EMPLOYEE, AccessLevel.STAFF),
+                Set.of(DocumentType.CASE), Set.of(jdbc.queryForObject(
+                        "SELECT responsible_system_id FROM ticket WHERE id=?", UUID.class, row.get("ticket_id"))),
+                UUID.fromString(EA_OWNER), 5);
+        assertThat(hybrid.searchIndexedCases(title, query)).hasSize(1);
         mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].title").value(title));
+                .andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].title").value(title))
+                .andExpect(jsonPath("$[0].recommendation.query").value(title))
+                .andExpect(jsonPath("$[0].recommendation.scoreMethod").value("WEIGHTED_RRF"))
+                .andExpect(jsonPath("$[0].recommendation.score").value(org.hamcrest.Matchers.closeTo(1.8 / 11, 0.000001), Double.class))
+                .andExpect(jsonPath("$[0].recommendation.keywordRank").value(1))
+                .andExpect(jsonPath("$[0].recommendation.semanticRank").value(1))
+                .andExpect(jsonPath("$[0].recommendation.matchedKeywords").isNotEmpty())
+                .andExpect(jsonPath("$[0].recommendation.comparisons[0].status").value("MATCHED"));
+        String semanticOnlyQuery = "qzxvbnmsemanticquery";
+        when(embedding.embed(semanticOnlyQuery)).thenReturn(vector);
+        var semanticOnly = hybrid.searchIndexedCases(semanticOnlyQuery, new Query(
+                KnowledgeQueryTokens.of(semanticOnlyQuery), query.accessLevels(), query.documentTypes(), query.systemIds(),
+                query.memberId(), query.topK()));
+        assertThat(semanticOnly).singleElement().satisfies(hit -> {
+            assertThat(hit.ranking().keywordRank()).isNull();
+            assertThat(hit.ranking().keywordScore()).isNull();
+            assertThat(hit.ranking().matchedKeywords()).isEmpty();
+            assertThat(hit.ranking().semanticRank()).isEqualTo(1);
+            assertThat(hit.score()).isCloseTo(1.0 / 11, org.assertj.core.data.Offset.offset(0.000001));
+        });
+        String oppositeVector = "[" + String.join(",", java.util.Collections.nCopies(1536, "-0.1")) + "]";
+        when(embedding.embed(title)).thenReturn(oppositeVector);
+        mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].recommendation.keywordRank").value(1))
+                .andExpect(jsonPath("$[0].recommendation.semanticRank").isEmpty())
+                .andExpect(jsonPath("$[0].recommendation.semanticSimilarity").isEmpty())
+                .andExpect(jsonPath("$[0].recommendation.score").value(org.hamcrest.Matchers.closeTo(0.8 / 11, 0.000001), Double.class))
+                .andExpect(jsonPath("$[0].recommendation.reasons.length()").value(1));
         mockMvc.perform(get(path).with(auth(REQUESTER1))).andExpect(status().isForbidden());
+        // 목록 보관은 승인 사례의 검색·출처 상세 접근을 취소하지 않는다.
+        jdbc.update("UPDATE ticket SET archived_at=now() WHERE id=?", row.get("ticket_id"));
+        assertThat(hybrid.searchIndexedCases(title, query)).hasSize(1);
+        mockMvc.perform(get(path).with(auth(EA_OWNER))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+        mockMvc.perform(get("/api/v2/cases/" + row.get("id")).with(auth(EA_OWNER)))
+                .andExpect(status().isOk());
     }
 
     @Test

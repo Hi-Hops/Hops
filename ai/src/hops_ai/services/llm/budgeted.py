@@ -1,7 +1,9 @@
 """공통 예산과 재시도를 적용한 LLM 호출. 업무 State나 특정 역할에 의존하지 않는다."""
 
 import asyncio
+import logging
 import random
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
@@ -12,6 +14,8 @@ from hops_ai.harness.errors import BudgetExceeded, OutputRejected
 from hops_ai.harness.retry import call_with_retry
 from hops_ai.services.llm.client import LLMClient, LLMRequest, LLMResponse, LLMUsage
 from hops_ai.services.llm.usage import UsageRecorder
+
+logger = logging.getLogger(__name__)
 
 
 class BudgetedLLMClient:
@@ -30,6 +34,7 @@ class BudgetedLLMClient:
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         rng: Callable[[], float] = random.random,
         ensure_active: Callable[[], None] | None = None,
+        run_id: str | None = None,
     ) -> None:
         self._inner = inner
         self._budget = budget
@@ -38,6 +43,7 @@ class BudgetedLLMClient:
         self._rng = rng
         self._check_execution = ensure_active
         self._lock = asyncio.Lock()
+        self._run_id = run_id
 
     def _ensure_active(self) -> None:
         """실행기 수명·취소 검사와 공통 예산 검사를 함께 적용한다."""
@@ -67,7 +73,16 @@ class BudgetedLLMClient:
 
             async def invoke() -> LLMResponse[T]:
                 """응답 직후 보고 사용량을 보존하고 이후 활성 검사에서 늦은 결과를 차단한다."""
-                response = await self._inner.generate(limited)
+                started = time.perf_counter()
+                try:
+                    response = await self._inner.generate(limited)
+                finally:
+                    logger.info(
+                        "모델 호출 시간 runId=%s prompt=%s durationMs=%d",
+                        self._run_id,
+                        request.prompt_version,
+                        round((time.perf_counter() - started) * 1000),
+                    )
                 if not isinstance(response, LLMResponse) or not isinstance(
                     response.usage, LLMUsage
                 ):

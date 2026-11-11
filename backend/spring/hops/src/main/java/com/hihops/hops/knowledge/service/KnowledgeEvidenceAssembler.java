@@ -3,6 +3,9 @@ package com.hihops.hops.knowledge.service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.time.Instant;
 
 import org.springframework.stereotype.Component;
 
@@ -50,8 +53,18 @@ public class KnowledgeEvidenceAssembler {
     public record CaseIndexStatus(String vector, String graph) {
     }
 
+    public record CaseProvenance(String caseNumber, UUID ticketId, String ticketNumber, Instant approvedAt) {}
+
     public record Assembled(KnowledgeEvidenceResponse evidence, String documentKey, String content, String contentDigest,
-            String digestBasis, CaseIndexStatus caseIndexStatus) {
+            String digestBasis, CaseIndexStatus caseIndexStatus, Map<String,String> approvedParts, CaseProvenance caseProvenance) {
+        public Assembled(KnowledgeEvidenceResponse evidence, String documentKey, String content, String contentDigest,
+                String digestBasis, CaseIndexStatus caseIndexStatus, Map<String,String> approvedParts) {
+            this(evidence, documentKey, content, contentDigest, digestBasis, caseIndexStatus, approvedParts, null);
+        }
+        public Assembled(KnowledgeEvidenceResponse evidence, String documentKey, String content, String contentDigest,
+                String digestBasis, CaseIndexStatus caseIndexStatus) {
+            this(evidence, documentKey, content, contentDigest, digestBasis, caseIndexStatus, Map.of());
+        }
     }
 
     /**
@@ -129,12 +142,20 @@ public class KnowledgeEvidenceAssembler {
                 .caseSnapshotDigest(mapper, caseIdText, caseVersionNode.asInt(), approvedCase).equals(version.getContentDigest())) {
             throw new IntegrityException("사례 승인 스냅샷의 digest가 저장된 값과 다릅니다");
         }
+        if (!CaseApprovalWriter.content(approvedCase).equals(version.getContent())
+                || !approvedCase.path("applicability").asString().equals(applicability)) {
+            throw new IntegrityException("사례 원문·적용 조건이 승인 스냅샷과 다릅니다");
+        }
+        Map<String,String> parts = new LinkedHashMap<>();
+        for (String field : List.of("title", "problemStatement", "action", "verification")) parts.put(field, approvedCase.path(field).asString());
         String origin = resolved.getOriginType() == CaseOrigin.PRODUCTION ? "OPERATIONAL" : resolved.getOriginType().name();
         var evidence = new KnowledgeEvidenceResponse(version.getId(), caseId, resolved.getVersionNo(), "CASE",
                 document.getTitle(), version.getContent(), systemId, resolved.getAppliedVersion(), applicability, scope, origin);
+        var sourceTicket = resolved.getSourceWorkLog().getTicket();
         return Optional.of(new Assembled(evidence, resolved.getCaseNumber(), version.getContent(), version.getContentDigest(),
                 DIGEST_APPROVED_SNAPSHOT,
-                new CaseIndexStatus(resolved.getVectorStatus().name(), resolved.getGraphStatus().name())));
+                new CaseIndexStatus(resolved.getVectorStatus().name(), resolved.getGraphStatus().name()), Map.copyOf(parts),
+                new CaseProvenance(resolved.getCaseNumber(), sourceTicket.getId(), sourceTicket.getTicketNumber(), resolved.getApprovedAt())));
     }
 
     private static String derivedApplicability(KnowledgeDocument document, String kind, String appliesTo) {

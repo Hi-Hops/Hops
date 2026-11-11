@@ -91,6 +91,69 @@ export type KnowledgeEvidence = {
   accessScope: 'EMPLOYEE' | 'SYSTEM_STAFF';
   origin: string;
 };
+export type CaseConditionComparison = {
+  key: string;
+  label: string;
+  status: 'MATCHED' | 'MISMATCHED' | 'UNKNOWN';
+  currentEvidence: string[];
+  caseEvidence: string;
+};
+export type CaseRecommendation = {
+  query: string;
+  score: number;
+  scoreMethod: 'WEIGHTED_RRF';
+  keywordRank: number | null;
+  semanticRank: number | null;
+  keywordScore: number | null;
+  semanticSimilarity: number | null;
+  matchedKeywords: string[];
+  reasons: string[];
+  comparisons: CaseConditionComparison[];
+};
+export type RecommendedCase = KnowledgeEvidence & {
+  recommendation?: CaseRecommendation | null;
+};
+export type AssistanceCaseSource = {
+  caseNumber: string;
+  ticketId: Uuid;
+  ticketNumber: string;
+  approvedAt: string;
+};
+export type AssistanceCase = {
+  evidence: RecommendedCase;
+  sourceCase?: AssistanceCaseSource | null;
+  assessment: {
+    relevance: 'HIGH' | 'MEDIUM' | 'REFERENCE' | 'CONFLICT';
+    family: string;
+    reasons: string[];
+    conditions: CaseConditionComparison[];
+    quotePairs: {
+      label: string;
+      status: CaseConditionComparison['status'];
+      messageId: Uuid;
+      currentQuote: string;
+      currentStart: number;
+      currentEnd: number;
+      sourceQuote: string;
+      sourceStart: number;
+      sourceEnd: number;
+    }[];
+    sections: { label: string; quote: string; start: number; end: number }[];
+    nextChecks: string[];
+    matched: number;
+    unknown: number;
+    mismatched: number;
+  };
+};
+export type AssistanceMaterial = AssistanceCase & { groupedCases?: AssistanceCase[] };
+export type TicketAssistance = {
+  ticketId: Uuid;
+  ticketRevision: number;
+  standardRequestId: Uuid;
+  query: string;
+  sources: RelatedMessage[];
+  materials: AssistanceMaterial[];
+};
 export type ResolutionRequest = {
   id: Uuid;
   inquiryId: Uuid;

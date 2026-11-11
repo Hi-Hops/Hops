@@ -1,6 +1,7 @@
 import { systemGet } from '@/shared/api/systemCommands';
 import {
   readRecommendedCases,
+  readTicketAssistance,
   readTickets,
   readTicket,
   readManagementTicket,
@@ -37,6 +38,16 @@ export const getSystemTicket = (id: string, signal?: AbortSignal) =>
   );
 export const getRecommendedCases = (id: string, signal?: AbortSignal) =>
   systemGet(`/tickets/${encodeURIComponent(id)}/recommended-cases`, readRecommendedCases, signal);
+export const getTicketAssistance = (id: string, signal?: AbortSignal) =>
+  systemGet(
+    `/tickets/${encodeURIComponent(id)}/assistance`,
+    (raw) => {
+      const result = readTicketAssistance(raw);
+      if (result.ticketId !== id) throw new Error('추천 대상 티켓 불일치');
+      return result;
+    },
+    signal,
+  );
 export const getManagementTicket = (id: string, signal?: AbortSignal) =>
   systemGet(
     `/management/tickets/${encodeURIComponent(id)}`,

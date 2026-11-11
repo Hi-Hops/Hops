@@ -50,6 +50,24 @@ export function combineStates(states: TargetState[]): ConnectionState {
 export class SseTransport extends TransportEvents implements RealtimeTransport {
   private token: string | null = null;
   private entries = new Map<string, Entry>();
+  private visibilityDocument: Document | null = null;
+  private visible = true;
+  private visibilityChanged = () => {
+    this.visible = this.visibilityDocument?.visibilityState !== 'hidden';
+    for (const entry of this.entries.values()) {
+      if (this.visible) {
+        if (this.token && !entry.controller && !['denied', 'disconnected'].includes(entry.state))
+          this.start(entry);
+      } else {
+        entry.controller?.abort();
+        entry.controller = null;
+        // 숨긴 동안의 이벤트는 재진입 시 REST 정본으로 복구한다. 이전 커서를 재사용하지 않는다.
+        entry.cursor = '';
+        entry.seen.clear();
+        if (!['denied', 'disconnected'].includes(entry.state)) this.update(entry, 'connecting');
+      }
+    }
+  };
   constructor(
     private connectTimeout = 5000,
     private baseDelay = 1000,
@@ -70,10 +88,27 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
   }
   connect(token: string) {
     this.token = token;
-    for (const entry of this.entries.values()) this.start(entry);
+    if (!this.visibilityDocument && typeof document !== 'undefined') {
+      this.visibilityDocument = document;
+      document.addEventListener('visibilitychange', this.visibilityChanged);
+    }
+    this.visible = this.visibilityDocument?.visibilityState !== 'hidden';
+    for (const entry of this.entries.values()) {
+      if (this.visible) this.start(entry);
+      else {
+        entry.controller?.abort();
+        entry.controller = null;
+        entry.cursor = '';
+        entry.seen.clear();
+        this.update(entry, 'connecting');
+      }
+    }
     if (!this.entries.size) this.setState('idle');
   }
   disconnect() {
+    this.visibilityDocument?.removeEventListener('visibilitychange', this.visibilityChanged);
+    this.visibilityDocument = null;
+    this.visible = true;
     this.token = null;
     for (const entry of this.entries.values()) {
       entry.controller?.abort();
@@ -100,7 +135,10 @@ export class SseTransport extends TransportEvents implements RealtimeTransport {
     entry.listeners.add(notify);
     this.entries.set(key, entry);
     notify(entry.state);
-    if (this.token && !entry.controller) this.start(entry);
+    if (this.token && !entry.controller) {
+      if (this.visible) this.start(entry);
+      else this.update(entry, 'connecting');
+    }
     return () => {
       entry.listeners.delete(notify);
       if (!entry.listeners.size) {

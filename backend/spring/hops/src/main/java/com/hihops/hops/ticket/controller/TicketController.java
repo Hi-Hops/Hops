@@ -19,7 +19,7 @@ import com.hihops.hops.ticket.dto.TicketPageResponse;
 import com.hihops.hops.ticket.service.RelatedMessageService;
 import com.hihops.hops.ticket.service.TicketService;
 import com.hihops.hops.ticket.service.TicketCaseRecommendationService;
-import com.hihops.hops.ticket.dto.StandardRequestResponse.KnowledgeEvidenceResponse;
+import com.hihops.hops.ticket.dto.RecommendedCaseResponse;
 
 import jakarta.validation.Valid;
 
@@ -44,8 +44,13 @@ public class TicketController {
     }
 
     @GetMapping("/{ticketId}/recommended-cases")
-    public List<KnowledgeEvidenceResponse> recommendedCases(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID ticketId) {
+    public List<RecommendedCaseResponse> recommendedCases(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID ticketId) {
         return recommendations.recommend(jwt, ticketId);
+    }
+
+    @GetMapping("/{ticketId}/assistance")
+    public com.hihops.hops.ticket.dto.TicketAssistanceResponse assistance(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID ticketId) {
+        return recommendations.assistance(jwt, ticketId);
     }
 
     @GetMapping("/{ticketId}/related-messages")

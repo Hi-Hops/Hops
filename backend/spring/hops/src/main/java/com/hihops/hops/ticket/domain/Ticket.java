@@ -79,6 +79,10 @@ public class Ticket extends BaseEntity {
     @Column(name = "resolved_at")
     private Instant resolvedAt;
 
+    /** 완료 티켓을 업무 목록에서만 보관한다. 사례의 원 티켓 상세·검색 공개 조건은 유지한다. */
+    @Column(name = "archived_at")
+    private Instant archivedAt;
+
     @Version
     @Column(nullable = false)
     private int version;

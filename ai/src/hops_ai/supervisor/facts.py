@@ -15,6 +15,8 @@
   이미 안내한 문서가 자리를 차지했을 수 있으면(`crowdedOut`) 다른 근거가 없다고 단정하지 않는다.
 """
 
+import re
+
 from hops_ai.agents.inquiry.asking import answerable, form_question_plan, question_plan
 from hops_ai.agents.inquiry.forms import FIELD_LABELS, SYSTEM
 from hops_ai.agents.knowledge.agent import next_query, research_used
@@ -22,7 +24,7 @@ from hops_ai.contracts.roles import KnowledgeResult
 from hops_ai.contracts.types import QUESTION_LIMIT
 from hops_ai.rules.intent_policy import policy_for, search_kinds
 from hops_ai.rules.legal_actions import RESEARCH_LIMIT, ProblemFacts
-from hops_ai.rules.progress import get_problem_progress
+from hops_ai.rules.progress import get_problem_message_ids, get_problem_progress
 from hops_ai.rules.resolution import is_unresolved
 from hops_ai.supervisor.state import SupervisorState
 
@@ -44,6 +46,24 @@ def _latest_knowledge(state: SupervisorState, ref: str) -> KnowledgeResult | Non
 def _latest_search_state(state: SupervisorState, ref: str) -> str | None:
     latest = _latest_knowledge(state, ref)
     return latest.search.state if latest is not None else None
+
+
+def _explicit_staff_request(state: SupervisorState, ref: str) -> bool:
+    # 복수 문제에 걸친 요청의 대상을 추측하지 않는다. 현재 문제의 가장 최근 USER 원문만 읽는다.
+    if len(state["problems"]) != 1 or state["problems"][ref].intent != "OBSERVED_SYMPTOM":
+        return False
+    allowed = get_problem_message_ids(state, ref)
+    messages = [m for m in state["input"].messages if m.sender == "USER" and m.id in allowed]
+    if not messages:
+        return False
+    return any(
+        re.fullmatch(
+            r"담당자(?:에게|한테)?\s*(?:확인|검토|조사|처리|연결)(?:을|를)?\s*"
+            r"(?:요청합니다|요청해요|부탁합니다|부탁드립니다|부탁드려요|해\s*주세요)[.!。]?",
+            sentence.strip(),
+        )
+        for sentence in re.split(r"(?<=[.!?。])\s*|\n", messages[-1].content)
+    )
 
 
 def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
@@ -85,4 +105,5 @@ def problem_facts(state: SupervisorState, ref: str) -> ProblemFacts:
             and not crowded
             and not answerable(state, ref)
         ),
+        requested_staff_review=_explicit_staff_request(state, ref),
     )
