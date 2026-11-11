@@ -58,6 +58,17 @@ function renderTickets(path: string) {
   return router;
 }
 
+function readyDraftFill(view: Pick<typeof screen, 'getByRole'>) {
+  return waitFor(
+    () => {
+      const button = view.getByRole('button', { name: 'AI 초안으로 채우기' });
+      expect(button).toBeEnabled();
+      return button;
+    },
+    { timeout: 7000 },
+  );
+}
+
 describe('F009 티켓 상세 모달', () => {
   it('가려진 목록 구독을 쉬고 사례 검토는 한 대상 연결을 공유한 뒤 목록으로 복귀한다', async () => {
     vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
@@ -82,7 +93,7 @@ describe('F009 티켓 상세 모달', () => {
     renderTickets(`/tickets/${ticket.id}?tab=case`);
     const user = userEvent.setup();
     const view = within(await screen.findByRole('dialog'));
-    await user.click(await view.findByRole('button', { name: '사례 초안 확인' }));
+    await user.click(await readyDraftFill(view));
     await view.findByRole('textbox', { name: '적용 조건' });
     expect([...active.keys()]).toHaveLength(1);
     expect([...active.keys()][0]).toMatch(/^CASE:/u);
@@ -202,7 +213,7 @@ describe('F009 티켓 상세 모달', () => {
       await within(dialog).findByRole('textbox', { name: '처리 내용' }),
       '접근 설정을 점검했어요.',
     );
-    await user.click(within(dialog).getByRole('button', { name: '문의 처리 기록 저장' }));
+    await user.click(within(dialog).getByRole('button', { name: '진행 기록 저장' }));
     expect(
       await within(dialog).findByText('접근 설정을 점검했어요.', { selector: 'p' }),
     ).toBeVisible();
@@ -222,23 +233,36 @@ describe('F009 티켓 상세 모달', () => {
     expect(view.queryByRole('textbox', { name: /동작 확인 결과/ })).not.toBeInTheDocument();
     expect(view.queryByRole('textbox', { name: /확인된 원인/ })).not.toBeInTheDocument();
 
-    await user.selectOptions(view.getByRole('combobox', { name: '기록 유형' }), '처리 완료');
+    expect(view.getByRole('radio', { name: '진행 기록' })).toBeChecked();
+    await user.click(view.getByRole('radio', { name: '처리 완료' }));
+    expect(view.getByRole('button', { name: '저장하고 해결 확인 요청' })).toBeDisabled();
+    expect(view.queryByRole('radio', { name: '구현 완료' })).not.toBeInTheDocument();
     await user.type(view.getByRole('textbox', { name: '동작 확인 결과 (필수)' }), '정상 열람 확인');
+    await user.click(view.getByText('추가 정보'));
     await user.type(view.getByRole('textbox', { name: '확인된 원인 (선택)' }), '경로 설정 누락');
-    const preview = within(view.getByRole('region', { name: '저장 전 미리보기' }));
+    const summary = view.getByText('저장 전 미리보기');
+    const disclosure = summary.closest('details');
+    if (!disclosure) throw new Error('미리보기 접기 영역 필요');
+    expect(disclosure).not.toHaveAttribute('open');
+    await user.click(summary);
+    const preview = within(disclosure);
     expect(preview.getAllByText('저장 경로를 복구')).toHaveLength(2);
     expect(preview.getByText('정상 열람 확인')).toBeVisible();
     expect(preview.getByText('경로 설정 누락')).toBeVisible();
     expect(preview.getByText('미확인')).toBeVisible();
 
-    await user.selectOptions(view.getByRole('combobox', { name: '기록 유형' }), '진행 기록');
-    expect(view.queryByRole('region', { name: '저장 전 미리보기' })).not.toBeInTheDocument();
-    await user.click(view.getByRole('button', { name: '문의 처리 기록 저장' }));
+    await user.click(view.getByRole('radio', { name: '실패한 시도' }));
+    expect(view.getByRole('button', { name: '시도 기록 저장' })).toBeEnabled();
+    await user.click(view.getByRole('radio', { name: '진행 기록' }));
+    expect(view.queryByText('저장 전 미리보기')).not.toBeInTheDocument();
+    expect(view.getByText('저장하면 문의자에게 ‘처리 중’으로 표시돼요.')).toBeVisible();
+    await user.click(view.getByRole('button', { name: '진행 기록 저장' }));
     await waitFor(() => expect(view.getByRole('textbox', { name: '처리 내용' })).toHaveValue(''));
     const saved = await view.findByText('저장 경로를 복구', { selector: 'p' });
     expect(saved.closest('article')).toHaveTextContent('진행 기록');
     expect(saved.closest('article')).not.toHaveTextContent('경로 설정 누락');
     expect(saved.closest('article')).not.toHaveTextContent('정상 열람 확인');
+    expect((await systemGet(`/tickets/${ticket.id}`, readTicket)).state).toBe('IN_PROGRESS');
   });
 
   it('F009-CONTRACT-08 문의 요약과 자료 유형·조건 차이를 보여주고 원문은 열 때 조회한다', async () => {
@@ -372,6 +396,40 @@ describe('F009 티켓 상세 모달', () => {
     expect(view.getByRole('textbox', { name: '처리 내용' })).toBeVisible();
   });
 
+  it('F009/F011 완료 기록을 저장하면 입력을 닫고 백그라운드 초안을 준비한다', async () => {
+    const ticket = await firstTicket();
+    renderTickets(`/tickets/${ticket.id}?tab=case`);
+    const user = userEvent.setup();
+    const view = within(await screen.findByRole('dialog'));
+    const blank = await view.findByRole('textbox', { name: '사례 제목' });
+    expect(blank).toHaveValue('');
+    expect(blank).toBeDisabled();
+    expect(view.getByRole('button', { name: 'AI 초안으로 채우기' })).toBeDisabled();
+
+    await user.click(view.getByRole('link', { name: '문의 처리 기록' }));
+    await user.click(await view.findByRole('radio', { name: '처리 완료' }));
+    await user.type(
+      view.getByRole('textbox', { name: '처리 내용' }),
+      '첨부 접근 정책을 복구했어요.',
+    );
+    await user.type(
+      view.getByRole('textbox', { name: '동작 확인 결과 (필수)' }),
+      '같은 첨부가 열렸어요.',
+    );
+    await user.click(view.getByRole('button', { name: '저장하고 해결 확인 요청' }));
+    expect(await view.findByText('문의자 응답 대기')).toBeVisible();
+    expect(view.queryByRole('radio', { name: '진행 기록' })).not.toBeInTheDocument();
+
+    await user.click(view.getByRole('link', { name: '해결 사례' }));
+    const fill = await readyDraftFill(view);
+    const action = view.getByRole('textbox', { name: '조치 내용' });
+    expect(action).toHaveValue('');
+    await user.click(fill);
+    expect(action).toHaveValue('첨부 접근 정책을 복구했어요.');
+    expect(fill).toBeDisabled();
+    expect(view.getByRole('button', { name: '확인한 버전 승인' })).toBeDisabled();
+  }, 12_000);
+
   it('F011-AC02 해결 사례 탭에서 같은 모달 안의 초안을 수정하고 승인한다', async () => {
     vi.stubEnv('VITE_MOCK_EXAMPLES', 'true');
     systemMockBackend.reset();
@@ -387,19 +445,24 @@ describe('F009 티켓 상세 모달', () => {
     expect(view.queryByRole('region', { name: '해결 사례 초안' })).not.toBeInTheDocument();
 
     await user.click(view.getByRole('link', { name: '해결 사례' }));
-    await user.click(await view.findByRole('button', { name: '사례 초안 확인' }));
-    const applicability = await view.findByRole('textbox', { name: '적용 조건' });
+    const fill = await readyDraftFill(view);
+    const applicability = view.getByRole('textbox', { name: '적용 조건' });
+    const title = view.getByRole('textbox', { name: '사례 제목' });
+    expect(title).toHaveValue('');
+    expect(applicability).toHaveValue('');
     expect(screen.getByRole('dialog')).toBe(dialog);
     expect(router.state.location.pathname).toBe(`/tickets/${ticket.id}`);
     expect(router.state.location.search).toBe('?tab=case');
 
     const updatedCondition = '전자결재에서 동일한 첨부파일 접근 오류가 발생한 경우';
-    await user.clear(applicability);
     await user.type(applicability, updatedCondition);
-    await user.click(view.getByRole('button', { name: '사례 검토 접기', expanded: true }));
-    expect(view.queryByRole('textbox', { name: '적용 조건' })).not.toBeInTheDocument();
-    await user.click(view.getByRole('button', { name: '사례 초안 확인', expanded: false }));
+    await user.click(fill);
+    expect(title).not.toHaveValue('');
+    expect(applicability).toHaveValue(updatedCondition);
+    await user.click(view.getByRole('link', { name: '문의 처리 기록' }));
+    await user.click(view.getByRole('link', { name: '해결 사례' }));
     expect(await view.findByRole('textbox', { name: '적용 조건' })).toHaveValue(updatedCondition);
+    expect(view.getByRole('textbox', { name: '사례 제목' })).not.toHaveValue('');
 
     const sidebar = within(view.getByRole('complementary', { name: '티켓 정보와 사례 검토' }));
     const approvalHeading = sidebar.getByRole('heading', { name: '승인 전 확인' });
@@ -431,9 +494,11 @@ describe('F009 티켓 상세 모달', () => {
     renderTickets(`/tickets/${ticket.id}?tab=case`);
     const user = userEvent.setup();
     const view = within(await screen.findByRole('dialog'));
-    await user.click(await view.findByRole('button', { name: '사례 초안 확인' }));
+    await user.click(await readyDraftFill(view));
     const sidebar = within(view.getByRole('complementary', { name: '티켓 정보와 사례 검토' }));
     await sidebar.findByText('문의자 해결 확인됨');
+    expect(sidebar.getByRole('button', { name: '초안 수정 저장' })).toBeDisabled();
+
     systemMockBackend.failNextIndex('NEO4J');
     await user.click(sidebar.getByRole('checkbox'));
     await user.click(sidebar.getByRole('button', { name: '확인한 버전 승인' }));

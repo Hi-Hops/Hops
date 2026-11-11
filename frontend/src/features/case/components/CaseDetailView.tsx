@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/features/auth';
@@ -8,7 +9,18 @@ import { ErrorState } from '@/shared/ui/ErrorState';
 import { LoadingState } from '@/shared/ui/LoadingState';
 import { caseKeys, getCase } from '../api/caseApi';
 import { CaseEditor } from './CaseEditor';
+import { CaseDraftFields, CaseDraftHeader } from './CaseDraftFields';
 import styles from './Cases.module.css';
+
+export function CaseDraftPlaceholder({ status }: { status?: ReactNode }) {
+  return (
+    <div className={styles.editor}>
+      <CaseDraftHeader />
+      {status}
+      <CaseDraftFields disabled />
+    </div>
+  );
+}
 
 type CaseDetailViewProps = { id: string; reviewTarget?: HTMLElement };
 export function CaseDetailView({ id, reviewTarget }: CaseDetailViewProps) {
@@ -29,21 +41,18 @@ export function CaseDetailView({ id, reviewTarget }: CaseDetailViewProps) {
     !subscription.denied &&
     !['connecting', 'disconnected'].includes(subscription.state);
   const Container = embedded ? 'section' : 'main';
-  const Heading = embedded ? 'h3' : 'h1';
   return (
     <Container className={embedded ? styles.embedded : styles.page}>
-      <header className={styles.pageHead}>
-        <div>
-          <Heading id={embedded ? undefined : 'page-title'} tabIndex={embedded ? undefined : -1}>
-            {query.isSuccess && visible ? query.data.version.title : '해결 사례 검토'}
-          </Heading>
-          {query.isSuccess && visible && (
-            <p>
-              {'사례 문서 v' + String(query.data.version.caseVersion) + ' · 원 문의 처리 기록 기반'}
-            </p>
-          )}
-        </div>
-        {!embedded && (
+      {!embedded && (
+        <header className={styles.pageHead}>
+          <div>
+            <h1 id="page-title" tabIndex={-1}>
+              {query.isSuccess && visible ? query.data.version.title : '해결 사례 검토'}
+            </h1>
+            {query.isSuccess && visible && (
+              <p>사례 문서 v{query.data.version.caseVersion} · 원 문의 처리 기록 기반</p>
+            )}
+          </div>
           <div className={styles.actions}>
             <Link
               className={styles.linkButton}
@@ -62,8 +71,8 @@ export function CaseDetailView({ id, reviewTarget }: CaseDetailViewProps) {
               </Link>
             )}
           </div>
-        )}
-      </header>
+        </header>
+      )}
       {!allowed || !permitted ? (
         <ErrorState title="이 사례를 검토할 권한이 없어요" />
       ) : query.isError && query.error instanceof ApiError && query.error.status === 404 ? (
@@ -78,9 +87,19 @@ export function CaseDetailView({ id, reviewTarget }: CaseDetailViewProps) {
       ) : subscription.denied || (query.error instanceof ApiError && query.error.status === 403) ? (
         <ErrorState title="이 사례를 검토할 권한이 없어요" />
       ) : ['connecting', 'disconnected'].includes(subscription.state) ? (
-        <LoadingState label="현재 사례 접근 권한을 다시 확인하고 있어요" />
+        embedded ? (
+          <CaseDraftPlaceholder
+            status={<LoadingState label="현재 사례 접근 권한을 다시 확인하고 있어요" />}
+          />
+        ) : (
+          <LoadingState label="현재 사례 접근 권한을 다시 확인하고 있어요" />
+        )
       ) : query.isPending ? (
-        <LoadingState />
+        embedded ? (
+          <CaseDraftPlaceholder status={<LoadingState label="AI 초안을 불러오고 있어요" />} />
+        ) : (
+          <LoadingState />
+        )
       ) : query.isError ? (
         <ErrorState
           title="사례를 불러오지 못했어요"

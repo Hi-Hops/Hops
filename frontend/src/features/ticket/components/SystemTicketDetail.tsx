@@ -77,16 +77,18 @@ function KnowledgeItem({ item, ticket }: KnowledgeItemProps) {
 function RequestReference({ ticket }: RequestContentProps) {
   const [open, setOpen] = useState(false);
   return (
-    <details
-      className={workflow.reference}
-      open={open}
-      onToggle={(event) => {
-        setOpen(event.currentTarget.open);
-      }}
-    >
-      <summary>요청 내역 참고</summary>
-      {open && <RequestContent ticket={ticket} />}
-    </details>
+    <section className={workflow.reference}>
+      <p className={workflow.referenceLead}>{ticket.standardRequest.summary}</p>
+      <details
+        open={open}
+        onToggle={(event) => {
+          setOpen(event.currentTarget.open);
+        }}
+      >
+        <summary>요청 내역 참고</summary>
+        {open && <RequestContent ticket={ticket} />}
+      </details>
+    </section>
   );
 }
 function RequestValue({ value }: { value: string }) {
@@ -300,7 +302,11 @@ type SystemTicketDetailProps = {
   id: string;
   onClose: () => void;
   returnFocusId?: string;
-  renderCaseReview: (caseId: string, reviewTarget: HTMLElement) => ReactNode;
+  renderCaseReview: (
+    caseId: string | null,
+    reviewTarget: HTMLElement,
+    generationStatus?: ReactNode,
+  ) => ReactNode;
 };
 export function SystemTicketDetail({
   id,
@@ -424,6 +430,21 @@ export function SystemTicketDetail({
                 <>
                   <RequestReference ticket={data} />
                   <WorkRecordEditor ticket={data} />
+                  {data.activeResolutionRequest && (
+                    <section className={styles.requestCard}>
+                      <h3>문의자 해결 확인</h3>
+                      <p>{data.activeResolutionRequest.resultSummary}</p>
+                      <p>
+                        {data.activeResolutionRequest.state === 'PENDING'
+                          ? '문의자 응답 대기'
+                          : data.activeResolutionRequest.state === 'RESOLVED'
+                            ? '문의자가 해결을 확인했어요.'
+                            : data.activeResolutionRequest.state === 'UNRESOLVED'
+                              ? '미해결 응답으로 같은 티켓의 처리를 이어가요.'
+                              : '상태 확인 필요'}
+                      </p>
+                    </section>
+                  )}
                   <section className={styles.requestCard}>
                     <h3>문의 처리 기록 이력</h3>
                     {data.workRecords.length ? (
@@ -454,21 +475,6 @@ export function SystemTicketDetail({
                       <p>아직 저장된 문의 처리 기록이 없어요.</p>
                     )}
                   </section>
-                  {data.activeResolutionRequest && (
-                    <section className={styles.requestCard}>
-                      <h3>문의자 해결 확인</h3>
-                      <p>{data.activeResolutionRequest.resultSummary}</p>
-                      <p>
-                        {data.activeResolutionRequest.state === 'PENDING'
-                          ? '문의자 응답 대기'
-                          : data.activeResolutionRequest.state === 'RESOLVED'
-                            ? '문의자가 해결을 확인했어요.'
-                            : data.activeResolutionRequest.state === 'UNRESOLVED'
-                              ? '미해결 응답으로 같은 티켓의 처리를 이어가요.'
-                              : '상태 확인 필요'}
-                      </p>
-                    </section>
-                  )}
                 </>
               ) : hasRequest(data) && !admin && tab === 'case' ? (
                 <CaseGenerationPanel
