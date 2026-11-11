@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { CancelledError, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useSession } from '@/features/auth';
 import { realtime } from '@/shared/realtime';
@@ -23,28 +23,34 @@ export function RealtimeBoundary({ children }: { children: ReactNode }) {
       queue.flight ??= (async () => {
         do {
           queue.dirty = false;
-          await client.invalidateQueries(
-            {
-              predicate: (query) => {
-                const parts = query.queryKey;
-                if (parts[0] === 'hops-system-1') {
-                  if (target.type === 'INQUIRY')
-                    return parts[1] === 'chat' && parts[3] === target.id;
-                  return [
-                    'tickets',
-                    'related',
-                    'cases',
-                    'generation',
-                    'resolution',
-                    'case-source',
-                  ].includes(String(parts[1]));
-                }
-                if (target.type === 'INQUIRY') return parts[0] === 'inquiries';
-                return false;
+          try {
+            await client.invalidateQueries(
+              {
+                predicate: (query) => {
+                  const parts = query.queryKey;
+                  if (parts[0] === 'hops-system-1') {
+                    if (target.type === 'INQUIRY')
+                      return parts[1] === 'chat' && parts[3] === target.id;
+                    return [
+                      'tickets',
+                      'related',
+                      'cases',
+                      'generation',
+                      'resolution',
+                      'case-source',
+                    ].includes(String(parts[1]));
+                  }
+                  if (target.type === 'INQUIRY') return parts[0] === 'inquiries';
+                  return false;
+                },
               },
-            },
-            { throwOnError: true, cancelRefetch: false },
-          );
+              { throwOnError: true, cancelRefetch: false },
+            );
+          } catch (error) {
+            // 탭의 구독 대상이 바뀌면 언마운트된 화면의 조회가 취소된다. 남은 활성 조회를 다시 확인한다.
+            if (!(error instanceof CancelledError)) throw error;
+            queue.dirty = true;
+          }
         } while (needsAnother());
       })().finally(() => {
         queue.flight = null;
