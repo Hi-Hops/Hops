@@ -1,0 +1,41 @@
+{
+  "scenarioId": "S-ea-status-meaning-howto-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL"
+      ],
+      "requiredFields": [
+        "taskOrScreen"
+      ],
+      "mustNotAskFields": [
+        "occurredAt",
+        "actualBehavior",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-ea-approval-status@1"
+      ],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B2"
+  ]
+}

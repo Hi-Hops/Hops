@@ -1,0 +1,42 @@
+{
+  "scenarioId": "S-file-share-external-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "taskOrScreen"
+      ],
+      "mustNotAskFields": [
+        "occurredAt",
+        "actualBehavior",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE",
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT",
+          "PARTIAL"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-file-share-link@1",
+        "policy-file-share-scope@1"
+      ],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": []
+}

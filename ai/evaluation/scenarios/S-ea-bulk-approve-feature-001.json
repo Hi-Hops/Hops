@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-ea-bulk-approve-feature-001",
+  "caseFamily": "ea-bulk-approve-feature",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "결재함에 쌓인 문서를 한 번에 여러 건 승인하는 기능을 만들어 주세요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "currentWorkflow": "지금은 결재함에서 문서를 하나씩 열어 승인하고 있어요.",
+    "desiredChange": "여러 문서를 골라 한 번에 승인하는 버튼이 있으면 좋겠어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

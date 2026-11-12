@@ -1,0 +1,27 @@
+{
+  "scenarioId": "S-ambiguous-save-error-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "UNKNOWN",
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": null,
+      "responsibleSystemCodes": [],
+      "requiredFields": [
+        "system"
+      ],
+      "mustNotAskFields": [],
+      "allowedFinalActions": [
+        "AWAIT_SYSTEM"
+      ],
+      "assessment": null,
+      "relevantEvidence": [],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B1"
+  ]
+}

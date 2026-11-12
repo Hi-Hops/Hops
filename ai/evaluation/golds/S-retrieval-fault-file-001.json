@@ -1,0 +1,33 @@
+{
+  "scenarioId": "S-retrieval-fault-file-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "taskOrScreen"
+      ],
+      "mustNotAskFields": [
+        "occurredAt",
+        "actualBehavior",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET",
+        "FAIL_RETRYABLE"
+      ],
+      "assessment": null,
+      "relevantEvidence": [],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": []
+}

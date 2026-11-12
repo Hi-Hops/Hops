@@ -1,0 +1,25 @@
+{
+  "scenarioId": "S-file-login-loop-cookie-001",
+  "caseFamily": "file-login-loop-cookie",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에 들어가려고 로그인하면 다시 로그인 화면이 떠요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "taskOrScreen": "파일 공유에 들어가려고 사내 포털에 로그인했어요.",
+    "expectedBehavior": "로그인하면 공유 폴더 화면이 떠야 해요.",
+    "actualBehavior": "로그인 화면이 계속 다시 나와요.",
+    "occurredAt": "오늘 아침부터요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-login-browser-cookie": "네, 보안 설정으로 쿠키를 차단해 뒀어요.",
+    "check-login-browser-other": "다른 브라우저에서는 아직 안 해 봤어요.",
+    "check-login-device-time": "컴퓨터 시간은 맞게 되어 있어요."
+  }
+}
