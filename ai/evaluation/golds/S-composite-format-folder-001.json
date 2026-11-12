@@ -1,0 +1,81 @@
+{
+  "scenarioId": "S-composite-format-folder-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL"
+      ],
+      "requiredFields": [
+        "taskOrScreen"
+      ],
+      "mustNotAskFields": [
+        "occurredAt",
+        "actualBehavior",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-ea-attachment-open@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-ea-attachment-open-failure@1"
+      ]
+    },
+    {
+      "problemKey": "p2",
+      "acceptedIntents": [
+        "ACCESS_REQUEST"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "requestedAccess",
+        "businessPurpose"
+      ],
+      "mustNotAskFields": [
+        "taskOrScreen",
+        "currentWorkflow",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE",
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT",
+          "PARTIAL"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "policy-file-share-scope@1"
+      ],
+      "forbiddenEvidence": []
+    }
+  ],
+  "behaviorProperties": [
+    "B4",
+    "B5"
+  ]
+}

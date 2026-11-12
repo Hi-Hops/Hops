@@ -1,0 +1,14 @@
+{
+  "scenarioId": "S-out-of-scope-printer-001",
+  "caseFamily": "out-of-scope-printer",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "3층 회의실 프린터가 종이 걸림으로 멈췄어요.",
+  "userKnowledge": {},
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "S-ea-draft-not-listed-001",
+  "caseFamily": "ea-draft-not-listed",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "어제 작성한 결재 문서가 문서함 전체 문서에 안 보여요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "문서함 > 전체 문서에서 어제 작성한 문서를 찾으려고 했어요.",
+    "expectedBehavior": "어제 작성한 문서가 목록에 보여야 해요.",
+    "actualBehavior": "조회해도 그 문서가 안 나와요.",
+    "occurredAt": "오늘 아침에 처음 확인했어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-submit-state": "상신은 안 했고 임시 저장만 눌러 뒀어요.",
+    "check-ea-search-period": "기간은 기본값 그대로예요.",
+    "check-ea-filter-condition": "상태나 키워드는 입력하지 않았어요.",
+    "check-ea-participation": "제가 직접 작성한 문서예요.",
+    "check-ea-draft-date": "어제 작성했어요."
+  }
+}

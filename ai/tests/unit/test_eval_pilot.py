@@ -151,7 +151,7 @@ def test_select_scenarios_picks_the_dev_split_and_refuses_test_without_a_flag() 
     assert len(dev) == 13 and {item.split for item in dev} == {"DEV"}
     with pytest.raises(SystemExit, match="TEST"):
         select_scenarios([], "TEST", allow_test=False)
-    assert len(select_scenarios([], "TEST", allow_test=True)) == 8
+    assert len(select_scenarios([], "TEST", allow_test=True)) == 26
     with pytest.raises(SystemExit):
         select_scenarios(["ea-search-period"], "DEV", allow_test=False)
     with pytest.raises(SystemExit):
