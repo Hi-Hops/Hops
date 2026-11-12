@@ -23,12 +23,14 @@
         "desiredChange"
       ],
       "allowedFinalActions": [
-        "PROPOSE_TICKET"
+        "PROPOSE_TICKET",
+        "ANSWER_GUIDE"
       ],
       "assessment": {
         "acceptedVerdicts": [
           "PARTIAL",
-          "INSUFFICIENT"
+          "INSUFFICIENT",
+          "SUFFICIENT"
         ],
         "missingInformation": []
       },

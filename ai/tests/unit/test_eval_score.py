@@ -355,3 +355,38 @@ def test_an_earlier_guide_does_not_pass_what_happens_after_an_unresolved_reply()
     assert (crashed["taskOk"], crashed["rows"][0]["action"]) == (False, "FAILED")
     assert (answered["taskOk"], answered["rows"][0]["action"]) == (True, "ANSWER_GUIDE")
     assert summarize([failed, asked, cut_off, crashed])["tokensPerSuccess"] is None
+
+
+def test_question_and_ending_counts_show_what_asking_more_bought() -> None:
+    asked = turn(
+        problems=[problem("new:1", "OBSERVED_SYMPTOM", "sys-ea")],
+        roles=["INQUIRY", "KNOWLEDGE", "INQUIRY"],
+        ref_map=[["new:1", "p-1"]],
+        user_reply="임시 저장만 해 둔 문서예요.",
+    )
+    asked["result"]["questions"] = [
+        {"problemRef": "new:1", "requestedFields": ["occurredAt", "check-ea-submit-state"]}
+    ]
+    guided = turn(
+        problems=[problem("p-1", "OBSERVED_SYMPTOM", "sys-ea")],
+        guide="p-1",
+        roles=["INQUIRY", "KNOWLEDGE"],
+    )
+    gold = {
+        "problems": [
+            gold_problem(
+                "p1",
+                ["OBSERVED_SYMPTOM"],
+                "ELECTRONIC_APPROVAL",
+                ["PROPOSE_TICKET", "ANSWER_GUIDE"],
+            )
+        ]
+    }
+
+    scored = score_trace(trace(asked, guided), gold)
+    summary = summarize([scored])
+
+    assert (scored["questionBundles"], scored["checkItemsAsked"]) == (1, 1)
+    assert (summary["questionBundles"], summary["checkItemsAsked"]) == (1, 1)
+    assert (summary["guideEndings"], summary["ticketEndings"]) == (1, 0)
+    assert summary["taskSuccess"] == [1, 1]
