@@ -229,6 +229,10 @@ def score_trace(
         "goldProblems": len(golds),
         "pathOk": all(path_checks),
         "rows": rows,
+        # 실제로 만든 모든 문제의 종결. 정답보다 문제를 더 만들면 rows(정답과 짝지은 것)에서
+        # 빠지는 문제가 생기므로 따로 센다.
+        "guideEndings": sum(p["action"] == "ANSWER_GUIDE" for p in state["problems"]),
+        "ticketEndings": sum(p["action"] == "PROPOSE_TICKET" for p in state["problems"]),
         **{
             key: state[key]
             for key in (
@@ -294,8 +298,8 @@ def summarize(scored: list[dict[str, Any]]) -> dict[str, Any]:
         # 관계 보강처럼 질문을 늘리는 변경의 득실을 보려는 값: 얼마나 물었고 어떻게 끝났는가.
         "questionBundles": sum(item["questionBundles"] for item in scored),
         "checkItemsAsked": sum(item["checkItemsAsked"] for item in scored),
-        "guideEndings": sum(row["action"] == "ANSWER_GUIDE" for row in rows),
-        "ticketEndings": sum(row["action"] == "PROPOSE_TICKET" for row in rows),
+        "guideEndings": sum(item["guideEndings"] for item in scored),
+        "ticketEndings": sum(item["ticketEndings"] for item in scored),
         "modelCalls": sum(item["modelCalls"] for item in scored),
         "seconds": round(sum(item["seconds"] for item in scored), 1),
         "inputTokens": sum(item["inputTokens"] for item in scored),
