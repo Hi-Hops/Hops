@@ -81,7 +81,7 @@ async def test_fast_intake_preserves_how_to_search_instead_of_forcing_questions(
         request, services_for(request, llm)
     )
     assert result.status == "SUCCEEDED" and result.guide is not None and not result.questions
-    assert "knowledge.assessment.v5" in prompt_versions(llm)
+    assert "knowledge.assessment.v6" in prompt_versions(llm)
 
 
 # --- 선택지가 하나이면 모델을 부르지 않는다 ---
@@ -96,7 +96,7 @@ async def test_an_answerable_how_to_ends_with_the_guide_and_no_selection_call() 
 
     assert result.status == "SUCCEEDED"
     assert result.guide is not None and result.questions == [] and result.ticketProposals == []
-    assert prompt_versions(llm) == ["inquiry-extraction-v11", "knowledge.assessment.v5"]
+    assert prompt_versions(llm) == ["inquiry-extraction-v11", "knowledge.assessment.v6"]
 
 
 async def test_reported_system_correction_searches_before_asking_in_the_new_scope() -> None:
@@ -240,7 +240,7 @@ async def test_the_model_picks_between_the_legal_actions_at_each_fork() -> None:
     assert prompt_versions(llm) == [
         "inquiry-extraction-v11",
         "supervisor.selection.v1",
-        "knowledge.assessment.v5",
+        "knowledge.assessment.v6",
         "supervisor.selection.v1",
     ]
     schema = llm.requests[1].response_schema["properties"]["decisions"]["properties"]

@@ -72,6 +72,7 @@ def draft(**changes) -> AssessmentDraft:
         verdict="SUFFICIENT",
         supportingEvidenceIds=[GUIDE.id],
         answeredCheckItems=[],
+        askedChecksAnswered=[],
         missingInformation=[],
         candidateCauses=[],
         nextChecks=[],
@@ -495,7 +496,7 @@ def test_the_assessment_prompt_states_general_sufficiency_principles_without_dat
     from evaluation.harness.catalog import SYSTEMS
     from hops_ai.agents.knowledge.assessment import PROMPT_VERSION, SYSTEM_PROMPT
 
-    assert PROMPT_VERSION == "knowledge.assessment.v5"
+    assert PROMPT_VERSION == "knowledge.assessment.v6"
     assert "증상이나 오류" in SYSTEM_PROMPT and "범위의 한계" in SYSTEM_PROMPT
     assert "CHECK_ITEM" in SYSTEM_PROMPT and "checkItems" in SYSTEM_PROMPT
     # 특정 시스템·문서·시나리오에 맞춘 문구를 넣지 않는다. 판정 규칙은 문제의 종류로만 구분한다.

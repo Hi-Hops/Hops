@@ -129,7 +129,7 @@ async def test_the_relations_are_looked_up_before_the_assessment_and_reach_its_i
     payload = json.loads(request.messages[1].content)
     assert [item["id"] for item in payload["checkItems"]] == ["check-a", "check-b"]
     assert payload["checkItems"][0]["ask"] == "조회 기간을 어떻게 설정하셨나요?"
-    assert request.prompt_version == "knowledge.assessment.v5"
+    assert request.prompt_version == "knowledge.assessment.v6"
 
 
 async def test_a_check_item_from_the_lookup_is_kept_in_the_assessment() -> None:

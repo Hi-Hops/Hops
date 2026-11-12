@@ -34,7 +34,7 @@ def request(prompt_version: str) -> LLMRequest:
 @pytest.mark.parametrize(
     ("version", "family"),
     [
-        ("knowledge.assessment.v5", "knowledge.assessment"),
+        ("knowledge.assessment.v6", "knowledge.assessment"),
         ("curator-draft-v4", "curator-draft"),
         ("supervisor.decision.v10", "supervisor.decision"),
         ("knowledge.guide-excerpt.v1", "knowledge.guide-excerpt"),
@@ -60,7 +60,7 @@ def test_every_prompt_the_runtime_sends_belongs_to_a_known_family() -> None:
 def test_a_family_without_an_assignment_uses_the_default_model() -> None:
     roles = {"knowledge.assessment": "big"}
 
-    assert model_for("knowledge.assessment.v5", "small", roles) == ("big", "none")
+    assert model_for("knowledge.assessment.v6", "small", roles) == ("big", "none")
     assert model_for("supervisor.decision.v10", "small", roles) == ("small", "none")
 
 
@@ -111,7 +111,7 @@ async def test_the_client_sends_each_call_to_its_familys_model() -> None:
         transport=httpx.MockTransport(handler),
     )
 
-    await client.generate(request("knowledge.assessment.v5"))
+    await client.generate(request("knowledge.assessment.v6"))
     await client.generate(request("supervisor.decision.v10"))
     await client.generate(request("curator-draft-v4"))
 

@@ -27,6 +27,8 @@ MAX_MISSING_INFORMATION = 5
 # 부족한 정보 중 관계 확인 항목의 수. 한 번에 사용자에게 물을 수 있는 양이 정해져 있고(질문 묶음
 # 3개), 프롬프트의 최대 3개 규칙을 모델이 어긴 사례가 있어 코드로 강제한다.
 MAX_CHECK_ITEM_REFS = 3
+# 이미 물은 확인 질문 중 사용자가 답하지 못한 것이 이만큼이면 확인 항목을 더 묻지 않는다.
+MAX_UNANSWERED_ASKED_CHECKS = 2
 MAX_CANDIDATE_CAUSES = 3
 MAX_CAUSE_TEXT = 200
 MAX_RATIONALE = 500
@@ -76,6 +78,31 @@ def limit_check_items(assessment: Assessment) -> Assessment:
             if checks > MAX_CHECK_ITEM_REFS:
                 continue
         kept.append(item)
+    if len(kept) == len(assessment.missingInformation):
+        return assessment
+    return assessment.model_copy(update={"missingInformation": kept})
+
+
+def stop_check_items(
+    assessment: Assessment, *, asked_count: int, asked_answered: Sequence[bool]
+) -> Assessment:
+    """사용자가 확인 질문에 답하지 못하고 있으면 판정의 확인 항목 참조를 뺀다.
+
+    확인 항목은 원인을 가르려고 묻는다. 물은 것에 하나도 답하지 못했거나 답하지 못한 것이
+    MAX_UNANSWERED_ASKED_CHECKS개 이상이면 더 물어도 좁혀지지 않으므로, 남은 양식 필드만 묻고
+    담당자에게 넘기게 한다. 판정과 근거는 그대로 둔다.
+
+    Args:
+        asked_count: 그 문제에 이미 물은 확인 질문 수(이번 관계 조회에 문구가 있는 것).
+        asked_answered: 모델이 물은 질문마다 답이 있었는지 본 값. 길이가 asked_count와 다르면
+            믿지 않고 판정을 그대로 돌려준다.
+    """
+    if asked_count == 0 or len(asked_answered) != asked_count:
+        return assessment
+    unanswered = sum(1 for answered in asked_answered if not answered)
+    if unanswered < asked_count and unanswered < MAX_UNANSWERED_ASKED_CHECKS:
+        return assessment
+    kept = [item for item in assessment.missingInformation if item.kind != "CHECK_ITEM"]
     if len(kept) == len(assessment.missingInformation):
         return assessment
     return assessment.model_copy(update={"missingInformation": kept})

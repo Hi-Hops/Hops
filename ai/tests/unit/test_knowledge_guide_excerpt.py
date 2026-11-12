@@ -75,7 +75,7 @@ async def run_knowledge(*outcomes, hits=None, excerpt=True, assess=False):
 async def test_partial_assessment_does_not_generate_a_guide_that_cannot_be_answered():
     state, llm = await run_knowledge(assessment_draft(verdict="PARTIAL"), assess=True)
     assert state["guide"] is None
-    assert [request.prompt_version for request in llm.requests] == ["knowledge.assessment.v5"]
+    assert [request.prompt_version for request in llm.requests] == ["knowledge.assessment.v6"]
 
 
 def test_blocks_are_contiguous_parts_of_the_approved_body() -> None:
