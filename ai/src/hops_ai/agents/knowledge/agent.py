@@ -94,6 +94,7 @@ from hops_ai.rules.assessment import (
     check_item_ids,
     limit_check_items,
     no_match_assessment,
+    stop_check_items,
     validate_assessment,
 )
 from hops_ai.rules.intent_policy import is_guide_type, policy_for, search_kinds
@@ -381,9 +382,23 @@ class SearchKnowledgeAgent:
                 len(claimed - offered),
             )
         try:
-            assessment = limit_check_items(
+            pointed = limit_check_items(
                 to_assessment(target.problemRef, response.parsed, offered=offered)
             )
+            assessment = stop_check_items(
+                pointed,
+                asked_count=len(asked.asks),
+                asked_answered=response.parsed.askedChecksAnswered,
+            )
+            if assessment is not pointed:
+                # 사용자가 확인 질문에 답하지 못해 확인 항목 질문을 멈춘 근거를 남긴다(개수만).
+                logger.info(
+                    "판정 확인 항목 질문 중단 runId=%s problemRef=%s asked=%d unanswered=%d",
+                    services.runtime.run_id,
+                    target.problemRef,
+                    len(asked.asks),
+                    sum(1 for answered in response.parsed.askedChecksAnswered if not answered),
+                )
             validate_assessment(
                 assessment,
                 intent=target.intent,

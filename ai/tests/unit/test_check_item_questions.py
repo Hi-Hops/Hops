@@ -437,7 +437,7 @@ def test_an_asked_item_outside_this_lookup_is_not_shown() -> None:
 def test_prompt_rules_keep_user_replies_out_of_the_evidence() -> None:
     from hops_ai.agents.knowledge.assessment import PROMPT_VERSION, SYSTEM_PROMPT
 
-    assert PROMPT_VERSION == "knowledge.assessment.v5"
+    assert PROMPT_VERSION == "knowledge.assessment.v6"
     assert "userReplies" in SYSTEM_PROMPT and "evidence가 아니다" in SYSTEM_PROMPT
     assert "userStatements" in SYSTEM_PROMPT
 
@@ -462,6 +462,7 @@ def test_a_check_item_the_model_marks_answered_is_never_asked() -> None:
         verdict="PARTIAL",
         supportingEvidenceIds=[EVIDENCE],
         answeredCheckItems=["check-state"],
+        askedChecksAnswered=[],
         missingInformation=[
             DraftMissing(kind="CHECK_ITEM", ref="check-state"),
             DraftMissing(kind="CHECK_ITEM", ref="check-period"),
@@ -484,3 +485,62 @@ def test_a_check_item_the_model_marks_answered_is_never_asked() -> None:
         "check-state",
         "check-period",
     ]
+
+
+def _pointing(*kinds_and_refs: tuple[str, str]) -> Assessment:
+    return Assessment(
+        problemRef=PROBLEM,
+        verdict="PARTIAL",
+        supportingEvidenceIds=[EVIDENCE],
+        missingInformation=[MissingInformation(kind=kind, ref=ref) for kind, ref in kinds_and_refs],
+        candidateCauses=[],
+        nextChecks=[],
+        rationale="내부용",
+    )
+
+
+def test_check_items_stop_when_the_user_could_not_answer_what_was_asked() -> None:
+    # 반복 측정에서 사용자가 확인 질문마다 모른다고 답해도 다음 실행이 새 확인 항목을 계속 물었다.
+    from hops_ai.rules.assessment import stop_check_items
+
+    pointed = _pointing(("CHECK_ITEM", "check-period"), ("FIELD", "occurredAt"))
+
+    # 물은 것에 하나도 답하지 못했다
+    none_answered = stop_check_items(pointed, asked_count=1, asked_answered=[False])
+    # 답한 것이 있어도 답하지 못한 것이 둘이면 멈춘다
+    two_unanswered = stop_check_items(pointed, asked_count=3, asked_answered=[True, False, False])
+
+    for stopped in (none_answered, two_unanswered):
+        assert [(item.kind, item.ref) for item in stopped.missingInformation] == [
+            ("FIELD", "occurredAt")
+        ]
+        # 판정과 근거는 바꾸지 않는다
+        assert (stopped.verdict, stopped.supportingEvidenceIds) == ("PARTIAL", [EVIDENCE])
+
+
+def test_check_items_continue_while_the_user_keeps_answering() -> None:
+    from hops_ai.rules.assessment import stop_check_items
+
+    pointed = _pointing(("CHECK_ITEM", "check-period"), ("FIELD", "occurredAt"))
+
+    # 아직 물은 것이 없다, 모두 답했다, 하나만 답하지 못했다
+    assert stop_check_items(pointed, asked_count=0, asked_answered=[]) is pointed
+    assert stop_check_items(pointed, asked_count=2, asked_answered=[True, True]) is pointed
+    assert stop_check_items(pointed, asked_count=3, asked_answered=[True, False, True]) is pointed
+    # 모델이 낸 목록의 길이가 물은 질문 수와 다르면 믿지 않고 그대로 둔다
+    assert stop_check_items(pointed, asked_count=2, asked_answered=[False]) is pointed
+    assert stop_check_items(pointed, asked_count=1, asked_answered=[]) is pointed
+    # 지목한 확인 항목이 없으면 같은 판정을 돌려준다
+    fields_only = _pointing(("FIELD", "occurredAt"))
+    assert stop_check_items(fields_only, asked_count=1, asked_answered=[False]) is fields_only
+
+
+def test_prompt_asks_whether_each_asked_check_was_answered() -> None:
+    from hops_ai.agents.knowledge.assessment import SYSTEM_PROMPT, AssessmentDraft
+
+    assert "askedChecksAnswered" in SYSTEM_PROMPT and "같은 순서, 같은 길이" in SYSTEM_PROMPT
+    schema = AssessmentDraft.model_json_schema()
+    # 구조화 출력(strict)은 모든 필드가 필수여야 한다
+    assert "askedChecksAnswered" in schema["required"]
+    order = list(schema["properties"])
+    assert order.index("askedChecksAnswered") < order.index("missingInformation")

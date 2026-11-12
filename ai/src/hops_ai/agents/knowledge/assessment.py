@@ -25,7 +25,7 @@ from hops_ai.contracts.wire import ProblemProposal
 from hops_ai.rules.assessment import allowed_fields, approved_questions
 from hops_ai.services.retrieval.knowledge_source import KnowledgeHit
 
-PROMPT_VERSION = "knowledge.assessment.v5"
+PROMPT_VERSION = "knowledge.assessment.v6"
 MAX_OUTPUT_TOKENS = 900
 # 근거 하나의 본문을 모델에 줄 때의 글자 상한. 한 번에 최대 5건이다. 넘으면 앞부분과 끝부분을
 # 남긴다: 안내의 적용 조건과 한계는 보통 끝에 있고, 잘리면 판정이 한계를 보지 못해 충분하다고
@@ -92,6 +92,9 @@ SYSTEM_PROMPT = """\
    것이라고 말했으면 누가 만들었는지 묻는 항목은 답한 것이다. 사용자가 말한 사실은 그대로 믿는다.
    원인을 가르는 데 필요해 보여도 사용자의 말이 맞는지 다시 확인하려고 묻지 않는다. 답인지 분명하지
    않은 항목은 적지 않는다. 없으면 빈 목록이다.
+11. askedChecksAnswered는 askedChecks와 같은 순서, 같은 길이의 true/false 목록이다. userReplies에 그
+   질문의 답이 있으면 true, 사용자가 모른다고 했거나 답하지 않았으면 false다. askedChecks가
+   없으면 빈 목록이다. 사용자가 확인 질문에 답하지 못하고 있으면 코드가 확인 항목을 더 묻지 않는다.
 """
 
 
@@ -117,6 +120,8 @@ class AssessmentDraft(ContractModel):
     supportingEvidenceIds: list[str]
     # 사용자가 이미 답한 확인 항목. missingInformation보다 먼저 판단하게 앞에 둔다.
     answeredCheckItems: list[str]
+    # 이미 물은 확인 질문(askedChecks)마다 사용자가 답했는지. 같은 순서·같은 길이다.
+    askedChecksAnswered: list[bool]
     missingInformation: list[DraftMissing]
     candidateCauses: list[DraftCause]
     nextChecks: list[DraftNextCheck]
