@@ -30,67 +30,95 @@ def _load(folder: str, scenario_id: str) -> dict[str, Any]:
 def final_state(trace: dict[str, Any], follow_up_text: str | None = None) -> dict[str, Any]:
     """실행 기록에서 문제별 의도·보고 시스템·종결 행동을 뽑는다.
 
-    문제는 처음 나온 순서로 두고 값은 가장 최근 제안을 쓴다. 임시 참조(`new:1`)는 기록의
-    `ref_map`으로 저장된 문제 ID에 맞춘다. 안내와 티켓 제안은 어느 실행에서 나왔든 그 문제의
-    종결로 보며, 둘 다 있으면 뒤에 나온 것이 종결이다.
+    문제는 처음 나온 순서로 두고 값은 가장 최근 제안을 쓴다. 임시 참조(`new:1`)는 실행(턴)마다 새로
+    붙으므로 그 턴의 `ref_map`으로만 저장된 문제 ID에 맞춘다(`harness/checks.py`의 `_canonical`과
+    같다). 안내와 티켓 제안은 그 문제의 종결이며 둘 다 있으면 뒤에 나온 것이 종결이다.
+
+    안내 뒤 미해결 응답(`followUp`)이 재생된 문제는 다시 열린 것이다. 그 뒤의 실행에서 나온 종결만
+    `afterAction`으로 따로 두고, 그 뒤가 실패했거나 끝나지 않았으면 앞선 안내를 종결로 쓰지 않는다.
+    결과 없이 예외로 끝난 실행(`result: null`)은 재시도할 수 없는 실패로 본다.
     """
     turns = trace["turns"]
-    ref_to_id = {ref: pid for turn in turns for ref, pid in turn.get("ref_map") or []}
+    results = [turn.get("result") or {} for turn in turns]
+    maps = [dict(turn.get("ref_map") or []) for turn in turns]
+    follow_index = next(
+        (
+            index
+            for index, turn in enumerate(turns)
+            if follow_up_text and turn.get("user_reply") == follow_up_text
+        ),
+        None,
+    )
 
-    def canon(ref: str) -> str:
-        return ref_to_id.get(ref, ref)
-
-    last = turns[-1]["result"]
     systems = {s["id"]: s["code"] for s in turns[-1]["request"]["systems"]}
     order: list[str] = []
     info: dict[str, dict[str, Any]] = {}
     actions: dict[str, str] = {}
-    guided: set[str] = set()
-    for turn in turns:
-        result = turn["result"]
+    after_actions: dict[str, str] = {}
+    guided_before_follow_up: set[str] = set()
+    for index, result in enumerate(results):
+        mapping = maps[index]
+        reopened = follow_index is not None and index > follow_index
         for proposal in result.get("problemProposals") or []:
-            key = canon(proposal["problemRef"])
+            key = mapping.get(proposal["problemRef"], proposal["problemRef"])
             if key not in info:
                 order.append(key)
             info[key] = {
                 "intent": proposal.get("intent"),
                 "system": systems.get(proposal.get("reportedSystemCandidateId")),
             }
+        terminal: list[tuple[str, str]] = []
         guide = result.get("guide")
         if guide and guide.get("problemRef"):
-            actions[canon(guide["problemRef"])] = "ANSWER_GUIDE"
-            guided.add(canon(guide["problemRef"]))
-        for ticket in result.get("ticketProposals") or []:
-            actions[canon(ticket["problemRef"])] = "PROPOSE_TICKET"
+            terminal.append((guide["problemRef"], "ANSWER_GUIDE"))
+        terminal += [
+            (ticket["problemRef"], "PROPOSE_TICKET")
+            for ticket in result.get("ticketProposals") or []
+        ]
+        for ref, action in terminal:
+            key = mapping.get(ref, ref)
+            actions[key] = action
+            if reopened:
+                after_actions[key] = action
+            elif action == "ANSWER_GUIDE" and follow_index is not None:
+                guided_before_follow_up.add(key)
 
+    last = results[-1]
     failed = last.get("status") != "SUCCEEDED"
     error = last.get("error") or {}
     fail_action = "FAIL_RETRYABLE" if error.get("retryable") else "FAILED"
+    unfinished = fail_action if failed else "AWAIT_ANSWER"
+    problems = []
     for key in order:
+        reopened_problem = key in guided_before_follow_up
         if key in actions:
-            continue
-        if info[key]["intent"] == "OUT_OF_SCOPE":
-            actions[key] = "NOTICE_OUT_OF_SCOPE"
+            action = actions[key]
+        elif info[key]["intent"] == "OUT_OF_SCOPE":
+            action = "NOTICE_OUT_OF_SCOPE"
         elif failed:
-            actions[key] = fail_action
+            action = fail_action
         elif info[key]["system"] is None:
-            actions[key] = "AWAIT_SYSTEM"
+            action = "AWAIT_SYSTEM"
         else:
-            actions[key] = "AWAIT_ANSWER"
+            action = "AWAIT_ANSWER"
+        problems.append(
+            {
+                "key": key,
+                **info[key],
+                "action": after_actions.get(key, unfinished) if reopened_problem else action,
+                "reopened": reopened_problem,
+            }
+        )
     return {
-        "problems": [
-            {"key": key, **info[key], "action": actions[key], "guided": key in guided}
-            for key in order
-        ],
+        "problems": problems,
         # 문제를 하나도 만들지 못하고 끝난 실행(검색 오류 주입 등)의 종결
         "scenarioAction": None if order else (fail_action if failed else "NONE"),
-        "followUpReplayed": bool(follow_up_text)
-        and any(turn.get("user_reply") == follow_up_text for turn in turns),
-        "status": last.get("status"),
-        "error": error.get("code"),
+        "followUpReplayed": follow_index is not None,
+        "status": last.get("status") or "FAILED",
+        "error": error.get("code") or (turns[-1].get("error") if failed else None),
         "roles": [call["role"] for turn in turns for call in turn.get("role_calls") or []],
         "turns": len(turns),
-        "turnsOk": sum(1 for turn in turns if turn["result"].get("status") == "SUCCEEDED"),
+        "turnsOk": sum(1 for result in results if result.get("status") == "SUCCEEDED"),
         "modelCalls": sum(turn.get("model_calls", 0) for turn in turns),
         "seconds": sum(turn.get("elapsed_seconds", 0.0) for turn in turns),
         "inputTokens": sum(turn.get("input_tokens", 0) for turn in turns),
@@ -117,8 +145,8 @@ def _judge(gold: dict[str, Any], produced: dict[str, Any] | None, state: dict[st
             "actionOk": action in gold["allowedFinalActions"],
         }
     after = gold.get("afterFollowUp")
-    if after and state["followUpReplayed"] and produced["guided"]:
-        # 안내가 먼저 나갔고, 미해결 응답 뒤의 종결은 afterFollowUp의 허용 집합으로 본다.
+    if after and produced["reopened"]:
+        # 안내가 먼저 나갔고, 미해결 응답 뒤에 실제로 나온 종결을 afterFollowUp으로 본다.
         action_ok = (
             "ANSWER_GUIDE" in gold["allowedFinalActions"]
             and produced["action"] in after["allowedFinalActions"]

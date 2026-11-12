@@ -234,3 +234,124 @@ def test_repeats_are_collected_per_scenario_across_directories(tmp_path: Path, c
     assert main([str(tmp_path / "a"), str(tmp_path / "b")]) == 0
     assert "S-out-of-scope-001: 0/2" in capsys.readouterr().out
     assert main([]) == 2
+
+
+def null_turn(error: str = "RuntimeError") -> dict[str, Any]:
+    """pipeline이 예외로 끝나 결과가 없는 실행. runner가 `result=None`으로 남긴다."""
+    return {
+        "request": {"systems": SYSTEMS},
+        "result": None,
+        "role_calls": [{"role": "INQUIRY"}],
+        "ref_map": [],
+        "user_reply": None,
+        "error": error,
+        "model_calls": 1,
+        "elapsed_seconds": 0.5,
+        "input_tokens": 50,
+        "output_tokens": 0,
+    }
+
+
+def test_the_same_temporary_ref_in_different_turns_is_two_problems() -> None:
+    first = turn(
+        problems=[problem("new:1", "HOW_TO", "sys-ea")],
+        guide="new:1",
+        roles=["INQUIRY", "KNOWLEDGE"],
+        ref_map=[["new:1", "p-1"]],
+        user_reply="권한도 신청하고 싶어요.",
+    )
+    second = turn(
+        problems=[
+            problem("p-1", "HOW_TO", "sys-ea"),
+            problem("new:1", "ACCESS_REQUEST", "sys-login"),
+        ],
+        tickets=["new:1"],
+        roles=["INQUIRY", "KNOWLEDGE", "TICKET"],
+        ref_map=[["new:1", "p-2"]],
+    )
+    gold = {
+        "problems": [
+            gold_problem("p1", ["HOW_TO"], "ELECTRONIC_APPROVAL", ["ANSWER_GUIDE"]),
+            gold_problem("p2", ["ACCESS_REQUEST"], "COMMON_LOGIN", ["PROPOSE_TICKET"]),
+        ]
+    }
+
+    state = final_state(trace(first, second))
+    scored = score_trace(trace(first, second), gold)
+
+    assert [(p["key"], p["intent"], p["action"]) for p in state["problems"]] == [
+        ("p-1", "HOW_TO", "ANSWER_GUIDE"),
+        ("p-2", "ACCESS_REQUEST", "PROPOSE_TICKET"),
+    ]
+    assert scored["taskOk"] and scored["producedProblems"] == 2
+
+
+def test_a_run_without_a_result_is_scored_as_a_failure() -> None:
+    gold = {"problems": [gold_problem("p1", ["HOW_TO"], "ELECTRONIC_APPROVAL", ["ANSWER_GUIDE"])]}
+    asked = turn(
+        problems=[problem("new:1", "HOW_TO", "sys-ea")],
+        roles=["INQUIRY"],
+        ref_map=[["new:1", "p-1"]],
+        user_reply="문서함이에요.",
+    )
+
+    only_crash = score_trace(trace(null_turn()), gold)
+    crash_after_question = score_trace(trace(asked, null_turn("TimeoutError")), gold)
+
+    assert not only_crash["taskOk"]
+    assert (only_crash["status"], only_crash["error"]) == ("FAILED", "RuntimeError")
+    assert (only_crash["turns"], only_crash["turnsOk"]) == (1, 0)
+    assert only_crash["rows"][0]["action"] == "FAILED"
+    assert not crash_after_question["taskOk"]
+    assert crash_after_question["rows"][0]["action"] == "FAILED"
+    assert (crash_after_question["turnsOk"], crash_after_question["error"]) == (1, "TimeoutError")
+
+
+def test_a_crashed_trace_does_not_stop_the_report_for_other_traces(tmp_path: Path) -> None:
+    source = BASELINES / "2026-11-06-test-judgment-final-traces"
+    good = "S-file-sharelink-howto-001.trace.json"
+    (tmp_path / good).write_text((source / good).read_text(encoding="utf-8"), encoding="utf-8")
+    crashed = {"scenario_id": "S-out-of-scope-001", "turns": [null_turn()]}
+    (tmp_path / "S-out-of-scope-001.trace.json").write_text(json.dumps(crashed), encoding="utf-8")
+
+    report = score_dirs([tmp_path])
+
+    assert report["total"]["taskSuccess"] == [1, 2]
+    assert report["repeats"] == {"S-file-sharelink-howto-001": [1, 1], "S-out-of-scope-001": [0, 1]}
+    assert main([str(tmp_path)]) == 0
+
+
+def test_an_earlier_guide_does_not_pass_what_happens_after_an_unresolved_reply() -> None:
+    follow_up = "안내대로 해 봤는데 해결되지 않았어요."
+    gold_one = gold_problem("p1", ["HOW_TO"], "ELECTRONIC_APPROVAL", ["ANSWER_GUIDE"])
+    gold_one["afterFollowUp"] = {"allowedFinalActions": ["PROPOSE_TICKET", "ANSWER_GUIDE"]}
+    gold = {"problems": [gold_one]}
+    guided = turn(
+        problems=[problem("new:1", "HOW_TO", "sys-ea")],
+        guide="new:1",
+        roles=["INQUIRY", "KNOWLEDGE"],
+        ref_map=[["new:1", "p-1"]],
+        user_reply=follow_up,
+    )
+    search_failed = turn(
+        status="FAILED",
+        error={"code": "SEARCH_UNAVAILABLE", "retryable": True},
+        roles=["INQUIRY", "KNOWLEDGE"],
+    )
+    only_asked = turn(problems=[problem("p-1", "HOW_TO", "sys-ea")], roles=["INQUIRY"])
+    guided_again = turn(
+        problems=[problem("p-1", "HOW_TO", "sys-ea")], guide="p-1", roles=["INQUIRY", "KNOWLEDGE"]
+    )
+
+    failed = score_trace(trace(guided, search_failed), gold, follow_up)
+    asked = score_trace(trace(guided, only_asked), gold, follow_up)
+    cut_off = score_trace(trace(guided), gold, follow_up)
+    crashed = score_trace(trace(guided, null_turn()), gold, follow_up)
+    answered = score_trace(trace(guided, guided_again), gold, follow_up)
+
+    assert (failed["taskOk"], failed["rows"][0]["action"]) == (False, "FAIL_RETRYABLE")
+    assert (asked["taskOk"], asked["rows"][0]["action"]) == (False, "AWAIT_ANSWER")
+    assert (cut_off["taskOk"], cut_off["rows"][0]["action"]) == (False, "AWAIT_ANSWER")
+    assert (crashed["taskOk"], crashed["rows"][0]["action"]) == (False, "FAILED")
+    assert (answered["taskOk"], answered["rows"][0]["action"]) == (True, "ANSWER_GUIDE")
+    assert summarize([failed, asked, cut_off, crashed])["tokensPerSuccess"] is None
