@@ -3,6 +3,8 @@
 from hops_ai.contracts.execution import RunKind
 from hops_ai.contracts.wire import AiResult
 from hops_ai.harness.errors import OutputRejected
+from hops_ai.harness.guardrails.events import GuardrailStage
+from hops_ai.harness.guardrails.public_text import validate_public_text
 from hops_ai.rules.progress import get_problem_progress, validate_evidence_scope
 from hops_ai.rules.proposals import (
     validate_details,
@@ -222,6 +224,11 @@ def finalize_result(state: SupervisorState) -> SupervisorState:
         if candidate["caseProposal"] is not None:
             raise OutputRejected("상담 결과에 사례 초안을 넣을 수 없다")
         body = compose_public_answer(candidate)
+        validate_public_text(
+            body,
+            stage=GuardrailStage.FINAL_ANSWER,
+            run_id=request.runId,
+        )
         result = AiResult(
             contractVersion="hops-system-1",
             runId=request.runId,
