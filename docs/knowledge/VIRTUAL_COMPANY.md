@@ -304,7 +304,7 @@ HOPS의 가상 기업(조직·직원·시스템·기능·담당)과 그 위에�
 | 3 | `ambiguous-first` | 불명 | 미정 | "화면이 안 열려요" 같은 모호한 최초 문의. 시스템 미확인 | 시스템부터 질문, 모르면 시스템 확인 대기 | - | DEV |
 | 4 | `login-system-permission` | 권한 신청 | 공통 로그인 | 다른 시스템 이용 권한 신청 | 정책·가이드 안내와 필요한 신청 정보 | `guide-login-permission-request`, `policy-login-permission-approval` | DEV |
 | 5 | `login-permission-purpose-unknown` | 권한 신청 | 공통 로그인 | 사용자가 **업무 목적을 모름** | 미확인으로 보존, 같은 질문 반복 없음 | `guide-login-permission-request`, `policy-login-permission-approval` | DEV |
-| 6 | `ea-search-period` | 현상 | 전자결재 | 지난달 문서가 목록에 안 보임(기안일 기준 기간). **사용법(1)과 같은 기능이지만 조사 요청** | 확인 질문 뒤 담당자 검토 제안, 런북 내용은 직원에게 노출 안 함 | `runbook-ea-document-not-listed`, `guide-ea-document-search` | DEV |
+| 6 | `ea-search-period` | 현상 | 전자결재 | 지난달 문서가 목록에 안 보임(기안일 기준 기간). **사용법(1)과 같은 기능이지만 조사 요청** | 확인 질문 뒤 담당자 검토 제안. 확인 항목의 답으로 원인이 드러나면(임시 저장 문서) 직원 공개 가이드 안내로 끝내도 된다. 런북 내용은 직원에게 노출 안 함 | `runbook-ea-document-not-listed`, `guide-ea-document-search` | DEV |
 | 7 | `login-loop` | 현상 | 전자결재 → 공통 로그인 | 로그인 후 다시 로그인 화면. **보고 시스템과 책임 시스템이 다름** | 근거가 뒷받침할 때만 공통 로그인으로 제안 | `runbook-login-sso-loop`, `guide-login-sso-use` | DEV |
 | 8 | `ea-search-time-unknown` | 현상 | 전자결재 | 문서가 안 보이는데 **발생 시점을 모름** | 미확인 보존, 재질문 없이 진행 | `runbook-ea-document-not-listed` | DEV |
 | 9 | `ea-notify-improvement` | 개선 | 전자결재 | 결재 대기 알림 개선 요청. 사용자는 **바라는 변경을 끝내 모름** | 미확인을 보존해 담당자 전달 | - | DEV |

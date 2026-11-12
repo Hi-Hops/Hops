@@ -355,3 +355,61 @@ def test_an_earlier_guide_does_not_pass_what_happens_after_an_unresolved_reply()
     assert (crashed["taskOk"], crashed["rows"][0]["action"]) == (False, "FAILED")
     assert (answered["taskOk"], answered["rows"][0]["action"]) == (True, "ANSWER_GUIDE")
     assert summarize([failed, asked, cut_off, crashed])["tokensPerSuccess"] is None
+
+
+def test_question_and_ending_counts_show_what_asking_more_bought() -> None:
+    asked = turn(
+        problems=[problem("new:1", "OBSERVED_SYMPTOM", "sys-ea")],
+        roles=["INQUIRY", "KNOWLEDGE", "INQUIRY"],
+        ref_map=[["new:1", "p-1"]],
+        user_reply="임시 저장만 해 둔 문서예요.",
+    )
+    asked["result"]["questions"] = [
+        {"problemRef": "new:1", "requestedFields": ["occurredAt", "check-ea-submit-state"]}
+    ]
+    guided = turn(
+        problems=[problem("p-1", "OBSERVED_SYMPTOM", "sys-ea")],
+        guide="p-1",
+        roles=["INQUIRY", "KNOWLEDGE"],
+    )
+    gold = {
+        "problems": [
+            gold_problem(
+                "p1",
+                ["OBSERVED_SYMPTOM"],
+                "ELECTRONIC_APPROVAL",
+                ["PROPOSE_TICKET", "ANSWER_GUIDE"],
+            )
+        ]
+    }
+
+    scored = score_trace(trace(asked, guided), gold)
+    summary = summarize([scored])
+
+    assert (scored["questionBundles"], scored["checkItemsAsked"]) == (1, 1)
+    assert (summary["questionBundles"], summary["checkItemsAsked"]) == (1, 1)
+    assert (summary["guideEndings"], summary["ticketEndings"]) == (1, 0)
+    assert summary["taskSuccess"] == [1, 1]
+
+
+def test_endings_count_every_problem_the_run_made_not_only_the_matched_ones() -> None:
+    # 정답은 안내 문제 하나인데 실행이 티켓 문제를 하나 더 만들었다. 정답과 짝지은 행에는 안내만
+    # 남지만, 실제로 나간 티켓도 종결 수에 들어가야 티켓 감소를 낙관적으로 보고하지 않는다.
+    only = turn(
+        problems=[
+            problem("new:1", "HOW_TO", "sys-ea"),
+            problem("new:2", "ACCESS_REQUEST", "sys-login"),
+        ],
+        guide="new:1",
+        tickets=["new:2"],
+        roles=["INQUIRY", "KNOWLEDGE", "TICKET"],
+    )
+    gold = {"problems": [gold_problem("p1", ["HOW_TO"], "ELECTRONIC_APPROVAL", ["ANSWER_GUIDE"])]}
+
+    scored = score_trace(trace(only), gold)
+    summary = summarize([scored])
+
+    assert (scored["producedProblems"], scored["problemCountOk"]) == (2, False)
+    assert [row["action"] for row in scored["rows"]] == ["ANSWER_GUIDE"]
+    assert (scored["guideEndings"], scored["ticketEndings"]) == (1, 1)
+    assert (summary["guideEndings"], summary["ticketEndings"]) == (1, 1)

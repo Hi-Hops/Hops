@@ -21,6 +21,8 @@ from typing import Any
 EVALUATION = Path(__file__).resolve().parent
 NO_SEARCH_ACTIONS = {"AWAIT_SYSTEM", "NOTICE_OUT_OF_SCOPE"}
 NO_SEARCH_INTENTS = {"FEATURE_REQUEST", "IMPROVEMENT_REQUEST"}
+# 관계 확인 항목의 ID 접두사(카탈로그 키). 질문이 요청한 항목 중 양식 필드와 구분한다.
+CHECK_ITEM_PREFIX = "check-"
 
 
 def _load(folder: str, scenario_id: str) -> dict[str, Any]:
@@ -117,6 +119,14 @@ def final_state(trace: dict[str, Any], follow_up_text: str | None = None) -> dic
         "status": last.get("status") or "FAILED",
         "error": error.get("code") or (turns[-1].get("error") if failed else None),
         "roles": [call["role"] for turn in turns for call in turn.get("role_calls") or []],
+        "questionBundles": sum(len(result.get("questions") or []) for result in results),
+        "checkItemsAsked": sum(
+            1
+            for result in results
+            for question in result.get("questions") or []
+            for field in question.get("requestedFields") or []
+            if field.startswith(CHECK_ITEM_PREFIX)
+        ),
         "turns": len(turns),
         "turnsOk": sum(1 for result in results if result.get("status") == "SUCCEEDED"),
         "modelCalls": sum(turn.get("model_calls", 0) for turn in turns),
@@ -219,11 +229,17 @@ def score_trace(
         "goldProblems": len(golds),
         "pathOk": all(path_checks),
         "rows": rows,
+        # 실제로 만든 모든 문제의 종결. 정답보다 문제를 더 만들면 rows(정답과 짝지은 것)에서
+        # 빠지는 문제가 생기므로 따로 센다.
+        "guideEndings": sum(p["action"] == "ANSWER_GUIDE" for p in state["problems"]),
+        "ticketEndings": sum(p["action"] == "PROPOSE_TICKET" for p in state["problems"]),
         **{
             key: state[key]
             for key in (
                 "status",
                 "error",
+                "questionBundles",
+                "checkItemsAsked",
                 "turns",
                 "turnsOk",
                 "modelCalls",
@@ -279,6 +295,11 @@ def summarize(scored: list[dict[str, Any]]) -> dict[str, Any]:
         "intentMacroF1": f1,
         "intentF1PerLabel": per_label,
         "systemAccuracy": [sum(row["systemOk"] for row in systems), len(systems)],
+        # 관계 보강처럼 질문을 늘리는 변경의 득실을 보려는 값: 얼마나 물었고 어떻게 끝났는가.
+        "questionBundles": sum(item["questionBundles"] for item in scored),
+        "checkItemsAsked": sum(item["checkItemsAsked"] for item in scored),
+        "guideEndings": sum(item["guideEndings"] for item in scored),
+        "ticketEndings": sum(item["ticketEndings"] for item in scored),
         "modelCalls": sum(item["modelCalls"] for item in scored),
         "seconds": round(sum(item["seconds"] for item in scored), 1),
         "inputTokens": sum(item["inputTokens"] for item in scored),
