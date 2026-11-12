@@ -19,6 +19,7 @@
 | `pilot.py` | 실제 모델로 시나리오를 한 번씩 재생하는 실행 도구. 호출·토큰·시간·위반과 실행 조건을 보고한다 |
 | `harness/trace_io.py` | 실행 기록(`RunTrace`)을 JSON으로 저장·복원. 원본이 있어야 검사기를 고친 뒤 같은 기록을 다시 판정할 수 있다 |
 | `recheck.py` | 저장된 기록을 현재 검사기로 다시 판정한다(모델 호출 없음) |
+| `score.py` | 저장된 기록을 정답(`golds/`)의 허용 집합과 대조해 채점한다(모델 호출 없음). 문제별 의도·보고 시스템·종결 행동, 문제 분리, 검색·티켓 역할 호출 여부, 의도 Macro-F1, 성공 건당 토큰을 내고 여러 디렉터리를 주면 시나리오별 반복 결과를 모은다 |
 | `harness/validate.py` | 시나리오·정답 형식·정합성 검사, 정본 문서의 표(문서 카탈로그·시나리오 카탈로그) 읽기 |
 | `curator/` | Curator(사례 초안·관계 판단) 평가. 별도 시나리오(`curator_scenarios/`)·정답(`curator_golds/`)으로 사례 한 건의 문의 전체 과정을 `CASE_DRAFT`로 재생한다. 안전 성질 C1~C5 검사기, 행동 성질 CB1~CB4, Spring 입력 대역(`request.py`), 후보 노드 카탈로그(코퍼스 선언), 재생기, 반복 실행·보고(`pilot.py`), 기록 재판정(`recheck.py`), 형식 검사(`validate.py`) |
 | `flywheel/` | 지식 선순환 검증 묶음(문의 A·B·C)의 입력·정답·사례 A 처리 기록 카드와 형식·누수 검사기(`python -m evaluation.flywheel.validate`). 사례 A는 시드가 아니다. `e2e.py`는 실행 중인 로컬 스택에 공개 API로 선순환을 끝까지 돌리는 드라이버다([실행 절차](../../docs/knowledge/FLYWHEEL_E2E.md), `--run`은 실제 모델을 부른다) |
@@ -82,6 +83,19 @@ OPENAI_API_KEY=... uv run python -m evaluation.pilot system-correction ea-notify
 ```bash
 uv run python -m evaluation.recheck evaluation/baselines/traces
 ```
+
+정답 대조도 저장된 기록으로 한다. 사람이 보고서를 읽어 하던 비교를 코드로 옮긴 것이며 모델을 부르지 않는다.
+
+```bash
+uv run python -m evaluation.score evaluation/baselines/2026-11-06-test-judgment-final-traces
+uv run python -m evaluation.score --json <반복 1회차 trace 디렉터리> <반복 2회차 trace 디렉터리>
+```
+
+- 결과는 `[맞은 수, 전체]`로 낸다. `taskSuccess`는 문제 수가 정답과 같고 모든 문제의 종결 행동이 허용 집합 안인 시나리오 수다.
+- 정답 문제와 실행이 만든 문제는 순서가 아니라 가장 잘 맞는 대응으로 짝짓는다. 안내 뒤 미해결 응답(`followUp`)을 재생한 기록은 그 뒤의 종결을 `afterFollowUp`으로 본다.
+- `pathOk`는 역할별 정답이 아니다. 검색이 필요한 문의만 Knowledge를 거쳤는지, 티켓이 정답인 문의에 Ticket이 불렸는지만 본다.
+- 의도 Macro-F1은 허용 집합을 하나의 정답으로 본 근사다. 시나리오가 적어 라벨 하나의 오답이 값을 크게 바꾼다.
+- 근거 문서(`relevantEvidence`)와 판정(`assessment`)의 정답 대조, 질문 필드 검사는 아직 하지 않는다. 행동 채점이라 불일치가 있어도 종료 코드는 0이다.
 
 판정 모드 측정은 다음 옵션을 더한다(마찬가지로 실제 모델을 호출하므로 승인 뒤에 실행한다).
 
