@@ -176,7 +176,7 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 
 ### PR #59 병합 후 Spring 연동
 
-PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 INQUIRY·TICKET은 도메인 권한 연결 전 503이다. 프론트는 503을 인증 실패로 처리하지 않고 제한된 재접속 후 수동 재시도를 제공한다.
+PR #59 병합 시점(dc44f2c)에는 부서 SSE만 지원하고 INQUIRY·TICKET은 도메인 권한 연결 전 503이었다. 현재는 INQUIRY·TICKET·SYSTEM_TICKETS·CASE 구독과 대상 권한 검사가 구현돼 있으며 상세는 11~12절을 따른다. 프론트는 503을 인증 실패로 처리하지 않고 제한된 재접속 후 수동 재시도를 제공한다.
 
 - Last-Event-ID 이후 이벤트를 재생할 수 없으면 ResyncRequiredEvent(eventId만 필수)를 보내고 종료한다. SSE id와 JSON eventId는 동일하다.
 - 프론트는 현재 연결 대상의 REST 상태를 복구한 뒤 기존 커서와 제어 이벤트 ID를 비우고 Last-Event-ID 없이 재연결한다. 제어 알림 유실·일반 종료에도 REST 복구를 유지하며 comment 문구에는 의존하지 않는다.
@@ -243,11 +243,11 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 - 인증은 `/api/v2/auth/login`·`me`·`refresh`·`logout`을 제공한다. PostgreSQL 계정 조회, JWT, Redis 기반 Refresh 회전·재사용 검출·절대 만료와 쿠키 삭제, 허용 Origin 검사를 구현했다.
 - 로그인 세션 종료 이벤트는 해당 회원의 열린 SSE를 닫는다. Access에 세션 ID가 없어 기기별 연결을 구분하지 않으며 이미 발급한 Access의 즉시 폐기를 뜻하지 않는다. 역할·시스템 권한 변경의 즉시 `auth.invalidated` 통지·세대 검증은 남아 있다.
-- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. INQUIRY 구독은 문의자 본인만 허용하고, 메시지 저장(생성·전송·정정·AI 답변)이 commit되면 message.stored를 보낸다. AI progress/result SSE를 snapshot 폴링과 병행 수신하고 현재 상담 run·입력 버전의 agent.progress를 중계한다. 사례 구독, INQUIRY의 state.changed와 answer.delta 중계는 미연결이며 티켓 업무 변경 신호는 아래와 같다.
-- 업무 테이블·Entity와 V1~V22 Flyway는 존재한다. 테이블·Repository 검사는 문의·티켓·처리·확인·승인 API의 서비스 저장·권한·경합 구현을 대신하지 않는다.
+- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. INQUIRY 구독은 문의자 본인만 허용하고, 메시지 저장(생성·전송·정정·AI 답변)이 commit되면 message.stored를 보낸다. AI progress/result SSE를 snapshot 폴링과 병행 수신하고 현재 상담 run·입력 버전의 agent.progress를 중계한다. 사례 구독은 현재 시스템 주담당자 권한을 검사한다. INQUIRY의 state.changed와 answer.delta 중계는 미연결이며 티켓 업무 변경 신호는 아래와 같다.
+- 업무 테이블·Entity와 [Flyway 마이그레이션](../../backend/spring/hops/src/main/resources/db/migration/)이 존재한다. 테이블·Repository 검사는 문의·티켓·처리·확인·승인 API의 서비스 저장·권한·경합 구현을 대신하지 않는다.
 - CurrentUser.primarySystemIds, 시스템 목록(`GET /systems`), 문의 생성(`POST /inquiries`: 문의·첫 메시지·QUEUED 상담 실행·불변 입력·currentRun을 한 거래로 저장), 메시지 전송(`POST /inquiries/{inquiryId}/messages`: 버전 증가·이전 실행 대체·기존 문제·최신 적용 요청서·티켓 생성 작업 결과를 담은 새 입력 접수, 끝난 문의는 INVALID_STATE로 새 문의 안내), 보완 대상 대기와 확정(`pendingTarget`·`POST .../messages/{messageId}/problem-links`: 보완 후보가 여럿이고 대상이 불명확한 메시지는 대기·AI 입력 제외, 배정 문제만 대상인 입력은 보완 저장, 대체된 실행의 대상은 새 실행으로 이어 감), 메시지 정정(`POST .../messages/{messageId}/revisions`: 원문 이력 보존·차수 증가·MESSAGE_REVISION_CONFLICT·전송과 같은 실행 대체), 본인 문의 목록·상세·대화 조회, 상담 실행 조회(`GET /runs/{runId}`)와 RunSummary 투영, 수동 재분석(`POST /runs/{runId}/retries`), 변경 요청의 멱등 journal과 operations 결과 확인을 구현했다. 실행 전달 설정을 켜면 공통 Dispatcher가 commit 후 접수·상태 조회·결과 처리기를 실행한다. 문의 상세는 problems를 Problem으로 투영한다(최신 적용 표준 요청서·DATA 11.2 상태·저장된 안내·티켓 생성 결과·티켓 요약·해결 확인 요청, 담당자 내부 요청서 제외). 업무 거절은 journal에 REJECTED로 기록해 같은 키에 같은 오류를 반환한다. 만료 응답 tombstone 정리는 주기적으로 보존 기간이 지난 응답만 비우고 키·해시·작업·대상 표식을 유지하며, 이전 실행의 AI 취소 전파는 후속이다.
 - PRIMARY 조회, 티켓 목록·담당자 상세·관리 제한 상세·관련 대화·저장된 처리/확인/사례 생성 상태 조회와 현재 권한 검사를 구현했다. 조회 쿼리는 agent 실행·결과 저장과 분리했다. SYSTEM_TICKETS·TICKET은 연결·권한 재검사·heartbeat와 REST 재동기화를 제공하며 업무 저장·Curator 적용 commit 후 state.changed를 전송한다.
-- 처리 기록·처리 유형/책임 시스템 정정·확인 요청 조회/응답을 공통 멱등 journal과 문의/티켓 잠금 안에서 저장한다. GUIDE 미해결은 기존 상담 입력 생성기, CASE_DRAFT는 공통 Dispatcher의 Curator 처리기로 연결한다. 해당 문제의 허용 USER 원문만 실행 입력에 고정하고 반환 출처·시스템 연결 근거를 대조해 보존한다. 원 기록·제한 조건을 보존하고 AI 실패와 업무 저장을 구분한다. Python Curator는 develop 구현을 사용하며 실제 모델 통합 검증은 대역 검사와 구분한다. GUIDE는 현재 공개 가능한 직원용 근거를 검증한 뒤 대상 문제·표준 요청·안내 payload의 해결 확인 요청을 함께 저장한다. 일반 문제 분리/질문/티켓 제안 저장과 사례 조회/승인/색인은 남아 있다.
+- 처리 기록·처리 유형/책임 시스템 정정·확인 요청 조회/응답을 공통 멱등 journal과 문의/티켓 잠금 안에서 저장한다. GUIDE 미해결은 기존 상담 입력 생성기, CASE_DRAFT는 공통 Dispatcher의 Curator 처리기로 연결한다. 해당 문제의 허용 USER 원문만 실행 입력에 고정하고 반환 출처·시스템 연결 근거를 대조해 보존한다. 원 기록·제한 조건을 보존하고 AI 실패와 업무 저장을 구분한다. Python Curator는 develop 구현을 사용하며 실제 모델 통합 검증은 대역 검사와 구분한다. GUIDE는 현재 공개 가능한 직원용 근거를 검증한 뒤 대상 문제·표준 요청·안내 payload의 해결 확인 요청을 함께 저장한다. 일반 문제·질문 묶음·횟수는 ProblemQuestionWriter가 저장한다. 티켓 생성·조회는 내부 Ticket 도구 API, 사례 조회·수정·승인·색인 확인/재시도는 CaseController와 관련 서비스가 담당한다. 실제 저장소·모델을 포함한 검증 범위는 실행 기록으로 확인한다.
 
 인증·쿠키·Redis 실행 설정과 현재 응답은 [Spring 안내](../../backend/spring/hops/README.md)를 따른다. 신규 SSE는 12절대로 replay 없이 REST 재동기화한다. 1~10절의 replay 목표를 신규 필수 작업으로 옮기지 않는다. 다중 인스턴스·프록시·부하와 실제 브라우저의 인증·권한 회수 검증은 별도다.
 
@@ -264,14 +264,14 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 ### AI 구현 대상
 
 - 기술 하네스는 기한·호출 상한·일시 LLM 오류 재시도·사용량·도구 허용/취소 확인을 제공한다. RunLedger와 접수 서비스는 실행 ID·입력 digest·상태·종료 결과 및 중단 실행 UNKNOWN 복구를 처리한다.
-- 실행 wire DTO 검증과 명시 활성화한 `/internal/v2`의 서비스 인증·저장된 run snapshot 조회, 백그라운드 실행기와 progress/result SSE를 구현했다. HTTP 접수는 파이프라인 주입 시 202이며 기본 실행은 파이프라인 미주입으로 503이다. 역할 실행 전 고정 진행 문구를 발행하고 최종 결과는 RunLedger 저장 뒤 전달한다. answer.delta·취소 전파·색인과 실제 모델·검색·Spring 전체 통합 검증은 별도다.
+- 실행 wire DTO 검증과 명시 활성화한 `/internal/v2`의 서비스 인증·저장된 run snapshot 조회, 백그라운드 실행기와 progress/result SSE를 구현했다. HTTP 접수는 파이프라인 주입 시 202이며 기본 실행은 파이프라인 미주입으로 503이다. 역할 실행 전 고정 진행 문구를 발행하고 최종 결과는 RunLedger 저장 뒤 전달한다. real 모드는 설정 검증 후 Supervisor 파이프라인을 연결한다. 승인 CASE 색인 API도 필요한 저장소 설정이 있을 때 제공한다. answer.delta·Spring 취소 전파와 전체 통합 검증 범위는 별도로 확인한다.
 - 모델·임베딩·비용·구체 실행 설정값은 별도 선정·검증 대상이다. 내부 인증·RunLedger 검사만으로 실제 상담이나 지식 선순환 완료를 표시하지 않는다.
 
 현재 실행 모드·환경·내부 API·DB 검사는 [AI 안내](../../ai/README.md)를 따른다.
 
 ### 공통 계약 후속
 
-신규 필드·HTTP/SSE·AI wire·기본 저장 대응의 채택값은 [결정 대장](../QUESTIONS.md)에 있다. 이미 채택한 계약을 다시 미정으로 두지 않는다. 남은 작업은 해당 계약의 서버 구현·생산자/소비자 연결과 서비스별 검증이다. 전환 전 공용 JSON은 [보존 자료](../mocks/README.md)이며 현재 프론트의 실행 fixture가 아니다.
+신규 필드·HTTP/SSE·AI wire·기본 저장 대응의 채택값은 [결정 대장](../QUESTIONS.md)에 있다. 이미 채택한 계약을 다시 미정으로 두지 않는다. 각 서비스의 현재 구현·생산자/소비자 연결 범위와 남은 검증은 11절 및 서비스 실행 안내에서 확인한다. 전환 전 공용 JSON은 [보존 자료](../mocks/README.md)이며 현재 프론트의 실행 fixture가 아니다.
 
 ### 아직 검증하지 않은 항목
 
@@ -392,7 +392,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 ### 12.5 전환 확인
 
-현재 프론트 요청은 hops-system-1이며 Spring의 공개 인증·부서 SSE도 /api/v2 경로를 사용한다. Spring의 시스템 권한 DTO·업무 API와 신규 SSE 대상 연결은 남아 있다. 미구현 응답을 빈 결과·Mock 성공으로 처리하지 않는다. 실제 배포 전 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 검증하며 프론트에 계약 선택 설정을 추가하지 않는다.
+현재 프론트 요청은 hops-system-1이며 Spring의 공개 인증·부서 SSE도 /api/v2 경로를 사용한다. Spring의 시스템 권한 검사·문의/티켓 업무 API와 INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독이 구현돼 있다. 미구현 응답을 빈 결과·Mock 성공으로 처리하지 않는다. 실제 배포 전 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 검증하며 프론트에 계약 선택 설정을 추가하지 않는다.
 
 ### 12.6 계약 범위와 spec 연결
 

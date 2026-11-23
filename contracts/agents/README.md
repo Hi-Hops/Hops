@@ -80,7 +80,7 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 
 Knowledge가 승인 지식 문서를 읽는 내부 검색과 증상→확인 항목→질문 문구 관계 조회는 [지식 검색 REST 계약](KNOWLEDGE_TOOLS.md)을 따른다. 접근 범위·CASE 공개 규칙은 Spring이 실행(runId)에서 확정하고, 검색 실패를 빈 결과로 바꾸지 않는다. Spring API와 AI 연결의 구현 상태는 해당 문서에서 구분한다.
 
-Python 업무 도구·RoleResponse 검증 자료·State.ticketCreationResults 및 AiResult의 가산 필드 ticketCreationResults도 해당 도구 계약을 따른다. 순수 제안과 실제 서버 확인 결과를 구분하며 모델이 ticketId·배정 성공을 구성하지 않는다. Inquiry·Ticket의 runtime 경로와 Spring 업무 도구는 연결됐으며 Knowledge·Curator의 실제 검색/모델 역할·실행 SSE·전체 서비스 E2E는 별도로 검증한다.
+Python 업무 도구·RoleResponse 검증 자료·State.ticketCreationResults 및 AiResult의 가산 필드 ticketCreationResults도 해당 도구 계약을 따른다. 순수 제안과 실제 서버 확인 결과를 구분하며 모델이 ticketId·배정 성공을 구성하지 않는다. Inquiry·Ticket의 runtime 경로와 Spring 업무 도구, Curator 모델·progress/result SSE가 연결돼 있다. Knowledge는 `spring` 설정에서 Spring의 pgvector·키워드 검색을 사용하며, 판정 모드의 증상 상담에는 Neo4j 관계 조회도 연결된다. 실행 설정과 검증 기록은 [AI 실행 안내](../../ai/README.md)를 확인하며, 이 구현 상태를 전체 서비스 E2E 통과로 해석하지 않는다.
 
 - **입력:** 문제별 표준 요청, 확인 사실·미확인 항목·허용 근거, 지원 시스템 목록과 서버가 제공한 기존 작업/티켓 결과.
 - **결과 제안:** 문제별 제목·내용·처리 유형·책임 시스템 후보·판단 근거. 문의 원문과 보고 시스템은 유지한다. 유효한 제안을 만들 수 없으면 부족한 정보와 미확정 사실을 반환한다.
@@ -125,7 +125,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 ## hops-system-1 실행 계약안
 
-상태: hops-system-1 목표 계약. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 이 계약은 현재 Python 골격에 아직 연결되지 않았고 옛 agent-1 실행 endpoint는 제공하지 않는다. 현재 구현과 구분한다.
+상태: hops-system-1 목표 계약. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 현재 Python 실행 API와 Spring의 `AgentRunClient`·결과 처리기가 이 계약을 사용한다. 옛 agent-1 실행 endpoint는 제공하지 않는다. 구현 범위와 실행 검증은 [AI 실행 안내](../../ai/README.md)와 [Spring 실행 안내](../../backend/spring/hops/README.md)를 확인한다.
 
 실제 필드 타입·nullable·조건부 필수성과 wire 형식은 [외부 전송 형식](#s2-외부-wire-형식), 내부 State의 작성/병합/수명과 적용 조건은 [내부 State 계약](#내부-state와-wire-검증-계약)을 정본으로 한다. [호출과 진행 예시](#호출과-진행-예시)는 Markdown 안의 코드로 제공한다. 아래 표는 역할·호출 경계 요약이며 Entity·외부 DTO·내부 State를 하나의 객체로 공유하지 않는다.
 

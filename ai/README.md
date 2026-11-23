@@ -1,8 +1,8 @@
-# HOPS AI 서버 골격
+# HOPS AI 서버
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
 
-[PRD](../docs/PRD.md)의 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 위한 서버다. 서비스 인증·실행 조회·접수·백그라운드 실행과 Supervisor 그래프를 제공한다. real 모드에는 OpenAI 어댑터를 사용하는 Supervisor·Inquiry와 Spring 생성/조회 도구를 실행하는 Ticket이 연결돼 있다. Curator 모델·progress/result SSE·Python 실행 취소도 연결돼 있다. Knowledge는 명시적인 fixture 설정에서 개발용 고정 자료를 사용하며 운영 실검색·Spring 취소 전파는 별도다. 실제 모델 품질·전체 서비스 E2E 완료를 뜻하지 않는다.
+[PRD](../docs/PRD.md)의 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 위한 서버다. 서비스 인증·실행 조회·접수·백그라운드 실행과 Supervisor 그래프를 제공한다. real 모드에는 OpenAI 어댑터를 사용하는 Supervisor·Inquiry와 Spring 생성/조회 도구를 실행하는 Ticket이 연결돼 있다. Curator 모델·progress/result SSE·Python 실행 취소도 연결돼 있다. Knowledge는 `fixture`에서 개발용 고정 자료를, `spring`에서 Spring 내부 API의 pgvector·키워드 검색과 Neo4j 관계 조회를 사용한다. Spring 취소 전파는 별도다. 실제 모델 품질·전체 서비스 E2E 완료를 뜻하지 않는다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
@@ -19,8 +19,8 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 | 항목 | 상태 |
 |---|---|
 | FastAPI | `GET /healthz`는 프로세스 생존 200. `GET /readyz`는 실행 접수가 열려 있고 RunLedger 소유 세션이 응답할 때만 200, 그 외 503 |
-| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator의 엔티티 연결은 원 기록 시스템의 `APPLIES_TO`만 만든다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`(개발용 고정 자료) 또는 `spring`(Spring 내부 API로 DB의 승인 문서)일 때만 실행하고 기본(`none`)은 연결 전 자리. 역할 조합을 만드는 함수는 `build_registry` 하나이며 Knowledge 연결 여부는 `knowledge_source` 인자로, Ticket의 Spring 생성 실행 여부는 `execute_tickets` 인자로 정한다. 역할을 주입하지 않은 `Supervisor()`는 모든 역할이 연결 전 자리(`pending_agents()`)다 |
-| OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. pgvector·Neo4j 검색은 아직 구현하지 않았고 연결 자리 코드도 두지 않는다. 2차에 `KnowledgeSource` 뒤에서 교체한다 |
+| 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator는 원 기록 시스템의 `APPLIES_TO`를 만들고, Spring이 제공한 후보가 있으면 근거를 검증해 `ADDRESSES`·`USES_CHECK` 연결도 제안한다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`(개발용 고정 자료) 또는 `spring`(Spring 내부 API로 DB의 승인 문서)일 때만 실행하고 기본(`none`)은 연결 전 자리. 역할 조합을 만드는 함수는 `build_registry` 하나이며 Knowledge 연결 여부는 `knowledge_source` 인자로, Ticket의 Spring 생성 실행 여부는 `execute_tickets` 인자로 정한다. 역할을 주입하지 않은 `Supervisor()`는 모든 역할이 연결 전 자리(`pending_agents()`)다 |
+| OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. `spring` 설정에서는 Spring 내부 API를 통해 pgvector·키워드 검색과 Neo4j 관계 조회를 사용한다. 검색 구현·접근 범위는 [지식 검색 계약](../contracts/agents/KNOWLEDGE_TOOLS.md)을 따른다 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결. real 모드 Supervisor 파이프라인 사용 |
 | 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot·progress/result SSE 조회. 실행 접수와 취소는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 주입 시 취소는 항상 202 빈 본문(최선 노력) |
@@ -46,7 +46,7 @@ src/hops_ai/
 │   └── curator/              처리 기록 기반 사례 초안·기존 관계 연결 후보
 ├── harness/                  누적 예산·유일한 재시도 루프·실행 대기/취소·도구 정책
 ├── services/
-│   ├── llm/                  LLM 인터페이스·예산 래퍼·OpenAI 연결 자리
+│   ├── llm/                  LLM 인터페이스·예산 래퍼·OpenAI 어댑터
 │   ├── runs/                 기한·한도 확인과 RunLedger 접수, 백그라운드 실행기, 주기 복구·상세 만료
 │   ├── retrieval/            Knowledge 검색 자료 경계(KnowledgeSource)와 개발용 고정 자료
 │   └── tools/                읽기 도구 인터페이스·등록/인자 검사·공통 예산 wrapper
@@ -142,7 +142,7 @@ curl -i http://127.0.0.1:8000/readyz
 
 이 폴더의 [.env.example](.env.example)을 `ai/.env`로 복사해 `HOPS_AI_*`와 선택적인 OpenAI·Langfuse 설정을 관리합니다. 기존 개인 파일은 덮어쓰지 않습니다. 루트 Compose는 서비스별 파일 세 개를 자동으로 읽고 AI에 필요한 변수만 컨테이너에 전달합니다. uv 직접 실행은 `ai/`를 작업 디렉터리로 할 때 `.env`를 읽으며 프로세스 환경변수가 우선합니다. 두 Langfuse 키(`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, 필요하면 `LANGFUSE_BASE_URL`)를 설정하면 real 모드의 실행을 추적합니다. Langfuse Tracing에서 `hops.ai.run`을 열면 `SUPERVISOR`, `INQUIRY`, `TICKET` 등 실제 호출된 단계의 Input과 Output을 확인할 수 있습니다. 기본값은 건수·분류·다음 행동 같은 요약만 기록합니다. 가상 데이터 전용 환경에서 `HOPS_AI_LANGFUSE_CAPTURE_CONTENT=true`로 실행하면 `model.generate`의 Input에 모델 요청 메시지, Output에 파싱된 구조화 응답이 저장됩니다. 같은 옵션에서 `INQUIRY` Output의 `questions`에 이번 단계가 추가한 질문 문구, `hops.ai.run` Output의 `answer`에 최종 답변이 표시됩니다. 병합이 끝난 문제별 확인 사실은 `INQUIRY` Output의 `factsByProblem`에서 `preservedFacts`와 `addedFacts`로 나뉘며 메시지와 지식 근거의 출처 ID를 함께 표시합니다. 이 모드는 프롬프트와 문의 내용 전체를 Langfuse 프로젝트로 전송합니다. 폐기된 `HOPS_AI_MODE=fake`, `HOPS_AI_AGENT_MODE`, `HOPS_AI_API_PREFIX`는 제거합니다. 비밀값은 Git에 올리지 않습니다.
 
-실행 예산의 초기 기술 기본값은 전체 60초(`HOPS_AI_RUN_DEADLINE_SECONDS`), 모델 호출당 30초(`HOPS_AI_LLM_CALL_TIMEOUT_SECONDS`), 최대 8시도(`HOPS_AI_MAX_LLM_CALLS`), LLM 일시 오류 재시도 2회(`HOPS_AI_MAX_AUTO_RETRIES`), 호출당 출력 1,500토큰(`HOPS_AI_MAX_OUTPUT_TOKENS`)이다. Spring이 보낸 `limits`는 서버 상한(모델 호출 8회, 입력 60,000토큰(`HOPS_AI_MAX_RUN_INPUT_TOKENS`), 출력 8×1,500토큰, 도구 호출 10회(`HOPS_AI_MAX_TOOL_CALLS`), 재시도 7회)을 넘으면 접수하지 않고, 실행 중에는 서버 설정과 요청 중 작은 값을 쓴다. 토큰·도구 호출 누적 한도의 실제 적용은 모델·도구 연결 시 추가한다. 한 인스턴스의 동시 실행 수 기본값은 4(`HOPS_AI_MAX_CONCURRENT_RUNS`)이며, 기한 뒤 취소에 응답하지 않아 분리한 작업도 끝날 때까지 이 수에 포함한다. AI 서버는 한 인스턴스로 운영하는 것을 전제로 하므로 이 값이 서비스 전체 상한이다. 여러 인스턴스로 늘리면 인스턴스마다 상한이 따로 적용되므로 공유 저장소 기반의 서비스 전체 상한을 먼저 구현해야 한다. 역할 전환 때 전체 예산을 초기화하지 않는다. 실제 모델·프롬프트·금액 상한은 연결 전에 합의한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
+실행 예산의 초기 기술 기본값은 전체 60초(`HOPS_AI_RUN_DEADLINE_SECONDS`), 모델 호출당 30초(`HOPS_AI_LLM_CALL_TIMEOUT_SECONDS`), 최대 8시도(`HOPS_AI_MAX_LLM_CALLS`), LLM 일시 오류 재시도 2회(`HOPS_AI_MAX_AUTO_RETRIES`), 호출당 출력 1,500토큰(`HOPS_AI_MAX_OUTPUT_TOKENS`)이다. Spring이 보낸 `limits`는 서버 상한(모델 호출 8회, 입력 60,000토큰(`HOPS_AI_MAX_RUN_INPUT_TOKENS`), 출력 8×1,500토큰, 도구 호출 10회(`HOPS_AI_MAX_TOOL_CALLS`), 재시도 7회)을 넘으면 접수하지 않고, 실행 중에는 서버 설정과 요청 중 작은 값을 쓴다. `BudgetedLLMClient`는 보고 토큰을 누적하고 남은 입력·출력 한도를 적용한다. 도구 게이트웨이와 Ticket·Knowledge 호출도 실행 전체 도구 호출 수를 누적한다. 한 인스턴스의 동시 실행 수 기본값은 4(`HOPS_AI_MAX_CONCURRENT_RUNS`)이며, 기한 뒤 취소에 응답하지 않아 분리한 작업도 끝날 때까지 이 수에 포함한다. AI 서버는 한 인스턴스로 운영하는 것을 전제로 하므로 이 값이 서비스 전체 상한이다. 여러 인스턴스로 늘리면 인스턴스마다 상한이 따로 적용되므로 공유 저장소 기반의 서비스 전체 상한을 먼저 구현해야 한다. 역할 전환 때 전체 예산을 초기화하지 않는다. LLM 기본 모델은 `Settings`의 `supervisor_model`이며 `HOPS_AI_SUPERVISOR_MODEL`과 `HOPS_AI_ROLE_MODELS`로 변경할 수 있다. 프롬프트는 코드의 버전별 정의를 사용한다. 호출·토큰 상한과 통화 단위의 금액 예산은 구분한다. 이 재시도는 색인 반영이나 업무 저장에 적용하지 않는다.
 
 ### 상담 실행(`real` 모드) 로컬 실행
 
@@ -182,13 +182,13 @@ python3 -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token
 
 ### Knowledge 개발용 고정 자료
 
-`ai/.env`에 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`를 추가하면 `real` 모드에서 Knowledge 역할이 켜진다(Compose도 같은 이름으로 AI 컨테이너에 전달한다). `spring`이면 Spring 내부 API(`/internal/v2/runs/{runId}/knowledge-searches`)로 DB의 승인 문서를 읽는다. `HOPS_AI_SPRING_BASE_URL`과 `SPRING_SERVICE_TOKEN`이 없으면 시작을 거부하고, 접근 범위는 요청이 아니라 Spring이 실행에서 확정한다. 검색 0건은 빈 결과, 검색 실패·접근 범위 초과(`DENIED`)는 검색 오류(`RetrievalUnavailable`)이며 빈 결과로 바꾸지 않는다. 호출마다 실행 전체 도구 호출 한도(`toolCalls`)를 소비하고 제한 시간은 `HOPS_AI_KNOWLEDGE_HTTP_TIMEOUT_SECONDS`(기본 5초)와 남은 기한 중 짧은 쪽이다. 관계 조회용 `SpringRelationSource`(증상→확인 항목→질문 문구)는 클라이언트까지만 있고 상담 흐름에는 연결하지 않았다. `fixture`는 테스트·오프라인용이다. 기본값 `none`에서는 Knowledge가 연결 전 자리로 남고 Inquiry도 기존 양식 규칙을 그대로 쓴다. 안내문은 `HOPS_AI_GUIDE_EXCERPT`(기본 `true`)가 켜져 있으면 승인 본문을 빈 줄 기준 문단으로 나눠 모델이 문의에 답하는 문서 하나와 문단 번호만 고르고, 코드가 그 문단을 원래 순서대로 이어 만든다(`agents/knowledge/excerpt.py`). 답하는 문서가 없다고 판단하면 안내하지 않고, 모델 오류·검증 거부·예산 부족이면 본문 전체로 안내한다. Spring은 저장할 때 안내문의 각 문단이 공개 근거의 승인 본문에 있는지 다시 확인한다. 설정을 바꾸면 AI를 다시 시작해야 한다.
+`ai/.env`에 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`를 추가하면 `real` 모드에서 Knowledge 역할이 켜진다(Compose도 같은 이름으로 AI 컨테이너에 전달한다). `spring`이면 Spring 내부 API(`/internal/v2/runs/{runId}/knowledge-searches`)로 DB의 승인 문서를 읽는다. `HOPS_AI_SPRING_BASE_URL`과 `SPRING_SERVICE_TOKEN`이 없으면 시작을 거부하고, 접근 범위는 요청이 아니라 Spring이 실행에서 확정한다. 검색 0건은 빈 결과, 검색 실패·접근 범위 초과(`DENIED`)는 검색 오류(`RetrievalUnavailable`)이며 빈 결과로 바꾸지 않는다. 호출마다 실행 전체 도구 호출 한도(`toolCalls`)를 소비하고 제한 시간은 `HOPS_AI_KNOWLEDGE_HTTP_TIMEOUT_SECONDS`(기본 5초)와 남은 기한 중 짧은 쪽이다. `SpringRelationSource`(증상→확인 항목→질문 문구)는 `spring` 설정에서 주입되며, `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`인 문제별 행동 경로의 증상 상담에서 사용한다. `fixture`는 테스트·오프라인용이다. 기본값 `none`에서는 Knowledge가 연결 전 자리로 남고 Inquiry도 기존 양식 규칙을 그대로 쓴다. 안내문은 `HOPS_AI_GUIDE_EXCERPT`(기본 `true`)가 켜져 있으면 승인 본문을 빈 줄 기준 문단으로 나눠 모델이 문의에 답하는 문서 하나와 문단 번호만 고르고, 코드가 그 문단을 원래 순서대로 이어 만든다(`agents/knowledge/excerpt.py`). 답하는 문서가 없다고 판단하면 안내하지 않고, 모델 오류·검증 거부·예산 부족이면 본문 전체로 안내한다. Spring은 저장할 때 안내문의 각 문단이 공개 근거의 승인 본문에 있는지 다시 확인한다. 설정을 바꾸면 AI를 다시 시작해야 한다.
 
 - 자료는 코드에 들어 있는 합성 가이드·점검 문서 몇 건이며 `origin=SYNTHETIC`으로 표시된다. 사용법 안내 흐름을 확인하는 용도이고, 검색 품질이나 운영 지식을 뜻하지 않는다. 실제 pgvector·Neo4j 검색과 Spring 권한 서버 연동은 이 설정에 포함되지 않는다.
 - 검색은 서버가 허용한 문서 범위와 문제의 보고 시스템으로 먼저 좁힌 뒤 키워드 일치 수로 순위를 매긴다. 질의는 그 문제 자신의 정보로 만든다. 문제가 하나뿐일 때는 요약, 확인한 상세 값, 최근 사용자 원문을 함께 쓰고, 문제가 여럿이면 다른 문제의 단어가 섞이지 않게 원문과 모델이 쓴 요약을 쓰지 않고 사용자 인용으로 검증된 상세 값만 쓴다. 직원 대상 가이드(`EMPLOYEE`)만 사용자 안내가 되며 담당자 전용 문서는 안내로 쓰지 않는다.
 - 사용법 문의는 시스템과 하려는 작업·화면만 확인되면 곧바로 가이드를 찾는다. 현재 진행 방식 같은 추가 정보를 먼저 묻지 않는다.
 - 검색 결과가 없거나(`EMPTY`), 결과는 있지만 직원 공개 가이드가 없어 안내를 만들지 못하면(담당자용 런북만 걸린 경우 등) 그 문제는 "안내 불가"다. 오류가 아니라 "찾지 못함"이며 **검색한 문제(`KnowledgeResult.problemRef`)에만** 적용된다. 이때 Supervisor는 하려는 결과(`expectedBehavior`) 등을 더 묻거나, 담당자 검토 티켓(`REVIEW_REQUIRED`) 제안으로 넘길 수 있다. 검색하지 않은 문제는 담당자 전달 대상이 아니다. 같은 문제를 같은 질의로 같은 실행에서 다시 검색하지 않고, 확인한 사실이 더해져 질의가 바뀌었을 때만 다시 검색할 수 있다. 검색 자체가 실패하면(`ERROR`) 티켓을 만들지 않고 `SEARCH_UNAVAILABLE`로 실행이 실패한다.
-- 한계: 공통 계약상 한 번의 실행에서 안내(`guide`)는 하나다. 사용법 문제가 둘 이상이면 첫 문제만 안내하고 나머지는 결과 없이 남아 실행이 실패할 수 있다(계약 확장 합의 후 후속). Spring이 AI의 문제·질문을 아직 저장하지 않아 사용자가 답할 때마다 질문 횟수(문제당 5회)가 이어서 누적되지 않는다. 안내 불가 뒤 질문과 티켓 중 무엇을 고르는지는 소수 표본의 실제 모델 시험으로 확인했을 뿐 안정성을 보증하지 않는다.
+- 한계: 공통 계약상 한 번의 실행에서 안내(`guide`)는 하나다. 사용법 문제가 둘 이상이면 첫 문제만 안내하고 나머지는 결과 없이 남아 실행이 실패할 수 있다(계약 확장 합의 후 후속). Spring은 `ProblemQuestionWriter`로 문제·질문 묶음과 횟수를 저장한다. 하네스의 질문 이력과 실제 서비스의 저장·재시작 동작은 구분해 검증한다. 안내 불가 뒤 질문과 티켓 중 무엇을 고르는지는 소수 표본의 실제 모델 시험으로 확인했을 뿐 안정성을 보증하지 않는다.
 
 ### Spring 전용 내부 조회 API
 
@@ -256,6 +256,8 @@ uv run pytest tests/integration/test_run_ledger.py
 
 DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 호출·Spring 업무 저장이 연결됐다는 뜻은 아니다.
 
+아래 세 검증 기록은 당시 커밋과 환경의 결과다. 현재 Spring에는 `ProblemQuestionWriter`의 문제·질문 묶음 저장과 질문 횟수 누적, `ProblemProjector`의 조회 투영이 구현돼 있다. 아래의 질문 상태 저장 미완료 설명은 당시 상태이며, 현재 코드의 재시작·실제 모델 E2E 통과 여부를 뜻하지 않는다.
+
 ### develop 갱신 후 실제 모델 추가 질문 검증
 
 `c9e432a` 기준 develop에 Ticket 변경을 복원한 뒤 가상 문의로 실제 `gpt-6-luna`와 Spring·AI·PostgreSQL·Redis를 연결했다. 첫 정보 부족 입력에서는 기대 동작·발생 시점을 질문했고 티켓은 없었다. 화면·동작만 답한 두 번째 실행은 Supervisor가 Inquiry를 4회 반복해 모델 호출 상한 8회에서 `BUDGET_EXCEEDED`로 종료됐다. 발생 시점까지 입력한 세 번째 새 실행에서는 `STORED` 티켓 1건·배정을 확인했고 문의 상세도 HTTP 200으로 Problem을 표시했다. 이 실패를 포함한 결과이므로 정상 멀티턴 통과로 보고하지 않는다. 별도의 최초 시도에서 Supervisor 응답 `INVALID_OUTPUT`도 1회 관측했으며 응답 원문을 수집하지 않아 세부 원인은 확정하지 않았다.
@@ -280,7 +282,7 @@ DB 통합 검사를 통과해도 서비스 인증·HTTP/SSE·Supervisor·모델 
 
 ## 구현 경계와 다음 작업
 
-- **Inquiry·Ticket:** 의도와 내부 처리 유형을 분리한다. 질문 묶음은 독립 문제당 최대 5회다. 보고 시스템·책임 시스템 후보·근거와 미확인을 보존한다. 구체 질문 전이·서버 저장 검증은 구현 전이다.
+- **Inquiry·Ticket:** 의도와 내부 처리 유형을 분리한다. 질문 묶음은 독립 문제당 최대 5회다. 보고 시스템·책임 시스템 후보·근거와 미확인을 보존한다. Spring의 `ProblemQuestionWriter`가 문제·질문 묶음과 횟수를 저장하며 도메인이 5회 한도를 검사한다. 재시작과 실제 모델을 포함한 동작은 해당 환경의 통합 검증으로 확인한다.
 - **Knowledge:** 권한이 허용된 가이드·업무 정책·런북·승인 사례를 검색한다. 조건부 분석을 포함하며 그래프 연결만으로 원인을 확정하지 않는다. 검색 0건과 검색 오류를 구분한다.
 - **Curator·색인:** 처리 기록으로 초안을 제안한다(`agents/curator/`, 프롬프트 `curator-draft-v4`). 입력(`WorkRecordContext`)은 같은 티켓의 이전 처리 기록·해결 확인 이력·상담에 쓴 근거와 AI 질문·답변을 가산 필드로 받아 초안 프롬프트의 맥락으로 쓰며(#198), 사례 출처는 사용자 원문만 허용한다. 문의자가 미해결로 답한 기록은 모델 호출 없이 사례 없음이며, 모델·형식 오류와 USER 원문에서 확인되는 출처가 없는 재사용 초안은 사례 없음으로 바꾸지 않고 실패한다. 증상·확인 항목 연결(`ADDRESSES`·`USES_CHECK`)은 Spring이 보낸 후보(`linkCandidates`) 안에서만 모델이 고르고(`curator-link-v1`) 근거 인용을 코드가 대조한다. 후보가 없으면 모델을 부르지 않고 `APPLIES_TO`만 만든다. `CASE_DRAFT`는 Supervisor 모델을 부르지 않는다. 문의자 해결 확인·시스템 담당자 승인과 같은 승인 버전의 양쪽 반영 성공 전에는 사례를 어느 검색 경로에서도 공개하지 않는다. 업무 승인·공개 확정은 Spring의 책임이다.
 - **공통:** Python은 업무 DB에 직접 쓰지 않는다. 실행/SSE·오류·인증·멱등성·취소·버전·공개 검증은 공통·에이전트 계약의 채택값을 적용하고 생산자·소비자의 실제 연결을 검증한다. 읽기 전용 도구 Mock은 해당 기능 명세에 따라 구현하며 실제 운영 관측과 구분한다.

@@ -10,13 +10,13 @@ Gradle·IntelliJ 직접 실행은 `.env`를 자동으로 읽지 않습니다. �
 
 Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에서는 해당 디렉터리를 Gradle 프로젝트로 엽니다. 빌드·테스트·실행 명령은 이 디렉터리에서 실행합니다.
 
-PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/contracts/README.md)에서 데이터·전송·상태·AI 경계를 함께 검토합니다. 기존 `/api` 구현과 제안된 `hops-system-1`을 구분하며, 물리 ERD·엔티티 매핑은 이슈 #66과 맞춥니다.
+PRD 1.44 업무 기능을 변경할 때는 [공통 구현 계약](../../../specs/contracts/README.md)에서 데이터·전송·상태·AI 경계를 함께 검토합니다. 현재 공개 API는 `hops-system-1`의 `/api/v2`를 사용합니다. 물리 구조는 Flyway 마이그레이션과 엔티티를 함께 확인합니다.
 
 ## 패키지 구성
 
 Ticket용 내부 REST 생성·조회·제한 재시도 API는 [Ticket 도구 계약](../../../contracts/agents/TICKET_TOOLS.md)을 따른다. `SPRING_SERVICE_TOKEN` 서비스 인증과 V23 전달 journal을 사용한다. Python 도구 어댑터·생성 확인 루프를 연결했고 실제 HTTP로 검증했다. 문의 상세 Problem 투영도 develop 갱신 후 실제 모델 생성 결과로 조회를 확인했다. 질문 상태 저장·공개 work-item 복구·전체 브라우저 E2E는 별도다. Gradle 직접 실행에는 해당 환경변수를 주입해야 한다. 실제 모델 품질 검증과 API/HTTP 검증을 구분한다.
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃, [조회 API](#조회-api)의 시스템 목록·내 문의·대화·변경 요청 결과 확인, [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API는 아래 [인증](#인증), [티켓 조회](#티켓-조회-api), [티켓 처리·정정·해결 확인](#티켓-처리정정해결-확인-api), [문의 생성·조회](#문의-생성조회-api), [SSE](#spring-sse-공통-기반)를 제공합니다. 사례 조회·수정·승인·색인 확인/재시도는 `CaseController`에 구현돼 있습니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -212,7 +212,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 | JWT 검증 | `global/security/JwtConfig` | `Authorization: Bearer 토큰`의 서명(HS256)·만료·발급자(`hops.jwt.issuer`)·대상(`hops.jwt.audience`)을 검사합니다. Controller에서 `@AuthenticationPrincipal Jwt jwt`로 클레임을 꺼내고, `roles`는 `hasRole('BIZ_ADMIN')`처럼 씁니다. `hops.jwt.secret`은 개발용 값이며 공용·운영 서버에서는 `HOPS_JWT_SECRET` 환경변수로 바꿉니다. 발급은 `auth/service/AccessTokenIssuer`가 같은 키로 합니다. |
 | CORS | `hops.cors.allowed-origins` | 기본값은 Vite 개발 서버 `http://localhost:5173`, `http://127.0.0.1:5173`입니다 (브라우저는 둘을 다른 주소로 봅니다). 로그인 쿠키를 위해 `allowCredentials`를 켰습니다. |
 | Swagger UI | `global/config/OpenApiConfig` | 서버 실행 후 `http://localhost:8080/swagger-ui/index.html`. 오른쪽 위 Authorize에 JWT를 넣어 호출합니다. 계약 기준은 Swagger가 아니라 저장소의 OpenAPI YAML입니다. |
-| Python AI 서버 호출 | `agent/client` | `@Qualifier(AgentClientConfig.AGENT_REST_CLIENT) RestClient`를 주입해 씁니다. 주소는 `hops.agent.base-url`(기본 `http://localhost:8000`), 응답 대기 90초입니다. 경로·요청 형식은 AI 담당자와 합의 후 추가합니다. |
+| Python AI 서버 호출 | `agent/client` | `@Qualifier(AgentClientConfig.AGENT_REST_CLIENT) RestClient`를 주입해 씁니다. 주소는 `hops.agent.base-url`(기본 `http://localhost:8000`), 응답 대기 90초입니다. `AgentRunClient`는 `/internal/v2/runs` 접수·snapshot 조회를, `AgentRunEventClient`는 progress/result SSE 수신을 담당합니다. 서비스 Bearer와 입출력은 [에이전트 계약](../../../contracts/agents/README.md)을 따릅니다. |
 
 ## 테스트·빌드·실행
 
@@ -317,7 +317,7 @@ AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다
 - **대화 페이지:** 처음에는 `beforeSequenceNo` 없이 최신 페이지를 받고, 응답의 `nextBeforeSequenceNo`를 다음 요청의 `beforeSequenceNo`로 보내 이전 페이지를 받습니다. `null`이면 더 없습니다.
 - **문의 생성:** 문의(버전 1)·첫 USER 메시지·상담 실행(QUEUED)과 AI 입력(`agent_run.input_snapshot`, AiRunRequest)·`currentRun`을 한 거래로 저장합니다. 응답은 입력과 실행 접수의 저장이며 AI 답변 완료가 아닙니다. 같은 키로 다시 보내면 처음 영수증을 돌려주고 새 실행을 만들지 않습니다. `content`는 1~4,000 코드 포인트이며 trim하지 않고 저장합니다. 제목은 첫 입력의 공백을 한 칸으로 줄여 200자까지 씁니다.
 - **AI 전달:** 이 API는 요청 스레드에서 AI 서버를 부르지 않습니다. commit 뒤 `AgentRunQueued` 이벤트를 `AgentRunDispatcher`가 받아 전용 스레드에서 처리합니다. 순서는 작업 종류별 `AgentRunResultHandler.verifyAccess`로 접수 때의 권한 문맥 재확인 → `POST /internal/v2/runs`(`AgentRunClient`, 서비스 토큰) → `QUEUED→RUNNING` → `GET /internal/v2/runs/{id}` 폴링(기본 0.5초) → 종료 처리입니다. AI 거절·연결 불가·계약 위반·기한(`expiresAt`+5초) 초과는 실행을 FAILED/TIMED_OUT으로 끝내고 AI 오류 코드를 `agent_run.error_code`에 남깁니다. 설정은 `hops.agent.dispatch-enabled`(기본 true, 테스트 프로필은 false)·`dispatch-poll-interval`·`dispatch-deadline-grace`, 서비스 토큰은 환경변수 `AI_SERVICE_TOKEN`(ai/.env와 같은 값)입니다. 서버 재시작으로 끊긴 QUEUED·RUNNING 실행의 복구는 아직 없습니다.
-- **AI 결과 반영:** 상담 결과는 `InquiryAnswerHandler`가 반영합니다. 문의 행을 잠그고 이 실행이 현재 실행이며 문의 버전이 접수 때와 같은지 확인한 뒤(아니면 `SUPERSEDED`로 반영하지 않음), AI 답변(`answer`)을 접수 때 예약한 `answerMessageId`로 저장합니다. `resultRevision`은 티켓 생성 결과나 해결 응답이 바뀔 때 올리는 값이라 AI 답변 저장으로는 늘지 않습니다. 문제 분리·질문 묶음·가이드·티켓 제안은 아직 저장하지 않고 `agent_run.validation_result.unapplied`에 받았다는 사실만 남깁니다(결과 원문은 `agent_run.result`). 작업 종류가 늘어나면(예: 사례 초안) `AgentRunResultHandler` 구현만 추가합니다.
+- **AI 결과 반영:** 상담 결과는 `InquiryAnswerHandler`가 반영합니다. 문의 행을 잠그고 이 실행이 현재 실행이며 문의 버전이 접수 때와 같은지 확인한 뒤(아니면 `SUPERSEDED`로 반영하지 않음), AI 답변(`answer`)을 접수 때 예약한 `answerMessageId`로 저장합니다. `resultRevision`은 티켓 생성 결과나 해결 응답이 바뀔 때 올리는 값이라 AI 답변 저장으로는 늘지 않습니다. `ProblemQuestionWriter`가 문제·표준 요청·질문 묶음·횟수를 저장하고, `GuideResultWriter`가 승인 근거를 대조해 안내와 해결 확인 요청을 저장합니다. 적용하지 않은 결과 필드만 `agent_run.validation_result.unapplied`에 남기며 결과 원문은 `agent_run.result`에 보존합니다. 티켓 저장은 내부 Ticket 도구 API, 사례 초안 반영은 별도의 `AgentRunResultHandler` 구현이 담당합니다.
 - **실행 한도·버전:** `hops.agent.run.*`(전체 60초, 호출 8회, 재시도 2회, 출력 토큰은 실행 합계 12,000 = 호출 8회 × 호출당 1,500). `model-version`·`prompt-version`은 AI 서버와 정하기 전까지 `pending`입니다.
 - **보고 시스템:** `reportedSystemId`는 첫 메시지 payload에만 저장하고 AI 입력에는 넣지 않습니다. AiRunRequest에 받을 필드가 없어 전달 방식을 정해야 합니다.
 - **실행 상태:** DB `CANCELLED`는 `SUPERSEDED`로 보냅니다. 실패 오류는 공개 코드(`AI_INVALID_OUTPUT`·`MODEL_UNAVAILABLE`·`SEARCH_UNAVAILABLE`·`SERVICE_UNAVAILABLE`·`AUTH_CONTEXT_CHANGED`·`AI_RUN_STATE_UNKNOWN`, 시간 초과는 `DEADLINE_EXCEEDED`)로 바꾸고 `requestId`에 실행을 접수한 명령 ID를 넣습니다.
