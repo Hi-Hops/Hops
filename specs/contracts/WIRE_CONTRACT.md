@@ -265,7 +265,7 @@ PR #59 병합 시점(dc44f2c)에는 부서 SSE만 지원하고 INQUIRY·TICKET�
 
 - 기술 하네스는 기한·호출 상한·일시 LLM 오류 재시도·사용량·도구 허용/취소 확인을 제공한다. RunLedger와 접수 서비스는 실행 ID·입력 digest·상태·종료 결과 및 중단 실행 UNKNOWN 복구를 처리한다.
 - 실행 wire DTO 검증과 명시 활성화한 `/internal/v2`의 서비스 인증·저장된 run snapshot 조회, 백그라운드 실행기와 progress/result SSE를 구현했다. HTTP 접수는 파이프라인 주입 시 202이며 기본 실행은 파이프라인 미주입으로 503이다. 역할 실행 전 고정 진행 문구를 발행하고 최종 결과는 RunLedger 저장 뒤 전달한다. real 모드는 설정 검증 후 Supervisor 파이프라인을 연결한다. 승인 CASE 색인 API도 필요한 저장소 설정이 있을 때 제공한다. answer.delta·Spring 취소 전파와 전체 통합 검증 범위는 별도로 확인한다.
-- 모델·임베딩·비용·구체 실행 설정값은 별도 선정·검증 대상이다. 내부 인증·RunLedger 검사만으로 실제 상담이나 지식 선순환 완료를 표시하지 않는다.
+- 현재 LLM 모델·호출/시간/토큰 상한은 [AI 설정](../../ai/src/hops_ai/settings.py)으로 관리한다. 검색 임베딩은 [QueryEmbedding](../../backend/spring/hops/src/main/java/com/hihops/hops/knowledge/service/QueryEmbedding.java)의 `text-embedding-3-small` 1536차원을 사용한다. 금액 예산과 실제 품질·비용 측정은 설정값과 구분한다. 내부 인증·RunLedger 검사만으로 실제 상담이나 지식 선순환 완료를 표시하지 않는다.
 
 현재 실행 모드·환경·내부 API·DB 검사는 [AI 안내](../../ai/README.md)를 따른다.
 

@@ -508,7 +508,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 
 중복 불가 조합: (문서 버전 ID, 조각 순번)
 
-신규 프로필은 같은 Spring PostgreSQL DB의 hops_knowledge 스키마에 pgvector를 사용한다. 임베딩 모델과 벡터 차원은 별도 선정하며 여기서 고정하지 않는다. 문서 버전 FK는 기존 knowledge_document_version을 참조한다. 승인 CASE도 기존 knowledge_document/knowledge_document_version에 검색용 스냅샷으로 투영하고 source_metadata에 caseId/caseVersion을 연결한다. 별도 사례 버전·반영 작업 테이블은 만들지 않는다. 반영 결과는 resolved_case.vector_status/graph_status로 관리하며 시스템·기능·증상 등 관계는 Neo4j에 둔다.
+신규 프로필은 같은 Spring PostgreSQL DB의 hops_knowledge 스키마에 pgvector를 사용한다. 현재 검색은 `text-embedding-3-small` 1536차원을 사용한다. V27은 `embedding_model` 컬럼과 해당 모델일 때 `vector_dims(embedding) = 1536`을 요구하는 CHECK를 추가한다. V19의 `vector` 타입 자체는 유지하며 모델 미상 벡터는 현재 검색에서 제외한다. 문서 버전 FK는 기존 knowledge_document_version을 참조한다. 승인 CASE도 기존 knowledge_document/knowledge_document_version에 검색용 스냅샷으로 투영하고 source_metadata에 caseId/caseVersion을 연결한다. 별도 사례 버전·반영 작업 테이블은 만들지 않는다. 반영 결과는 resolved_case.vector_status/graph_status로 관리하며 시스템·기능·증상 등 관계는 Neo4j에 둔다.
 
 #### 해결 사례 `resolved_case`
 담당자의 해결·구현 기록으로 만든 사례예요. Curator가 초안을 만들고, 해당 시스템 주담당자가 승인한 뒤 Vector·Neo4j에 모두 반영돼야 검색에 나와요. *(근거: 최종기획서 7.3, 8.1~8.5, 9.4)*
@@ -700,7 +700,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 - 22개 테이블 전부 [Flyway 마이그레이션](../backend/spring/hops/src/main/resources/db/migration/) V1~V21로 실제 DB에 적용했다 (#23). 테이블마다 파일 하나(V2~V20)이며, 순환 참조 FK는 뒤 파일에서 `ALTER TABLE`로 붙인다 (`inquiry.current_run_id`→V7, `agent_run.ticket_id`→V11, `agent_run.trigger_work_log_id`→V14).
 - 관계 데이터 8개 테이블(`relation_*`)은 V25로 적용한다(#191). 마이그레이션은 EC2에서 자동 실행되지 않으므로 배포 담당자가 적용 시점을 맞춘다. 개발용 시드는 `R__seed_dev_relations.sql`이 넣는다.
 - 검색 조각은 pgvector `vector` 타입을 쓴다. V19는 `CREATE EXTENSION IF NOT EXISTS vector`를 실행한다. 제한 권한의 로컬 DB 계정은 슈퍼유저로 확장을 먼저 켜고, 통합 Compose는 pgvector 이미지와 확장 생성 권한이 있는 DB 계정으로 Flyway를 실행한다. 환경별 준비는 [Spring README](../backend/spring/hops/README.md)를 따른다.
-- 아직 적용하지 않은 것: `department.is_routable`·`AGENT_OPS_ADMIN` 제거(서버 권한·DTO 전환), AI 서버 계정의 `hops_knowledge` 전용 권한, 모델 선정 후 임베딩 차원 고정, JSONB 내부 구조의 전용 타입. 초기 검색은 QUESTIONS의 정확 코사인 기준이며 ANN 인덱스는 MVP 필수 미완료 항목이 아니다.
+- 아직 적용하지 않은 것: `department.is_routable`·`AGENT_OPS_ADMIN` 제거(서버 권한·DTO 전환), JSONB 내부 구조의 전용 타입. AI 서버 계정의 `hops_knowledge` 권한 준비는 [AI DB 안내](../ai/db/README.md)를 따르며 실제 계정 적용 여부는 환경에서 확인한다. 검색 임베딩 모델과 차원 제약은 V27에 정의돼 있다. 초기 검색은 QUESTIONS의 정확 코사인 기준이며 ANN 인덱스는 MVP 필수 미완료 항목이 아니다.
 - JSONB·상태 변환·저장 제약은 DATA11절/본 문서6절, 그래프·검색 계약은 에이전트 계약/QUESTIONS, 티켓 재시도 주체는 F010의 채택값을 따른다.
 - 신규 상태·필드는 [DATA_TYPES 신규 절](../specs/contracts/DATA_TYPES.md#신규-계약-hops-system-1)·[WIRE12절](../specs/contracts/WIRE_CONTRACT.md#12-신규-계약-hops-system-1)을 따르고 기존 본문은 전환 전 프로필로 보존한다.
 
