@@ -139,7 +139,7 @@ PostgreSQL 격리는 READ COMMITTED, 잠금 순서는 Inquiry → problemId 정�
 
 ## 10. 물리 ERD 적용 기준
 
-기준은 develop의 [PR #69](https://github.com/Hi-Hops/Hops/pull/69), merge commit `d896faeb2a0b132da2c3212cba408bf880d797cf`다. 원본 22개 테이블을 사용하고 추가 테이블 없이 기존 컬럼 보완과 DTO 투영을 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)에 정의한다. 원본 ERD 대조와 DDL/Entity/실제 DB 적용을 구분한다.
+기준은 develop의 [PR #69](https://github.com/Hi-Hops/Hops/pull/69), merge commit `d896faeb2a0b132da2c3212cba408bf880d797cf`다. 이 초기 대조에서는 원본 22개 테이블의 기존 컬럼 보완과 DTO 투영을 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)에 정리했다. 이후 추가된 V23·V25 테이블은 이 대조의 대상이 아니며 현재 스키마와 적용 확인 방법은 9절을 따른다. 원본 ERD 대조와 DDL/Entity/실제 DB 적용을 구분한다.
 
 <a id="11-완성-erd-대조와-문서-pr-병합-기준"></a>
 

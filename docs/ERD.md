@@ -1,6 +1,6 @@
 # ERD (물리 테이블·컬럼)
 
-상태: PRD 1.44 MVP 공통 계약 정합안 · 22개 테이블 · FK 46개 · 6절 보완을 3절 표에 반영하고 Flyway V1~V21로 실제 DB에 적용 (#23). 원본 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
+상태: PRD 1.44 초기 MVP 공통 계약 정합 기록 · 당시 22개 테이블·FK 46개 · 6절 보완을 3절 표에 반영하고 Flyway V1~V21로 적용한 기록(#23). 이후 V23·V25의 추가 테이블은 6절에 설명하며, 현재 전체 스키마와 환경별 적용 상태는 마이그레이션과 해당 DB에서 확인한다. 원본 대조 기준은 [DATA11절](DATA.md#11-완성-erd-대조-결과와-병합-기준)에 고정한다.
 
 이 문서는 테이블·컬럼·타입·FK를 적은 **물리 설계**다. ERD Cloud import와 Flyway 마이그레이션 작성의 기준으로 쓴다. 엔터티의 의미·관계·저장 불변식(**논리 모델**)은 [ERD 설명](ERD_설명.md)과 [DATA](DATA.md)를 따른다. 두 문서가 다르면 논리 모델을 먼저 맞추고 이 문서를 고친다.
 
@@ -52,7 +52,7 @@
 | 상태와 맞물린 값 | 상태에 따라 반드시 있거나 없어야 하는 값은 CHECK로 막는다: 티켓 `RESOLVED` ⇔ `resolved_at`, 문제 `RESOLVED_WITHOUT_TICKET` ⇔ `resolved_at`, 배정 `MANUAL_CORRECTION` ⇔ `assigned_by_member_id`, 사례 `APPROVED` ⇔ `approved_by_member_id`·`approved_at`(초안이면 둘 다 NULL), AI 실행 `QUEUED`는 시작·종료 시각 없음 / `RUNNING`은 시작 시각만 / 끝난 상태는 종료 시각 필수 / `SUCCEEDED`는 시작 시각도 필수 / 종료 시각 ≥ 시작 시각, 완료 처리 기록은 `verification_result` 필수, Curator 실행은 `trigger_work_log_id` 필수 |
 | 인덱스 | PostgreSQL은 FK에 인덱스를 자동으로 만들지 않아 목록 조회용 FK에 `idx_<테이블>_<컬럼>`을 둔다: `inquiry.requester_member_id`, `agent_run.inquiry_id`, `ticket.inquiry_id`·`assignee_member_id`·`responsible_system_id`, `ticket_event.ticket_id`, `ticket_assignment.ticket_id`, `ticket_work_log.ticket_id`, `notification (recipient_member_id, created_at DESC)`(알림함 최신순). 유일 제약의 앞 컬럼으로 이미 찾을 수 있는 경우(예: `message.inquiry_id`)는 따로 두지 않는다. 부분 유일 인덱스 2개(현재 배정, Curator 실행)는 각 테이블 설명 참고 |
 | 업무 데이터 쓰기 | Spring이 REST 변경 요청을 저장·확정하고 권한별 SSE를 전달. AI 서버는 제안·근거 반환을 담당하며 업무 DB에 직접 쓰지 않음 |
-| 관계선 | 실제 DB는 FK 46개(원본 45개 + 6.1절 `inquiry.current_run_id`)를 적용한다. 추가 테이블의 FK는 만들지 않는다. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
+| 관계선 | 초기 V1~V21 대조의 FK는 46개(원본 45개 + 6.1절 `inquiry.current_run_id`)다. 이후 추가 테이블의 FK는 각 마이그레이션에 정의되며 이 초기 집계에 포함되지 않는다. ERD Cloud 그림에는 소속 관계와 배정 흐름의 핵심 20개만 그림. 회원(누가 했는지)·AI 실행(추적용)·다른 길로 이미 이어진 참조와 알림의 이동 링크는 선을 생략 |
 | 중복 방지 | REST `Idempotency-Key`는 중복 요청 방지 기록에 업무 변경과 같은 트랜잭션으로 저장. 문의 1:N 문제 → 문제당 티켓 최대 1개 (`ticket.inquiry_problem_id` 중복 불가) |
 | 삭제 | 문의·티켓·처리 기록·해결 사례는 지우지 않고 보존 (최종기획서 8.3). 신규 프로필의 만료된 journal 응답 본문은 정리하되 키/digest/tombstone은 유지(6절). 전환 전 프로필의 정책과 구분 |
 | 저장소 경계 | PostgreSQL은 사용자·시스템·주담당자·문의·티켓·승인·상태의 정본. 관계 탐색은 Neo4j, 의미 검색은 Vector 저장소, 로그인 세션·Refresh는 Redis. 신규 hops-system-1 SSE는 replay 없이 REST 재동기화, 전환 전 replay 프로필은 별도 Redis (최종기획서 9.1, 팀 합의 2026-10-28) |
@@ -727,7 +727,7 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 | idempotency_key | response_status/response_body는 tombstone 정리 뒤 NULL 허용 | 상세 최소24시간. 만료 뒤410, 기존 키/해시/operation/resource는 보존. 같은 키 새 실행 금지. PENDING 접수는202 receipt이며 업무 반영+최종 journal은 한 거래로 저장 |
 | knowledge_document_version | content_digest CHAR(64) NOT NULL, source_metadata JSONB NOT NULL, review_status VARCHAR(30) NOT NULL DEFAULT PENDING | 승인 원문·origin/출처/조건을 버전 고정. CASE의 source_metadata.indexRequests는 VECTOR/NEO4J 현재 IndexApplyRequest를 승인과 같은 거래로 보존. 기술 요청 메타데이터는 본문 해시·공개 DTO·모델 입력에서 제외 |
 | knowledge_document | document_type에 CASE 허용 | 승인된 현재 사례의 검색용 문서. 원본과 승인 여부는 resolved_case에서 확인하며 직원 공개 범위도 재검사 |
-| hops_knowledge.knowledge_chunk | embedding VECTOR, 차원은 모델 선정 후 정의. 기존 knowledge_document_version_id FK 유지, content_digest/chunk_digest CHAR(64) NOT NULL | 문서와 승인 CASE 모두 기존 문서 버전 경로로 검색 조각 저장. UNIQUE(knowledge_document_version_id,chunk_no). source_metadata의 원 사례 ID/버전과 실제 승인 내용을 대조 |
+| hops_knowledge.knowledge_chunk | embedding VECTOR. 현재 text-embedding-3-small은 1536차원이며 V27은 해당 모델에 차원 제약을 적용한다. 기존 knowledge_document_version_id FK 유지, content_digest/chunk_digest CHAR(64) NOT NULL | 문서와 승인 CASE 모두 기존 문서 버전 경로로 검색 조각 저장. UNIQUE(knowledge_document_version_id,chunk_no). source_metadata의 원 사례 ID/버전과 실제 승인 내용을 대조 |
 
 검색 조각은 별도 PostgreSQL **DB**로 옮기지 않고 같은 DB의 hops_knowledge **schema**에 둬 실제 FK를 유지한다. AI 계정은 이 schema의 조각 DML과 FK 검사용 REFERENCES만 허용하며 업무 원본 쓰기 권한을 주지 않는다. 같은 계정으로 Spring 업무 저장을 수행하지 않는다. AI RunLedger는 기존 결정대로 별도 hops_ai_runtime DB다. 임베딩/CASE 저장소 작업은 별도 서비스 계약을 사용한다.
 
@@ -736,6 +736,6 @@ AI 실행 안에서 어느 에이전트가 무엇을 했는지 단계별로 남�
 - **해결 확인:** 가이드는 inquiry_problem.confirm_requested_at/resolved_at과 message.payload, 티켓은 ticket.confirm_requested_at/resolved_at과 ticket_event를 사용한다. 요청의 원 메시지·처리 기록·현재 확인 상태·revision은 기존 JSONB 메타데이터에 연결해 ResolutionRequest DTO로 투영한다. 새 테이블이나 그 테이블의 FK를 요구하지 않는다.
 - **사례 편집과 승인:** resolved_case의 현재 초안과 version_no를 사용한다. 초안을 고칠 때 현재 행의 버전을 증가시키며 과거 초안 전체를 별도 행으로 보존하지 않는다. 승인 후에는 내용 편집을 막고, 현재 승인 버전과 두 반영 결과만 검증한다. 승인 후 새 초안·과거 승인 버전의 병행 관리는 MVP에 넣지 않는다.
 - **반영과 검색:** resolved_case.vector_status/graph_status를 PENDING/SUCCEEDED/FAILED로 관리한다. 진행 중이거나 결과를 모르면 DB의 PENDING을 유지해 비공개로 둔다. 승인 거래에서 기존 knowledge_document/knowledge_document_version의 현재 CASE 스냅샷을 만들고 source_metadata.indexRequests에 저장소별 전체 요청을 보존한다. 현재 요청 두 건은 승인 버전·jobId·attempt·digest·approvedCase를 포함하며 journal 상세 만료 뒤에도 유지한다. 새 반영 이력 테이블·추가 컬럼은 필요하지 않다. 반영 결과의 버전이 현재 승인 버전과 다르면 성공으로 적용하지 않는다.
-- **후속 실행과 수동 복구:** commit 뒤 Spring이 보존한 색인 요청을 전달한다. 호출 직전 서버가 종료돼도 담당자의 기존 index-checks에서 같은 작업을 확인하고, 유효한 원격 NOT_FOUND이면 같은 요청을 멱등 재접수할 수 있다. PENDING/UNKNOWN을 FAILED로 바꾸거나 새 attempt를 만드는 복구가 아니다. FAILED 재시도만 현재 요청의 attempt를 증가시켜 먼저 저장한다. 외부 호출은 DB 거래 밖에서 수행하고 자동 복구 큐는 추가하지 않는다. 자세한 동작은 [에이전트 I1.1](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)을 따른다.
+- **후속 실행과 수동 복구:** commit 뒤 Spring이 보존한 색인 요청을 전달한다. 호출 직전 서버가 종료돼도 담당자의 기존 index-checks에서 같은 작업을 확인하고, 유효한 원격 NOT_FOUND이면 같은 요청을 멱등 재접수할 수 있다. PENDING/UNKNOWN을 FAILED로 바꾸거나 새 attempt를 만드는 복구가 아니다. FAILED 재시도만 현재 요청의 attempt를 증가시켜 먼저 저장한다. 외부 호출은 DB 거래 밖에서 수행하고 현재 복구 경로에는 자동 복구 큐가 없다. 자세한 동작은 [에이전트 I1.1](../contracts/agents/README.md#i11-승인-후-미전달-요청의-수동-복구)을 따른다.
 
 resolution_request, resolved_case_version, case_index_job, outbox_event의 추가 DDL·FK 정의는 이번 범위에서 제외한다. 사용자 해결 확인, 승인 전 비공개, 같은 승인 버전의 양쪽 반영 성공 후 공개라는 제품 조건은 기존 테이블과 서버 검증으로 유지한다. 실제 migration·동시성·외부 호출 검증은 구현 PR에서 기록한다.
