@@ -79,7 +79,7 @@ Spring은 서버에서 준비한 expiresAt·limits를 AI 실행 입력에 넣고
 
 ## 5. 완성 ERD 반영 상태
 
-**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 기존 컬럼·DB↔wire 상태·JSONB 대응을 기록했다. 현재 MVP는 원본22개 테이블로 진행하고 4개 추가 테이블 제안은 반영하지 않는다. 확인은 기존 이벤트·메시지 메타데이터, 사례는 현재 행·승인 뒤 읽기 전용, 반영은 기존 두 상태 컬럼을 사용한다. 상세 매핑과 후순위 범위는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)을 따른다.
+**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 기존 컬럼·DB↔wire 상태·JSONB 대응을 기록했다. 당시 MVP는 원본 22개 테이블을 재사용하고 4개 추가 테이블 제안을 반영하지 않는 것으로 정리했다. 이후 [V23](../backend/spring/hops/src/main/resources/db/migration/V23__agent_ticket_requests.sql)에 에이전트 티켓 요청 테이블, [V25](../backend/spring/hops/src/main/resources/db/migration/V25__create_relation_tables.sql)에 관계 데이터 테이블 8개가 추가됐다. 따라서 22개는 초기 대조 기준이며 현재 전체 스키마의 테이블 수를 뜻하지 않는다. 확인은 기존 이벤트·메시지 메타데이터, 사례는 현재 행·승인 뒤 읽기 전용, 반영은 기존 두 상태 컬럼을 사용한다. 상세 매핑과 후순위 범위는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)을 따른다.
 
 현재 PRIMARY DTO, 실패 처리 기록과 원인/적용 버전, CASE 문제 설명/종류, 공통 POLICY의 null systemId, ticketRevision=DB version+1을 채택한다. 프론트는 wire 상태를 사용하고 기존 디자인·경로/메뉴를 재사용한다. FK를 유지하기 위해 지식 검색은 같은 PostgreSQL DB의 hops_knowledge schema에 두며 AI 계정의 업무 원본 쓰기는 금지한다.
 
