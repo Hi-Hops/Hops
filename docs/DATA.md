@@ -118,7 +118,7 @@ const primaryAssignments = systems.map((system) => {
 
 ## 9. hops-system-1 저장 제약안
 
-물리 기준은 [병합된 ERD PR #69](https://github.com/Hi-Hops/Hops/pull/69)의 22개 테이블이다. MVP는 테이블을 추가하지 않고 아래 매핑과 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)의 기존 컬럼·DTO 대응을 적용한다. 별도 엔티티 사전을 생성하지 않는다.
+초기 저장 설계는 [병합된 ERD PR #69](https://github.com/Hi-Hops/Hops/pull/69)의 22개 테이블을 바탕으로 아래 매핑과 [ERD6절](ERD.md#6-hops-system-1-공통-계약-보완)의 기존 컬럼·DTO 대응을 정리했다. 이후 V23의 에이전트 티켓 요청 테이블과 V25의 관계 데이터 테이블 8개가 추가됐다. 현재 물리 스키마는 [Flyway 마이그레이션](../backend/spring/hops/src/main/resources/db/migration/)에서 확인한다. 테이블·컬럼 변경 시 이 매핑과 ERD를 함께 갱신하며, 실제 DB 적용 여부는 환경별로 확인한다.
 
 | 외부 개념 | 채택한 저장·거래 방식 |
 |---|---|
