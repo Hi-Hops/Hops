@@ -291,7 +291,7 @@ PR #59 병합 시점(dc44f2c)에는 부서 SSE만 지원하고 INQUIRY·TICKET�
 - auth 외 변경 요청은 JSON의 requestId와 같은 Idempotency-Key를 보낸다. 200은 업무 저장 또는 기존 결과가 확정된 CommandReceipt, 202는 PENDING/UNKNOWN receipt다. 200 SUCCEEDED는 해당 명령 저장만 뜻하며 AI 실행·해결·검색 공개 완료를 뜻하지 않는다. 4xx/5xx는 ApiError를 반환한다.
 - 로그인·갱신은 200 LoginResponse, logout은 204다. GET은 200·데이터 타입을 직접 반환한다. 응답 envelope는 추가하지 않는다.
 - 같은 사용자·프로필·requestId에 HTTP 메서드·정규화한 경로·본문을 묶어 결과를 보존한다. 동일 키 재확인은 버전 비교보다 먼저 수행하며 이미 권한이 회수됐다면 기존 비공개 결과도 반환하지 않는다. 같은 키에 다른 경로/본문은 409 IDEMPOTENCY_KEY_REUSED다.
-- 명령 journal과 업무 변경은 같은 DB 저장 경계에서 기록하고 commit 뒤 후속 AI·색인·SSE 호출을 수행한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다. 상세 재확인 결과는 최소 24시간 보존하고 이후에도 요청 키 사용 이력과 업무 유일 제약으로 재실행을 막는다. 기간 이후 조회는 410이며 새로운 키로 자동 재생성하지 않는다.
+- 명령 journal과 업무 변경은 같은 DB 저장 경계에서 기록하고 commit 뒤 후속 AI·색인·SSE 호출을 수행한다. 현재 MVP 전달 경로에는 영속 이벤트 전달 큐가 없다. 상세 재확인 결과는 최소 24시간 보존하고 이후에도 요청 키 사용 이력과 업무 유일 제약으로 재실행을 막는다. 기간 이후 조회는 410이며 새로운 키로 자동 재생성하지 않는다.
 - 클라이언트 응답 대기는 10초, 자동 업무 재전송은 하지 않는다. 입력·원본 키·본문을 보존하고 결과 확인을 제공한다. 같은 키·동일 본문의 원 명령 재전송은 최초 요청 재확인이며 새 업무 의도가 아니다. 서버는 현재 권한·journal·업무 유일성을 검사하고 진행/미확인 작업을 중복 실행하지 않는다. 티켓 생성 복구는 별도의 work-item API를 사용한다.
 - operations/by-request 조회의 404는 원 명령이 도착하지 않았거나 확인할 수 없음을 뜻한다. DB 미저장 증거로 표시하지 않는다. 티켓 재시도는 서버가 NOT_CREATED를 확인한 경우에만 허용한다.
 
@@ -392,7 +392,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 ### 12.5 전환 확인
 
-현재 프론트 요청은 hops-system-1이며 Spring의 공개 인증·부서 SSE도 /api/v2 경로를 사용한다. Spring의 시스템 권한 검사·문의/티켓 업무 API와 INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독이 구현돼 있다. 미구현 응답을 빈 결과·Mock 성공으로 처리하지 않는다. 실제 배포 전 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 검증하며 프론트에 계약 선택 설정을 추가하지 않는다.
+현재 프론트 요청은 hops-system-1이며 Spring의 공개 인증·부서 SSE도 /api/v2 경로를 사용한다. Spring의 시스템 권한 검사·문의/티켓 업무 API와 INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독이 구현돼 있다. 미구현 응답을 빈 결과·Mock 성공으로 처리하지 않는다. 실제 배포 전 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 검증하며 현재 프론트는 계약 선택 설정 없이 단일 계약을 사용한다.
 
 ### 12.6 계약 범위와 spec 연결
 
@@ -429,7 +429,7 @@ WorkRecordCommand의 FAILED_ATTEMPT는 진행 이력 저장이며 해결 확인�
 
 1. **입력 저장:** 최초 `POST /inquiries`는 문의·첫 USER 메시지·inquiryVersion=1을 저장한다. 이후 메시지·정정은 expected 버전을 검사한 뒤 입력 버전을 1 올린다. USER 메시지 생성의 requestId는 최초 명령 ID로 보존한다. 같은 거래에서 새 상담 runId와 answerMessageId를 발급하고 불변 실행 입력·QUEUED·currentRun 연결·멱등 결과를 저장한다. 정정/새 입력은 이전 활성 run을 SUPERSEDED로 만든다. 기존 티켓과 질문 횟수는 유지한다.
 2. **명령 응답:** 정상 저장은 200 SUCCEEDED CommandReceipt·resource=INQUIRY다. 이는 사용자 입력과 실행 접수 정보의 저장이며 답변 완료가 아니다. 답변을 기다리느라 REST 응답을 유지하지 않는다. 기존 202 PENDING/UNKNOWN·원 키 재확인 규칙은 그대로 적용한다. 같은 명령 재전송은 기존 저장 결과를 반환하고 새 run을 만들지 않는다.
-3. **AI 실행:** Spring은 commit 후 이전 실행을 최선 노력 취소하고 `POST /internal/v2/runs`에 새 입력을 보낸다. 이어 내부 SSE를 연결하고 snapshot도 즉시 조회한다. QUEUED/RUNNING 동안 1초 간격 snapshot 조회를 병행해 SSE 접속 전에 끝난 실행도 확인한다. 이벤트와 snapshot의 같은 최종 결과는 한 번만 적용한다. 접수·조회 실패나 기한 초과를 안전한 공개 Run 오류로 남기며 영속 전달 큐를 추가하지 않는다.
+3. **AI 실행:** Spring은 commit 후 이전 실행을 최선 노력 취소하고 `POST /internal/v2/runs`에 새 입력을 보낸다. 이어 내부 SSE를 연결하고 snapshot도 즉시 조회한다. QUEUED/RUNNING 동안 1초 간격 snapshot 조회를 병행해 SSE 접속 전에 끝난 실행도 확인한다. 이벤트와 snapshot의 같은 최종 결과는 한 번만 적용한다. 접수·조회 실패나 기한 초과를 안전한 공개 Run 오류로 남기며 현재 전달 경로에는 영속 전달 큐가 없다.
 4. **화면 진입:** 문의 ID를 얻으면 INQUIRY SSE 연결을 시작하고 InquiryResult와 최신 MessagePage를 조회한다. 요청이 겹쳐도 메시지는 id로 합친다. USER 임시 말풍선은 ChatMessage.requestId로 저장 메시지와 합치고, 서버 GET의 revision/content/sequenceNo를 사용한다. SSE 연결 이전의 저장 결과도 초기 GET에서 복구한다. 실행 중이면 공개 Run 조회를 병행한다.
 5. **임시 답변:** 내부 delta의 messageId=input.answerMessageId를 검증하고 공개 answer.delta의 messageId로 그대로 전달한다. 내부 chunkSeq를 공개 seq로 사용하며 내부 이벤트 전체 순번과 혼용하지 않는다. 현재 inquiryVersion/runId/answerMessageId가 맞는 조각만 임시 말풍선 하나에 누적한다. 같은 seq·같은 text는 무시하고 다른 text 충돌·누락은 임시 본문을 확정하지 않는다. 앞뒤 순서가 바뀐 조각은 seq로 정렬해 연결한다. 이미 GET으로 저장된 같은 messageId가 있으면 늦은 조각은 무시한다.
 6. **최종 저장:** 검증된 AiResult.answer와 질문·가이드 상태를 Spring이 같은 거래로 저장한 뒤 공개 Run SUCCEEDED를 반환한다. 최종 AI 메시지는 run의 answerMessageId 한 건이다. questions[].text·guide.messageText는 answer 안에 포함되며 별도 말풍선이나 추가 저장 메시지로 만들지 않는다. questionCount 증가와 GUIDE 확인 요청 생성은 이 commit 때만 수행한다. 답변 저장·질문 규칙과 기존 문제별 티켓 저장 결과는 별도로 확정한다.

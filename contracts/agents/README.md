@@ -169,7 +169,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 GuideProposal은 messageText,evidenceIds,problemRef를 가지며 승인된 EMPLOYEE 근거가 실제 존재해야 한다. messageText는 인용한 근거의 승인 본문을 빈 줄 기준 문단으로 나눈 것 중 일부(또는 전부)를 원래 순서로 이은 것이고, 끝에 선택적으로 `참고 자료: {근거 제목}` 줄을 둔다. 모델은 문단 번호만 고르고 문장을 쓰지 않는다. Spring은 저장할 때 출처 줄을 뗀 각 문단이 인용한 공개 근거 승인 본문을 같은 규칙으로 나눈 문단과 글자 그대로 같은지 확인하고(문단 일부만 떼어 낸 문장은 거부), 아니면 INVALID_OUTPUT이다. 문의자 조회(대화·문의 상세·확인 요청 조회) 때 인용 근거 중 하나라도 지금 볼 수 없으면 안내 부분과 GUIDE 확인 요약을 숨김 문구로 바꿔 보여 주며(안내 부분을 찾지 못하면 본문 전체) 저장값은 바꾸지 않는다. 저장된 AI 안내 메시지를 만든 뒤 Spring이 GUIDE 확인 요청을 생성한다. AI의 '해결됐습니다' 문구를 문의자 확인으로 저장하지 않는다.
 
-Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검색에서 반환된 참조만 가능하다. 담당자 보완 대화의 대상이 불명확하면 확인 필요를 제안하고 임의의 티켓에 복사하지 않는다. Curator는 INQUIRY_ANALYSIS의 매 메시지 경로에 넣지 않고 검증 완료 WorkRecord commit 뒤 Spring이 CASE_DRAFT를 호출한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다.
+Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검색에서 반환된 참조만 가능하다. 담당자 보완 대화의 대상이 불명확하면 확인 필요를 제안하고 임의의 티켓에 복사하지 않는다. Curator는 INQUIRY_ANALYSIS의 매 메시지 경로에 넣지 않고 검증 완료 WorkRecord commit 뒤 Spring이 CASE_DRAFT를 호출한다. 현재 MVP 전달 경로에는 영속 이벤트 전달 큐가 없다.
 
 ### 검색·관계 스키마
 
@@ -402,10 +402,10 @@ Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되�
 #### I1.1 승인 후 미전달 요청의 수동 복구
 
 1. **승인과 요청 보존:** Spring은 CASE 행을 잠그고 승인·현재 검색 문서 버전·VECTOR/NEO4J의 최초 IndexApplyRequest·두 PENDING 상태를 같은 DB 거래로 저장한다. 요청은 기존 knowledge_document_version.source_metadata.indexRequests의 VECTOR/NEO4J 키에 각각 전체 객체로 보존한다. 각 요청은 jobId·attempt=1·승인 버전·contentDigest·approvedCase를 포함하며 이 거래가 실패하면 승인도 저장하지 않는다. 외부 호출은 commit 뒤 수행한다.
-2. **현재 요청만 유지:** 같은 CASE/승인 버전의 검색 문서 버전은 CASE 행 잠금 아래 하나로 생성·선택한다. indexRequests는 저장소별 현재 요청 두 개만 보존하고 journal 상세 만료 뒤에도 삭제하지 않는다. 승인 본문·출처·버전은 불변이다. 이 기술 메타데이터는 CASE 본문 contentDigest의 대상과 공개 DTO·모델 입력에서 제외한다. 새 테이블·영속 큐·자동 복구 작업은 추가하지 않는다.
+2. **현재 요청만 유지:** 같은 CASE/승인 버전의 검색 문서 버전은 CASE 행 잠금 아래 하나로 생성·선택한다. indexRequests는 저장소별 현재 요청 두 개만 보존하고 journal 상세 만료 뒤에도 삭제하지 않는다. 승인 본문·출처·버전은 불변이다. 이 기술 메타데이터는 CASE 본문 contentDigest의 대상과 공개 DTO·모델 입력에서 제외한다. 현재 수동 복구 구현은 별도 테이블·영속 큐·자동 복구 작업을 사용하지 않는다.
 3. **담당자 확인:** 현재 담당자가 POST /cases/{caseId}/index-checks를 호출하면 Spring은 현재 권한·expectedCaseVersion·PENDING/RUNNING/UNKNOWN 상태를 확인하고 저장한 현재 요청을 읽는다. 먼저 같은 jobId/attempt를 GET한다. 정상 snapshot이면 버전·저장소·attempt·digest를 검증해 상태만 반영한다. 원격에 존재하는 UNKNOWN 작업을 새로 실행하지 않는다.
 4. **같은 요청 재전달:** 인증된 고정 AI 서비스가 형식이 유효한 404 NOT_FOUND를 반환한 경우에만 저장한 요청 전체를 같은 POST /internal/v2/index-jobs로 한 번 재전달할 수 있다. 재전달 직전 현재 권한·승인 버전·저장된 현재 요청을 다시 대조하고 변경됐으면 중단한다. 404를 실패나 미실행 증거로 확정하는 것은 아니다. 원격 멱등 접수에 원 요청의 존재 확인·최초 접수를 맡기는 절차이며 jobId/attempt/승인 버전/digest/approvedCase를 바꾸지 않는다. timeout·5xx·인증/권한 오류·형식 오류이면 상태를 미확인으로 유지하고 재전달하지 않는다. 새 버튼 클릭은 새 공개 requestId를 사용하되 같은 원격 작업을 확인한다.
-5. **AI 멱등 접수:** AI는 (jobId,attempt)를 유일 키로 원자적으로 접수한다. 같은 키·같은 요청은 기존 snapshot을 반환하고 실행을 추가하지 않으며 다른 내용은409다. 최초 요청과 재전달이 동시에 도착해도 실행은 한 번이다. 상세 보존 기간이 지나도 사용 키·digest 표식을 유지한다. 상세 결과를 복원할 수 없는 기존 키는 UNKNOWN을 반환하며 404나 새 접수로 바꾸지 않는다. 이미 접수된 실행의 재시작 자동 복원은 이번 최소 복구 범위에 추가하지 않는다.
+5. **AI 멱등 접수:** AI는 (jobId,attempt)를 유일 키로 원자적으로 접수한다. 같은 키·같은 요청은 기존 snapshot을 반환하고 실행을 추가하지 않으며 다른 내용은409다. 최초 요청과 재전달이 동시에 도착해도 실행은 한 번이다. 상세 보존 기간이 지나도 사용 키·digest 표식을 유지한다. 상세 결과를 복원할 수 없는 기존 키는 UNKNOWN을 반환하며 404나 새 접수로 바꾸지 않는다. 이미 접수된 실행의 재시작 자동 복원은 현재 최소 복구 범위에 포함되지 않는다.
 6. **실패 후 새 시도:** FAILED에서만 index-retries가 같은 jobId의 attempt를1 올린 현재 요청과 PENDING 상태를 DB에 먼저 저장한다. 승인 버전·본문·digest와 성공한 저장소는 유지한다. 새 시도의 commit 뒤 호출이 누락돼도 위 확인/재전달을 적용한다. 늦은 이전 attempt의 결과는 현재 상태를 바꾸지 않는다. 요청 메타데이터 누락·불일치는 안전한 프로토콜 오류이며 새 ID 생성·자동 재승인으로 우회하지 않는다.
 
 이 복구는 기존 담당자 확인 조작의 서버 처리다. 화면의 GET·보조 폴링은 읽기만 수행하며 색인을 시작하지 않는다. 같은 키 재전달의 202 접수는 검색 공개 성공이 아니며 양쪽의 같은 승인 버전 SUCCEEDED를 확인한 뒤에만 공개한다.
@@ -418,7 +418,7 @@ AI는 전달받은 목적/systemIds/scopes로 pgvector·Neo4j에서 최대20개 
 
 AI는 허용된 참조의 본문만 가져오고 정렬한 상위5건을 KnowledgeEvidence로 전달한다. GUIDE/POLICY/RUNBOOK은 승인된 UTF-8 원문 바이트의 SHA-256, CASE는 승인 CaseVersion의 canonical JSON SHA-256으로 contentDigest를 확인한다. CASE의 digest 대상은 caseId/caseVersion/approvedCase이며 저장소별 IndexApplyRequest digest와 구분한다. 청크는 같은 원문의 digest·버전과 청크 위치를 보존한다. 읽은 버전/digest가 바뀌면 다시 확인하거나 안전한 ERROR로 끝낸다. 최종 결과를 Spring에 적용할 때도 출처/공개/현재 권한을 재검사한다. gate 통신 실패를 검색 EMPTY로 바꾸거나 cached 허용을 계속 쓰지 않는다.
 
-GUIDE/POLICY/RUNBOOK의 권한 정본은 Spring 업무 DB의 knowledge_document/knowledge_document_version이다. 승인 manifest는 버전 고정 반입 자료다. documentId/documentVersion/kind/systemId/accessScope/contentDigest/sourceRef/reviewPr을 필수로 두고 sourceRef는 저장소 상대 경로 또는 공개 출처 URL이다. 작성자 외 팀원 리뷰를 거친 버전만 manifest에 포함한다. Spring이 반입 자료의 출처/해시/문서 버전을 검증한다. 검색 시 문서와 버전의 APPROVED·data_split=RAG·현재 ACL을 검사하고 DEV/EVAL은 제외한다. AI는 허용된 버전의 조각만 같은 DB의 hops_knowledge schema에서 처리하며 업무 원본을 쓰지 않는다. 별도 운영 콘텐츠 관리 화면·승인 취소·자동 폐기 기능은 이번 PRD 범위에 추가하지 않는다.
+GUIDE/POLICY/RUNBOOK의 권한 정본은 Spring 업무 DB의 knowledge_document/knowledge_document_version이다. 승인 manifest는 버전 고정 반입 자료다. documentId/documentVersion/kind/systemId/accessScope/contentDigest/sourceRef/reviewPr을 필수로 두고 sourceRef는 저장소 상대 경로 또는 공개 출처 URL이다. 작성자 외 팀원 리뷰를 거친 버전만 manifest에 포함한다. Spring이 반입 자료의 출처/해시/문서 버전을 검증한다. 검색 시 문서와 버전의 APPROVED·data_split=RAG·현재 ACL을 검사하고 DEV/EVAL은 제외한다. AI는 허용된 버전의 조각만 같은 DB의 hops_knowledge schema에서 처리하며 업무 원본을 쓰지 않는다. 현재 제품 범위에는 별도 운영 콘텐츠 관리 화면·승인 취소·자동 폐기 기능이 포함되지 않는다.
 
 ### M1. 모델 출력과 외부 DTO의 경계
 
