@@ -31,13 +31,13 @@ Ticket용 내부 REST 생성·조회·제한 재시도 API는 [Ticket 도구 계
 | `investigation` | 읽기 전용 진단 조회의 검증·실행 경계 |
 | `global` | 공통 설정·JWT 검증·접근 제어 기반·예외 처리, 공통 Entity 부모(`entity`)·중복 요청 방지 기록(`idempotency`) |
 
-업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`와 실행 기록용 `domain`, `repository`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에서 관련 담당자와 합의한 뒤 구현합니다.
+업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`와 실행 기록용 `domain`, `repository`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에 구현과 함께 반영하고 일반 PR 리뷰에서 검토합니다.
 
 ## JWT 인증과 REST·SSE 연동 설계
 
 아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리, 시스템 목록·내 문의·대화 조회와 변경 요청 결과 확인(`/operations`)은 구현했습니다. 문의·메시지 저장 등 업무 변경 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
 
-- `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
+- `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 현재 구현과 API 설계에 함께 반영합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
 - React는 `GET /api/v2/realtime/events?targetType={type}&targetId={id}`로 Spring SSE에 직접 연결합니다. Spring은 연결마다 JWT와 현재 소유자·부서·역할을 검사하고 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`를 허용된 대상에만 전달합니다.
 - `agent`는 Python HTTP 실행 요청과 내부 SSE 진행·결과 수신을 담당합니다. 공개 가능한 진행·답변 조각은 Spring이 검증해 React SSE로 전달하고 최종 메시지·업무 변경은 DB 저장 결과로 확정합니다. heartbeat·`Last-Event-ID`·`resync.required`·REST 복구의 상세 계약은 API 설계를 따릅니다.

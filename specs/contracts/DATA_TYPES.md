@@ -169,7 +169,7 @@ inquiryNumber/ticketNumber는 서버가 생성한 표시 번호(각 최대20자)
 - `RoutingStatus`: `ASSIGNED`(부서 배정됨), `CS_REVIEW`(CS 검토), `REASSIGNING`(재배정 중), `EXCEPTION`(배정 예외), `RECOVERY_PENDING`(복구 대기). 개인 담당자 유무는 이 코드에 섞지 않고 담당자 식별자로 관리한다. 현재 TicketCard/Detail은 담당자 필드를 제공하지 않으며 담당자 기능은 후속이다.
 - `RunStatus`: `QUEUED`(대기), `RUNNING`(분석 중), `SUCCEEDED`(분석 완료), `FAILED`(실패), `TIMED_OUT`(시간 초과), `SUPERSEDED`(새 입력 버전/실행으로 대체됨). 분석 성공과 티켓 저장 성공은 별개다.
 - `RecoveryStatus`(후속): `PENDING`(복구 대기), `RETRYING`(재시도 중), `RECOVERED`(복구 완료), `FAILED`(복구 실패). 현재 화면/응답 타입에 구현되었다고 가정하지 않는다.
-- `ConsentStatus`(후속): `PENDING`(응답 대기), `ACCEPTED`(동의), `DECLINED`(거절), `EXPIRED`(만료), `INVALIDATED`(대상 내용 변경으로 무효). 만료 시간·후속 payload는 해당 기능 구현 전에 정한다.
+- `ConsentStatus`(후속): `PENDING`(응답 대기), `ACCEPTED`(동의), `DECLINED`(거절), `EXPIRED`(만료), `INVALIDATED`(대상 내용 변경으로 무효). 만료 시간·후속 payload는 해당 기능 구현과 함께 구체화한다.
 - `ErrorCode`: `UNAUTHENTICATED`, `ACCESS_TOKEN_EXPIRED`, `REFRESH_TOKEN_EXPIRED`, `REFRESH_TOKEN_REVOKED`, `AUTH_CONTEXT_CHANGED`, `ACCESS_DENIED`, `INVALID_INPUT`, `NOT_FOUND`, `INQUIRY_VERSION_CONFLICT`, `IDEMPOTENCY_KEY_REUSED`, `RUN_NOT_RETRYABLE`, `RATE_LIMITED`, `SERVICE_UNAVAILABLE`, `DEADLINE_EXCEEDED`, `MODEL_UNAVAILABLE`. 동작은 WIRE_CONTRACT 10절을 따른다. INVALID_RESPONSE/NETWORK_ERROR/CONNECTION_NOT_CONFIGURED/MOCK_AUTH_NOT_CONFIGURED는 프론트·Mock 로컬 오류이며 서버 업무 코드와 구분한다.
 - `Effect`: `ANALYSIS_STARTED`, `SUPPLEMENT_SAVED`.
 
