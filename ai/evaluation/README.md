@@ -36,7 +36,7 @@ uv run pytest tests/unit/test_eval_curator*.py
 uv run python -m evaluation.curator.validate
 ```
 
-**아래 `evaluation.curator.pilot`은 실제 모델을 호출하며 비용이 든다.** 모델·반복 횟수·호출 상한을 승인한 뒤 직접 실행한다. TEST 시나리오는 동결이라 `--allow-test` 없이는 돌지 않는다.
+**아래 `evaluation.curator.pilot`은 실제 모델을 호출하며 비용이 든다.** `OPENAI_API_KEY`와 모델·반복 횟수·호출 상한을 설정해 실행한다. 별도의 실행 승인은 요구하지 않는다. TEST 시나리오는 동결이라 `--allow-test` 없이는 돌지 않는다.
 
 ```bash
 OPENAI_API_KEY=... uv run python -m evaluation.curator.pilot --split DEV --repeat 5 --max-calls 80 --out /tmp/curator-dev.json --trace-dir /tmp/curator-traces
@@ -71,7 +71,7 @@ uv run python -m evaluation.harness.validate
 
 두 번째 명령은 시나리오·정답 파일을 검사한다(모델을 부르지 않는다). 통과해도 내용이 사실에 맞는다는 뜻은 아니며 사람이 검수한다.
 
-**아래 `evaluation.pilot` 명령은 실제 모델을 호출하며 비용이 든다.** 실제 모델 호출은 사용자가 모델·호출 상한·비용을 승인한 뒤 직접 실행한다. 진행 상황은 stderr에 나오고 `--out`에는 시나리오가 끝날 때마다 저장된다. 시나리오당 시간 제한 기본값은 240초다.
+**아래 `evaluation.pilot` 명령은 실제 모델을 호출하며 비용이 든다.** `OPENAI_API_KEY`와 모델·호출 상한을 설정해 실행한다. 별도의 실행 승인은 요구하지 않는다. 진행 상황은 stderr에 나오고 `--out`에는 시나리오가 끝날 때마다 저장된다. 시나리오당 시간 제한 기본값은 240초다.
 
 ```bash
 OPENAI_API_KEY=... uv run python -m evaluation.pilot --split DEV --max-calls 150 --out /tmp/baseline-dev.json --trace-dir evaluation/baselines/traces
