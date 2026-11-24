@@ -73,7 +73,7 @@ cd ai && uv run --with langgraph-checkpoint-postgres python -m spikes.checkpoint
 
 ## 5. 경로 A 도입 시 추가로 필요한 것
 
-1. `langgraph-checkpoint-postgres` 의존성 추가 (팀 승인 필요. 이 스파이크에서는 추가하지 않음).
+1. `langgraph-checkpoint-postgres` 의존성 추가와 호환성 검증 (이 스파이크에서는 추가하지 않음).
 2. 그래프 State 분리(이어받는 값과 실행별 값), 직렬화 허용 목록 등록, 실행별 키 초기화 코드.
 3. 쓰기 보호(원자적), `inquiryVersion`·실행 상태 확인.
 4. 보관 삭제 정기 작업, 문의 종료 시 삭제 연결.

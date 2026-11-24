@@ -47,7 +47,7 @@ React·TypeScript·Vite를 사용한다. 조회 데이터는 TanStack Query, 로
 
 PRD 1.44의 구체 계약은 [공통 계약](../../specs/contracts/README.md)·[화면 경로](ROUTES.md)·각 기능의 CONTRACT 시나리오를 따른다. 화면과 Mock 검증을 실제 서비스 연결 검증과 구분한다.
 
-필드/상태는 DATA_TYPES 신규 절, 경로/오류/SSE는 WIRE_CONTRACT 12절, 업무 전이는 TARGET_CONTRACT를 정본으로 삼는다. docs/frontend에는 동일 표를 복제하지 않는다. 현재 프론트 DTO·API·Mock·SSE는 /api/v2·hops-system-1만 사용하며 계약 선택 환경 변수는 두지 않는다. 현재 폴더 레이어·공통 UI·상태 도구를 재사용하며 새 프레임워크는 추가하지 않는다.
+필드/상태는 DATA_TYPES 신규 절, 경로/오류/SSE는 WIRE_CONTRACT 12절, 업무 전이는 TARGET_CONTRACT를 정본으로 삼는다. docs/frontend에는 동일 표를 복제하지 않는다. 현재 프론트 DTO·API·Mock·SSE는 /api/v2·hops-system-1만 사용하며 계약 선택 환경 변수는 두지 않는다. 현재 폴더 레이어·공통 UI·상태 도구를 재사용한다. 새 프레임워크가 필요하면 도입 목적·기존 코드와의 호환성·전환 및 검증 방법을 구현과 함께 기록한다.
 
 전환 전 프론트 테스트·Mock 통과를 신규 계약 통과로 기록하지 않는다. 현재 신규 DTO·Mock·화면 검사를 실제 서버 저장/권한·AI/검색·E2E와 구분한다. 실제 router·구현 현황은 ROUTES와 frontend 실행 안내를 따른다.
 
