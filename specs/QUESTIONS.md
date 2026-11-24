@@ -37,10 +37,10 @@
 
 | ID | 채택값 | 선정 이유·적용 규칙 |
 |---|---|---|
-| S01 | OpenAI API·역할별 구조화 출력·서버의 API 키 관리 원칙 유지. 모델·과금 설정은 이 계약에서 제외 | AiRunRequest는 모델 선택·가격·금액 예산을 전달하지 않음. 모델 접근·형식 호환·품질은 실제 구현에서 검증 |
+| S01 | 현재 OpenAI API 연결·역할별 구조화 출력·서버의 API 키 관리. 모델·과금 설정은 이 계약에서 제외 | AiRunRequest는 모델 선택·가격·금액 예산을 전달하지 않음. 모델 접근·형식 호환·품질은 실제 구현에서 검증 |
 | S01-E | 구체 임베딩 모델·차원·단가는 선정 범위에서 제외. 코사인 검색·청크512토큰·겹침64·상위5건·후보20건은 검색 검토 기준 | 모델·토크나이저 선정 후 청크와 차원을 검증. 문서와 CASE의 검색 설정 버전을 기록하고 호환되지 않는 벡터를 혼용하지 않음 |
 | S02 | 실행 요청의 expiresAt과 ExecutionLimits 형식만 정의. 기한·호출·토큰·도구·재시도 상한의 구체 수치는 실행 설정에서 별도 관리 | 실행기가 유효한 서버 설정과 요청을 검증하고 실행 전체에서 누적. 역할 전환으로 한도를 초기화하지 않음 |
-| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 벡터 차원은 모델 선정 후 결정. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
+| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 벡터 차원은 모델 선정 후 결정. Neo4j Community 자체 호스팅·database=neo4j | 초기 구성에는 ANN 인덱스·유료 관리형 Vector 서비스가 포함되지 않음. 필요하면 검색 구현·설정·검증을 함께 갱신하며 인프라 배포는 기존 절차를 따름. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
 | S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [DATA 2절](../docs/DATA.md#2-고정-카탈로그)의 seed 작성 코드 | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
 | S05 | #69 원본22개 테이블 사용. 승인과 현재 요청을 기존 source_metadata.indexRequests에 원자 저장하고 commit 뒤 전달. 미전달은 기존 확인 조작에서 같은 요청으로 수동 복구 | 새 테이블·추가 컬럼·자동 전달 큐 없음. 복수 승인 버전·전체 시도 이력은 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
 | S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
