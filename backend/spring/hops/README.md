@@ -6,7 +6,7 @@ Docker 설정은 이 폴더의 [.env.example](.env.example)을 `.env`로 복사�
 
 Gradle·IntelliJ 직접 실행은 `.env`를 자동으로 읽지 않습니다. 아래 기존 `application-db.local.properties`와 프로세스 환경변수 설정 방식을 따릅니다. AI를 `real` 모드로 쓰면 `SPRING_SERVICE_TOKEN`(AI→Spring 내부 API 토큰, 비어 있으면 내부 API는 모두 401)도 같은 방식으로 주입하고 AI에도 같은 값을 설정합니다. 예시의 나머지 항목은 `HOPS_AGENT_BASEURL`(Spring이 부르는 AI 서버 주소, Compose 기본 `http://ai:8000`), `HOPS_CORS_ALLOWEDORIGINS`(허용할 프론트 Origin, 비우면 `FRONTEND_PORT` 기준 `localhost`·`127.0.0.1`)입니다.
 
-> **PRD 1.44 전환:** 아래 부서·시드·SSE·API 내용은 현재 구현 설명이다. 새 목표의 시스템별 주담당자 배정·처리·확인·사례 승인·검색 반영은 이 문서 변경으로 구현되지 않았다. [PRD](../../../docs/PRD.md), [API](../../../docs/API.md), [데이터](../../../docs/DATA.md)를 기준으로 별도 계약·migration·구현이 필요하다.
+> **PRD 1.44 전환:** 현재 구현에는 시스템별 주담당자 배정, 문의·티켓 처리·해결 확인, 사례 승인과 색인 요청·상태 확인 API가 포함된다. 아래에는 전환 전 부서 SSE 검사 이력도 남아 있으므로 현재 시스템 계약과 구분한다. 제품 목표는 [PRD](../../../docs/PRD.md), 서비스·저장 계약은 [API](../../../docs/API.md)와 [데이터](../../../docs/DATA.md)를 참고한다. 실제 배포·모델·검색 저장소를 포함한 통합 검증 완료 여부는 실행 기록으로 확인한다.
 
 Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에서는 해당 디렉터리를 Gradle 프로젝트로 엽니다. 빌드·테스트·실행 명령은 이 디렉터리에서 실행합니다.
 
@@ -35,7 +35,7 @@ Ticket용 내부 REST 생성·조회·제한 재시도 API는 [Ticket 도구 계
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리, 시스템 목록·내 문의·대화 조회와 변경 요청 결과 확인(`/operations`)은 구현했습니다. 문의·메시지 저장 등 업무 변경 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리, 시스템 목록·내 문의·대화 조회와 변경 요청 결과 확인(`/operations`)은 구현했습니다. 문의·메시지 저장, 티켓 생성·처리·확인, 사례 조회·수정·승인·색인 확인/재시도 REST와 INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독도 구현돼 있습니다. DEPARTMENT_TICKETS는 전환 전 지원 경로이며 현재 시스템별 계약과 구분합니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
 
 - `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 현재 구현과 API 설계에 함께 반영합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
