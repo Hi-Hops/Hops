@@ -47,7 +47,7 @@ Spring은 기존 저장 결과·원문·현재 입력/정책 버전·실행 기�
 
 Vector 저장·RunLedger·개발 origin·평가 게이트는 [결정 대장](../specs/QUESTIONS.md#실행검색-기본값)을 따른다. 모델 선정·단가·예상 비용·금액 예산과 구체 실행 설정값은 이 계약에서 제외한다. 공용 도메인·키·비밀번호는 배포 환경 입력이며 계약을 비워 둔 항목이 아니다. 공급자 변경은 서비스 연동·설정·검증에 반영하고, 인프라 배포는 기존 배포 절차를 따른다.
 
-현재 프론트는 `/api/v2`·`hops-system-1` DTO·Mock을 사용한다. Spring은 `/api/v2` 인증·문의·티켓·사례 업무 API와 시스템 권한 검사, INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독을 구현했다. Python은 실행 wire 검증·서비스 인증·저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. real 모드에는 Supervisor·Inquiry·Ticket·Curator가 연결돼 있으며 Knowledge는 spring 설정에서 Spring의 pgvector·키워드 검색과 Neo4j 관계 조회를 사용한다. 옛 agent-1 실행 API는 제거됐다. 실제 배포와 전체 서비스 통합 검증 범위는 [공통 계약 11절](../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)과 실행 기록에서 확인한다. 문서/JSON 검사·Mock·실제 저장/권한·실제 모델/검색·브라우저 E2E를 분리해 기록한다.
+현재 프론트는 `/api/v2`·`hops-system-1` DTO·Mock을 사용한다. Spring은 `/api/v2` 인증·문의·티켓·사례 업무 API와 시스템 권한 검사, INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독을 구현했다. Python은 실행 wire 검증·서비스 인증·저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. real 모드에는 Supervisor·Inquiry·Ticket·Curator가 연결돼 있으며 Knowledge는 `spring` 설정에서 Spring의 pgvector·키워드 검색을 사용한다. 상담의 Neo4j 관계 조회는 `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`인 문제별 행동 경로의 증상 문의에 적용된다. 옛 agent-1 실행 API는 제거됐다. 실제 배포와 전체 서비스 통합 검증 범위는 [공통 계약 11절](../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)과 실행 기록에서 확인한다. 문서/JSON 검사·Mock·실제 저장/권한·실제 모델/검색·브라우저 E2E를 분리해 기록한다.
 
 
 ## 5. 병합 ERD 반영

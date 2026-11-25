@@ -2,7 +2,7 @@
 
 Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 README의 [Docker Compose 실행 안내](../README.md#docker-compose로-실행)를 따른다. 아래 uv 명령은 호스트에서 AI를 직접 실행할 때 사용한다.
 
-[PRD](../docs/PRD.md)의 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 위한 서버다. 서비스 인증·실행 조회·접수·백그라운드 실행과 Supervisor 그래프를 제공한다. real 모드에는 OpenAI 어댑터를 사용하는 Supervisor·Inquiry와 Spring 생성/조회 도구를 실행하는 Ticket이 연결돼 있다. Curator 모델·progress/result SSE·Python 실행 취소도 연결돼 있다. Knowledge는 `fixture`에서 개발용 고정 자료를, `spring`에서 Spring 내부 API의 pgvector·키워드 검색과 Neo4j 관계 조회를 사용한다. Spring 취소 전파는 별도다. 실제 모델 품질·전체 서비스 E2E 완료를 뜻하지 않는다.
+[PRD](../docs/PRD.md)의 모델 기반 Supervisor와 Inquiry·Knowledge·Ticket·Curator를 위한 서버다. 서비스 인증·실행 조회·접수·백그라운드 실행과 Supervisor 그래프를 제공한다. real 모드에는 OpenAI 어댑터를 사용하는 Supervisor·Inquiry와 Spring 생성/조회 도구를 실행하는 Ticket이 연결돼 있다. Curator 모델·progress/result SSE·Python 실행 취소도 연결돼 있다. Knowledge는 `fixture`에서 개발용 고정 자료를, `spring`에서 Spring 내부 API의 pgvector·키워드 검색을 사용한다. 상담의 Neo4j 관계 조회는 `spring` 설정과 `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`를 함께 사용한 문제별 행동 경로의 증상 문의에 적용된다. Spring 취소 전파는 별도다. 실제 모델 품질·전체 서비스 E2E 완료를 뜻하지 않는다.
 
 실제 모델·검색·도구 연결의 목표 보안 요구사항과 검증은 [보안 개발 명세](../docs/SECURITY.md)를 따른다. 해당 명세는 현재 코드에 통제가 모두 구현됐다는 뜻이 아니다.
 
@@ -20,7 +20,7 @@ Frontend·Spring·AI·PostgreSQL을 Docker로 함께 실행하려면 루트 READ
 |---|---|
 | FastAPI | `GET /healthz`는 프로세스 생존 200. `GET /readyz`는 실행 접수가 열려 있고 RunLedger 소유 세션이 응답할 때만 200, 그 외 503 |
 | 역할·Supervisor | 판단 검증·역할 호출·State 병합·최종화의 LangGraph 흐름 구현. `real` 모드(`build_registry`)는 Inquiry(원문 추출 + 양식 규칙 질문), Ticket(모델 제안 + Spring 생성·조회 도구 실행), Curator(모델이 사례 문구·재사용 여부를 제안하고 조치·검증·버전은 원 기록 그대로, 출처는 원문 대조)를 실행한다. Curator는 원 기록 시스템의 `APPLIES_TO`를 만들고, Spring이 제공한 후보가 있으면 근거를 검증해 `ADDRESSES`·`USES_CHECK` 연결도 제안한다. Knowledge는 `HOPS_AI_KNOWLEDGE_SOURCE=fixture`(개발용 고정 자료) 또는 `spring`(Spring 내부 API로 DB의 승인 문서)일 때만 실행하고 기본(`none`)은 연결 전 자리. 역할 조합을 만드는 함수는 `build_registry` 하나이며 Knowledge 연결 여부는 `knowledge_source` 인자로, Ticket의 Spring 생성 실행 여부는 `execute_tickets` 인자로 정한다. 역할을 주입하지 않은 `Supervisor()`는 모든 역할이 연결 전 자리(`pending_agents()`)다 |
-| OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. `spring` 설정에서는 Spring 내부 API를 통해 pgvector·키워드 검색과 Neo4j 관계 조회를 사용한다. 검색 구현·접근 범위는 [지식 검색 계약](../contracts/agents/KNOWLEDGE_TOOLS.md)을 따른다 |
+| OpenAI·pgvector·Neo4j | OpenAI Responses 구조화 출력 어댑터 연결. `spring` 설정에서는 Spring 내부 API를 통해 pgvector·키워드 검색을 사용한다. 상담의 Neo4j 관계 조회는 여기에 `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`를 켠 문제별 행동 경로의 증상 문의에 적용된다. 검색 구현·접근 범위는 [지식 검색 계약](../contracts/agents/KNOWLEDGE_TOOLS.md)을 따른다 |
 | 실행 하네스 | Supervisor와 역할이 누적 호출·보고 토큰·도구·재시도 한도를 공유. 전체 기한·응답 대기 중 취소와 안전한 오류 변환 |
 | RunLedger | AI 전용 PostgreSQL의 접수·중복 방지·상태·최종 결과 저장소. 내부 접수·조회와 실행기에 연결. real 모드 Supervisor 파이프라인 사용 |
 | 서비스 인증·실행 API | 명시적으로 활성화하면 Spring 서비스 토큰 인증·snapshot·progress/result SSE 조회. 실행 접수와 취소는 실행 파이프라인이 주입된 경우에만 열리며 기본 실행에서는 503. 주입 시 취소는 항상 202 빈 본문(최선 노력) |

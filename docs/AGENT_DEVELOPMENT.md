@@ -1,6 +1,6 @@
 # 에이전트 개발·통합 안내
 
-기준: [PRD 1.44](PRD.md) · 팀 합의 제품 방향 / 구현 및 실제 검증 별도. 현재 AI는 기술 하네스·실행 wire 검증·RunLedger와 명시 활성화한 서비스 인증/저장된 실행 조회, 파이프라인 주입 시 접수·백그라운드 실행을 제공한다. Supervisor·Inquiry·Ticket 실행 및 Spring 티켓 도구 경로는 연결돼 있으며 Curator 모델·progress/result SSE도 연결돼 있다. Knowledge는 `spring` 설정에서 Spring의 pgvector·키워드 검색과 Neo4j 관계 조회에 연결된다. 전체 서비스 E2E의 검증 범위는 실행 기록으로 확인한다. 실제 환경·설정·구현 범위는 [AI 실행 안내](../ai/README.md)를 따른다.
+기준: [PRD 1.44](PRD.md) · 팀 합의 제품 방향 / 구현 및 실제 검증 별도. 현재 AI는 기술 하네스·실행 wire 검증·RunLedger와 명시 활성화한 서비스 인증/저장된 실행 조회, 파이프라인 주입 시 접수·백그라운드 실행을 제공한다. Supervisor·Inquiry·Ticket 실행 및 Spring 티켓 도구 경로는 연결돼 있으며 Curator 모델·progress/result SSE도 연결돼 있다. Knowledge는 `spring` 설정에서 Spring의 pgvector·키워드 검색에 연결된다. 상담의 Neo4j 관계 조회는 `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`인 문제별 행동 경로의 증상 문의에 적용된다. 전체 서비스 E2E의 검증 범위는 실행 기록으로 확인한다. 실제 환경·설정·구현 범위는 [AI 실행 안내](../ai/README.md)를 따른다.
 
 AI·검색·도구를 개발하거나 연결할 때는 [보안 개발 명세](SECURITY.md)의 요구사항과 공격 시나리오를 작업 범위에 맞게 확인한다.
 
