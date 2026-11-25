@@ -176,7 +176,7 @@ AI SSE는 Python→Spring이고 공개 SSE는 Spring→React다. Spring이 공�
 
 ### PR #59 병합 후 Spring 연동
 
-PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 INQUIRY·TICKET은 도메인 권한 연결 전 503이다. 프론트는 503을 인증 실패로 처리하지 않고 제한된 재접속 후 수동 재시도를 제공한다.
+PR #59 병합 시점(dc44f2c)에는 부서 SSE만 지원하고 INQUIRY·TICKET은 도메인 권한 연결 전 503이었다. 현재는 INQUIRY·TICKET·SYSTEM_TICKETS·CASE 구독과 대상 권한 검사가 구현돼 있으며 상세는 11~12절을 따른다. 프론트는 503을 인증 실패로 처리하지 않고 제한된 재접속 후 수동 재시도를 제공한다.
 
 - Last-Event-ID 이후 이벤트를 재생할 수 없으면 ResyncRequiredEvent(eventId만 필수)를 보내고 종료한다. SSE id와 JSON eventId는 동일하다.
 - 프론트는 현재 연결 대상의 REST 상태를 복구한 뒤 기존 커서와 제어 이벤트 ID를 비우고 Last-Event-ID 없이 재연결한다. 제어 알림 유실·일반 종료에도 REST 복구를 유지하며 comment 문구에는 의존하지 않는다.
@@ -243,11 +243,11 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 
 - 인증은 `/api/v2/auth/login`·`me`·`refresh`·`logout`을 제공한다. PostgreSQL 계정 조회, JWT, Redis 기반 Refresh 회전·재사용 검출·절대 만료와 쿠키 삭제, 허용 Origin 검사를 구현했다.
 - 로그인 세션 종료 이벤트는 해당 회원의 열린 SSE를 닫는다. Access에 세션 ID가 없어 기기별 연결을 구분하지 않으며 이미 발급한 Access의 즉시 폐기를 뜻하지 않는다. 역할·시스템 권한 변경의 즉시 `auth.invalidated` 통지·세대 검증은 남아 있다.
-- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. INQUIRY 구독은 문의자 본인만 허용하고, 메시지 저장(생성·전송·정정·AI 답변)이 commit되면 message.stored를 보낸다. AI progress/result SSE를 snapshot 폴링과 병행 수신하고 현재 상담 run·입력 버전의 agent.progress를 중계한다. 사례 구독, INQUIRY의 state.changed와 answer.delta 중계는 미연결이며 티켓 업무 변경 신호는 아래와 같다.
-- 업무 테이블·Entity와 V1~V22 Flyway는 존재한다. 테이블·Repository 검사는 문의·티켓·처리·확인·승인 API의 서비스 저장·권한·경합 구현을 대신하지 않는다.
+- 부서 SSE는 DEPARTMENT_TICKETS의 대상 권한, heartbeat·종료 정리, 토큰 만료·전송 전 DB 재검사, commit 후 state.changed와 replay 불가 시 resync.required를 제공한다. INQUIRY 구독은 문의자 본인만 허용하고, 메시지 저장(생성·전송·정정·AI 답변)이 commit되면 message.stored를 보낸다. AI progress/result SSE를 snapshot 폴링과 병행 수신하고 현재 상담 run·입력 버전의 agent.progress를 중계한다. 사례 구독은 현재 시스템 주담당자 권한을 검사한다. INQUIRY의 state.changed와 answer.delta 중계는 미연결이며 티켓 업무 변경 신호는 아래와 같다.
+- 업무 테이블·Entity와 [Flyway 마이그레이션](../../backend/spring/hops/src/main/resources/db/migration/)이 존재한다. 테이블·Repository 검사는 문의·티켓·처리·확인·승인 API의 서비스 저장·권한·경합 구현을 대신하지 않는다.
 - CurrentUser.primarySystemIds, 시스템 목록(`GET /systems`), 문의 생성(`POST /inquiries`: 문의·첫 메시지·QUEUED 상담 실행·불변 입력·currentRun을 한 거래로 저장), 메시지 전송(`POST /inquiries/{inquiryId}/messages`: 버전 증가·이전 실행 대체·기존 문제·최신 적용 요청서·티켓 생성 작업 결과를 담은 새 입력 접수, 끝난 문의는 INVALID_STATE로 새 문의 안내), 보완 대상 대기와 확정(`pendingTarget`·`POST .../messages/{messageId}/problem-links`: 보완 후보가 여럿이고 대상이 불명확한 메시지는 대기·AI 입력 제외, 배정 문제만 대상인 입력은 보완 저장, 대체된 실행의 대상은 새 실행으로 이어 감), 메시지 정정(`POST .../messages/{messageId}/revisions`: 원문 이력 보존·차수 증가·MESSAGE_REVISION_CONFLICT·전송과 같은 실행 대체), 본인 문의 목록·상세·대화 조회, 상담 실행 조회(`GET /runs/{runId}`)와 RunSummary 투영, 수동 재분석(`POST /runs/{runId}/retries`), 변경 요청의 멱등 journal과 operations 결과 확인을 구현했다. 실행 전달 설정을 켜면 공통 Dispatcher가 commit 후 접수·상태 조회·결과 처리기를 실행한다. 문의 상세는 problems를 Problem으로 투영한다(최신 적용 표준 요청서·DATA 11.2 상태·저장된 안내·티켓 생성 결과·티켓 요약·해결 확인 요청, 담당자 내부 요청서 제외). 업무 거절은 journal에 REJECTED로 기록해 같은 키에 같은 오류를 반환한다. 만료 응답 tombstone 정리는 주기적으로 보존 기간이 지난 응답만 비우고 키·해시·작업·대상 표식을 유지하며, 이전 실행의 AI 취소 전파는 후속이다.
 - PRIMARY 조회, 티켓 목록·담당자 상세·관리 제한 상세·관련 대화·저장된 처리/확인/사례 생성 상태 조회와 현재 권한 검사를 구현했다. 조회 쿼리는 agent 실행·결과 저장과 분리했다. SYSTEM_TICKETS·TICKET은 연결·권한 재검사·heartbeat와 REST 재동기화를 제공하며 업무 저장·Curator 적용 commit 후 state.changed를 전송한다.
-- 처리 기록·처리 유형/책임 시스템 정정·확인 요청 조회/응답을 공통 멱등 journal과 문의/티켓 잠금 안에서 저장한다. GUIDE 미해결은 기존 상담 입력 생성기, CASE_DRAFT는 공통 Dispatcher의 Curator 처리기로 연결한다. 해당 문제의 허용 USER 원문만 실행 입력에 고정하고 반환 출처·시스템 연결 근거를 대조해 보존한다. 원 기록·제한 조건을 보존하고 AI 실패와 업무 저장을 구분한다. Python Curator는 develop 구현을 사용하며 실제 모델 통합 검증은 대역 검사와 구분한다. GUIDE는 현재 공개 가능한 직원용 근거를 검증한 뒤 대상 문제·표준 요청·안내 payload의 해결 확인 요청을 함께 저장한다. 일반 문제 분리/질문/티켓 제안 저장과 사례 조회/승인/색인은 남아 있다.
+- 처리 기록·처리 유형/책임 시스템 정정·확인 요청 조회/응답을 공통 멱등 journal과 문의/티켓 잠금 안에서 저장한다. GUIDE 미해결은 기존 상담 입력 생성기, CASE_DRAFT는 공통 Dispatcher의 Curator 처리기로 연결한다. 해당 문제의 허용 USER 원문만 실행 입력에 고정하고 반환 출처·시스템 연결 근거를 대조해 보존한다. 원 기록·제한 조건을 보존하고 AI 실패와 업무 저장을 구분한다. Python Curator는 develop 구현을 사용하며 실제 모델 통합 검증은 대역 검사와 구분한다. GUIDE는 현재 공개 가능한 직원용 근거를 검증한 뒤 대상 문제·표준 요청·안내 payload의 해결 확인 요청을 함께 저장한다. 일반 문제·질문 묶음·횟수는 ProblemQuestionWriter가 저장한다. 티켓 생성·조회는 내부 Ticket 도구 API, 사례 조회·수정·승인·색인 확인/재시도는 CaseController와 관련 서비스가 담당한다. 실제 저장소·모델을 포함한 검증 범위는 실행 기록으로 확인한다.
 
 인증·쿠키·Redis 실행 설정과 현재 응답은 [Spring 안내](../../backend/spring/hops/README.md)를 따른다. 신규 SSE는 12절대로 replay 없이 REST 재동기화한다. 1~10절의 replay 목표를 신규 필수 작업으로 옮기지 않는다. 다중 인스턴스·프록시·부하와 실제 브라우저의 인증·권한 회수 검증은 별도다.
 
@@ -264,14 +264,14 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 ### AI 구현 대상
 
 - 기술 하네스는 기한·호출 상한·일시 LLM 오류 재시도·사용량·도구 허용/취소 확인을 제공한다. RunLedger와 접수 서비스는 실행 ID·입력 digest·상태·종료 결과 및 중단 실행 UNKNOWN 복구를 처리한다.
-- 실행 wire DTO 검증과 명시 활성화한 `/internal/v2`의 서비스 인증·저장된 run snapshot 조회, 백그라운드 실행기와 progress/result SSE를 구현했다. HTTP 접수는 파이프라인 주입 시 202이며 기본 실행은 파이프라인 미주입으로 503이다. 역할 실행 전 고정 진행 문구를 발행하고 최종 결과는 RunLedger 저장 뒤 전달한다. answer.delta·취소 전파·색인과 실제 모델·검색·Spring 전체 통합 검증은 별도다.
-- 모델·임베딩·비용·구체 실행 설정값은 별도 선정·검증 대상이다. 내부 인증·RunLedger 검사만으로 실제 상담이나 지식 선순환 완료를 표시하지 않는다.
+- 실행 wire DTO 검증과 명시 활성화한 `/internal/v2`의 서비스 인증·저장된 run snapshot 조회, 백그라운드 실행기와 progress/result SSE를 구현했다. HTTP 접수는 파이프라인 주입 시 202이며 기본 실행은 파이프라인 미주입으로 503이다. 역할 실행 전 고정 진행 문구를 발행하고 최종 결과는 RunLedger 저장 뒤 전달한다. real 모드는 설정 검증 후 Supervisor 파이프라인을 연결한다. 승인 CASE 색인 API도 필요한 저장소 설정이 있을 때 제공한다. answer.delta·Spring 취소 전파와 전체 통합 검증 범위는 별도로 확인한다.
+- 현재 LLM 모델·호출/시간/토큰 상한은 [AI 설정](../../ai/src/hops_ai/settings.py)으로 관리한다. 검색 임베딩은 [QueryEmbedding](../../backend/spring/hops/src/main/java/com/hihops/hops/knowledge/service/QueryEmbedding.java)의 `text-embedding-3-small` 1536차원을 사용한다. 금액 예산과 실제 품질·비용 측정은 설정값과 구분한다. 내부 인증·RunLedger 검사만으로 실제 상담이나 지식 선순환 완료를 표시하지 않는다.
 
 현재 실행 모드·환경·내부 API·DB 검사는 [AI 안내](../../ai/README.md)를 따른다.
 
 ### 공통 계약 후속
 
-신규 필드·HTTP/SSE·AI wire·기본 저장 대응의 채택값은 [결정 대장](../QUESTIONS.md)에 있다. 이미 채택한 계약을 다시 미정으로 두지 않는다. 남은 작업은 해당 계약의 서버 구현·생산자/소비자 연결과 서비스별 검증이다. 전환 전 공용 JSON은 [보존 자료](../mocks/README.md)이며 현재 프론트의 실행 fixture가 아니다.
+신규 필드·HTTP/SSE·AI wire·기본 저장 대응의 채택값은 [결정 대장](../QUESTIONS.md)에 있다. 이미 채택한 계약을 다시 미정으로 두지 않는다. 각 서비스의 현재 구현·생산자/소비자 연결 범위와 남은 검증은 11절 및 서비스 실행 안내에서 확인한다. 전환 전 공용 JSON은 [보존 자료](../mocks/README.md)이며 현재 프론트의 실행 fixture가 아니다.
 
 ### 아직 검증하지 않은 항목
 
@@ -291,7 +291,7 @@ PR #59는 develop에 병합됐다(dc44f2c). 현재 부서 SSE를 지원하고 IN
 - auth 외 변경 요청은 JSON의 requestId와 같은 Idempotency-Key를 보낸다. 200은 업무 저장 또는 기존 결과가 확정된 CommandReceipt, 202는 PENDING/UNKNOWN receipt다. 200 SUCCEEDED는 해당 명령 저장만 뜻하며 AI 실행·해결·검색 공개 완료를 뜻하지 않는다. 4xx/5xx는 ApiError를 반환한다.
 - 로그인·갱신은 200 LoginResponse, logout은 204다. GET은 200·데이터 타입을 직접 반환한다. 응답 envelope는 추가하지 않는다.
 - 같은 사용자·프로필·requestId에 HTTP 메서드·정규화한 경로·본문을 묶어 결과를 보존한다. 동일 키 재확인은 버전 비교보다 먼저 수행하며 이미 권한이 회수됐다면 기존 비공개 결과도 반환하지 않는다. 같은 키에 다른 경로/본문은 409 IDEMPOTENCY_KEY_REUSED다.
-- 명령 journal과 업무 변경은 같은 DB 저장 경계에서 기록하고 commit 뒤 후속 AI·색인·SSE 호출을 수행한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다. 상세 재확인 결과는 최소 24시간 보존하고 이후에도 요청 키 사용 이력과 업무 유일 제약으로 재실행을 막는다. 기간 이후 조회는 410이며 새로운 키로 자동 재생성하지 않는다.
+- 명령 journal과 업무 변경은 같은 DB 저장 경계에서 기록하고 commit 뒤 후속 AI·색인·SSE 호출을 수행한다. 현재 MVP 전달 경로에는 영속 이벤트 전달 큐가 없다. 상세 재확인 결과는 최소 24시간 보존하고 이후에도 요청 키 사용 이력과 업무 유일 제약으로 재실행을 막는다. 기간 이후 조회는 410이며 새로운 키로 자동 재생성하지 않는다.
 - 클라이언트 응답 대기는 10초, 자동 업무 재전송은 하지 않는다. 입력·원본 키·본문을 보존하고 결과 확인을 제공한다. 같은 키·동일 본문의 원 명령 재전송은 최초 요청 재확인이며 새 업무 의도가 아니다. 서버는 현재 권한·journal·업무 유일성을 검사하고 진행/미확인 작업을 중복 실행하지 않는다. 티켓 생성 복구는 별도의 work-item API를 사용한다.
 - operations/by-request 조회의 404는 원 명령이 도착하지 않았거나 확인할 수 없음을 뜻한다. DB 미저장 증거로 표시하지 않는다. 티켓 재시도는 서버가 NOT_CREATED를 확인한 경우에만 허용한다.
 
@@ -392,7 +392,7 @@ GET `/api/v2/realtime/events?targetType={type}&targetId={uuid}`에 Bearer를 보
 
 ### 12.5 전환 확인
 
-현재 프론트 요청은 hops-system-1이며 Spring의 공개 인증·부서 SSE도 /api/v2 경로를 사용한다. Spring의 시스템 권한 DTO·업무 API와 신규 SSE 대상 연결은 남아 있다. 미구현 응답을 빈 결과·Mock 성공으로 처리하지 않는다. 실제 배포 전 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 검증하며 프론트에 계약 선택 설정을 추가하지 않는다.
+현재 프론트 요청은 hops-system-1이며 Spring의 공개 인증·부서 SSE도 /api/v2 경로를 사용한다. Spring의 시스템 권한 검사·문의/티켓 업무 API와 INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독이 구현돼 있다. 미구현 응답을 빈 결과·Mock 성공으로 처리하지 않는다. 실제 배포 전 DTO·인증·저장·SSE·권한·AI 연결과 브라우저 CORS를 검증하며 현재 프론트는 계약 선택 설정 없이 단일 계약을 사용한다.
 
 ### 12.6 계약 범위와 spec 연결
 
@@ -429,7 +429,7 @@ WorkRecordCommand의 FAILED_ATTEMPT는 진행 이력 저장이며 해결 확인�
 
 1. **입력 저장:** 최초 `POST /inquiries`는 문의·첫 USER 메시지·inquiryVersion=1을 저장한다. 이후 메시지·정정은 expected 버전을 검사한 뒤 입력 버전을 1 올린다. USER 메시지 생성의 requestId는 최초 명령 ID로 보존한다. 같은 거래에서 새 상담 runId와 answerMessageId를 발급하고 불변 실행 입력·QUEUED·currentRun 연결·멱등 결과를 저장한다. 정정/새 입력은 이전 활성 run을 SUPERSEDED로 만든다. 기존 티켓과 질문 횟수는 유지한다.
 2. **명령 응답:** 정상 저장은 200 SUCCEEDED CommandReceipt·resource=INQUIRY다. 이는 사용자 입력과 실행 접수 정보의 저장이며 답변 완료가 아니다. 답변을 기다리느라 REST 응답을 유지하지 않는다. 기존 202 PENDING/UNKNOWN·원 키 재확인 규칙은 그대로 적용한다. 같은 명령 재전송은 기존 저장 결과를 반환하고 새 run을 만들지 않는다.
-3. **AI 실행:** Spring은 commit 후 이전 실행을 최선 노력 취소하고 `POST /internal/v2/runs`에 새 입력을 보낸다. 이어 내부 SSE를 연결하고 snapshot도 즉시 조회한다. QUEUED/RUNNING 동안 1초 간격 snapshot 조회를 병행해 SSE 접속 전에 끝난 실행도 확인한다. 이벤트와 snapshot의 같은 최종 결과는 한 번만 적용한다. 접수·조회 실패나 기한 초과를 안전한 공개 Run 오류로 남기며 영속 전달 큐를 추가하지 않는다.
+3. **AI 실행:** Spring은 최신 입력 버전·현재 run 검증으로 이전 실행 결과의 반영을 차단하고, commit 후 `POST /internal/v2/runs`에 새 입력을 보낸다. Python `/cancel` 호출로 취소를 전파하는 경로는 아직 연결되지 않아 이전 Python 실행의 모델 호출이 계속될 수 있다. 이어 내부 SSE를 연결하고 snapshot도 즉시 조회한다. QUEUED/RUNNING 동안 1초 간격 snapshot 조회를 병행해 SSE 접속 전에 끝난 실행도 확인한다. 이벤트와 snapshot의 같은 최종 결과는 한 번만 적용한다. 접수·조회 실패나 기한 초과를 안전한 공개 Run 오류로 남기며 현재 전달 경로에는 영속 전달 큐가 없다.
 4. **화면 진입:** 문의 ID를 얻으면 INQUIRY SSE 연결을 시작하고 InquiryResult와 최신 MessagePage를 조회한다. 요청이 겹쳐도 메시지는 id로 합친다. USER 임시 말풍선은 ChatMessage.requestId로 저장 메시지와 합치고, 서버 GET의 revision/content/sequenceNo를 사용한다. SSE 연결 이전의 저장 결과도 초기 GET에서 복구한다. 실행 중이면 공개 Run 조회를 병행한다.
 5. **임시 답변:** 내부 delta의 messageId=input.answerMessageId를 검증하고 공개 answer.delta의 messageId로 그대로 전달한다. 내부 chunkSeq를 공개 seq로 사용하며 내부 이벤트 전체 순번과 혼용하지 않는다. 현재 inquiryVersion/runId/answerMessageId가 맞는 조각만 임시 말풍선 하나에 누적한다. 같은 seq·같은 text는 무시하고 다른 text 충돌·누락은 임시 본문을 확정하지 않는다. 앞뒤 순서가 바뀐 조각은 seq로 정렬해 연결한다. 이미 GET으로 저장된 같은 messageId가 있으면 늦은 조각은 무시한다.
 6. **최종 저장:** 검증된 AiResult.answer와 질문·가이드 상태를 Spring이 같은 거래로 저장한 뒤 공개 Run SUCCEEDED를 반환한다. 최종 AI 메시지는 run의 answerMessageId 한 건이다. questions[].text·guide.messageText는 answer 안에 포함되며 별도 말풍선이나 추가 저장 메시지로 만들지 않는다. questionCount 증가와 GUIDE 확인 요청 생성은 이 commit 때만 수행한다. 답변 저장·질문 규칙과 기존 문제별 티켓 저장 결과는 별도로 확정한다.

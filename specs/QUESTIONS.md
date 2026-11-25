@@ -37,12 +37,12 @@
 
 | ID | 채택값 | 선정 이유·적용 규칙 |
 |---|---|---|
-| S01 | OpenAI API·역할별 구조화 출력·서버의 API 키 관리 원칙 유지. 모델·과금 설정은 이 계약에서 제외 | AiRunRequest는 모델 선택·가격·금액 예산을 전달하지 않음. 모델 접근·형식 호환·품질은 실제 구현에서 검증 |
-| S01-E | 구체 임베딩 모델·차원·단가는 선정 범위에서 제외. 코사인 검색·청크512토큰·겹침64·상위5건·후보20건은 검색 검토 기준 | 모델·토크나이저 선정 후 청크와 차원을 검증. 문서와 CASE의 검색 설정 버전을 기록하고 호환되지 않는 벡터를 혼용하지 않음 |
+| S01 | 현재 OpenAI API 연결·역할별 구조화 출력·서버의 API 키 관리. 모델·과금 설정은 이 계약에서 제외 | AiRunRequest는 모델 선택·가격·금액 예산을 전달하지 않음. 모델 접근·형식 호환·품질은 실제 구현에서 검증 |
+| S01-E | 구체 임베딩 모델·차원·단가는 선정 범위에서 제외. 코사인 검색·청크512토큰·겹침64·상위5건·후보20건은 검색 검토 기준 | 모델·토크나이저 변경 시 청크와 차원을 검증. 문서와 CASE의 검색 설정 버전을 기록하고 호환되지 않는 벡터를 혼용하지 않음 |
 | S02 | 실행 요청의 expiresAt과 ExecutionLimits 형식만 정의. 기한·호출·토큰·도구·재시도 상한의 구체 수치는 실행 설정에서 별도 관리 | 실행기가 유효한 서버 설정과 요청을 검증하고 실행 전체에서 누적. 역할 전환으로 한도를 초기화하지 않음 |
-| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 벡터 차원은 모델 선정 후 결정. Neo4j Community 자체 호스팅·database=neo4j | 초기 작은 데이터에 ANN 인덱스·유료 관리형 Vector 서비스를 추가하지 않음. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
+| S03 | 기존 Spring PostgreSQL DB의 hops_knowledge schema에 pgvector 0.8.7, collection=hops_knowledge_v1, 정확 코사인 검색. 현재 임베딩은 text-embedding-3-small·1536차원이며 모델 변경 시 인덱스·차원 호환성을 검증. Neo4j Community 자체 호스팅·database=neo4j | 초기 구성에는 ANN 인덱스·유료 관리형 Vector 서비스가 포함되지 않음. 필요하면 검색 구현·설정·검증을 함께 갱신하며 인프라 배포는 기존 절차를 따름. 그래프는 에이전트 계약의 6종 노드·8종 관계·2홉 제한 |
 | S04 | catalogVersion=hops-demo-v1, 시스템3·기능10·현재 PRIMARY3. 결정된 UUID/가상 사용자/관계는 [DATA 2절](../docs/DATA.md#2-고정-카탈로그)의 seed 작성 코드 | UUIDv5 고정 가상 카탈로그. 한 담당자가 전자결재·공통 로그인, 다른 담당자가 파일 공유 담당. 실제 인물/계정 비밀값 없음 |
-| S05 | #69 원본22개 테이블 사용. 승인과 현재 요청을 기존 source_metadata.indexRequests에 원자 저장하고 commit 뒤 전달. 미전달은 기존 확인 조작에서 같은 요청으로 수동 복구 | 새 테이블·추가 컬럼·자동 전달 큐 없음. 복수 승인 버전·전체 시도 이력은 후순위. DDL/코드 적용은 별도이며 DATA/ERD6절의 기존 컬럼·DTO 대응을 검토 |
+| S05 | 초기 #69의 22개 테이블을 바탕으로 한 저장 결정. 이후 V23·V25에서 테이블이 추가됐으며 현재 스키마는 Flyway 마이그레이션을 따름. 승인과 현재 요청을 기존 source_metadata.indexRequests에 원자 저장하고 commit 뒤 전달. 미전달은 기존 확인 조작에서 같은 요청으로 수동 복구 | 이 결정의 초기 범위에는 별도 반영 이력 테이블·자동 전달 큐가 포함되지 않음. 복수 승인 버전·전체 시도 이력은 후순위. 저장 구조 변경 시 DATA/ERD의 대응을 함께 갱신하고 실제 DB 적용은 환경별로 확인 |
 | S06 | 개발 frontend=http://localhost:5173, Spring=http://localhost:8080, AI=http://localhost:8000. 공용 환경은 PUBLIC_WEB_ORIGIN 하나에서 프론트와 /api/v2 제공, /internal/v2는 서비스망에서만 접근 | 배포 도메인/비밀번호는 환경 입력, 임의 Origin 허용 없음. Access15분·Refresh 절대7일/매 회전, HttpOnly·운영Secure·SameSite=Lax, Path=/api/v2/auth. 세션 회전/폐기는 #58 Redis, 현재 권한은 PostgreSQL |
 | S07 | 데이터 구축·평가 수량과 분할은 [데이터 구축 계획](../docs/knowledge/DATASETS.md#소량-검증과-수량-제안)의 검토안으로 관리하며 실제 선정은 별도 | 계약 정상/거부/실패 검사와 모델 품질 평가를 구분하고 미래 해결·정답은 KB와 모델 입력에서 분리 |
 | S08 | 같은 PostgreSQL 인스턴스의 별도 hops_ai_runtime DB·AI 전용 권한. RunLedger PK=runId, 입력 digest 불변·동일 ID 새 모델 실행 금지. index job은 (jobId,attempt) 유일 | AI 계정은 Spring 업무 원본 쓰기 권한 없음. 검색 조각 권한과 ledger 권한은 각각 제한. 재시작 후 진행 중 실행은 UNKNOWN, 중간 checkpoint 자동 재개 없음. 안전한 실패 뒤 새 runId. 상세24시간·사용 ID/digest 표식 유지 |
@@ -79,7 +79,7 @@ Spring은 서버에서 준비한 expiresAt·limits를 AI 실행 입력에 넣고
 
 ## 5. 완성 ERD 반영 상태
 
-**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 기존 컬럼·DB↔wire 상태·JSONB 대응을 기록했다. 현재 MVP는 원본22개 테이블로 진행하고 4개 추가 테이블 제안은 반영하지 않는다. 확인은 기존 이벤트·메시지 메타데이터, 사례는 현재 행·승인 뒤 읽기 전용, 반영은 기존 두 상태 컬럼을 사용한다. 상세 매핑과 후순위 범위는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)을 따른다.
+**PR #69로 병합된 docs/ERD.md(기준 `d896faeb2a0b132da2c3212cba408bf880d797cf`)의 E01~E10 대조 완료.** [DATA11절](../docs/DATA.md#11-완성-erd-대조-결과와-병합-기준)에 기존 컬럼·DB↔wire 상태·JSONB 대응을 기록했다. 당시 MVP는 원본 22개 테이블을 재사용하고 4개 추가 테이블 제안을 반영하지 않는 것으로 정리했다. 이후 [V23](../backend/spring/hops/src/main/resources/db/migration/V23__agent_ticket_requests.sql)에 에이전트 티켓 요청 테이블, [V25](../backend/spring/hops/src/main/resources/db/migration/V25__create_relation_tables.sql)에 관계 데이터 테이블 8개가 추가됐다. 따라서 22개는 초기 대조 기준이며 현재 전체 스키마의 테이블 수를 뜻하지 않는다. 확인은 기존 이벤트·메시지 메타데이터, 사례는 현재 행·승인 뒤 읽기 전용, 반영은 기존 두 상태 컬럼을 사용한다. 상세 매핑과 후순위 범위는 [ERD6절](../docs/ERD.md#6-hops-system-1-공통-계약-보완)을 따른다.
 
 현재 PRIMARY DTO, 실패 처리 기록과 원인/적용 버전, CASE 문제 설명/종류, 공통 POLICY의 null systemId, ticketRevision=DB version+1을 채택한다. 프론트는 wire 상태를 사용하고 기존 디자인·경로/메뉴를 재사용한다. FK를 유지하기 위해 지식 검색은 같은 PostgreSQL DB의 hops_knowledge schema에 두며 AI 계정의 업무 원본 쓰기는 금지한다.
 
@@ -89,10 +89,10 @@ ERD 대조와 #23의 Flyway/Entity 구현은 진행됐으며 현재 프론트의
 
 | 범위 | 작업 결정값 | 구현·승인과의 구분 |
 |---|---|---|
-| Contract | 외부 DTO·권한·HTTP/SSE·AI wire 형식 유지. 저장은 기존22개 테이블, 사례는 현재 초안 편집·승인 후 읽기 전용 | 서비스 구현과 DB 적용 완료를 뜻하지 않음 |
+| Contract | 외부 DTO·권한·HTTP/SSE·AI wire 형식 유지. 저장 구조는 DATA·ERD와 현재 Flyway 마이그레이션을 참조하며, 사례는 현재 초안 편집·승인 후 읽기 전용 | 서비스 구현과 DB 적용 완료를 뜻하지 않음 |
 | Spec | F001~F011의 MVP 정상 흐름과 기본 상태 검증 우선. 복수 승인 버전·반영 전체 이력·영속 전달 복구는 후순위 | 현재 신규 프론트 검사는 Mock·대역 범위이며 실제 서버 통합과 구분 |
 | UI | 기존 프론트 UI·공통 컴포넌트를 확장. 현재 화면에는 개선안의 여백·티켓 상세 모달을 반영 | 구현 배치와 브라우저 확인 범위는 frontend 안내·ROUTES 참조. 서버 정책의 추가 승인을 뜻하지 않음 |
 | Frontend 구조 | app→pages→features→shared, auth/realtime/chat/inquiry/ticket/case의 책임·데이터 소유 | 신규 화면·DTO·Mock 구현. 현재 프론트는 hops-system-1 하나만 사용하며 실제 서버 연결은 별도 |
-| 물리 저장 | 원본22개 테이블과 ERD6절의 기존 컬럼·DTO 대응 사용. 새 테이블 없음 | 기존 컬럼 보완도 실제 DB 적용·코드 구현과 구분하며 예외 복구·이력 확장은 후순위 |
+| 물리 저장 | 원본 22개 테이블의 초기 대응은 ERD6절에 기록. 이후 V23·V25 추가 테이블을 포함한 현재 정의는 Flyway 마이그레이션 참조 | 기존 컬럼 보완도 실제 DB 적용·코드 구현과 구분하며 예외 복구·이력 확장은 후순위 |
 
-이 결정은 공통 계약의 기준이다. 프론트 구현 상태는 코드·실행 안내를 기준으로 갱신하며, 남은 서비스 연결은 현재 계약을 적용·검증한다. 모델·비용·평가의 별도 선정 항목을 계약 채택 완료와 혼동하지 않는다.
+이 결정은 공통 계약의 기준이다. 프론트 구현 상태는 코드·실행 안내를 기준으로 갱신하며, 남은 서비스 연결은 현재 계약을 적용·검증한다. 현재 모델·임베딩·실행 한도는 [AI 실행 안내](../ai/README.md)와 [PRD 5절](../docs/PRD.md#5-기술-스택--인프라)의 구현·설정을 확인한다. 금액 예산·실제 품질 평가와 계약 채택 완료는 구분한다.

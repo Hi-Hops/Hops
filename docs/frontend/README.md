@@ -47,7 +47,7 @@ React·TypeScript·Vite를 사용한다. 조회 데이터는 TanStack Query, 로
 
 PRD 1.44의 구체 계약은 [공통 계약](../../specs/contracts/README.md)·[화면 경로](ROUTES.md)·각 기능의 CONTRACT 시나리오를 따른다. 화면과 Mock 검증을 실제 서비스 연결 검증과 구분한다.
 
-필드/상태는 DATA_TYPES 신규 절, 경로/오류/SSE는 WIRE_CONTRACT 12절, 업무 전이는 TARGET_CONTRACT를 정본으로 삼는다. docs/frontend에는 동일 표를 복제하지 않는다. 현재 프론트 DTO·API·Mock·SSE는 /api/v2·hops-system-1만 사용하며 계약 선택 환경 변수는 두지 않는다. 현재 폴더 레이어·공통 UI·상태 도구를 재사용하며 새 프레임워크는 추가하지 않는다.
+필드/상태는 DATA_TYPES 신규 절, 경로/오류/SSE는 WIRE_CONTRACT 12절, 업무 전이는 TARGET_CONTRACT를 정본으로 삼는다. docs/frontend에는 동일 표를 복제하지 않는다. 현재 프론트 DTO·API·Mock·SSE는 /api/v2·hops-system-1만 사용하며 계약 선택 환경 변수는 두지 않는다. 현재 폴더 레이어·공통 UI·상태 도구를 재사용한다. 새 프레임워크가 필요하면 도입 목적·기존 코드와의 호환성·전환 및 검증 방법을 구현과 함께 기록한다.
 
 전환 전 프론트 테스트·Mock 통과를 신규 계약 통과로 기록하지 않는다. 현재 신규 DTO·Mock·화면 검사를 실제 서버 저장/권한·AI/검색·E2E와 구분한다. 실제 router·구현 현황은 ROUTES와 frontend 실행 안내를 따른다.
 
@@ -74,6 +74,6 @@ PRD 1.44의 구체 계약은 [공통 계약](../../specs/contracts/README.md)·[
 | 6 기존 상세의 해결 사례 탭·목표 /cases | caseType/문제 설명/원 기록의 확인된 원인, 현재 DRAFT 편집·버전 증가·승인·같은 버전 양쪽 반영 상태 | 원 기록의 해결 확인·현재 두 반영 결과 검사. 승인 후 편집·복수 공개 버전·반영 전체 이력 화면은 MVP에서 제외 |
 | 7 realtime·실제 서비스 검증 | 진행/답변 조각과 저장 완료를 분리하고 현재 GET으로 재동기화. 기존 문의/티켓/사례 화면에서 상태 전달 | 신규 replay 없음·권한 회수·문서/Schema/Mock/실제 저장/AI/검색/E2E를 별도로 검증 |
 
-기존 Button/TextField/StatusBadge/RouteModal·디자인 토큰·목표 경로를 재사용한다. notification 테이블은 기존 화면 상태와 진입 링크에 연결하며 별도 알림함·통계·복구 전용 화면을 이번 작업에 추가하지 않는다. 공통 POLICY는 시스템 배지에 '공통 정책'으로 표시하고 임의 시스템명을 채우지 않는다. 무응답 종료·CS 검토·선점 UI는 현재 계약에 포함하지 않는다.
+기존 Button/TextField/StatusBadge/RouteModal·디자인 토큰·목표 경로를 재사용한다. notification 테이블은 기존 화면 상태와 진입 링크에 연결하며 현재 화면 범위에는 별도 알림함·통계·복구 전용 화면이 포함되지 않는다. 공통 POLICY는 시스템 배지에 '공통 정책'으로 표시하고 임의 시스템명을 채우지 않는다. 무응답 종료·CS 검토·선점 UI는 현재 계약에 포함하지 않는다.
 
 담당 상세에는 기존 정정 모달을 재사용하는 조사/장애 처리 유형 정정 입력을 추가한다. ProcessingTypeCorrectionCommand로 근거·사유·expectedTicketRevision을 보내고 현재 담당자만 조작한다. 해당 변경은 상태를 자동 완료하지 않는다.

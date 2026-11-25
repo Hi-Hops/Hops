@@ -1,6 +1,6 @@
 # 에이전트 공통 입출력 계약 — PRD 1.44
 
-상태: hops-system-1 계약 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 실행 wire 검증·RunLedger·명시 활성화한 서비스 인증/저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. Spring은 내부 SSE와 snapshot 폴링을 병행하고 현재 문의 버전·run의 agent.progress를 공개 구독에 중계한다. Python은 최선 노력 취소(`POST .../cancel` 202, 진행 중 run을 SUPERSEDED로 저장)를 제공하며 Spring의 취소 호출 연결은 별도다. Inquiry·Ticket·Curator와 Spring 티켓 도구는 연결돼 있다. Knowledge는 명시적 개발용 고정 자료 설정 시 연결되며 운영 실검색·answer.delta·전체 브라우저 E2E는 별도다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)를 확인하며 옛 agent-1 실행 모델은 활성 코드에서 제거됐다.
+상태: hops-system-1 계약 · 역할/State/wire/저장 정의 · LLM·임베딩 모델·비용·구체 실행 설정값은 제외. [PRD](../../docs/PRD.md), [API 설계](../../docs/API.md), [목표 공통 계약](../../specs/contracts/TARGET_CONTRACT.md)을 따른다. 현재 Python은 실행 wire 검증·RunLedger·명시 활성화한 서비스 인증/저장된 실행 조회와 파이프라인 주입 시 접수·백그라운드 실행, progress/result SSE를 제공한다. Spring은 내부 SSE와 snapshot 폴링을 병행하고 현재 문의 버전·run의 agent.progress를 공개 구독에 중계한다. Python은 최선 노력 취소(`POST .../cancel` 202, 진행 중 run을 SUPERSEDED로 저장)를 제공하며 Spring의 취소 호출 연결은 별도다. Inquiry·Ticket·Curator와 Spring 티켓 도구는 연결돼 있다. Knowledge는 `spring` 설정에서 Spring의 pgvector·키워드 검색과 연결되며, `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`인 문제별 행동 경로의 증상 문의에서 Neo4j 관계 조회를 사용한다. 개발용 고정 자료도 명시적 설정으로 선택할 수 있다. answer.delta·전체 브라우저 E2E는 별도다. [내부 의미 타입](../../ai/src/hops_ai/contracts/domain.py)과 [AI 서버 안내](../../ai/README.md)를 확인하며 옛 agent-1 실행 모델은 활성 코드에서 제거됐다.
 
 AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURITY.md)의 해당 SEC 요구사항을 적용한다. Markdown 형식 일치만으로 현재 권한·안전한 표시·저장 성공을 확정하지 않는다.
 
@@ -26,7 +26,7 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 - 사례는 문의자 확인과 해당 시스템 담당자 승인 후 동일 승인 버전의 Vector·Neo4j가 모두 성공해야 검색에 공개된다. 실패한 반영은 원인을 수정한 뒤 재실행한다.
 - 진행·답변 조각, 모델 출력과 Spring 업무 확정을 구분한다. 지식 검색 없음·검색 오류·도구 오류를 구분하고 직원에게 내부 자료를 노출하지 않는다.
 
-## 구현 전 계약
+## 실행 계약과 구현 상태
 
 실행·문의·문제·작업·사례의 식별자/버전·역할별 필드·실패·인증·예산·이벤트·중복 방지·공개 검증은 이 문서 신규 계약·결정 대장의 채택값을 사용한다. 이 문서는 새 역할이 구현되거나 실제 통합이 검증됐다는 뜻이 아니다.
 
@@ -80,7 +80,7 @@ AI·검색·도구와 외부 출력은 [보안 개발 명세](../../docs/SECURIT
 
 Knowledge가 승인 지식 문서를 읽는 내부 검색과 증상→확인 항목→질문 문구 관계 조회는 [지식 검색 REST 계약](KNOWLEDGE_TOOLS.md)을 따른다. 접근 범위·CASE 공개 규칙은 Spring이 실행(runId)에서 확정하고, 검색 실패를 빈 결과로 바꾸지 않는다. Spring API와 AI 연결의 구현 상태는 해당 문서에서 구분한다.
 
-Python 업무 도구·RoleResponse 검증 자료·State.ticketCreationResults 및 AiResult의 가산 필드 ticketCreationResults도 해당 도구 계약을 따른다. 순수 제안과 실제 서버 확인 결과를 구분하며 모델이 ticketId·배정 성공을 구성하지 않는다. Inquiry·Ticket의 runtime 경로와 Spring 업무 도구는 연결됐으며 Knowledge·Curator의 실제 검색/모델 역할·실행 SSE·전체 서비스 E2E는 별도로 검증한다.
+Python 업무 도구·RoleResponse 검증 자료·State.ticketCreationResults 및 AiResult의 가산 필드 ticketCreationResults도 해당 도구 계약을 따른다. 순수 제안과 실제 서버 확인 결과를 구분하며 모델이 ticketId·배정 성공을 구성하지 않는다. Inquiry·Ticket의 runtime 경로와 Spring 업무 도구, Curator 모델·progress/result SSE가 연결돼 있다. Knowledge는 `spring` 설정에서 Spring의 pgvector·키워드 검색을 사용하며, `HOPS_AI_KNOWLEDGE_ASSESSMENT=true`인 문제별 행동 경로의 증상 상담에는 Neo4j 관계 조회도 연결된다. 실행 설정과 검증 기록은 [AI 실행 안내](../../ai/README.md)를 확인하며, 이 구현 상태를 전체 서비스 E2E 통과로 해석하지 않는다.
 
 - **입력:** 문제별 표준 요청, 확인 사실·미확인 항목·허용 근거, 지원 시스템 목록과 서버가 제공한 기존 작업/티켓 결과.
 - **결과 제안:** 문제별 제목·내용·처리 유형·책임 시스템 후보·판단 근거. 문의 원문과 보고 시스템은 유지한다. 유효한 제안을 만들 수 없으면 부족한 정보와 미확정 사실을 반환한다.
@@ -117,7 +117,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 ## 통합 계약과 완료 조건
 
-1. 각 역할의 요청·결과에 필요한 문맥·식별자·선택 필드·근거·실패 형식을 담당자 간 합의한다. AI 내부 역할 계약과 Spring↔AI 외부 wire 계약은 구분한다.
+1. AI 내부 역할 계약과 Spring↔AI 외부 wire 계약은 구분한다.
 2. 사용자·시스템·권한·문서/사례 버전과 기존 성공 업무는 서버가 제공·검증한다. 임시 문제 참조를 실제 DB 키나 저장 성공으로 사용하지 않는다.
 3. 테스트용 Fake는 역할 교체·오류·경로 검증에 사용한다. 실제 모델·검색·Spring DB 저장 및 문의자 확인 E2E 완료의 근거는 아니다.
 4. 사례 생성·승인·반영의 상태는 실제 서버 결과로 확인한다. 역할 호출 결과만으로 사례 공개를 확정하지 않는다.
@@ -125,7 +125,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 ## hops-system-1 실행 계약안
 
-상태: hops-system-1 목표 계약. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 이 계약은 현재 Python 골격에 아직 연결되지 않았고 옛 agent-1 실행 endpoint는 제공하지 않는다. 현재 구현과 구분한다.
+상태: hops-system-1 목표 계약. 위 역할의 제품 책임은 유지하며, 이 절이 새로운 서비스 간 전송·검증의 정본이다. 현재 Python 실행 API와 Spring의 `AgentRunClient`·결과 처리기가 이 계약을 사용한다. 옛 agent-1 실행 endpoint는 제공하지 않는다. 구현 범위와 실행 검증은 [AI 실행 안내](../../ai/README.md)와 [Spring 실행 안내](../../backend/spring/hops/README.md)를 확인한다.
 
 실제 필드 타입·nullable·조건부 필수성과 wire 형식은 [외부 전송 형식](#s2-외부-wire-형식), 내부 State의 작성/병합/수명과 적용 조건은 [내부 State 계약](#내부-state와-wire-검증-계약)을 정본으로 한다. [호출과 진행 예시](#호출과-진행-예시)는 Markdown 안의 코드로 제공한다. 아래 표는 역할·호출 경계 요약이며 Entity·외부 DTO·내부 State를 하나의 객체로 공유하지 않는다.
 
@@ -169,7 +169,7 @@ Spring이 VERIFIED_RESOLUTION 또는 IMPLEMENTED_VERIFIED 기록을 저장한 �
 
 GuideProposal은 messageText,evidenceIds,problemRef를 가지며 승인된 EMPLOYEE 근거가 실제 존재해야 한다. messageText는 인용한 근거의 승인 본문을 빈 줄 기준 문단으로 나눈 것 중 일부(또는 전부)를 원래 순서로 이은 것이고, 끝에 선택적으로 `참고 자료: {근거 제목}` 줄을 둔다. 모델은 문단 번호만 고르고 문장을 쓰지 않는다. Spring은 저장할 때 출처 줄을 뗀 각 문단이 인용한 공개 근거 승인 본문을 같은 규칙으로 나눈 문단과 글자 그대로 같은지 확인하고(문단 일부만 떼어 낸 문장은 거부), 아니면 INVALID_OUTPUT이다. 문의자 조회(대화·문의 상세·확인 요청 조회) 때 인용 근거 중 하나라도 지금 볼 수 없으면 안내 부분과 GUIDE 확인 요약을 숨김 문구로 바꿔 보여 주며(안내 부분을 찾지 못하면 본문 전체) 저장값은 바꾸지 않는다. 저장된 AI 안내 메시지를 만든 뒤 Spring이 GUIDE 확인 요청을 생성한다. AI의 '해결됐습니다' 문구를 문의자 확인으로 저장하지 않는다.
 
-Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검색에서 반환된 참조만 가능하다. 담당자 보완 대화의 대상이 불명확하면 확인 필요를 제안하고 임의의 티켓에 복사하지 않는다. Curator는 INQUIRY_ANALYSIS의 매 메시지 경로에 넣지 않고 검증 완료 WorkRecord commit 뒤 Spring이 CASE_DRAFT를 호출한다. 영속 이벤트 전달 큐는 MVP에 추가하지 않는다.
+Inquiry의 sourceMessageIds·evidenceIds는 Spring이 제공했거나 실제 검색에서 반환된 참조만 가능하다. 담당자 보완 대화의 대상이 불명확하면 확인 필요를 제안하고 임의의 티켓에 복사하지 않는다. Curator는 INQUIRY_ANALYSIS의 매 메시지 경로에 넣지 않고 검증 완료 WorkRecord commit 뒤 Spring이 CASE_DRAFT를 호출한다. 현재 MVP 전달 경로에는 영속 이벤트 전달 큐가 없다.
 
 ### 검색·관계 스키마
 
@@ -402,10 +402,10 @@ Spring은 접수 후5초 간격으로 읽기 확인하고30초 안에 확정되�
 #### I1.1 승인 후 미전달 요청의 수동 복구
 
 1. **승인과 요청 보존:** Spring은 CASE 행을 잠그고 승인·현재 검색 문서 버전·VECTOR/NEO4J의 최초 IndexApplyRequest·두 PENDING 상태를 같은 DB 거래로 저장한다. 요청은 기존 knowledge_document_version.source_metadata.indexRequests의 VECTOR/NEO4J 키에 각각 전체 객체로 보존한다. 각 요청은 jobId·attempt=1·승인 버전·contentDigest·approvedCase를 포함하며 이 거래가 실패하면 승인도 저장하지 않는다. 외부 호출은 commit 뒤 수행한다.
-2. **현재 요청만 유지:** 같은 CASE/승인 버전의 검색 문서 버전은 CASE 행 잠금 아래 하나로 생성·선택한다. indexRequests는 저장소별 현재 요청 두 개만 보존하고 journal 상세 만료 뒤에도 삭제하지 않는다. 승인 본문·출처·버전은 불변이다. 이 기술 메타데이터는 CASE 본문 contentDigest의 대상과 공개 DTO·모델 입력에서 제외한다. 새 테이블·영속 큐·자동 복구 작업은 추가하지 않는다.
+2. **현재 요청만 유지:** 같은 CASE/승인 버전의 검색 문서 버전은 CASE 행 잠금 아래 하나로 생성·선택한다. indexRequests는 저장소별 현재 요청 두 개만 보존하고 journal 상세 만료 뒤에도 삭제하지 않는다. 승인 본문·출처·버전은 불변이다. 이 기술 메타데이터는 CASE 본문 contentDigest의 대상과 공개 DTO·모델 입력에서 제외한다. 현재 수동 복구 구현은 별도 테이블·영속 큐·자동 복구 작업을 사용하지 않는다.
 3. **담당자 확인:** 현재 담당자가 POST /cases/{caseId}/index-checks를 호출하면 Spring은 현재 권한·expectedCaseVersion·PENDING/RUNNING/UNKNOWN 상태를 확인하고 저장한 현재 요청을 읽는다. 먼저 같은 jobId/attempt를 GET한다. 정상 snapshot이면 버전·저장소·attempt·digest를 검증해 상태만 반영한다. 원격에 존재하는 UNKNOWN 작업을 새로 실행하지 않는다.
 4. **같은 요청 재전달:** 인증된 고정 AI 서비스가 형식이 유효한 404 NOT_FOUND를 반환한 경우에만 저장한 요청 전체를 같은 POST /internal/v2/index-jobs로 한 번 재전달할 수 있다. 재전달 직전 현재 권한·승인 버전·저장된 현재 요청을 다시 대조하고 변경됐으면 중단한다. 404를 실패나 미실행 증거로 확정하는 것은 아니다. 원격 멱등 접수에 원 요청의 존재 확인·최초 접수를 맡기는 절차이며 jobId/attempt/승인 버전/digest/approvedCase를 바꾸지 않는다. timeout·5xx·인증/권한 오류·형식 오류이면 상태를 미확인으로 유지하고 재전달하지 않는다. 새 버튼 클릭은 새 공개 requestId를 사용하되 같은 원격 작업을 확인한다.
-5. **AI 멱등 접수:** AI는 (jobId,attempt)를 유일 키로 원자적으로 접수한다. 같은 키·같은 요청은 기존 snapshot을 반환하고 실행을 추가하지 않으며 다른 내용은409다. 최초 요청과 재전달이 동시에 도착해도 실행은 한 번이다. 상세 보존 기간이 지나도 사용 키·digest 표식을 유지한다. 상세 결과를 복원할 수 없는 기존 키는 UNKNOWN을 반환하며 404나 새 접수로 바꾸지 않는다. 이미 접수된 실행의 재시작 자동 복원은 이번 최소 복구 범위에 추가하지 않는다.
+5. **AI 멱등 접수:** AI는 (jobId,attempt)를 유일 키로 원자적으로 접수한다. 같은 키·같은 요청은 기존 snapshot을 반환하고 실행을 추가하지 않으며 다른 내용은409다. 최초 요청과 재전달이 동시에 도착해도 실행은 한 번이다. 상세 보존 기간이 지나도 사용 키·digest 표식을 유지한다. 상세 결과를 복원할 수 없는 기존 키는 UNKNOWN을 반환하며 404나 새 접수로 바꾸지 않는다. 이미 접수된 실행의 재시작 자동 복원은 현재 최소 복구 범위에 포함되지 않는다.
 6. **실패 후 새 시도:** FAILED에서만 index-retries가 같은 jobId의 attempt를1 올린 현재 요청과 PENDING 상태를 DB에 먼저 저장한다. 승인 버전·본문·digest와 성공한 저장소는 유지한다. 새 시도의 commit 뒤 호출이 누락돼도 위 확인/재전달을 적용한다. 늦은 이전 attempt의 결과는 현재 상태를 바꾸지 않는다. 요청 메타데이터 누락·불일치는 안전한 프로토콜 오류이며 새 ID 생성·자동 재승인으로 우회하지 않는다.
 
 이 복구는 기존 담당자 확인 조작의 서버 처리다. 화면의 GET·보조 폴링은 읽기만 수행하며 색인을 시작하지 않는다. 같은 키 재전달의 202 접수는 검색 공개 성공이 아니며 양쪽의 같은 승인 버전 SUCCEEDED를 확인한 뒤에만 공개한다.
@@ -418,7 +418,7 @@ AI는 전달받은 목적/systemIds/scopes로 pgvector·Neo4j에서 최대20개 
 
 AI는 허용된 참조의 본문만 가져오고 정렬한 상위5건을 KnowledgeEvidence로 전달한다. GUIDE/POLICY/RUNBOOK은 승인된 UTF-8 원문 바이트의 SHA-256, CASE는 승인 CaseVersion의 canonical JSON SHA-256으로 contentDigest를 확인한다. CASE의 digest 대상은 caseId/caseVersion/approvedCase이며 저장소별 IndexApplyRequest digest와 구분한다. 청크는 같은 원문의 digest·버전과 청크 위치를 보존한다. 읽은 버전/digest가 바뀌면 다시 확인하거나 안전한 ERROR로 끝낸다. 최종 결과를 Spring에 적용할 때도 출처/공개/현재 권한을 재검사한다. gate 통신 실패를 검색 EMPTY로 바꾸거나 cached 허용을 계속 쓰지 않는다.
 
-GUIDE/POLICY/RUNBOOK의 권한 정본은 Spring 업무 DB의 knowledge_document/knowledge_document_version이다. 승인 manifest는 버전 고정 반입 자료다. documentId/documentVersion/kind/systemId/accessScope/contentDigest/sourceRef/reviewPr을 필수로 두고 sourceRef는 저장소 상대 경로 또는 공개 출처 URL이다. 작성자 외 팀원 리뷰를 거친 버전만 manifest에 포함한다. Spring이 반입 자료의 출처/해시/문서 버전을 검증한다. 검색 시 문서와 버전의 APPROVED·data_split=RAG·현재 ACL을 검사하고 DEV/EVAL은 제외한다. AI는 허용된 버전의 조각만 같은 DB의 hops_knowledge schema에서 처리하며 업무 원본을 쓰지 않는다. 별도 운영 콘텐츠 관리 화면·승인 취소·자동 폐기 기능은 이번 PRD 범위에 추가하지 않는다.
+GUIDE/POLICY/RUNBOOK의 권한 정본은 Spring 업무 DB의 knowledge_document/knowledge_document_version이다. 승인 manifest는 버전 고정 반입 자료다. documentId/documentVersion/kind/systemId/accessScope/contentDigest/sourceRef/reviewPr을 필수로 두고 sourceRef는 저장소 상대 경로 또는 공개 출처 URL이다. 작성자 외 팀원 리뷰를 거친 버전만 manifest에 포함한다. Spring이 반입 자료의 출처/해시/문서 버전을 검증한다. 검색 시 문서와 버전의 APPROVED·data_split=RAG·현재 ACL을 검사하고 DEV/EVAL은 제외한다. AI는 허용된 버전의 조각만 같은 DB의 hops_knowledge schema에서 처리하며 업무 원본을 쓰지 않는다. 현재 제품 범위에는 별도 운영 콘텐츠 관리 화면·승인 취소·자동 폐기 기능이 포함되지 않는다.
 
 ### M1. 모델 출력과 외부 DTO의 경계
 

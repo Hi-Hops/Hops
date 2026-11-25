@@ -16,7 +16,7 @@
 4. [scenarios.json](scenarios.json)의 fixtureSequence 순서로 REST request/result·SSE·AI 결과·조회 결과를 테스트 어댑터에 공급한다. expected와 acceptanceCriteria를 테스트 이름·검증에 사용한다. fixtureSequence 자체가 실행 서버는 아니다.
 5. [타입 문서](../contracts/DATA_TYPES.md)와 [입출력 규칙](../contracts/WIRE_CONTRACT.md)을 읽고 각 서비스의 테스트에서 공용 예시를 사용한다. 언어별 DTO·공통 코드 생성·별도 언어 왕복 검사는 제공하지 않는다.
 
-프론트는 Mock REST/SSE 또는 테스트용 HTTP SSE 서버에서 응답을 공급한다. Spring은 기존 프로필의 JSON 역직렬화·REST 멱등성·SSE 이벤트 테스트에 사용할 수 있다. 현재 Python 골격은 이 fixture를 읽지 않으며 기존 부서 기반 실행·SSE 어댑터를 제공하지 않는다. 새 AI 계약을 합의할 때 소비 코드·예시·계약 테스트를 함께 연결한다.
+프론트는 Mock REST/SSE 또는 테스트용 HTTP SSE 서버에서 응답을 공급한다. Spring은 기존 프로필의 JSON 역직렬화·REST 멱등성·SSE 이벤트 테스트에 사용할 수 있다. 현재 Python 골격은 이 fixture를 읽지 않으며 기존 부서 기반 실행·SSE 어댑터를 제공하지 않는다. AI 계약을 변경할 때 소비 코드·예시·계약 테스트를 함께 갱신한다.
 
 ## 계정·관계
 
@@ -53,7 +53,7 @@ fixtures의 저장 응답은 전환 전 MutationResult, 오류는 ApiErrorBody, 
 
 ## 신규 계약의 호출 예시와 검증
 
-PRD 1.44 신규 기능은 [에이전트 계약의 호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)를 참고한다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에 seed 코드로 정의한다. 별도 예시 JSON 파일은 두지 않는다. 문서의 예시는 실제 확인·승인·서비스 통합 증거가 아니다.
+PRD 1.44 신규 기능은 [에이전트 계약의 호출과 진행 예시](../../contracts/agents/README.md#호출과-진행-예시)를 참고한다. 고정 가상 카탈로그는 [DATA 2절](../../docs/DATA.md#2-고정-카탈로그)에 seed 코드로 정의한다. 필요한 예시 JSON은 소비 코드·계약 테스트와 연결해 추가할 수 있다. 문서의 예시는 실제 확인·승인·서비스 통합 증거가 아니다.
 
 기존 contracts/mock-profile.json·accounts.json·fixtures.json·scenarios.json은 참고용으로 보존한다. 현재 프론트는 신규 DTO·권한·시나리오와 hops-system-1 하나로 전환됐으며 계약 선택 설정을 제공하지 않는다. 실제 Spring·AI·검색 연동 검증은 별도다.
 

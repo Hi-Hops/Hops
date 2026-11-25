@@ -6,17 +6,17 @@ Docker 설정은 이 폴더의 [.env.example](.env.example)을 `.env`로 복사�
 
 Gradle·IntelliJ 직접 실행은 `.env`를 자동으로 읽지 않습니다. 아래 기존 `application-db.local.properties`와 프로세스 환경변수 설정 방식을 따릅니다. AI를 `real` 모드로 쓰면 `SPRING_SERVICE_TOKEN`(AI→Spring 내부 API 토큰, 비어 있으면 내부 API는 모두 401)도 같은 방식으로 주입하고 AI에도 같은 값을 설정합니다. 예시의 나머지 항목은 `HOPS_AGENT_BASEURL`(Spring이 부르는 AI 서버 주소, Compose 기본 `http://ai:8000`), `HOPS_CORS_ALLOWEDORIGINS`(허용할 프론트 Origin, 비우면 `FRONTEND_PORT` 기준 `localhost`·`127.0.0.1`)입니다.
 
-> **PRD 1.44 전환:** 아래 부서·시드·SSE·API 내용은 현재 구현 설명이다. 새 목표의 시스템별 주담당자 배정·처리·확인·사례 승인·검색 반영은 이 문서 변경으로 구현되지 않았다. [PRD](../../../docs/PRD.md), [API](../../../docs/API.md), [데이터](../../../docs/DATA.md)를 기준으로 별도 계약·migration·구현이 필요하다.
+> **PRD 1.44 전환:** 현재 구현에는 시스템별 주담당자 배정, 문의·티켓 처리·해결 확인, 사례 승인과 색인 요청·상태 확인 API가 포함된다. 아래에는 전환 전 부서 SSE 검사 이력도 남아 있으므로 현재 시스템 계약과 구분한다. 제품 목표는 [PRD](../../../docs/PRD.md), 서비스·저장 계약은 [API](../../../docs/API.md)와 [데이터](../../../docs/DATA.md)를 참고한다. 실제 배포·모델·검색 저장소를 포함한 통합 검증 완료 여부는 실행 기록으로 확인한다.
 
 Spring Boot 프로젝트 루트는 `backend/spring/hops/`입니다. IntelliJ에서는 해당 디렉터리를 Gradle 프로젝트로 엽니다. 빌드·테스트·실행 명령은 이 디렉터리에서 실행합니다.
 
-PRD 1.44 신규 업무 구현 전에는 [공통 구현 계약](../../../specs/contracts/README.md)에서 데이터·전송·상태·AI 경계를 함께 검토합니다. 기존 `/api` 구현과 제안된 `hops-system-1`을 구분하며, 물리 ERD·엔티티 매핑은 이슈 #66과 맞춥니다.
+PRD 1.44 업무 기능을 변경할 때는 [공통 구현 계약](../../../specs/contracts/README.md)에서 데이터·전송·상태·AI 경계를 함께 검토합니다. 현재 공개 API는 `hops-system-1`의 `/api/v2`를 사용합니다. 물리 구조는 Flyway 마이그레이션과 엔티티를 함께 확인합니다.
 
 ## 패키지 구성
 
 Ticket용 내부 REST 생성·조회·제한 재시도 API는 [Ticket 도구 계약](../../../contracts/agents/TICKET_TOOLS.md)을 따른다. `SPRING_SERVICE_TOKEN` 서비스 인증과 V23 전달 journal을 사용한다. Python 도구 어댑터·생성 확인 루프를 연결했고 실제 HTTP로 검증했다. 문의 상세 Problem 투영도 develop 갱신 후 실제 모델 생성 결과로 조회를 확인했다. 질문 상태 저장·공개 work-item 복구·전체 브라우저 E2E는 별도다. Gradle 직접 실행에는 해당 환경변수를 주입해야 한다. 실제 모델 품질 검증과 API/HTTP 검증을 구분한다.
 
-`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API 구현은 아래 [인증](#인증)의 로그인·JWT 발급·내 정보·Refresh 회전·로그아웃, [조회 API](#조회-api)의 시스템 목록·내 문의·대화·변경 요청 결과 확인, [부서 SSE](#spring-sse-공통-기반)입니다.
+`com.hihops.hops` 아래에 `auth`, `user`, `department`, `itsystem`, `inquiry`, `ticket`, `agent`, `notification`, `knowledge`, `investigation`, `global` 패키지를 구성했습니다. 아직 클래스가 없는 패키지에는 `package-info.java`로 역할을 적어 두었고, 클래스가 생기면 그 폴더의 `package-info.java`는 삭제합니다. 현재 공개 API는 아래 [인증](#인증), [티켓 조회](#티켓-조회-api), [티켓 처리·정정·해결 확인](#티켓-처리정정해결-확인-api), [문의 생성·조회](#문의-생성조회-api), [SSE](#spring-sse-공통-기반)를 제공합니다. 사례 조회·수정·승인·색인 확인/재시도는 `CaseController`에 구현돼 있습니다.
 
 | 패키지 | 역할 |
 |---|---|
@@ -31,13 +31,13 @@ Ticket용 내부 REST 생성·조회·제한 재시도 API는 [Ticket 도구 계
 | `investigation` | 읽기 전용 진단 조회의 검증·실행 경계 |
 | `global` | 공통 설정·JWT 검증·접근 제어 기반·예외 처리, 공통 Entity 부모(`entity`)·중복 요청 방지 기록(`idempotency`) |
 
-업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`와 실행 기록용 `domain`, `repository`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에서 관련 담당자와 합의한 뒤 구현합니다.
+업무 기능은 `controller`, `dto`, `service`, `domain`, `repository`로 구분합니다. `agent`는 `client`, `dto`, `service`와 실행 기록용 `domain`, `repository`, `investigation`은 `controller`, `dto`, `service`, `client`로 구성합니다. 독립 `ownership`은 현재 추가하지 않습니다. 실제 서비스 간 입출력·인증·오류 계약은 [프로젝트 개발 안내](../../../README.md#첫-작업)에서 연결하는 API 설계와 [Agent 공통 계약](../../../contracts/agents/README.md)에 구현과 함께 반영하고 일반 PR 리뷰에서 검토합니다.
 
 ## JWT 인증과 REST·SSE 연동 설계
 
-아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리, 시스템 목록·내 문의·대화 조회와 변경 요청 결과 확인(`/operations`)은 구현했습니다. 문의·메시지 저장 등 업무 변경 REST·신규 SSE 대상 연결은 남아 있습니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
+아래는 [PRD](../../../docs/PRD.md)와 [API 설계](../../../docs/API.md)에 따른 구현 목표입니다. 로그인·JWT 발급·검증과 `/api/v2/auth/me`, `DEPARTMENT_TICKETS` 대상의 브라우저 SSE, Refresh 쿠키 발급·회전·재사용 검출·로그아웃과 세션 종료 시 SSE 정리, 시스템 목록·내 문의·대화 조회와 변경 요청 결과 확인(`/operations`)은 구현했습니다. 문의·메시지 저장, 티켓 생성·처리·확인, 사례 조회·수정·승인·색인 확인/재시도 REST와 INQUIRY·TICKET·SYSTEM_TICKETS·CASE SSE 구독도 구현돼 있습니다. DEPARTMENT_TICKETS는 전환 전 지원 경로이며 현재 시스템별 계약과 구분합니다. JWT는 Spring이 발급하고 REST·SSE 요청에서 직접 검증합니다. 프론트의 현재 시스템 계약 검사와 전환 전 실서버 검사 이력은 [공통 계약 11절](../../../specs/contracts/WIRE_CONTRACT.md#11-담당별-구현과-검증-상태)에서 구분합니다.
 
-- `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 API 설계를 기준으로 합의합니다.
+- `auth`는 자체 계정 로그인과 JWT 발급을 담당하고, `user`·`department`·역할 정보에서 사번·소속 부서·권한 문맥을 구성합니다. `global/security`에서 JWT를 검증하고 업무별 접근 권한은 해당 서비스에서 확인합니다. 클레임·토큰 수명·갱신/폐기·보관/전달·키 관리 정책은 현재 구현과 API 설계에 함께 반영합니다.
 - Spring은 문의 생성·메시지 전송·정정을 REST로 받고 `Idempotency-Key`, 인증 주체, 문의 버전과 대상 권한을 검증합니다. `inquiry`·`ticket`이 DB 저장을 확정한 뒤 저장 결과를 반환하며 HTTP 응답 유실에도 같은 업무가 중복 반영되지 않게 합니다.
 - React는 `GET /api/v2/realtime/events?targetType={type}&targetId={id}`로 Spring SSE에 직접 연결합니다. Spring은 연결마다 JWT와 현재 소유자·부서·역할을 검사하고 `agent.progress`, `answer.delta`, `message.stored`, `state.changed`를 허용된 대상에만 전달합니다.
 - `agent`는 Python HTTP 실행 요청과 내부 SSE 진행·결과 수신을 담당합니다. 공개 가능한 진행·답변 조각은 Spring이 검증해 React SSE로 전달하고 최종 메시지·업무 변경은 DB 저장 결과로 확정합니다. heartbeat·`Last-Event-ID`·`resync.required`·REST 복구의 상세 계약은 API 설계를 따릅니다.
@@ -212,7 +212,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 | JWT 검증 | `global/security/JwtConfig` | `Authorization: Bearer 토큰`의 서명(HS256)·만료·발급자(`hops.jwt.issuer`)·대상(`hops.jwt.audience`)을 검사합니다. Controller에서 `@AuthenticationPrincipal Jwt jwt`로 클레임을 꺼내고, `roles`는 `hasRole('BIZ_ADMIN')`처럼 씁니다. `hops.jwt.secret`은 개발용 값이며 공용·운영 서버에서는 `HOPS_JWT_SECRET` 환경변수로 바꿉니다. 발급은 `auth/service/AccessTokenIssuer`가 같은 키로 합니다. |
 | CORS | `hops.cors.allowed-origins` | 기본값은 Vite 개발 서버 `http://localhost:5173`, `http://127.0.0.1:5173`입니다 (브라우저는 둘을 다른 주소로 봅니다). 로그인 쿠키를 위해 `allowCredentials`를 켰습니다. |
 | Swagger UI | `global/config/OpenApiConfig` | 서버 실행 후 `http://localhost:8080/swagger-ui/index.html`. 오른쪽 위 Authorize에 JWT를 넣어 호출합니다. 계약 기준은 Swagger가 아니라 저장소의 OpenAPI YAML입니다. |
-| Python AI 서버 호출 | `agent/client` | `@Qualifier(AgentClientConfig.AGENT_REST_CLIENT) RestClient`를 주입해 씁니다. 주소는 `hops.agent.base-url`(기본 `http://localhost:8000`), 응답 대기 90초입니다. 경로·요청 형식은 AI 담당자와 합의 후 추가합니다. |
+| Python AI 서버 호출 | `agent/client` | `@Qualifier(AgentClientConfig.AGENT_REST_CLIENT) RestClient`를 주입해 씁니다. 주소는 `hops.agent.base-url`(기본 `http://localhost:8000`), 응답 대기 90초입니다. `AgentRunClient`는 `/internal/v2/runs` 접수·snapshot 조회를, `AgentRunEventClient`는 progress/result SSE 수신을 담당합니다. 서비스 Bearer와 입출력은 [에이전트 계약](../../../contracts/agents/README.md)을 따릅니다. |
 
 ## 테스트·빌드·실행
 
@@ -317,7 +317,7 @@ AI 전달은 기존 `AgentRunClient`·`AgentRunDispatcher`를 재사용합니다
 - **대화 페이지:** 처음에는 `beforeSequenceNo` 없이 최신 페이지를 받고, 응답의 `nextBeforeSequenceNo`를 다음 요청의 `beforeSequenceNo`로 보내 이전 페이지를 받습니다. `null`이면 더 없습니다.
 - **문의 생성:** 문의(버전 1)·첫 USER 메시지·상담 실행(QUEUED)과 AI 입력(`agent_run.input_snapshot`, AiRunRequest)·`currentRun`을 한 거래로 저장합니다. 응답은 입력과 실행 접수의 저장이며 AI 답변 완료가 아닙니다. 같은 키로 다시 보내면 처음 영수증을 돌려주고 새 실행을 만들지 않습니다. `content`는 1~4,000 코드 포인트이며 trim하지 않고 저장합니다. 제목은 첫 입력의 공백을 한 칸으로 줄여 200자까지 씁니다.
 - **AI 전달:** 이 API는 요청 스레드에서 AI 서버를 부르지 않습니다. commit 뒤 `AgentRunQueued` 이벤트를 `AgentRunDispatcher`가 받아 전용 스레드에서 처리합니다. 순서는 작업 종류별 `AgentRunResultHandler.verifyAccess`로 접수 때의 권한 문맥 재확인 → `POST /internal/v2/runs`(`AgentRunClient`, 서비스 토큰) → `QUEUED→RUNNING` → `GET /internal/v2/runs/{id}` 폴링(기본 0.5초) → 종료 처리입니다. AI 거절·연결 불가·계약 위반·기한(`expiresAt`+5초) 초과는 실행을 FAILED/TIMED_OUT으로 끝내고 AI 오류 코드를 `agent_run.error_code`에 남깁니다. 설정은 `hops.agent.dispatch-enabled`(기본 true, 테스트 프로필은 false)·`dispatch-poll-interval`·`dispatch-deadline-grace`, 서비스 토큰은 환경변수 `AI_SERVICE_TOKEN`(ai/.env와 같은 값)입니다. 서버 재시작으로 끊긴 QUEUED·RUNNING 실행의 복구는 아직 없습니다.
-- **AI 결과 반영:** 상담 결과는 `InquiryAnswerHandler`가 반영합니다. 문의 행을 잠그고 이 실행이 현재 실행이며 문의 버전이 접수 때와 같은지 확인한 뒤(아니면 `SUPERSEDED`로 반영하지 않음), AI 답변(`answer`)을 접수 때 예약한 `answerMessageId`로 저장합니다. `resultRevision`은 티켓 생성 결과나 해결 응답이 바뀔 때 올리는 값이라 AI 답변 저장으로는 늘지 않습니다. 문제 분리·질문 묶음·가이드·티켓 제안은 아직 저장하지 않고 `agent_run.validation_result.unapplied`에 받았다는 사실만 남깁니다(결과 원문은 `agent_run.result`). 작업 종류가 늘어나면(예: 사례 초안) `AgentRunResultHandler` 구현만 추가합니다.
+- **AI 결과 반영:** 상담 결과는 `InquiryAnswerHandler`가 반영합니다. 문의 행을 잠그고 이 실행이 현재 실행이며 문의 버전이 접수 때와 같은지 확인한 뒤(아니면 `SUPERSEDED`로 반영하지 않음), AI 답변(`answer`)을 접수 때 예약한 `answerMessageId`로 저장합니다. `resultRevision`은 티켓 생성 결과나 해결 응답이 바뀔 때 올리는 값이라 AI 답변 저장으로는 늘지 않습니다. `ProblemQuestionWriter`가 문제·표준 요청·질문 묶음·횟수를 저장하고, `GuideResultWriter`가 승인 근거를 대조해 안내와 해결 확인 요청을 저장합니다. 적용하지 않은 결과 필드만 `agent_run.validation_result.unapplied`에 남기며 결과 원문은 `agent_run.result`에 보존합니다. 티켓 저장은 내부 Ticket 도구 API, 사례 초안 반영은 별도의 `AgentRunResultHandler` 구현이 담당합니다.
 - **실행 한도·버전:** `hops.agent.run.*`(전체 60초, 호출 8회, 재시도 2회, 출력 토큰은 실행 합계 12,000 = 호출 8회 × 호출당 1,500). `model-version`·`prompt-version`은 AI 서버와 정하기 전까지 `pending`입니다.
 - **보고 시스템:** `reportedSystemId`는 첫 메시지 payload에만 저장하고 AI 입력에는 넣지 않습니다. AiRunRequest에 받을 필드가 없어 전달 방식을 정해야 합니다.
 - **실행 상태:** DB `CANCELLED`는 `SUPERSEDED`로 보냅니다. 실패 오류는 공개 코드(`AI_INVALID_OUTPUT`·`MODEL_UNAVAILABLE`·`SEARCH_UNAVAILABLE`·`SERVICE_UNAVAILABLE`·`AUTH_CONTEXT_CHANGED`·`AI_RUN_STATE_UNKNOWN`, 시간 초과는 `DEADLINE_EXCEEDED`)로 바꾸고 `requestId`에 실행을 접수한 명령 ID를 넣습니다.
