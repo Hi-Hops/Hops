@@ -1,0 +1,26 @@
+{
+  "scenarioId": "S-ea-attach-preview-format-001",
+  "caseFamily": "ea-attach-preview-format",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "결재 문서에 첨부된 파일을 누르는데 [열기]가 안 눌려요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "결재 문서 상세에서 첨부 파일을 미리 보려고 했어요.",
+    "expectedBehavior": "[열기]를 누르면 미리보기가 떠야 해요.",
+    "actualBehavior": "[열기] 버튼이 눌리지 않아요.",
+    "occurredAt": "방금 전이요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-file-format": "hwp 파일이에요.",
+    "check-ea-upload-time": "어제 올라온 파일이에요.",
+    "check-ea-error-message": "오류 문구는 따로 없어요.",
+    "check-ea-participation": "제가 결재선에 들어 있는 문서예요."
+  }
+}

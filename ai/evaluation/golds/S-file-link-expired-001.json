@@ -1,0 +1,49 @@
+{
+  "scenarioId": "S-file-link-expired-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "FILE_SHARING",
+      "responsibleSystemCodes": [
+        "FILE_SHARING"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET",
+        "ANSWER_GUIDE"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT",
+          "SUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-file-share-link@1",
+        "policy-file-share-scope@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-file-open-denied@1"
+      ]
+    }
+  ],
+  "behaviorProperties": [
+    "B5"
+  ]
+}

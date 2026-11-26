@@ -1,0 +1,48 @@
+{
+  "scenarioId": "S-ea-doc-not-mine-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "ELECTRONIC_APPROVAL",
+      "responsibleSystemCodes": [
+        "ELECTRONIC_APPROVAL"
+      ],
+      "requiredFields": [
+        "taskOrScreen",
+        "expectedBehavior",
+        "actualBehavior",
+        "occurredAt"
+      ],
+      "mustNotAskFields": [
+        "currentWorkflow",
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "PROPOSE_TICKET",
+        "ANSWER_GUIDE"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "PARTIAL",
+          "INSUFFICIENT",
+          "SUFFICIENT"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "guide-ea-document-search@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-ea-document-not-listed@1"
+      ]
+    }
+  ],
+  "behaviorProperties": [
+    "B5"
+  ]
+}

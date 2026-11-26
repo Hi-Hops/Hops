@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-file-upload-limit-improvement-001",
+  "caseFamily": "file-upload-limit-improvement",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유 업로드 한도가 1GB라 교육 영상을 못 올려요. 한도를 늘려 주세요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "currentWorkflow": "지금은 영상을 나눠서 올리거나 외장 디스크로 전달해요.",
+    "desiredChange": "파일당 업로드 한도를 5GB 정도로 늘려 주면 좋겠어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

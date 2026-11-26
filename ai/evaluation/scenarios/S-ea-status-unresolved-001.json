@@ -1,0 +1,22 @@
+{
+  "scenarioId": "S-ea-status-unresolved-001",
+  "caseFamily": "ea-status-unresolved",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재에서 내가 올린 문서의 결재 진행 상황은 어디서 보나요?",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "상신한 문서가 누구의 결재 단계에 있는지 보려고 해요.",
+    "currentWorkflow": "지금은 결재자에게 메신저로 직접 물어보고 있어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "followUp": {
+    "text": "안내대로 문서를 열었는데 결재선 탭이 보이지 않아요. 해결되지 않았어요.",
+    "resolution": "UNRESOLVED"
+  }
+}

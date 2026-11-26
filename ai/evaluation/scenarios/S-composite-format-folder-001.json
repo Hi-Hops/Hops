@@ -1,0 +1,19 @@
+{
+  "scenarioId": "S-composite-format-folder-001",
+  "caseFamily": "composite-format-folder",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재 첨부 중 hwp 파일도 미리보기로 열 수 있는지 궁금하고, 파일 공유에서 다른 팀 폴더 읽기 권한도 신청하고 싶어요.",
+  "userKnowledge": {
+    "taskOrScreen": "전자결재 문서의 hwp 첨부 파일을 미리보기로 보려고 해요.",
+    "currentWorkflow": "지금은 첨부를 내려받아서 열고 있어요.",
+    "requestedAccess": "마케팅팀 공유 폴더 읽기 권한이요.",
+    "businessPurpose": "공동 캠페인 자료를 확인해야 해요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

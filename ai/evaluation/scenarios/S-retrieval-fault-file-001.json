@@ -1,0 +1,21 @@
+{
+  "scenarioId": "S-retrieval-fault-file-001",
+  "caseFamily": "retrieval-fault-file",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에서 이미 공유한 링크의 만료일을 늘리는 방법을 알려주세요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "taskOrScreen": "이미 공유한 파일의 만료일을 늘리려고 해요.",
+    "currentWorkflow": "만료되면 다시 공유하고 있어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "faults": [
+    "RETRIEVAL_ERROR"
+  ]
+}

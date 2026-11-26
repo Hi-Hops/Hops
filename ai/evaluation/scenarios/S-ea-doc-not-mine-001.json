@@ -1,0 +1,26 @@
+{
+  "scenarioId": "S-ea-doc-not-mine-001",
+  "caseFamily": "ea-doc-not-mine",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "동료가 알려준 결재 문서를 찾아봤는데 문서함에 안 나와요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "문서함에서 동료가 알려준 결재 문서를 찾으려고 했어요.",
+    "expectedBehavior": "그 문서가 목록에 나와야 해요.",
+    "actualBehavior": "제목으로 검색해도 결과가 없어요.",
+    "occurredAt": "오늘 오전에 찾아봤어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "checkAnswers": {
+    "check-ea-participation": "제가 기안하거나 결재선·참조에 들어간 문서는 아니에요.",
+    "check-ea-search-period": "기간은 최근 3개월이에요.",
+    "check-ea-filter-condition": "제목 키워드로만 검색했어요.",
+    "check-ea-submit-state": "동료가 상신한 문서라고 들었어요."
+  }
+}

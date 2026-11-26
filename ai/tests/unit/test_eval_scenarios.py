@@ -42,7 +42,7 @@ def gold_of(name: str) -> dict[str, Any]:
 
 
 def test_catalog_tables_are_parsed() -> None:
-    assert len(CATALOG) == 21
+    assert len(CATALOG) == 39
     assert len(DOCUMENTS) == 16
     assert {kind for kind in DOCUMENTS.values()} == {"EMPLOYEE", "SYSTEM_STAFF"}
 
@@ -60,7 +60,7 @@ def test_split_and_family_follow_the_catalog() -> None:
         assert scenario.case_family == row["caseFamily"]
         assert scenario.split == row["split"], row["caseFamily"]
     splits = [row["split"] for row in CATALOG]
-    assert (splits.count("DEV"), splits.count("TEST")) == (13, 8)
+    assert (splits.count("DEV"), splits.count("TEST")) == (13, 26)
 
 
 def test_catalog_evidence_documents_appear_in_the_gold() -> None:
@@ -81,7 +81,7 @@ def test_catalog_evidence_documents_appear_in_the_gold() -> None:
 def test_every_scenario_and_gold_passes_validation() -> None:
     results = validate_files(SCENARIO_DIR, GOLD_DIR, DOCUMENTS)
 
-    assert len(results) == 21
+    assert len(results) == 39
     assert {name: errors for name, errors in results.items() if errors} == {}
 
 
@@ -100,6 +100,19 @@ def test_required_situations_are_covered() -> None:
     composite = {name for name in scenarios if name.startswith("composite-")}
     for name in composite:
         assert len(gold_of(f"S-{name}-001")["problems"]) == 2
+
+
+def test_the_second_test_set_covers_what_the_first_lacked() -> None:
+    """2차 동결 테스트(22~39)는 1차 테스트에 없던 모름·정정·시스템 미확인을 테스트 분할에 둔다."""
+    second = [row for row in CATALOG if row["number"] >= 22]
+    assert len(second) == 18 and {row["split"] for row in second} == {"TEST"}
+    scenarios = [load_scenario(SCENARIO_DIR / f"S-{row['caseFamily']}-001.json") for row in second]
+    assert any(item.unknown_fields == ("systemCode",) for item in scenarios)
+    assert any("occurredAt" in item.unknown_fields for item in scenarios)
+    assert any(item.corrections for item in scenarios)
+    assert any(item.follow_up is not None for item in scenarios)
+    assert any(item.faults == ("RETRIEVAL_ERROR",) for item in scenarios)
+    assert any(item.check_answers for item in scenarios)
 
 
 def test_dev_and_test_scenarios_do_not_share_a_family() -> None:

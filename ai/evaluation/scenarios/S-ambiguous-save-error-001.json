@@ -1,0 +1,22 @@
+{
+  "scenarioId": "S-ambiguous-save-error-001",
+  "caseFamily": "ambiguous-save-error",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "갑자기 오류가 나서 업무를 못 하고 있어요.",
+  "userKnowledge": {
+    "systemCode": null,
+    "taskOrScreen": "업무 화면에서 [저장]을 누르던 중이었어요.",
+    "expectedBehavior": "저장이 되어야 해요.",
+    "actualBehavior": "오류 창이 뜨고 저장이 안 돼요.",
+    "occurredAt": "30분 전부터요."
+  },
+  "unknownFields": [
+    "systemCode"
+  ],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

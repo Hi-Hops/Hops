@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-ea-recall-howto-001",
+  "caseFamily": "ea-recall-howto",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "전자결재에서 방금 상신한 문서를 다시 고치고 싶은데, 회수는 어떻게 하나요?",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "상신한 문서를 회수해서 내용을 고치려고 해요.",
+    "currentWorkflow": "지금은 기안함에서 상신한 문서를 열어 보고 있어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

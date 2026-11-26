@@ -1,0 +1,21 @@
+{
+  "scenarioId": "S-login-account-locked-001",
+  "caseFamily": "login-account-locked",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "비밀번호를 여러 번 틀렸더니 계정이 잠겼어요. 어떻게 해야 하나요?",
+  "userKnowledge": {
+    "systemCode": "COMMON_LOGIN",
+    "taskOrScreen": "사내 포털 로그인 화면에서 로그인하려고 했어요.",
+    "currentWorkflow": "로그인 화면에서 비밀번호를 다시 입력해 보고 있어요.",
+    "expectedBehavior": "로그인이 되어야 해요.",
+    "actualBehavior": "계정이 잠겼다는 문구가 나와요.",
+    "occurredAt": "10분 전부터요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

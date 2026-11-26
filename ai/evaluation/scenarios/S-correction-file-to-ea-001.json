@@ -1,0 +1,32 @@
+{
+  "scenarioId": "S-correction-file-to-ea-001",
+  "caseFamily": "correction-file-to-ea",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "파일 공유에서 첨부 파일이 안 열려요.",
+  "userKnowledge": {
+    "systemCode": "ELECTRONIC_APPROVAL",
+    "taskOrScreen": "결재 문서 상세에서 첨부 파일을 열려고 했어요.",
+    "expectedBehavior": "[열기]를 누르면 첨부가 열려야 해요.",
+    "actualBehavior": "'첨부 파일을 열 수 없습니다'라는 문구가 나와요.",
+    "occurredAt": "오늘 오후부터요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY",
+  "corrections": [
+    {
+      "afterTurn": 1,
+      "text": "아, 파일 공유가 아니라 전자결재 문서에 붙은 첨부 파일이에요."
+    }
+  ],
+  "checkAnswers": {
+    "check-ea-error-message": "'첨부 파일을 열 수 없습니다'라고 나와요.",
+    "check-ea-retry-result": "잠시 뒤 다시 해도 똑같아요.",
+    "check-ea-file-format": "pdf 파일이에요.",
+    "check-ea-upload-time": "지난주에 올라온 파일이에요."
+  }
+}

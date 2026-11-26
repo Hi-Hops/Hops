@@ -1,0 +1,18 @@
+{
+  "scenarioId": "S-file-share-external-001",
+  "caseFamily": "file-share-external",
+  "split": "TEST",
+  "origin": "SYNTHETIC",
+  "actor": {
+    "role": "EMPLOYEE",
+    "primarySystemCodes": []
+  },
+  "firstMessage": "외부 협력사 담당자에게 파일 공유 링크를 보내고 싶은데 방법을 알려주세요.",
+  "userKnowledge": {
+    "systemCode": "FILE_SHARING",
+    "taskOrScreen": "공유 폴더의 파일을 외부 협력사에 링크로 보내려고 해요.",
+    "currentWorkflow": "지금은 메일에 파일을 첨부해서 보내고 있어요."
+  },
+  "unknownFields": [],
+  "revealRule": "ASKED_FIELD_ONLY"
+}

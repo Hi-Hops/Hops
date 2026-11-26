@@ -1,0 +1,43 @@
+{
+  "scenarioId": "S-login-account-locked-001",
+  "problems": [
+    {
+      "problemKey": "p1",
+      "acceptedIntents": [
+        "HOW_TO",
+        "OBSERVED_SYMPTOM"
+      ],
+      "reportedSystemCode": "COMMON_LOGIN",
+      "responsibleSystemCodes": [
+        "COMMON_LOGIN"
+      ],
+      "requiredFields": [
+        "taskOrScreen"
+      ],
+      "mustNotAskFields": [
+        "requestedAccess",
+        "businessPurpose",
+        "desiredChange"
+      ],
+      "allowedFinalActions": [
+        "ANSWER_GUIDE",
+        "PROPOSE_TICKET"
+      ],
+      "assessment": {
+        "acceptedVerdicts": [
+          "SUFFICIENT",
+          "PARTIAL"
+        ],
+        "missingInformation": []
+      },
+      "relevantEvidence": [
+        "policy-login-account-lock@1",
+        "guide-login-sso-use@1"
+      ],
+      "forbiddenEvidence": [
+        "runbook-login-sso-loop@1"
+      ]
+    }
+  ],
+  "behaviorProperties": []
+}
