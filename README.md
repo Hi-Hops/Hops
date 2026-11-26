@@ -58,7 +58,7 @@
 
 </details>
 
-**목차** · [프로젝트 소개](#overview) · [주요 기능](#features) · [기술 스택](#stack) · [아키텍처](#architecture) · [API 명세](#api) · [시작하기](#getting-started) · [트러블슈팅](#troubleshooting) · [팀원 및 역할](#team) · [향후 개선 방향](#roadmap)
+**목차** · [프로젝트 소개](#overview) · [팀원 및 역할](#team) · [주요 기능](#features) · [기술 스택](#stack) · [아키텍처](#architecture) · [API 명세](#api) · [시작하기](#getting-started) · [트러블슈팅](#troubleshooting) · [향후 개선 방향](#roadmap)
 
 <a id="overview"></a>
 
@@ -80,6 +80,19 @@ Hops는 임직원의 자연어 IT 문의를 대화로 구체화하고, 승인된
 사내 IT 문의는 담당 시스템을 모른 채 접수되거나, 필요한 정보가 빠져 반복적인 확인과 재전달이 발생합니다. 해결 경험도 담당자의 문서와 기억에 흩어져 재사용하기 어렵습니다.
 
 Hops는 **문의 구체화, 책임 시스템의 주담당자 연결, 승인된 해결 경험의 재사용**을 하나의 업무 흐름으로 구성했습니다.
+
+<a id="team"></a>
+
+## 👥 팀원 및 역할
+
+| 팀원 | 주담당 | 주요 기여 |
+|---|---|---|
+| [박창현 · daven-park](https://github.com/daven-park) | PM · Frontend · Inquiry | 프로젝트 기획·진행 관리, 문의 채팅·업무 보드·사례 검토 UI, 문의 분석·추가 질문 흐름 |
+| [김영빈 · sttarrynight](https://github.com/sttarrynight) | AI Server · Knowledge | Supervisor 실행 구조와 Spring 연동, 지식 검색·질문 판정, 담당자 추천 근거 API·화면, 평가 도구 |
+| [정찬우 · Jhanoo](https://github.com/Jhanoo) | Infra · Curator | 서비스 배포 환경, 해결 사례 초안·색인 연동, AI 서버·검색·평가 개선 |
+| [천희찬 · cjsgmlcks2352](https://github.com/cjsgmlcks2352) | Backend · Ticket | 인증·권한과 업무 API, 티켓 생성·배정, 담당자 처리·해결 확인·사례 승인 연동 |
+
+각 영역의 주담당을 나누고, 서비스 간 연동과 기능 개선은 함께 진행했습니다.
 
 <a id="features"></a>
 
@@ -347,19 +360,6 @@ AI 서버에 색인 접수·조회 API를 구현하고, Spring에서 받은 승�
 [승인 사례 자동 색인 PR #257](https://github.com/Hi-Hops/Hops/pull/257) · [색인 상태 회귀 테스트](./backend/spring/hops/src/test/java/com/hihops/hops/knowledge/controller/CaseIndexControllerTest.java)
 
 </details>
-
-<a id="team"></a>
-
-## 👥 팀원 및 역할
-
-| 팀원 | 주담당 | 주요 기여 |
-|---|---|---|
-| [박창현 · daven-park](https://github.com/daven-park) | PM · Frontend · Inquiry | 프로젝트 기획·진행 관리, 문의 채팅·업무 보드·사례 검토 UI, 문의 분석·추가 질문 흐름 |
-| [김영빈 · sttarrynight](https://github.com/sttarrynight) | AI Server · Knowledge | Supervisor 실행 구조와 Spring 연동, 지식 검색·질문 판정, 담당자 추천 근거 API·화면, 평가 도구 |
-| [정찬우 · Jhanoo](https://github.com/Jhanoo) | Infra · Curator | 서비스 배포 환경, 해결 사례 초안·색인 연동, AI 서버·검색·평가 개선 |
-| [천희찬 · cjsgmlcks2352](https://github.com/cjsgmlcks2352) | Backend · Ticket | 인증·권한과 업무 API, 티켓 생성·배정, 담당자 처리·해결 확인·사례 승인 연동 |
-
-각 영역의 주담당을 나누고, 서비스 간 연동과 기능 개선은 함께 진행했습니다.
 
 <a id="roadmap"></a>
 
