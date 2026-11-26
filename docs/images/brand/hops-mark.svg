@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Hops 심볼</title>
+  <desc id="desc">H를 이루는 두 기둥을 위로 이어지는 선으로 연결한 주황색 로고. 문의와 담당자, 해결 지식의 연결을 표현합니다.</desc>
+  <rect width="96" height="96" rx="25" fill="#ea580c"/>
+  <g fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M27 25v46M69 25v46"/>
+    <path d="M27 54h14c4 0 7-3 7-7s3-7 7-7h14"/>
+  </g>
+</svg>
